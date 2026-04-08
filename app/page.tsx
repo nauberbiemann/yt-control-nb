@@ -147,14 +147,32 @@ export default function Home() {
     
     setLoading(true);
     try {
-      for (const project of projects) {
+      const updatedProjects = [...projects];
+      
+      for (let i = 0; i < updatedProjects.length; i++) {
+        const project = { ...updatedProjects[i] };
+        
+        // 🛡️ Sanitize ID: Se não for um UUID válido, gere um novo
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(project.id)) {
+          console.log(`Convertendo ID legado: ${project.id} para UUID...`);
+          project.id = crypto.randomUUID();
+          updatedProjects[i] = project;
+        }
+
         const { error } = await supabase
           .from('projects')
           .upsert(project)
           .eq('id', project.id);
+          
         if (error) throw error;
       }
-      alert('Sincronização concluída com sucesso!');
+      
+      // Atualizar estado e localStorage com os novos UUIDs
+      setProjects(updatedProjects);
+      localStorage.setItem('writer_studio_projects', JSON.stringify(updatedProjects));
+      
+      alert('Sincronização concluída com sucesso! IDs atualizados para formato UUID.');
     } catch (err: any) {
       alert('Erro na sincronização: ' + err.message);
     } finally {
@@ -168,7 +186,7 @@ export default function Home() {
       console.log('--- V3 STRATEGIC SAVE (LOCAL-FIRST) ---');
       
       const projectData = {
-        id: formData.id || (editingProject ? editingProject.id : Date.now().toString()),
+        id: formData.id || (editingProject ? editingProject.id : crypto.randomUUID()),
         name: formData.project_name || formData.name,
         puc: formData.puc_promise || formData.puc,
         visual_style: formData.visual_style,

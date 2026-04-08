@@ -109,14 +109,30 @@ export default function Home() {
 
 
   const handleExport = () => {
-    const data = localStorage.getItem('writer_studio_projects');
-    if (!data) return alert('Nenhum dado local para exportar.');
+    const projectsData = localStorage.getItem('writer_studio_projects');
+    if (!projectsData) return alert('Nenhum dado local para exportar.');
     
-    const blob = new Blob([data], { type: 'application/json' });
+    const exportBundle: any = {
+      projects: JSON.parse(projectsData),
+      libraries: {},
+      themes: {},
+      version: '2.0-universal'
+    };
+
+    // Capturar todas as bibliotecas narrativas e temas vinculados
+    exportBundle.projects.forEach((p: any) => {
+      const libData = localStorage.getItem(`ws_narrative_${p.id}`);
+      if (libData) exportBundle.libraries[p.id] = JSON.parse(libData);
+      
+      const themeData = localStorage.getItem(`themes_${p.id}`);
+      if (themeData) exportBundle.themes[p.id] = JSON.parse(themeData);
+    });
+    
+    const blob = new Blob([JSON.stringify(exportBundle)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `content-os-export-${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `content-os-full-backup-${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -128,15 +144,56 @@ export default function Home() {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const json = JSON.parse(event.target?.result as string);
-        if (!Array.isArray(json)) throw new Error('Formato inválido');
+        const bundle = JSON.parse(event.target?.result as string);
+        let projectsToImport = [];
+        let librariesToImport: any = {};
         
-        localStorage.setItem('writer_studio_projects', JSON.stringify(json));
-        setProjects(json);
-        alert('Projetos importados com sucesso! Tentando sincronizar com a nuvem...');
+        // Suporte para formato antigo e novo universal
+        if (Array.isArray(bundle)) {
+          projectsToImport = bundle;
+        } else if (bundle.version === '2.0-universal') {
+          projectsToImport = bundle.projects;
+          librariesToImport = bundle.libraries || {};
+        } else {
+          throw new Error('Formato de backup não reconhecido.');
+        }
+
+        const idMap: Record<string, string> = {};
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+        // 1. Remapear Projetos e gerar Mapa de IDs
+        const sanitizedProjects = projectsToImport.map((p: any) => {
+          const oldId = p.id;
+          if (!uuidRegex.test(p.id)) {
+            p.id = crypto.randomUUID();
+            idMap[oldId] = p.id;
+          } else {
+            idMap[oldId] = oldId;
+          }
+          return p;
+        });
+
+        // 2. Persistir Projetos
+        localStorage.setItem('writer_studio_projects', JSON.stringify(sanitizedProjects));
+        setProjects(sanitizedProjects);
+
+        // 3. Remapear e Persistir Bibliotecas Narrativas
+        Object.keys(librariesToImport).forEach(oldProjId => {
+          const newProjId = idMap[oldProjId];
+          if (newProjId) {
+            const components = librariesToImport[oldProjId].map((c: any) => ({
+              ...c,
+              project_id: newProjId, // Vincular ao novo UUID
+              id: uuidRegex.test(c.id) ? c.id : crypto.randomUUID() // Garantir que o item também tenha UUID
+            }));
+            localStorage.setItem(`ws_narrative_${newProjId}`, JSON.stringify(components));
+          }
+        });
+
+        alert('Backup Universal importado com sucesso! Clique em Sincronizar Nuvem para finalizar.');
         await fetchProjects();
       } catch (err) {
-        alert('Erro ao importar arquivo: ' + (err as Error).message);
+        alert('Erro ao importar backup: ' + (err as Error).message);
       }
     };
     reader.readAsText(file);
@@ -160,19 +217,36 @@ export default function Home() {
           updatedProjects[i] = project;
         }
 
-        const { error } = await supabase
+        // 1. Upsert Projeto
+        const { error: projError } = await supabase
           .from('projects')
           .upsert(project)
           .eq('id', project.id);
           
-        if (error) throw error;
+        if (projError) throw projError;
+
+        // 2. Sincronizar Biblioteca Narrativa Associada
+        const libData = localStorage.getItem(`ws_narrative_${project.id}`);
+        if (libData) {
+          const components = JSON.parse(libData);
+          for (const comp of components) {
+            const { error: libError } = await supabase
+              .from('narrative_components')
+              .upsert({
+                ...comp,
+                project_id: project.id
+              })
+              .eq('id', comp.id);
+            if (libError) console.warn('Falha ao sincronizar componente:', libError.message);
+          }
+        }
       }
       
       // Atualizar estado e localStorage com os novos UUIDs
       setProjects(updatedProjects);
       localStorage.setItem('writer_studio_projects', JSON.stringify(updatedProjects));
       
-      alert('Sincronização concluída com sucesso! IDs atualizados para formato UUID.');
+      alert('Sincronização global concluída! Projetos e Bibliotecas estão na nuvem.');
     } catch (err: any) {
       alert('Erro na sincronização: ' + err.message);
     } finally {

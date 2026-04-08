@@ -1,0 +1,507 @@
+'use client';
+
+import { useState } from 'react';
+import { 
+  Building2, 
+  Target, 
+  Cpu, 
+  Rocket, 
+  ChevronRight, 
+  CheckCircle2,
+  Palette,
+  Eye,
+  Zap,
+  Ban,
+  Plus,
+  Trash2,
+  Layout,
+  HelpCircle
+} from 'lucide-react';
+
+interface WizardProps {
+  onClose: () => void;
+  onComplete: (projectData: any) => void;
+  initialData?: any;
+}
+
+export default function ProjectWizardModal({ onClose, onComplete, initialData }: WizardProps) {
+  const [step, setStep] = useState(1);
+  
+  // Data Normalization & Initialization
+  const [formData, setFormData] = useState(() => {
+    const d = initialData || {};
+    return {
+      id: d.id || '',
+      name: d.name || d.project_name || '',
+      puc: d.puc || d.puc_promise || '',
+      accent_color: d.accent_color || '#9BB0A5',
+      
+      // Stage 1: Fundação (DNA)
+      phd_strategy: d.phd_strategy || { passion: '', skill: '', demand: '' },
+      persona_matrix: d.persona_matrix || { demographics: '', language: '', pain_alignment: d.target_persona?.pain_point || '' },
+      
+      // Stage 2: Inteligência (Editorial)
+      editorial_line: d.editorial_line || { pillars: d.editorial_line?.pillars || ['', '', '', '', ''] },
+      narrative_voice: d.narrative_voice || { atmosphere: d.narrative_voice?.atmosphere || [], positioning: d.narrative_voice?.positioning || '' },
+      
+      // Stage 3: Engenharia (Packaging)
+      metaphor_library: d.metaphor_library || d.ai_engine_rules?.metaphors?.join(', ') || '',
+      prohibited_terms: d.prohibited_terms || d.ai_engine_rules?.prohibited?.join(', ') || '',
+      thumb_strategy: d.thumb_strategy || { layouts: d.thumb_strategy?.layout ? [d.thumb_strategy.layout] : ['Rosto+Texto'], description: '' },
+      
+      // Stage 4: Produção (SOP)
+      editing_sop: d.detailed_sop || d.editing_sop || { 
+        cut_rhythm: '3s', 
+        zoom_style: 'Dynamic', 
+        soundtrack: 'Epic',
+        art_direction: 'Cinematic',
+        overlays: 'Apenas palavras-chave',
+        duration: '18-22',
+        blocks_variation: '8-13',
+        asset_types: ['IA Images', 'Stock Video', 'Avatar']
+      },
+      tactical_journey: d.playlists?.tactical_journey || [
+        { id: 'm1', label: 'M1', title: 'Teoria / Diagnóstico', value: '', isFixed: true },
+        { id: 'm2', label: 'M2', title: 'Prática / Implementação', value: '', isFixed: true },
+        { id: 'm3', label: 'M3', title: 'Otimização / Lifestyle', value: '', isFixed: true }
+      ]
+    };
+  });
+
+  const updateFormData = (data: Partial<typeof formData>) => {
+    setFormData(prev => ({ ...prev, ...data }));
+  };
+
+  const isStepValid = () => {
+    switch(step) {
+      case 1: return formData.name.trim() !== '' && formData.puc.trim() !== '' && formData.phd_strategy.passion.trim() !== '';
+      case 2: return formData.editorial_line.pillars.filter((p: string) => p.trim() !== '').length >= 3;
+      case 3: return formData.metaphor_library.trim() !== '';
+      case 4: return formData.tactical_journey.every((m: any) => m.title.trim() !== '' && m.value.trim() !== '');
+      default: return false;
+    }
+  };
+
+  const handleFinalize = () => {
+    onComplete({
+      ...formData,
+      target_persona: {
+        audience: formData.persona_matrix.demographics,
+        pain_point: formData.persona_matrix.pain_alignment
+      },
+      ai_engine_rules: {
+        metaphors: formData.metaphor_library.split(',').map((s: string) => s.trim()).filter(Boolean),
+        prohibited: formData.prohibited_terms.split(',').map((s: string) => s.trim()).filter(Boolean)
+      },
+      playlists: {
+        m1: formData.tactical_journey[0]?.value || '',
+        m1_title: formData.tactical_journey[0]?.title || '',
+        m2: formData.tactical_journey[1]?.value || '',
+        m2_title: formData.tactical_journey[1]?.title || '',
+        m3: formData.tactical_journey[2]?.value || '',
+        m3_title: formData.tactical_journey[2]?.title || '',
+        tactical_journey: formData.tactical_journey 
+      }
+    });
+  };
+
+  const renderStepContent = () => {
+    switch (step) {
+      case 1:
+        return (
+          <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Project Identifier</label>
+                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">Nome de destaque da sua instância.</span>
+                <input 
+                  className="w-full bg-sage/5 border border-sage/30 rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white font-black text-lg placeholder:text-white/10"
+                  placeholder="Ex: DevZen"
+                  value={formData.name}
+                  onChange={(e) => updateFormData({ name: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1">Proposta Única do Canal (PUC)</label>
+                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">A promessa central que torna seu canal imbatível.</span>
+                <textarea 
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white font-bold min-h-[90px] resize-none"
+                  placeholder="Qual o diferencial imbatível do canal?"
+                  value={formData.puc}
+                  onChange={(e) => updateFormData({ puc: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-6">
+              {['passion', 'skill', 'demand'].map((f: string) => (
+                <div key={f} className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
+                  <label className="text-[9px] font-black uppercase text-white/60 tracking-widest">{f}</label>
+                  <p className="text-[8px] uppercase font-bold text-white/40 leading-tight mt-0.5 mb-3">
+                    {f === 'passion' ? 'O que te move por anos' : f === 'skill' ? 'Sua autoridade técnica' : 'Volume de audiência real'}
+                  </p>
+                  <textarea 
+                    className="w-full bg-transparent border-none text-white text-xs outline-none h-24 resize-none leading-relaxed placeholder:text-white/5"
+                    placeholder={`Descreva sua ${f}...`}
+                    value={(formData.phd_strategy as any)[f]}
+                    onChange={(e) => updateFormData({ phd_strategy: { ...formData.phd_strategy, [f]: e.target.value } })}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="p-8 rounded-[32px] border border-white/10 bg-white/[0.03] shadow-inner">
+              <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1 block">Matriz de Persona (Target)</label>
+              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Desenhe o avatar que você deseja dominar e ajudar.</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] uppercase font-black text-white/40 ml-1">Lifestyle / Demografia</span>
+                  <input 
+                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
+                    placeholder="Ex: Desenvolvedor Senior, 30 anos..."
+                    value={formData.persona_matrix.demographics}
+                    onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, demographics: e.target.value } })}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] uppercase font-black text-white/40 ml-1">Ponto de Dor Central</span>
+                  <input 
+                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
+                    placeholder="Ex: Medo de ser substituído pela IA."
+                    value={formData.persona_matrix.pain_alignment}
+                    onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, pain_alignment: e.target.value } })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 2:
+        return (
+          <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col">
+                <h3 className="text-[12px] font-black text-white/70 uppercase tracking-[4px]">Linha Editorial (Os 5 Pilares)</h3>
+                <span className="text-[10px] uppercase font-bold text-white/40 mt-1">Os sub-tópicos que delimitam seu território estratégico.</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {formData.editorial_line.pillars.map((p: string, i: number) => (
+                  <div key={i} className="flex flex-col gap-2">
+                    <span className="text-[9px] font-black text-white/20 ml-1">PILAR 0{i+1}</span>
+                    <input 
+                      className="p-5 bg-white/5 border border-white/10 rounded-2xl text-center text-xs font-bold text-white outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all placeholder:text-white/5"
+                      placeholder="Tema..."
+                      value={p}
+                      onChange={(e) => {
+                        const newP = [...formData.editorial_line.pillars];
+                        newP[i] = e.target.value;
+                        updateFormData({ editorial_line: { ...formData.editorial_line, pillars: newP } });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="p-6 rounded-2xl border border-white/5 bg-midnight/40 shadow-inner">
+                <label className="text-[9px] font-black uppercase tracking-widest text-sage mb-1 block">Atmosfera Narrativa</label>
+                <span className="text-[8px] uppercase font-bold opacity-30 block mb-4">O clima emocional e o posicionamento do seu conteúdo.</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Técnico', 'Reflexivo', 'Cético', 'Storyteller'].map((t: string) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        const next = formData.narrative_voice.atmosphere.includes(t)
+                          ? formData.narrative_voice.atmosphere.filter((v: string) => v !== t)
+                          : [...formData.narrative_voice.atmosphere, t];
+                        updateFormData({ narrative_voice: { ...formData.narrative_voice, atmosphere: next } });
+                      }}
+                      className={`py-3 rounded-xl border text-[9px] font-black transition-all ${
+                        formData.narrative_voice.atmosphere.includes(t)
+                        ? 'bg-sage border-sage text-midnight shadow-lg shadow-sage/20'
+                        : 'bg-white/5 border-white/5 text-white/30 hover:border-white/10'
+                      }`}
+                    >{t}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] uppercase font-bold text-white/20 ml-2">Posicionamento do Narrador</span>
+                <textarea 
+                  className="p-6 bg-white/5 border border-white/10 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none h-full"
+                  placeholder="Quem é você para o seu público? O Mentor, o Cético ou o Oráculo?"
+                  value={formData.narrative_voice.positioning}
+                  onChange={(e) => updateFormData({ narrative_voice: { ...formData.narrative_voice, positioning: e.target.value } })}
+                />
+                <span className="text-[8px] uppercase font-bold opacity-10 ml-2">Define a hierarquia de autoridade com a persona.</span>
+              </div>
+            </div>
+          </div>
+        );
+      case 3:
+        return (
+          <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Engenharia de Metáforas</label>
+                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-2">Analogias que simplificam o complexo e criam uma marca única.</span>
+                <textarea 
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-6 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white text-sm min-h-[250px] leading-relaxed resize-none placeholder:text-white/10 shadow-inner"
+                  value={formData.metaphor_library}
+                  onChange={(e) => updateFormData({ metaphor_library: e.target.value })}
+                  placeholder="Ex: Kernel, Hardware Biológico, Filtro de Ruído..."
+                />
+              </div>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col">
+                  <label className="text-[10px] uppercase font-black tracking-widest text-[#9BB0A5]">Layout de Thumbnail</label>
+                  <span className="text-[9px] uppercase font-bold opacity-30 mt-1">A narrativa visual que interrompe o scroll e força o clique.</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {['Rosto+Texto', 'Objeto+Fundo', 'Contraste Emocional'].map((l: string) => {
+                    const currentLayouts = formData.thumb_strategy.layouts || (formData.thumb_strategy.layout ? [formData.thumb_strategy.layout] : []);
+                    const isSelected = currentLayouts.includes(l);
+                    return (
+                      <button
+                        key={l}
+                        onClick={() => {
+                          const next = isSelected ? currentLayouts.filter((c: string) => c !== l) : [...currentLayouts, l];
+                          updateFormData({ thumb_strategy: { ...formData.thumb_strategy, layouts: next } });
+                        }}
+                        className={`p-5 rounded-2xl border text-left flex items-center justify-between transition-all group ${
+                          isSelected
+                          ? 'bg-sage border-sage text-midnight shadow-xl'
+                          : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/[0.07] hover:border-white/10'
+                        }`}
+                      >
+                        <span className="text-xs font-black uppercase tracking-widest">{l}</span>
+                        {isSelected ? (
+                          <CheckCircle2 size={18} className="text-midnight" />
+                        ) : (
+                          <ChevronRight size={18} className="text-white/20 group-hover:translate-x-1 transition-transform" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {((formData.thumb_strategy.layouts || (formData.thumb_strategy.layout ? [formData.thumb_strategy.layout] : [])).length > 0) && (
+                  <div className="mt-2 animate-in fade-in slide-in-from-top-2">
+                    <textarea
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none text-xs text-white resize-none h-20 placeholder:text-white/20 font-medium"
+                      placeholder="Especifique detalhes da thumbnail (ex: Cores predominantes, estilo da fonte, elementos de contraste)..."
+                      value={formData.thumb_strategy.description || ''}
+                      onChange={(e) => updateFormData({ thumb_strategy: { ...formData.thumb_strategy, description: e.target.value } })}
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 mt-2">
+                  <label className="text-[10px] uppercase font-black tracking-widest text-red-100/30">Termos Proibidos</label>
+                  <span className="text-[8px] uppercase font-bold opacity-10 -mt-1">Palavras genéricas que destroem sua autoridade.</span>
+                  <input 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none text-xs text-white"
+                    placeholder="Ex: Incrível, Segredo, Chocado..."
+                    value={formData.prohibited_terms}
+                    onChange={(e) => updateFormData({ prohibited_terms: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 4:
+        return (
+          <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Ritmo de Corte', field: 'cut_rhythm', type: 'select', options: ['1s', '2-3s', '3s', '5s'], tooltip: 'Cortes mais rápidos (2-3s) aumentam a retenção em temas densos.' },
+                { label: 'Estilo de Zoom', field: 'zoom_style', type: 'select', options: ['Stable', 'Dynamic', 'Punch'], tooltip: 'Zoom dinâmico prende a atenção em partes técnicas e explicações.' },
+                { label: 'Trilha Sonora', field: 'soundtrack', type: 'select', options: ['Epic', 'Chill', 'Dark', 'Lofi'], tooltip: 'A narrativa musical dita a profundidade do sentimento.' },
+                { label: 'Estilo Visual', field: 'art_direction', type: 'select', options: ['Realista', 'Cinematic', 'Minimalista', 'Cyberpunk'], tooltip: 'Trava a estética visual para não haver improviso na direção de arte.' },
+                { label: 'Textos (Overlays)', field: 'overlays', type: 'select', options: ['Apenas palavras-chave', 'Legendas completas', 'Sem texto'], tooltip: 'Controla a carga de leitura; palavras-chave destacam o principal.' },
+                { label: 'Duração (min)', field: 'duration', type: 'text', tooltip: 'Duração alvo em range (ex: 18-22) para alinhar o esforço de produção.' },
+                { label: 'Variação Blocos', field: 'blocks_variation', type: 'select', options: ['4-7', '6-11', '8-13', '12+'], tooltip: 'Mais blocos permitem transições de assunto mais frequentes, evitando o tédio.' },
+                { label: 'Tipos de Assets', field: 'asset_types', type: 'multiselect', options: ['IA Images', 'Stock Video', 'Code Snippets', 'B-Roll', 'Avatar'], tooltip: 'Elementos visuais liberados para enriquecer a narrativa visual.' },
+              ].map((item: any) => (
+                <div key={item.field} className="p-5 bg-white/[0.03] rounded-2xl border border-white/10 shadow-inner group hover:border-sage/40 transition-all flex flex-col justify-between">
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-sage">{item.label}</label>
+                    <div className="relative group/tooltip">
+                      <HelpCircle size={10} className="text-white/30 hover:text-sage cursor-help" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-midnight/95 border border-sage/30 rounded-xl text-[9px] text-white/80 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-all z-20 text-center font-medium leading-relaxed">
+                        {item.tooltip}
+                        {/* Triângulo do tooltip */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[5px] border-transparent border-t-sage/30"></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {item.type === 'select' && (
+                    <select 
+                      className="w-full bg-transparent border-b border-transparent hover:border-white/10 focus:border-sage text-white text-xs font-black outline-none cursor-pointer appearance-none pb-1 transition-all"
+                      value={(formData.editing_sop as any)[item.field]}
+                      onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, [item.field]: e.target.value } })}
+                    >
+                      {item.options.map((opt: string) => <option key={opt} value={opt} className="bg-midnight text-white">{opt}</option>)}
+                    </select>
+                  )}
+                  
+                  {(item.type === 'number' || item.type === 'text') && (
+                    <input 
+                      type={item.type}
+                      className="w-full bg-transparent border-b border-transparent hover:border-white/10 focus:border-sage text-white text-xs font-black outline-none pb-1 transition-all"
+                      placeholder={item.type === 'text' ? 'Ex: 18-22' : ''}
+                      value={(formData.editing_sop as any)[item.field]}
+                      onChange={(e) => updateFormData({ 
+                        editing_sop: { 
+                          ...formData.editing_sop, 
+                          [item.field]: item.type === 'number' ? Number(e.target.value) : e.target.value 
+                        } 
+                      })}
+                    />
+                  )}
+
+                  {item.type === 'multiselect' && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {item.options.map((opt: string) => {
+                        const isSelected = (formData.editing_sop.asset_types || []).includes(opt);
+                        return (
+                          <button
+                            key={opt}
+                            onClick={() => {
+                              const current = formData.editing_sop.asset_types || [];
+                              const next = isSelected ? current.filter((c: string) => c !== opt) : [...current, opt];
+                              updateFormData({ editing_sop: { ...formData.editing_sop, asset_types: next } });
+                            }}
+                            className={`px-1.5 py-1 rounded text-[8px] font-bold border transition-all ${
+                              isSelected 
+                              ? 'bg-sage border-sage text-midnight shadow-sm' 
+                              : 'bg-white/5 border-white/10 text-white/40 hover:border-white/30'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4">
+              <div className="flex flex-col">
+                <h3 className="text-[12px] font-black text-white/70 uppercase tracking-[4px]">Jornada Tática (Pipeline de Deploy)</h3>
+                <span className="text-[10px] uppercase font-bold text-white/40 mt-1">Sua estratégia de progressão de conteúdo do diagnóstico ao lifestyle.</span>
+              </div>
+              {formData.tactical_journey.map((m: any, i: number) => (
+                <div key={m.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6 p-6 border border-white/10 rounded-3xl bg-white/[0.02] hover:bg-white/[0.05] transition-all group shadow-sm">
+                  <div className="flex items-center gap-5">
+                    <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center text-[11px] font-black text-sage border border-sage/20 shrink-0 shadow-lg shadow-sage/5">{m.label}</div>
+                    <input 
+                      className="bg-transparent text-white font-black text-base outline-none w-full group-hover:text-sage transition-colors placeholder:text-white/5"
+                      placeholder="Módulo..."
+                      value={m.title}
+                      onChange={(e) => {
+                        const next = [...formData.tactical_journey];
+                        next[i].title = e.target.value;
+                        updateFormData({ tactical_journey: next });
+                      }}
+                    />
+                  </div>
+                  <input 
+                    className="bg-white/5 border border-white/5 rounded-xl px-5 py-3 text-white/80 text-[12px] outline-none focus:border-sage/40 transition-all italic font-medium placeholder:text-white/10"
+                    placeholder="Objetivo estratégico deste módulo..."
+                    value={m.value}
+                    onChange={(e) => {
+                      const next = [...formData.tactical_journey];
+                      next[i].value = e.target.value;
+                      updateFormData({ tactical_journey: next });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[1000] bg-midnight/95 backdrop-blur-2xl flex items-center justify-center p-4 animate-in fade-in duration-500">
+      <div className="glass-card w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl border-white/10 overflow-hidden ring-1 ring-white/5">
+        
+        {/* Progress Bar & Header */}
+        <div className="flex flex-col flex-none">
+          <div className="h-1 bg-white/5 w-full">
+            <div 
+              className="h-full bg-sage transition-all duration-700 ease-out shadow-[0_0_15px_rgba(155,176,165,0.5)]" 
+              style={{ width: `${(step / 4) * 100}%` }}
+            />
+          </div>
+          
+          <div className="p-10 flex justify-between items-center border-b border-white/5 bg-midnight/30">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tighter text-white flex items-center gap-3">
+                WRITER STUDIO <span className="font-light opacity-30 italic">OS</span>
+              </h2>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-[10px] font-black bg-sage text-midnight px-2 py-0.5 rounded uppercase tracking-wider">Etapa 0{step}</span>
+                <span className="text-white/30 text-[10px] font-black uppercase tracking-[3px]">
+                  {step === 1 ? 'Fundação DNA' : step === 2 ? 'Crivo Editorial' : step === 3 ? 'Engenharia de Clique' : 'SOP de Produção'}
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={onClose} 
+              className="w-10 h-10 flex items-center justify-center hover:bg-red-500/10 border border-white/10 rounded-full transition-all text-white/20 hover:text-red-500 group"
+            >
+              <span className="group-hover:rotate-90 transition-transform">✕</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Step Content */}
+        <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
+          <div className="max-w-4xl mx-auto">
+            {renderStepContent()}
+          </div>
+        </div>
+
+        {/* Action Footer */}
+        <div className="p-10 border-t border-white/5 flex justify-between items-center bg-midnight/80 backdrop-blur-xl z-20 flex-none">
+          <div className="flex items-center gap-8">
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4].map(s => (
+                <div key={s} className={`h-1 rounded-full transition-all duration-500 ${step === s ? 'w-8 bg-sage' : s < step ? 'w-4 bg-sage/30' : 'w-4 bg-white/10'}`} />
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {step > 1 && (
+              <button 
+                onClick={() => setStep(s => s - 1)}
+                className="px-8 py-4 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-[2px] text-white/40 hover:text-white hover:bg-white/5 transition-all"
+              >
+                Voltar
+              </button>
+            )}
+            <button 
+              onClick={() => step === 4 ? handleFinalize() : setStep(s => s + 1)}
+              disabled={!isStepValid()}
+              className={`px-12 py-4 rounded-xl text-[10px] font-black uppercase tracking-[3px] transition-all duration-500 group flex items-center gap-3 ${
+                isStepValid() 
+                ? 'bg-sage text-midnight shadow-[0_10px_30px_rgba(155,176,165,0.2)] hover:scale-[1.05] active:scale-95' 
+                : 'bg-white/5 text-white/10 cursor-not-allowed opacity-30 border border-white/5'
+              }`}
+            >
+              {step === 4 ? (
+                <>DEPLOY ESTRATÉGICO <Rocket size={16} className="group-hover:animate-bounce" /></>
+              ) : (
+                <>PRÓXIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

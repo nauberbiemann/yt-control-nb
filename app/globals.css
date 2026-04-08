@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --color-midnight: #0B0E14;
+  --color-sage: #9BB0A5;
+  --color-card-bg: rgba(255, 255, 255, 0.03);
+  --color-card-border: rgba(255, 255, 255, 0.08);
+}
+
+:root {
+  --background: #0a0f1e; /* Midnight Blue */
+  --foreground: #ffffff;
+  --primary: #9bb0a5;    /* Sage Green */
+  --accent: #5d6d64;
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --sidebar-bg: #070b16; 
+  --glass-bg: rgba(10, 15, 30, 0.8);
+  --glass-blur: blur(16px);
+  --accent-color: #9BB0A5;
+  --accent-color-glow: rgba(155, 176, 165, 0.1);
+}
+
+@layer base {
+  * { 
+    @apply border-white/10;
+    box-sizing: border-box; 
+    padding: 0; 
+    margin: 0; 
+  }
+  
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    @apply antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+.dashboard-container { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 260px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--card-border);
+  padding: 2rem 1rem;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem;
+  background: radial-gradient(circle at top right, rgba(155, 176, 165, 0.08), transparent);
+}
+
+.glass-card {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6;
+}
+
+.btn-primary {
+  @apply bg-sage text-midnight font-bold py-3 px-6 rounded-xl hover:opacity-90 transition-all cursor-pointer;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}

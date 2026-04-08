@@ -54,6 +54,8 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
   const fetchComponents = async () => {
     try {
       setIsLoading(true);
+      
+      // 1. Tentar Supabase se disponível
       if (supabase) {
         const { data, error } = await supabase
           .from('narrative_components')
@@ -67,31 +69,26 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
           setComponents(data);
           return;
         }
-        // Se a nuvem estiver vazia, tentar fallback para local antes de desistir
-        console.log('Nuvem vazia para Biblioteca Narrativa. Tentando fallback local...');
+        console.log('Nuvem vazia para Biblioteca Narrativa. Buscando no LocalStorage...');
       }
 
-      // Fallback para LocalStorage
+      // 2. Fallback para LocalStorage se a nuvem estiver vazia ou offline
       const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
       if (localData) {
         setComponents(JSON.parse(localData));
       } else {
-        // Se for um projeto novo sem nada, injetar mocks iniciais apenas no primeiro acesso
+        // 3. Injetar Mocks apenas se for projeto totalmente novo
         const initialMocks = [
           { id: '1', type: 'Hook', name: 'Provocação S1', description: 'Começa com um erro técnico comum do qual a persona não tem ciência.', content_pattern: 'Você acha que [Ação Comum] traz [Benefício Esperado], mas na verdade está matando seu [Métrica Importante].', is_active: true },
           { id: '2', type: 'CTA', name: 'Conversão Lead', description: 'Gatilho direto para a landing page.', content_pattern: 'Quer o passo a passo completo? Link no primeiro comentário fixado.', is_active: true },
         ];
-        if (!supabase) { // Só injeta mocks fixos se estivermos offline puro
-          setComponents(initialMocks);
-          localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(initialMocks));
-        } else {
-          setComponents([]);
-        }
+        setComponents(initialMocks);
+        localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(initialMocks));
       }
     } catch (e) {
       console.error('Erro ao buscar componentes narrativos:', e);
-      const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
-      if (localData) setComponents(JSON.parse(localData));
+      const fallback = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
+      if (fallback) setComponents(JSON.parse(fallback));
     } finally {
       setIsLoading(false);
     }

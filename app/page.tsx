@@ -201,12 +201,24 @@ export default function Home() {
         }
 
         alert(`Backup Universal importado: ${sanitizedProjects.length} projetos e ${migratedCount} itens de biblioteca. Clique em Sincronizar Nuvem.`);
-        await fetchProjects();
+        
+        // Autoridade Total: Não chamamos fetchProjects para evitar que a nuvem vazia apague o estado recém-importado.
+        // O usuário sincronizará manualmente em seguida.
       } catch (err) {
         alert('Erro ao importar backup: ' + (err as Error).message);
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleWipeData = () => {
+    if (confirm('💣 ATENÇÃO: Isso apagará TODOS os projetos e bibliotecas locais. Use apenas para limpar o ambiente antes de uma nova importação definitiva. Deseja prosseguir?')) {
+      localStorage.clear();
+      setProjects([]);
+      setActiveProjectId(null);
+      alert('Localhost resetado com sucesso.');
+      window.location.reload();
+    }
   };
 
   const handleSyncToCloud = async () => {

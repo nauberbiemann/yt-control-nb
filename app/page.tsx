@@ -159,18 +159,19 @@ export default function Home() {
         }
 
         const idMap: Record<string, string> = {};
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
         // 1. Remapear Projetos e gerar Mapa de IDs
         const sanitizedProjects = projectsToImport.map((p: any) => {
-          const oldId = p.id;
-          if (!uuidRegex.test(p.id)) {
-            p.id = crypto.randomUUID();
-            idMap[oldId] = p.id;
+          const oldId = p.id.toString();
+          if (!uuidRegex.test(oldId)) {
+            const newId = crypto.randomUUID();
+            idMap[oldId] = newId;
+            return { ...p, id: newId };
           } else {
             idMap[oldId] = oldId;
+            return { ...p };
           }
-          return p;
         });
 
         // 2. Persistir Projetos
@@ -235,21 +236,33 @@ export default function Home() {
           
         if (projError) throw projError;
 
-        // 2. Sincronizar Biblioteca Narrativa Associada (usando o ID original se ele mudou)
-        const libData = localStorage.getItem(`ws_narrative_${originalId}`) || localStorage.getItem(`ws_narrative_${project.id}`);
+        // 2. Sincronizar Biblioteca Narrativa Associada
+        let libData = localStorage.getItem(`ws_narrative_${project.id}`) || localStorage.getItem(`ws_narrative_${originalId}`);
+        
+        // Safety Net: Se não encontrar pelo ID, buscar órfãos pelo nome do projeto
+        if (!libData) {
+          const keys = Object.keys(localStorage);
+          const legacyKey = keys.find(k => k.startsWith('ws_narrative_') && k.includes(project.name));
+          if (legacyKey) libData = localStorage.getItem(legacyKey);
+        }
+
         if (libData) {
           const components = JSON.parse(libData);
-          for (const comp of components) {
-            const { error: libError } = await supabase
-              .from('narrative_components')
-              .upsert({
-                ...comp,
-                project_id: project.id
-              })
-              .eq('id', comp.id);
-            if (libError) console.warn('Falha ao sincronizar componente:', libError.message);
+          if (Array.isArray(components) && components.length > 0) {
+            for (const comp of components) {
+              const { error: libError } = await supabase
+                .from('narrative_components')
+                .upsert({
+                  ...comp,
+                  project_id: project.id
+                });
+              if (libError) console.warn('Falha ao sincronizar componente:', libError.message);
+            }
+            fullSyncCount += components.length;
+            
+            // Auto-reparo Local: Mover dados para a chave correta para o futuro
+            localStorage.setItem(`ws_narrative_${project.id}`, libData);
           }
-          fullSyncCount += components.length;
         }
       }
       

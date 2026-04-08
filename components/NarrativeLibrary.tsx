@@ -43,13 +43,13 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
   });
 
   useEffect(() => {
-    if (activeProject) {
+    if (activeProject?.id) {
       fetchComponents();
     } else {
       setComponents([]);
       setIsLoading(false);
     }
-  }, [activeProject]);
+  }, [activeProject?.id]);
 
   const fetchComponents = async () => {
     try {

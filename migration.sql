@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS narrative_components (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- RLS (Row Level Security) - Basic Setup (Requires Supabase Auth)
+-- RLS (Row Level Security) - Basic Setup
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE post_calendar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_hub ENABLE ROW LEVEL SECURITY;
@@ -101,4 +101,11 @@ ALTER TABLE ai_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analytics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE narrative_components ENABLE ROW LEVEL SECURITY;
 
--- Note: Policies should be added to allow authenticated users to access their own data.
+-- Creating simple policies to allow all access (Public for Dev)
+-- Note: In a production app, you should restrict this to authenticated users only.
+CREATE POLICY "Allow public access" ON projects FOR ALL USING (true);
+CREATE POLICY "Allow public access" ON post_calendar FOR ALL USING (true);
+CREATE POLICY "Allow public access" ON content_hub FOR ALL USING (true);
+CREATE POLICY "Allow public access" ON ai_assets FOR ALL USING (true);
+CREATE POLICY "Allow public access" ON analytics FOR ALL USING (true);
+CREATE POLICY "Allow public access" ON narrative_components FOR ALL USING (true);

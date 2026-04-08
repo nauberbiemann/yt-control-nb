@@ -25,7 +25,10 @@ import {
   History,
   FolderOpen,
   Sparkles,
-  Cpu
+  Cpu,
+  Download,
+  Upload,
+  CloudSync
 } from 'lucide-react';
 
 export default function Home() {
@@ -96,6 +99,61 @@ export default function Home() {
     }
   };
 
+
+  const handleExport = () => {
+    const data = localStorage.getItem('writer_studio_projects');
+    if (!data) return alert('Nenhum dado local para exportar.');
+    
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `content-os-export-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (!Array.isArray(json)) throw new Error('Formato inválido');
+        
+        localStorage.setItem('writer_studio_projects', JSON.stringify(json));
+        setProjects(json);
+        alert('Projetos importados com sucesso! Tentando sincronizar com a nuvem...');
+        await fetchProjects();
+      } catch (err) {
+        alert('Erro ao importar arquivo: ' + (err as Error).message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleSyncToCloud = async () => {
+    if (!supabase) return alert('Supabase não configurado.');
+    
+    setLoading(true);
+    try {
+      for (const project of projects) {
+        const { error } = await supabase
+          .from('projects')
+          .upsert(project)
+          .eq('id', project.id);
+        if (error) throw error;
+      }
+      alert('Sincronização concluída com sucesso!');
+    } catch (err: any) {
+      alert('Erro na sincronização: ' + err.message);
+    } finally {
+      setLoading(false);
+      await fetchProjects();
+    }
+  };
 
   const handleSaveProject = async (formData: any) => {
     try {
@@ -525,6 +583,28 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Sync & Migration Tools */}
+            <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
+              <button 
+                onClick={handleExport}
+                className="p-2.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-sage transition-all"
+                title="Exportar Projetos (Backup JSON)"
+              >
+                <Download size={18} />
+              </button>
+              <label className="p-2.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-sage transition-all cursor-pointer" title="Importar Projetos (JSON)">
+                <Upload size={18} />
+                <input type="file" className="hidden" accept=".json" onChange={handleImport} />
+              </label>
+              <button 
+                onClick={handleSyncToCloud}
+                className="p-2.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-sage transition-all"
+                title="Sincronizar Local com Nuvem"
+              >
+                <Database size={18} />
+              </button>
             </div>
 
             <button 

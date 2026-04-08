@@ -423,6 +423,46 @@ export default function Home() {
                   <EngineSelector />
                   <div className="h-px bg-white/5" />
                   <ApiKeyManager />
+                  <div className="h-px bg-white/5" />
+                  
+                  {/* Sync & Cloud Migration Section */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <CloudSync className="text-sage" size={18} />
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-white/60">Gestão de Dados & Sync</h4>
+                    </div>
+                    <div className="flex gap-4">
+                      <button 
+                        onClick={handleExport}
+                        className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/60 hover:text-white group"
+                        title="Exportar Projetos (Backup JSON)"
+                      >
+                        <Download size={20} className="group-hover:text-sage transition-colors" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Exportar Backup</span>
+                      </button>
+                      
+                      <label 
+                        className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/60 hover:text-white group cursor-pointer"
+                        title="Importar Projetos (JSON)"
+                      >
+                        <Upload size={20} className="group-hover:text-sage transition-colors" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Importar JSON</span>
+                        <input type="file" className="hidden" accept=".json" onChange={handleImport} />
+                      </label>
+                      
+                      <button 
+                        onClick={handleSyncToCloud}
+                        className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/60 hover:text-white group"
+                        title="Sincronizar Local com Nuvem"
+                      >
+                        <Database size={20} className="group-hover:text-sage transition-colors" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Sincronizar Nuvem</span>
+                      </button>
+                    </div>
+                    <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest leading-relaxed">
+                      Use estas ferramentas para migrar dados entre ambiente Local e Produção ou para garantir persistência global no Supabase.
+                    </p>
+                  </div>
                 </div>
               </section>
             )}
@@ -611,27 +651,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Sync & Migration Tools */}
-            <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
-              <button 
-                onClick={handleExport}
-                className="p-2.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-sage transition-all"
-                title="Exportar Projetos (Backup JSON)"
-              >
-                <Download size={18} />
-              </button>
-              <label className="p-2.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-sage transition-all cursor-pointer" title="Importar Projetos (JSON)">
-                <Upload size={18} />
-                <input type="file" className="hidden" accept=".json" onChange={handleImport} />
-              </label>
-              <button 
-                onClick={handleSyncToCloud}
-                className="p-2.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-sage transition-all"
-                title="Sincronizar Local com Nuvem"
-              >
-                <Database size={18} />
-              </button>
-            </div>
+
 
             <button 
               onClick={() => setShowSettings(!showSettings)}

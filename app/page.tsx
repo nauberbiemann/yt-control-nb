@@ -178,19 +178,28 @@ export default function Home() {
         setProjects(sanitizedProjects);
 
         // 3. Remapear e Persistir Bibliotecas Narrativas
+        let migratedCount = 0;
         Object.keys(librariesToImport).forEach(oldProjId => {
           const newProjId = idMap[oldProjId];
           if (newProjId) {
             const components = librariesToImport[oldProjId].map((c: any) => ({
               ...c,
-              project_id: newProjId, // Vincular ao novo UUID
-              id: uuidRegex.test(c.id) ? c.id : crypto.randomUUID() // Garantir que o item também tenha UUID
+              project_id: newProjId, 
+              id: uuidRegex.test(c.id) ? c.id : crypto.randomUUID()
             }));
             localStorage.setItem(`ws_narrative_${newProjId}`, JSON.stringify(components));
+            migratedCount += components.length;
           }
         });
 
-        alert('Backup Universal importado com sucesso! Clique em Sincronizar Nuvem para finalizar.');
+        // 4. Manter a Instância Ativa se ela foi remapeada
+        if (activeProjectId && idMap[activeProjectId]) {
+          setActiveProjectId(idMap[activeProjectId]);
+        } else if (sanitizedProjects.length > 0) {
+          setActiveProjectId(sanitizedProjects[0].id);
+        }
+
+        alert(`Backup Universal importado: ${sanitizedProjects.length} projetos e ${migratedCount} itens de biblioteca. Clique em Sincronizar Nuvem.`);
         await fetchProjects();
       } catch (err) {
         alert('Erro ao importar backup: ' + (err as Error).message);
@@ -205,14 +214,15 @@ export default function Home() {
     setLoading(true);
     try {
       const updatedProjects = [...projects];
+      let fullSyncCount = 0;
       
       for (let i = 0; i < updatedProjects.length; i++) {
+        const originalId = updatedProjects[i].id; // 🔑 Guardar ID original para buscar sub-dados
         const project = { ...updatedProjects[i] };
         
         // 🛡️ Sanitize ID: Se não for um UUID válido, gere um novo
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(project.id)) {
-          console.log(`Convertendo ID legado: ${project.id} para UUID...`);
           project.id = crypto.randomUUID();
           updatedProjects[i] = project;
         }
@@ -225,8 +235,8 @@ export default function Home() {
           
         if (projError) throw projError;
 
-        // 2. Sincronizar Biblioteca Narrativa Associada
-        const libData = localStorage.getItem(`ws_narrative_${project.id}`);
+        // 2. Sincronizar Biblioteca Narrativa Associada (usando o ID original se ele mudou)
+        const libData = localStorage.getItem(`ws_narrative_${originalId}`) || localStorage.getItem(`ws_narrative_${project.id}`);
         if (libData) {
           const components = JSON.parse(libData);
           for (const comp of components) {
@@ -239,6 +249,7 @@ export default function Home() {
               .eq('id', comp.id);
             if (libError) console.warn('Falha ao sincronizar componente:', libError.message);
           }
+          fullSyncCount += components.length;
         }
       }
       
@@ -246,7 +257,7 @@ export default function Home() {
       setProjects(updatedProjects);
       localStorage.setItem('writer_studio_projects', JSON.stringify(updatedProjects));
       
-      alert('Sincronização global concluída! Projetos e Bibliotecas estão na nuvem.');
+      alert(`Sincronização global concluída! ${updatedProjects.length} canais e ${fullSyncCount} itens de biblioteca salvos.`);
     } catch (err: any) {
       alert('Erro na sincronização: ' + err.message);
     } finally {

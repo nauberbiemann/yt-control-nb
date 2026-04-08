@@ -297,11 +297,15 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     const metaphors = metaphorsStr.split(',').map((s: string) => s.trim()).filter(Boolean);
     const randomMetaphor = metaphors[Math.floor(Math.random() * metaphors.length)] || 'Conceito';
     
+    // Extrai apenas o termo principal da persona (Ex: "Desenvolvedor Sênior" em vez da biografia inteira)
+    const rawTarget = activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'seu público';
+    const shortTarget = rawTarget.split(',')[0].split('.')[0].trim();
+    
     const journey = activeProject?.playlists?.tactical_journey?.[0]?.title || 'Fundamentos';
 
     return pattern
       .replace('[TEMA]', baseTopic || 'Tema')
-      .replace('[TARGET]', activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'seu público')
+      .replace('[TARGET]', shortTarget)
       .replace('[METAFORA]', randomMetaphor)
       .replace('[JORNADA]', journey)
       .replace('[PAIN]', activeProject?.persona_matrix?.pain_alignment || activeProject?.target_persona?.pain_point || 'esse problema');
@@ -320,6 +324,27 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
               <h2 className="text-2xl font-bold tracking-tight">Gerador de Títulos S1-S5</h2>
               <p className="text-white/60 text-[10px] uppercase tracking-widest font-black mt-1">Engine de Engenharia de Cliques</p>
             </div>
+          </div>
+          
+          <div className="flex items-center gap-4 bg-white/5 border border-[var(--accent-color)]/20 p-4 rounded-xl mt-2">
+            <div className="flex-1">
+              <span className="text-[10px] uppercase font-black tracking-widest text-[var(--accent-color)] opacity-80">Instrução de Síntese Padrão (Prompt AI)</span>
+              <p className="text-[11px] text-white/60 mt-1 italic leading-relaxed">
+                "Use as informações de Persona e Metáforas como contexto semântico. NÃO copie as descrições. Extraia apenas o conceito ou o termo técnico para preencher as lacunas das estruturas S1-S5."
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                const prompt = `Use as informações de Persona e Metáforas como contexto semântico. NÃO copie as descrições. Extraia apenas o conceito ou o termo técnico para preencher as lacunas das estruturas S1-S5.\n\n` + 
+                titleStructures.map(s => `${s.id} (${s.name}): ${s.pattern}`).join('\n') + `\n\n Tema Bruto: ${baseTopic}`;
+                navigator.clipboard.writeText(prompt);
+                alert("Prompt Tático S1-S5 copiado para a área de transferência!");
+              }}
+              className="px-4 py-2 bg-[var(--accent-color)]/10 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-midnight transition-colors border border-[var(--accent-color)]/20 rounded-lg text-[10px] font-black tracking-widest uppercase flex flex-col items-center gap-1"
+            >
+              <Copy size={16} />
+              Copiar Prompt
+            </button>
           </div>
           
           <div className="flex flex-col gap-6 mt-4">

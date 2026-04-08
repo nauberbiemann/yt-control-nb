@@ -55,13 +55,19 @@ export default function ScriptEngine({ activeProject, pendingData, onClearPendin
           return;
         }
       }
-      // Fallback
-      setComponents([
-        { id: 'h_S1', type: 'Hook', name: 'Provocação S1', description: 'Começa com um erro técnico.' },
-        { id: 'h_S5', type: 'Hook', name: 'Blueprint S5', description: 'Apresenta o mapa da solução.' },
-        { id: 'h_S3', type: 'Hook', name: 'Interrupção S3', description: 'Quebra de padrão agressiva.' },
-        { id: 'cta_default', type: 'CTA', name: 'Conversão PUC', description: 'Chamada padrão alinhada à matriz de conversão.' }
-      ]);
+      
+      // Fallback para LocalStorage antes de usar os Mocks fixos
+      const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
+      if (localData) {
+        setComponents(JSON.parse(localData));
+      } else {
+        setComponents([
+          { id: 'h_S1', type: 'Hook', name: 'Provocação S1', description: 'Começa com um erro técnico.' },
+          { id: 'h_S5', type: 'Hook', name: 'Blueprint S5', description: 'Apresenta o mapa da solução.' },
+          { id: 'h_S3', type: 'Hook', name: 'Interrupção S3', description: 'Quebra de padrão agressiva.' },
+          { id: 'cta_default', type: 'CTA', name: 'Conversão PUC', description: 'Chamada padrão alinhada à matriz de conversão.' }
+        ]);
+      }
     } catch (e) {
       console.error(e);
     }

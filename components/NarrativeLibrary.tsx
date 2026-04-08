@@ -62,23 +62,36 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
           .order('created_at', { ascending: false });
           
         if (error) throw error;
-        setComponents(data || []);
+        
+        if (data && data.length > 0) {
+          setComponents(data);
+          return;
+        }
+        // Se a nuvem estiver vazia, tentar fallback para local antes de desistir
+        console.log('Nuvem vazia para Biblioteca Narrativa. Tentando fallback local...');
+      }
+
+      // Fallback para LocalStorage
+      const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
+      if (localData) {
+        setComponents(JSON.parse(localData));
       } else {
-        // Mock data fallback for local mode via LocalStorage
-        const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
-        if (localData) {
-          setComponents(JSON.parse(localData));
-        } else {
-          const initialMocks = [
-            { id: '1', type: 'Hook', name: 'Provocação S1', description: 'Começa com um erro técnico comum do qual a persona não tem ciência.', content_pattern: 'Você acha que [Ação Comum] traz [Benefício Esperado], mas na verdade está matando seu [Métrica Importante].', is_active: true },
-            { id: '2', type: 'CTA', name: 'Conversão Lead', description: 'Gatilho direto para a landing page.', content_pattern: 'Quer o passo a passo completo? Link no primeiro comentário fixado.', is_active: true },
-          ];
+        // Se for um projeto novo sem nada, injetar mocks iniciais apenas no primeiro acesso
+        const initialMocks = [
+          { id: '1', type: 'Hook', name: 'Provocação S1', description: 'Começa com um erro técnico comum do qual a persona não tem ciência.', content_pattern: 'Você acha que [Ação Comum] traz [Benefício Esperado], mas na verdade está matando seu [Métrica Importante].', is_active: true },
+          { id: '2', type: 'CTA', name: 'Conversão Lead', description: 'Gatilho direto para a landing page.', content_pattern: 'Quer o passo a passo completo? Link no primeiro comentário fixado.', is_active: true },
+        ];
+        if (!supabase) { // Só injeta mocks fixos se estivermos offline puro
           setComponents(initialMocks);
           localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(initialMocks));
+        } else {
+          setComponents([]);
         }
       }
     } catch (e) {
       console.error('Erro ao buscar componentes narrativos:', e);
+      const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
+      if (localData) setComponents(JSON.parse(localData));
     } finally {
       setIsLoading(false);
     }

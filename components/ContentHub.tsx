@@ -92,11 +92,17 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
           .order('created_at', { ascending: false });
         
         if (error) throw error;
-        if (data) setThemes(data);
-      } else {
-        const local = localStorage.getItem(`themes_${activeProject.id}`);
-        if (local) setThemes(JSON.parse(local));
+        if (data && data.length > 0) {
+          setThemes(data);
+          return;
+        }
       }
+
+      // Fallback para LocalStorage se a nuvem estiver vazia ou offline
+      const local = localStorage.getItem(`themes_${activeProject.id}`);
+      if (local) setThemes(JSON.parse(local));
+      else setThemes([]);
+      
     } catch (err) {
       console.warn('Fallback: Usando LocalStorage para temas.', err);
       const local = localStorage.getItem(`themes_${activeProject.id}`);

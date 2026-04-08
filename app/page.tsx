@@ -89,8 +89,16 @@ export default function Home() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProjects(data || []);
-      console.log('Projetos carregados:', data);
+      
+      if (data && data.length > 0) {
+        console.log('Projetos sincronizados da nuvem:', data);
+        setProjects(data);
+        localStorage.setItem('writer_studio_projects', JSON.stringify(data));
+      } else {
+        console.log('Nuvem vazia. Mantendo dados locais para sincronização.');
+        const local = localStorage.getItem('writer_studio_projects');
+        if (local) setProjects(JSON.parse(local));
+      }
     } catch (err) {
       console.error('Erro ao buscar projetos:', err);
       // Fallback para LocalStorage se o Supabase falhar

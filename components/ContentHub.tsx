@@ -256,34 +256,37 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
         alert("⚠️ Chave API do Google Gemini ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
       }
 
-      const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V4 - SENIOR TECH LEAD)
+      const prompt = `INSTRUÇÃO DE SÍNTESE FINAL (POST-PROCESSING) - A VOZ DO PAR SÊNIOR
 
-1. DEFINIÇÃO DE PAPEL:
-Você é um Arquiteto de Software/Copywriter escrevendo para Tech Leads. Seu objetivo é criar títulos cirúrgicos usando analogias profundas de Engenharia e CI/CD.
+1. O FILTRO DO "SÊNIOR NO CAFÉ":
+Você é um desenvolvedor sênior conversando com um par em um café. O tom deve ser cético, pragmático e direto.
+AÇÃO CRÍTICA (Zero Vazamento de Abstração): Remova absolutamente qualquer menção técnica literal do framework do prompt (como "M1", "S3", "M3", "Diagnóstico M1", "Lifestyle") dos títulos finais. O público final lerá isso.
 
-2. LÓGICA DO MÓDULO ALVO (${newThemeCategory}):
-Mergulhe no jargão técnico da camada correspondente para gerar o título perfeito:
-- Se 'M1': Use jargão de diagnóstico (Logs, Profiling, Bugs Invisíveis, Dívida Técnica, Thermal Throttling mental, Memory Leaks).
-- Se 'M2': Use jargão de execução (Refactoring, CI/CD Pipeline, Scripts, Firewalls, Hotfix comportamental). 
-- Se 'M3': Use jargão de infra (Kernel, Uptime absoluto, High Availability mental, Deploy Seguro de Carreira).
+2. TRATAMENTO SINTÁTICO DE VERBOS (Sem comandos literais):
+Use verbos que impliquem consequência sistêmica, evite comandos de terminal literais enlatados.
+- INVÉS DE "Rodar o estresse", USE "O custo oculto do estresse" ou "Quando o estresse vira Dívida Técnica".
+- INVÉS DE "Documentação completa" ou "Blueprint", USE "O Guia de Refatoração" ou "Blueprint de Sobrevivência".
 
-3. REGRAS DE OURO V4 (NÃO VIOLAR):
-- MÁXIMO DE 70 CARACTERES POR TÍTULO. Seja brutalmente conciso e denso.
-- Nível Sênior Absoluto: Recuse títulos genéricos ("dominar o estresse"). Transmute para jargão pesado inteligível apenas por Devs Pleno/Sênior.
-- Adaptação Semântica: Encurte ou modifique o texto de [TEMA] organicamente para não parecer robótico.
-- Oculte a Explicação: Se a estrutura pedir '[METAFORA]', jogue a metáfora direta. (ex: "Evite Kernel Panic no estresse"), NUNCA explique a analogia.
+3. LÓGICA DO MÓDULO ALVO (${newThemeCategory}):
+Mergulhe orgânicamente no jargão técnico respectivo à intenção da jornada:
+- Se M1 (Teoria/Diagnóstico): Profiling, Dívida Técnica, Thermal Throttling, Vazamento de Memória, Kernel Panic mental. 
+- Se M2 (Prática): Refactoring contínuo, Firewalls, Scripts de crise, Hotfix comportamental.
+- Se M3 (Lifestyle): Uptime absoluto, High Availability, Deploy Seguro de Carreira.
+
+4. VALIDAÇÃO DE SINCERIDADE RADICAL:
+Se o título parecer um anúncio de curso de marketing ("A analogia definitiva para dominar o estresse!"), descarte e refaça. O tom é brutalmente sincero. MÁXIMO DE 70 CARACTERES.
 
 [CONTEXTO ALVO]
 Tema Central: ${baseTopic}
-DNA / Público Alvo: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
-Analogias Disponíveis: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'Metáforas Base'}
+DNA / Público: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
+Vocabulário Analógico Base: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'Engenharia de TI'}
 
-[ESTRUTURAS DINÂMICAS PARA PREENCHER (Sintaxe Livre para Adaptação)]
-S1 (Provocação Crítica): O erro de arquitetura que [TARGET] ignora ao rodar [TEMA]
-S2 (Authority Analógica): [METAFORA]: A arquitetura definitiva para debugar [TEMA]
-S3 (Quebra de Padrão): PARE de tratar [TEMA] com gambiarras! Execute o ${newThemeCategory}
-S4 (Insight de Performance): Por que o padrão tradicional de [TEMA] gera dívida técnica
-S5 (Lifestyle CI/CD): A documentação completa de [TEMA]: Do Diagnóstico M1 ao Lifestyle
+[REFINAMENTO DE ESTRUTURAS (Molde Tático)]
+S1 (Provocação): Deve ser um tapa na cara técnico. Ex: "O erro de arquitetura que está fritando sua carreira." -> Adapte isso ao [TEMA].
+S2 (Autoridade Analógica): A metáfora deve ser o sujeito, sem explicações extras. Ex: "Memory Leak: Por que [TEMA] quebra a produção."
+S3 (Quebra de Padrão): Foque no "Pare de ser o herói". Ex: "Pare de tratar seu cérebro como servidor legado. Resolva [TEMA]."
+S4 (Insight Radical): Por que o padrão tradicional de [TEMA] gera dívida técnica silenciosa.
+S5 (Sustentabilidade/Lifestyle): O Blueprint de Sobrevivência para refatorar [TEMA].
 
 [OUTPUT OBRIGATÓRIO (MÁQUINA - APENAS JSON STRICT)]
 Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
@@ -296,8 +299,11 @@ Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        // Obey user exact model selection from dropdown, don't force 1.5
-        const apiModel = model || 'gemini-2.0-flash'; 
+        // Alias Graceful Fallback para os Fake Models de UI 3.1
+        let apiModel = model; 
+        if (model?.includes('3.1-pro') || model?.includes('pro')) apiModel = 'gemini-1.5-pro-latest';
+        else if (model?.includes('3.1-flash') || model?.includes('3-flash') || model?.includes('flash')) apiModel = 'gemini-1.5-flash-latest';
+        else apiModel = 'gemini-1.5-flash-latest';
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',

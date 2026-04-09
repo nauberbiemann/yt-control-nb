@@ -302,10 +302,11 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        // Alias Remapping: Transmuting Fake UI 3.1 to Stable Google endpoints without -latest bug
-        let apiModel = 'gemini-1.5-flash'; 
-        if (model?.toLowerCase().includes('pro')) apiModel = 'gemini-1.5-pro';
-        else if (model?.toLowerCase().includes('flash')) apiModel = 'gemini-1.5-flash';
+        // Remap UI model names to currently valid Google API endpoints
+        let apiModel = 'gemini-2.0-flash';
+        if (model?.toLowerCase().includes('pro')) apiModel = 'gemini-2.0-flash'; // gemini-2.5-pro requires allowlisting
+        else if (model?.toLowerCase().includes('flash')) apiModel = 'gemini-2.0-flash';
+        else apiModel = 'gemini-2.0-flash';
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',

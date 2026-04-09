@@ -11,6 +11,7 @@ import ScriptEngine from '@/components/ScriptEngine';
 import ProductionTracker from '@/components/ProductionTracker';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import NarrativeLibrary from '@/components/NarrativeLibrary';
+import AuthOverlay from '@/components/auth/AuthOverlay';
 import { supabase } from '@/lib/supabase';
 import { AI_MODELS, DEFAULT_CONFIG, AIConfig } from '@/lib/ai-config';
 import { 
@@ -28,26 +29,39 @@ import {
   Cpu,
   Download,
   Upload,
-  CloudSync
+  CloudSync,
+  LogOut
 } from 'lucide-react';
 
 export default function Home() {
   const [currentView, setCurrentView] = useState('home');
   const [showSettings, setShowSettings] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
 
   const activeProject = projects.find(p => p.id === activeProjectId) || null;
 
   useEffect(() => {
-    fetchProjects();
+    // 1. Escutar Mudanças de Auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProjects();
+      } else {
+        setProjects([]);
+        setLoading(false);
+      }
+    });
+
+    // 2. Carregar Configs de IA
     const savedAI = localStorage.getItem('ws_ai_config');
     if (savedAI) {
       try {
@@ -56,6 +70,8 @@ export default function Home() {
         console.error("Erro ao carregar config IA", e);
       }
     }
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleUpdateAI = (config: AIConfig) => {
@@ -107,6 +123,12 @@ export default function Home() {
     }
   };
 
+
+  const handleLogout = async () => {
+    if (confirm('Deseja realmente encerrar a sessão?')) {
+      await supabase.auth.signOut();
+    }
+  };
 
   const handleExport = () => {
     const projectsData = localStorage.getItem('writer_studio_projects');
@@ -240,10 +262,10 @@ export default function Home() {
           updatedProjects[i] = project;
         }
 
-        // 1. Upsert Projeto
+        // 1. Upsert Projeto com user_id
         const { error: projError } = await supabase
           .from('projects')
-          .upsert(project)
+          .upsert({ ...project, user_id: user?.id })
           .eq('id', project.id);
           
         if (projError) throw projError;
@@ -325,6 +347,7 @@ export default function Home() {
         detailed_sop: formData.editing_sop || {},
         thumb_strategy: formData.thumb_strategy || {},
         status: 'active',
+        user_id: user?.id, // 🔑 Vínculo de Identidade
         updated_at: new Date().toISOString()
       };
 
@@ -682,6 +705,21 @@ export default function Home() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-midnight flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[var(--accent-color)]/20 border-t-[var(--accent-color)] animate-spin rounded-full shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.2)]" />
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Carregando Channel OS...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthOverlay />;
+  }
+
   return (
     <main 
       className="min-h-screen bg-midnight text-white flex overflow-hidden font-sans"
@@ -715,6 +753,14 @@ export default function Home() {
           </div>
           
           <div className="flex items-center gap-8">
+            <button 
+              onClick={handleLogout}
+              className="p-3 rounded-2xl bg-white/5 border border-white/5 text-white/20 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all duration-300"
+              title="Encerrar Sessão"
+            >
+              <LogOut size={20} />
+            </button>
+
             {/* AI Model Selector */}
             <div className="relative group">
               <div className="flex items-center gap-3 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/5 hover:border-[var(--accent-color)]/30 hover:bg-[var(--accent-color-glow)] transition-all cursor-pointer group">
@@ -798,4 +844,5 @@ export default function Home() {
       )}
     </main>
   );
+
 }

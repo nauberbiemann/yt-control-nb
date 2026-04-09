@@ -20,7 +20,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AIConfig, resolveModel } from '@/lib/ai-config';
+import { AIConfig, resolveModel, isReasoningModel } from '@/lib/ai-config';
 
 interface Theme {
   id: string;
@@ -342,18 +342,21 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
       } else if (engine === 'openai' && openaiKey) {
         const apiModel = resolveModel(model);
 
+        const supportsTemperature = !isReasoningModel(model);
+        const requestBody: Record<string, unknown> = {
+          model: apiModel,
+          messages: [{ role: 'system', content: prompt }],
+          response_format: { type: "json_object" }
+        };
+        if (supportsTemperature) requestBody.temperature = 0.8;
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openaiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: apiModel,
-            messages: [{ role: 'system', content: prompt }],
-            temperature: 0.8,
-            response_format: { type: "json_object" }
-          })
+          body: JSON.stringify(requestBody)
         });
 
         if (response.ok) {

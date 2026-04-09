@@ -296,8 +296,8 @@ Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        let apiModel = 'gemini-1.5-flash-latest';
-        if (model.includes('pro')) apiModel = 'gemini-1.5-pro-latest';
+        // Obey user exact model selection from dropdown, don't force 1.5
+        const apiModel = model || 'gemini-2.0-flash'; 
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',

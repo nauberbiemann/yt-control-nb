@@ -328,28 +328,33 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
           
           <div className="flex items-center gap-4 bg-white/5 border border-[var(--accent-color)]/20 p-4 rounded-xl mt-2">
             <div className="flex-1">
-              <span className="text-[10px] uppercase font-black tracking-widest text-[var(--accent-color)] opacity-80">Motor de Síntese (Prompt Engine)</span>
+              <span className="text-[10px] uppercase font-black tracking-widest text-[var(--accent-color)] opacity-80">Diretriz de Síntese Narrativa (Prompt Engine V2)</span>
               <p className="text-[11px] text-white/60 mt-2 leading-relaxed">
-                <span className="block mb-2 font-bold opacity-80">Objetivo: Agir como um motor de síntese que processa um Tema Bruto utilizando estritamente as definições de estrutura de contexto do projeto.</span>
-                <span className="block text-[10px] font-mono text-white/40">Regras: Síntese Obrigatória (Não copie descrições grandes), Respeito ao Pattern, e Output com Identidade de Projeto (Máx 70 caracteres).</span>
+                <span className="block mb-2 font-bold opacity-80">Objetivo: Agir como um motor de síntese que processa um Tema Bruto utilizando estritamente as definições de estrutura e contexto do projeto.</span>
+                <span className="block text-[10px] font-mono text-white/40 italic">Lógica V2: Conhecimento como base (não copiar), Moldagem via DB e Filtrações de Ouro (Máx 70 chars).</span>
               </p>
             </div>
             <button 
               onClick={() => {
-                const prompt = `Objetivo: "Agir como um motor de síntese que processa um Tema Bruto utilizando estritamente as definições de estrutura e contexto cadastradas no banco de dados do projeto atual."
+                const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V2)
 
-1. Processamento de Contexto (Input do Banco):
-Estruturas de Título: Utilize a lista de title_structures fornecida (contendo Rótulo, Descrição Tática e Core Pattern).
-Persona & Metáforas: Utilize estas informações apenas como referência semântica e tonal.
+1. DEFINIÇÃO DE PAPEL: > Você é um especialista em Copywriting que transforma dados técnicos em títulos de alto impacto.
 
-2. Regras de Geração (O "Filtro" de Inteligência):
-Síntese Obrigatória: NÃO copie e cole as descrições da Persona ou definições das Metáforas nos títulos. O sistema deve extrair a essência e aplicar ao Core Pattern.
-Respeito ao Pattern: Para cada estrutura cadastrada, preencha as lacunas do Core Pattern de forma gramaticalmente correta e fluida.
-Identidade de Projeto: O tom e o vocabulário devem ser extraídos do campo "Atmosfera Narrativa" e "Engenharia de Metáforas" do projeto.
+2. LOGICA DE PROCESSAMENTO (NÃO VIOLAR):
+CONHECIMENTO (BASE): As informações de 'Persona', 'Metáforas' e 'DNA' são apenas inspiração. É terminantemente PROIBIDO copiar e colar descrições longas ou textos literais desses campos.
+MOLDE (DB): Use as 'Estruturas de Título' (Patterns) cadastradas no banco como o único guia de formato.
+AÇÃO: Extraia apenas o conceito-chave do Tema Bruto e as palavras-chave da Persona para preencher as lacunas do pattern.
 
-3. Output Esperado:
-Retorne uma lista onde cada item contém o structure_id e o generated_title.
-Garanta que o título gerado seja humano, curto (máx 70 caracteres) e que a conexão entre o Tema e a Estrutura seja orgânica.
+3. REGRAS DE OURO DE SÍNTESE:
+Máximo de 70 caracteres. Se o título tiver mais que isso, está errado.
+Gramática Humana: O título deve soar como um sênior falando com outro sênior em um café, não como um relatório de banco de dados.
+Substituição Inteligente: Onde o pattern pede uma 'Provocação', crie uma frase curta. Onde pede uma 'Metáfora', use apenas o NOME da metáfora (ex: "Memory Leak"), nunca a explicação dela.
+
+4. EXEMPLO DE FILTRO MENTAL:
+Input do DB: Persona = "Desenvolvedor Sênior exausto de 40 anos..."
+Input do DB: Pattern = "{Pergunta} + {Consequência}"
+Saída Correta: "Por que sua produtividade caiu? O custo oculto do burnout sênior."
+Saída Errada: "Por que Desenvolvedor Sênior exausto de 40 anos + O impacto do estresse..." -> PROIBIDO.
 
 [INPUT DO PROJETO - INJETE CONFORME AS REGRAS]
 Tema Bruto: ${baseTopic || ''}
@@ -360,12 +365,12 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
 ` + titleStructures.map(s => `${s.id} (${s.name}): ${s.pattern}`).join('\n');
                 
                 navigator.clipboard.writeText(prompt);
-                alert("Motor de Síntese S1-S5 copiado para a área de transferência!");
+                alert("Prompt Engine V2 copiado para a área de transferência!");
               }}
-              className="px-4 py-3 bg-[var(--accent-color)]/10 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-midnight transition-colors border border-[var(--accent-color)]/20 rounded-lg text-[10px] items-center justify-center font-black tracking-widest uppercase flex flex-col gap-1 whitespace-nowrap"
+              className="px-4 py-3 bg-[var(--accent-color)]/10 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-midnight transition-all border border-[var(--accent-color)]/20 rounded-lg text-[10px] items-center justify-center font-black tracking-widest uppercase flex flex-col gap-1 whitespace-nowrap"
             >
               <Copy size={16} />
-              Copiar Motor
+              Copiar V2
             </button>
           </div>
           

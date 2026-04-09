@@ -302,7 +302,10 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        const apiModel = resolveModel(model);
+        // Priority: DB project config → alias map → raw model ID
+        const apiModel =
+          activeProject?.ai_engine_rules?.gemini_api_model ||
+          resolveModel(model);
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',
@@ -340,7 +343,10 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
           alert("Erro " + response.status + " na API do Gemini:\n" + errorBody);
         }
       } else if (engine === 'openai' && openaiKey) {
-        const apiModel = resolveModel(model);
+        // Priority: DB project config → alias map → raw model ID
+        const apiModel =
+          activeProject?.ai_engine_rules?.openai_api_model ||
+          resolveModel(model);
 
         const supportsTemperature = !isReasoningModel(model);
         const requestBody: Record<string, unknown> = {

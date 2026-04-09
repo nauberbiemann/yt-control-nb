@@ -309,9 +309,10 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
 
         if (response.ok) {
           const data = await response.json();
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
              try {
+                text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(text);
                 setGeneratedTitles(parsed);
                 
@@ -344,9 +345,10 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
 
         if (response.ok) {
           const data = await response.json();
-          const text = data.choices?.[0]?.message?.content;
+          let text = data.choices?.[0]?.message?.content;
           if (text) {
              try {
+                text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(text);
                 setGeneratedTitles(parsed);
                 

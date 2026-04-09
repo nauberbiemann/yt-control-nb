@@ -248,7 +248,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
       const openaiKey = localStorage.getItem('yt_openai_key');
 
       const missingOpenAI = engine === 'openai' && !openaiKey;
-      const missingGemini = engine === 'gemini' && !geminiKey;
+const missingGemini = engine === 'gemini' && !geminiKey;
 
       if (missingOpenAI) {
         alert("⚠️ Chave API da OpenAI ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
@@ -256,64 +256,63 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
         alert("⚠️ Chave API do Google Gemini ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
       }
 
-      const prompt = `INSTRUÇÃO DE SÍNTESE FINAL (POST-PROCESSING) - A VOZ DO PAR SÊNIOR
+      const prompt = `PROMPT ANTIGRAVITY: ENGINE DE COMPOSIÇÃO DINÂMICA (DB-DRIVEN)
 
-1. O FILTRO DO "SÊNIOR NO CAFÉ":
-Você é um desenvolvedor sênior conversando com um par em um café. O tom deve ser cético, pragmático e direto.
-AÇÃO CRÍTICA (Zero Vazamento de Abstração): Remova absolutamente qualquer menção técnica literal do framework do prompt (como "M1", "S3", "M3", "Diagnóstico M1", "Lifestyle") dos títulos finais. O público final lerá isso.
+OBJETIVO: Agir como um sintetizador de conteúdo agnóstico. 100% do vocabulário, estruturas e ganchos da saída devem ser derivados dos dados informados no contexto sistêmico, não de vocabulário genérico da AI.
 
-2. TRATAMENTO SINTÁTICO DE VERBOS (Sem comandos literais):
-Use verbos que impliquem consequência sistêmica, evite comandos de terminal literais enlatados.
-- INVÉS DE "Rodar o estresse", USE "O custo oculto do estresse" ou "Quando o estresse vira Dívida Técnica".
-- INVÉS DE "Documentação completa" ou "Blueprint", USE "O Guia de Refatoração" ou "Blueprint de Sobrevivência".
+1. LÓGICA DE INJEÇÃO E MAPEAMENTO
+Você não está apenas escrevendo; você está processando ativos.
+- Metáforas: Use estritamente as terminologias técnicas fornecidas. Aja sob a persona de um Engenheiro / Arquiteto que está construindo o título a partir desse vocabulário exato. Ex: Se foi dado "Thermal Throttling", substitua o genérico "Estresse" por "Thermal Throttling Mental".
+- Conector de Abstração: Todo termo técnico utilizado na saída DEVE estar no \`composition_log\`.
 
-3. LÓGICA DO MÓDULO ALVO (${newThemeCategory}):
-Mergulhe orgânicamente no jargão técnico respectivo à intenção da jornada:
-- Se M1 (Teoria/Diagnóstico): Profiling, Dívida Técnica, Thermal Throttling, Vazamento de Memória, Kernel Panic mental. 
-- Se M2 (Prática): Refactoring contínuo, Firewalls, Scripts de crise, Hotfix comportamental.
-- Se M3 (Lifestyle): Uptime absoluto, High Availability, Deploy Seguro de Carreira.
+2. REGRAS DE COMPOSIÇÃO - O FILTRO "SÊNIOR NO CAFÉ"
+- Fale de sênior para sênior de forma brutalmente cética e pragmática.
+- ZERO VAZAMENTO DE ABSTRAÇÃO: É TERMINANTEMENTE PROIBIDO colocar "S1:", "M1:", "Diagnóstico M1", "Blueprint", IDs, chaves de db ou metadados de prompt dentro das frases geradas. Os leitores nunca devem ler a infraestrutura.
+- Não use "roda o estresse". Use verbos de consequência sistêmica (Ex: "Quando o estresse vira Dívida Técnica").
+- 70 CARACTERES MÁXIMO POR LINHA.
 
-4. VALIDAÇÃO DE SINCERIDADE RADICAL:
-Se o título parecer um anúncio de curso de marketing ("A analogia definitiva para dominar o estresse!"), descarte e refaça. O tom é brutalmente sincero. MÁXIMO DE 70 CARACTERES.
+[CONTEXTO DE CONFIGURAÇÃO]
+Tema do Usuário: ${baseTopic}
+DNA / Target Persona: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
+Módulo Atual da Jornada (Tonalidade e Escopo Técnico): ${newThemeCategory}
+Metáforas Cadastradas do BD: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'N/A'}
 
-[CONTEXTO ALVO]
-Tema Central: ${baseTopic}
-DNA / Público: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
-Vocabulário Analógico Base: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'Engenharia de TI'}
+[REFINAMENTO DE PADRÕES E ESTRUTURAS (Templates Puros)]
+S1 (Provocação): Um tapa técnico. Aponte o erro crônico sobre [TEMA]. (Ex: "O erro de arquitetura que está fritando sua carreira antes dos 40.").
+S2 (Autoridade Analógica): A metáfora deve ser o sujeito, não a explicação. (Ex: "Thermal Throttling: Por que você não foca em código complexo.").
+S3 (Quebra / Interrupção): "Pare de ser o herói". (Ex: "Pare de tratar seu cérebro como servidor legado.").
+S4 (Insight Radical): Desconstrua por que o padrão tradicional de [TEMA] gera dívida técnica silenciosa.
+S5 (Sustentabilidade/Workflow): O Blueprint de refatoração para sobreviver sobre [TEMA].
 
-[REFINAMENTO DE ESTRUTURAS (Molde Tático)]
-S1 (Provocação): Deve ser um tapa na cara técnico. Ex: "O erro de arquitetura que está fritando sua carreira." -> Adapte isso ao [TEMA].
-S2 (Autoridade Analógica): A metáfora deve ser o sujeito, sem explicações extras. Ex: "Memory Leak: Por que [TEMA] quebra a produção."
-S3 (Quebra de Padrão): Foque no "Pare de ser o herói". Ex: "Pare de tratar seu cérebro como servidor legado. Resolva [TEMA]."
-S4 (Insight Radical): Por que o padrão tradicional de [TEMA] gera dívida técnica silenciosa.
-S5 (Sustentabilidade/Lifestyle): O Blueprint de Sobrevivência para refatorar [TEMA].
-
-[OUTPUT OBRIGATÓRIO (MÁQUINA - APENAS JSON STRICT)]
-Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
+[OUTPUT OBRIGATÓRIO (JSON STRICT BI & TRACKING)]
+Prepare e retorne estritamente um objeto JSON com duas chaves principais: "titles" (contendo S1 a S5 com vazamento zero da abstração) e "composition_log". Nunca adicione blocos de markdown em volta.
 {
-  "S1": "...",
-  "S2": "...",
-  "S3": "...",
-  "S4": "...",
-  "S5": "..."
+  "titles": {
+    "S1": "...",
+    "S2": "...",
+    "S3": "...",
+    "S4": "...",
+    "S5": "..."
+  },
+  "composition_log": {
+    "theme_mapped": "${baseTopic}",
+    "journey_layer": "${newThemeCategory}",
+    "metaphors_used": ["lista_dos_IDs_ou_termos_injetados_nestes_titulos"]
+  }
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        // Alias Graceful Fallback para os Fake Models de UI 3.1
-        let apiModel = model; 
-        if (model?.includes('3.1-pro') || model?.includes('pro')) apiModel = 'gemini-1.5-pro-latest';
-        else if (model?.includes('3.1-flash') || model?.includes('3-flash') || model?.includes('flash')) apiModel = 'gemini-1.5-flash-latest';
-        else apiModel = 'gemini-1.5-flash-latest';
+        // Alias Remapping: Transmuting Fake UI 3.1 to Stable Google endpoints without -latest bug
+        let apiModel = 'gemini-1.5-flash'; 
+        if (model?.toLowerCase().includes('pro')) apiModel = 'gemini-1.5-pro';
+        else if (model?.toLowerCase().includes('flash')) apiModel = 'gemini-1.5-flash';
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              responseMimeType: "application/json"
-            }
+            generationConfig: { temperature: 0.8 },
           })
         });
 
@@ -324,38 +323,41 @@ Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
              try {
                 text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(text);
-                setGeneratedTitles(parsed);
+                const extractedTitles = parsed.titles || parsed; // fallback
                 
-                const combinedAI = Object.values(parsed).join(' ');
+                setGeneratedTitles(extractedTitles);
+                
+                const combinedAI = Object.values(extractedTitles).join(' ');
                 const newResult = getScore(baseTopic, newThemeNote, combinedAI);
                 setCurrentMatch(newResult.score);
                 setRefactoringSuggestion(newResult.suggestion);
+                console.log("Composition BI Log salvo em memória:", parsed.composition_log);
              } catch(e: any) { 
-                alert("Falha ao ler JSON do Gemini. Resposta Crua:\\n" + text.substring(0, 150));
+                alert("Falha ao ler JSON do Gemini. Resposta Crua:\n" + text.substring(0, 150));
              }
           } else {
              alert("A API do Gemini retornou uma resposta vazia.");
           }
         } else {
           const errorBody = await response.text();
-          alert("Erro " + response.status + " na API do Gemini:\\n" + errorBody);
+          alert("Erro " + response.status + " na API do Gemini:\n" + errorBody);
         }
       } else if (engine === 'openai' && openaiKey) {
         let apiModel = 'gpt-4o-mini';
-        if (model === 'gpt-5.1' || model === 'gpt-5-mini') apiModel = 'gpt-4o-mini'; // Mapeamento seguro preventivo
-        else if (model.includes('gpt-')) apiModel = model;
+        if (model.includes('4o')) apiModel = 'gpt-4o';
+        if (model.includes('3.5')) apiModel = 'gpt-3.5-turbo';
 
-        const response = await fetch(`https://api.openai.com/v1/chat/completions`, {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: { 
+          headers: {
+            'Authorization': `Bearer ${openaiKey}`,
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiKey}` 
           },
           body: JSON.stringify({
             model: apiModel,
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: "json_object" },
-            temperature: 0.7
+            messages: [{ role: 'system', content: prompt }],
+            temperature: 0.8,
+            response_format: { type: "json_object" }
           })
         });
 
@@ -366,26 +368,28 @@ Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
              try {
                 text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(text);
-                setGeneratedTitles(parsed);
+                const extractedTitles = parsed.titles || parsed; // fallback
+
+                setGeneratedTitles(extractedTitles);
                 
-                const combinedAI = Object.values(parsed).join(' ');
+                const combinedAI = Object.values(extractedTitles).join(' ');
                 const newResult = getScore(baseTopic, newThemeNote, combinedAI);
                 setCurrentMatch(newResult.score);
                 setRefactoringSuggestion(newResult.suggestion);
+                console.log("Composition BI Log (OpenAI) salvo com sucesso:", parsed.composition_log);
              } catch(e: any) { 
-                alert("Falha ao ler JSON do OpenAI. Resposta Crua:\\n" + text.substring(0, 150));
+                alert("Falha ao ler JSON do OpenAI. Resposta Crua:\n" + text.substring(0, 150));
              }
           } else {
              alert("A API da OpenAI retornou uma resposta vazia.");
           }
         } else {
           const errorBody = await response.text();
-          alert("Erro " + response.status + " na API da OpenAI:\\n" + errorBody);
+          alert("Erro " + response.status + " na API da OpenAI:\n" + errorBody);
         }
       } else {
         await new Promise(r => setTimeout(r, 1000));
       }
-    } catch(err) {
       console.error("AI Title Generator Error:", err);
     }
     

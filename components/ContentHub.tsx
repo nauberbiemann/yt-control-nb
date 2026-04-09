@@ -326,7 +326,7 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${openaiKey}\` 
+            'Authorization': `Bearer ${openaiKey}` 
           },
           body: JSON.stringify({
             model: apiModel,

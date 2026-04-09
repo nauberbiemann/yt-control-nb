@@ -328,22 +328,44 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
           
           <div className="flex items-center gap-4 bg-white/5 border border-[var(--accent-color)]/20 p-4 rounded-xl mt-2">
             <div className="flex-1">
-              <span className="text-[10px] uppercase font-black tracking-widest text-[var(--accent-color)] opacity-80">Instrução de Síntese Padrão (Prompt AI)</span>
-              <p className="text-[11px] text-white/60 mt-1 italic leading-relaxed">
-                "Use as informações de Persona e Metáforas como contexto semântico. NÃO copie as descrições. Extraia apenas o conceito ou o termo técnico para preencher as lacunas das estruturas S1-S5."
+              <span className="text-[10px] uppercase font-black tracking-widest text-[var(--accent-color)] opacity-80">Motor de Síntese (Prompt Engine)</span>
+              <p className="text-[11px] text-white/60 mt-2 leading-relaxed">
+                <span className="block mb-2 font-bold opacity-80">Objetivo: Agir como um motor de síntese que processa um Tema Bruto utilizando estritamente as definições de estrutura de contexto do projeto.</span>
+                <span className="block text-[10px] font-mono text-white/40">Regras: Síntese Obrigatória (Não copie descrições grandes), Respeito ao Pattern, e Output com Identidade de Projeto (Máx 70 caracteres).</span>
               </p>
             </div>
             <button 
               onClick={() => {
-                const prompt = `Use as informações de Persona e Metáforas como contexto semântico. NÃO copie as descrições. Extraia apenas o conceito ou o termo técnico para preencher as lacunas das estruturas S1-S5.\n\n` + 
-                titleStructures.map(s => `${s.id} (${s.name}): ${s.pattern}`).join('\n') + `\n\n Tema Bruto: ${baseTopic}`;
+                const prompt = `Objetivo: "Agir como um motor de síntese que processa um Tema Bruto utilizando estritamente as definições de estrutura e contexto cadastradas no banco de dados do projeto atual."
+
+1. Processamento de Contexto (Input do Banco):
+Estruturas de Título: Utilize a lista de title_structures fornecida (contendo Rótulo, Descrição Tática e Core Pattern).
+Persona & Metáforas: Utilize estas informações apenas como referência semântica e tonal.
+
+2. Regras de Geração (O "Filtro" de Inteligência):
+Síntese Obrigatória: NÃO copie e cole as descrições da Persona ou definições das Metáforas nos títulos. O sistema deve extrair a essência e aplicar ao Core Pattern.
+Respeito ao Pattern: Para cada estrutura cadastrada, preencha as lacunas do Core Pattern de forma gramaticalmente correta e fluida.
+Identidade de Projeto: O tom e o vocabulário devem ser extraídos do campo "Atmosfera Narrativa" e "Engenharia de Metáforas" do projeto.
+
+3. Output Esperado:
+Retorne uma lista onde cada item contém o structure_id e o generated_title.
+Garanta que o título gerado seja humano, curto (máx 70 caracteres) e que a conexão entre o Tema e a Estrutura seja orgânica.
+
+[INPUT DO PROJETO - INJETE CONFORME AS REGRAS]
+Tema Bruto: ${baseTopic || ''}
+Atmosfera Narrativa / Persona: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'N/A'}
+Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'N/A'}
+
+[ESTRUTURAS-BASE A PREENCHER]
+` + titleStructures.map(s => `${s.id} (${s.name}): ${s.pattern}`).join('\n');
+                
                 navigator.clipboard.writeText(prompt);
-                alert("Prompt Tático S1-S5 copiado para a área de transferência!");
+                alert("Motor de Síntese S1-S5 copiado para a área de transferência!");
               }}
-              className="px-4 py-2 bg-[var(--accent-color)]/10 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-midnight transition-colors border border-[var(--accent-color)]/20 rounded-lg text-[10px] font-black tracking-widest uppercase flex flex-col items-center gap-1"
+              className="px-4 py-3 bg-[var(--accent-color)]/10 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-midnight transition-colors border border-[var(--accent-color)]/20 rounded-lg text-[10px] items-center justify-center font-black tracking-widest uppercase flex flex-col gap-1 whitespace-nowrap"
             >
               <Copy size={16} />
-              Copiar Prompt
+              Copiar Motor
             </button>
           </div>
           

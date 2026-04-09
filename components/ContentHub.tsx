@@ -390,6 +390,7 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
       } else {
         await new Promise(r => setTimeout(r, 1000));
       }
+    } catch(err) {
       console.error("AI Title Generator Error:", err);
     }
     

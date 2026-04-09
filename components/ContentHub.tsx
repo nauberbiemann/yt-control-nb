@@ -243,14 +243,22 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     setRefactoringSuggestion(result.suggestion);
     
     try {
+      const engine = selectedAIConfig?.engine || 'gemini';
+      const model = selectedAIConfig?.model || 'gemini-1.5-flash';
+      
       const geminiKey = localStorage.getItem('yt_gemini_key');
-      if (geminiKey) {
-        let apiModel = 'gemini-1.5-flash';
-        if (selectedAIConfig?.model?.includes('pro')) {
-          apiModel = 'gemini-1.5-pro';
-        }
+      const openaiKey = localStorage.getItem('yt_openai_key');
 
-        const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V2)
+      const missingOpenAI = engine === 'openai' && !openaiKey;
+      const missingGemini = engine === 'gemini' && !geminiKey;
+
+      if (missingOpenAI) {
+        alert("⚠️ Chave API da OpenAI ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
+      } else if (missingGemini) {
+        alert("⚠️ Chave API do Google Gemini ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
+      }
+
+      const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V2)
 
 1. DEFINIÇÃO DE PAPEL: Você é um especialista em Copywriting que transforma dados técnicos em títulos de alto impacto.
 
@@ -284,6 +292,10 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
   "S5": "Título gerado para S5"
 }`;
 
+      if (engine === 'gemini' && geminiKey) {
+        let apiModel = 'gemini-1.5-flash';
+        if (model.includes('pro')) apiModel = 'gemini-1.5-pro';
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -301,15 +313,39 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
              try {
-                const parsed = JSON.parse(text);
-                setGeneratedTitles(parsed);
-             } catch(e) {
-                console.error("Failed to parse Gemini JSON:", text);
-             }
+                setGeneratedTitles(JSON.parse(text));
+             } catch(e) { console.error("JSON parse erro (Gemini):", text); }
+          }
+        }
+      } else if (engine === 'openai' && openaiKey) {
+        let apiModel = 'gpt-4o-mini';
+        if (model === 'gpt-5.1' || model === 'gpt-5-mini') apiModel = 'gpt-4o-mini'; // Mapeamento seguro preventivo
+        else if (model.includes('gpt-')) apiModel = model;
+
+        const response = await fetch(`https://api.openai.com/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${openaiKey}\` 
+          },
+          body: JSON.stringify({
+            model: apiModel,
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.7
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.choices?.[0]?.message?.content;
+          if (text) {
+             try {
+                setGeneratedTitles(JSON.parse(text));
+             } catch(e) { console.error("JSON parse erro (OpenAI):", text); }
           }
         }
       } else {
-        // Fallback fake delay if no AI key
         await new Promise(r => setTimeout(r, 1000));
       }
     } catch(err) {

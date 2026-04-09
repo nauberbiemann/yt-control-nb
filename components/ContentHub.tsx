@@ -301,102 +301,60 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
   }
 }`;
 
-      if (engine === 'gemini' && geminiKey) {
-        // Priority: DB project config → alias map → raw model ID
-        const apiModel =
-          activeProject?.ai_engine_rules?.gemini_api_model ||
-          resolveModel(model);
+      // --- CHAMADA VIA BACKEND PROXY (MÓDULO DE ENGENHARIA) ---
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine,
+          model,
+          prompt,
+          apiKeyOverwrite: engine === 'gemini' ? geminiKey : openaiKey,
+          projectConfig: activeProject?.ai_engine_rules
+        })
+      });
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.8 },
-          })
-        });
+      if (!response.ok) {
+        const errorBody = await response.text();
+        alert(`Erro ${response.status} na Geração de IA: ${errorBody}`);
+        return;
+      }
 
-        if (response.ok) {
-          const data = await response.json();
-          let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) {
-             try {
-                text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(text);
-                const extractedTitles = parsed.titles || parsed; // fallback
-                
-                setGeneratedTitles(extractedTitles);
-                
-                const combinedAI = Object.values(extractedTitles).join(' ');
-                const newResult = getScore(baseTopic, newThemeNote, combinedAI);
-                setCurrentMatch(newResult.score);
-                setRefactoringSuggestion(newResult.suggestion);
-                console.log("Composition BI Log salvo em memória:", parsed.composition_log);
-             } catch(e: any) { 
-                alert("Falha ao ler JSON do Gemini. Resposta Crua:\n" + text.substring(0, 150));
-             }
-          } else {
-             alert("A API do Gemini retornou uma resposta vazia.");
-          }
-        } else {
-          const errorBody = await response.text();
-          alert("Erro " + response.status + " na API do Gemini:\n" + errorBody);
-        }
-      } else if (engine === 'openai' && openaiKey) {
-        // Priority: DB project config → alias map → raw model ID
-        const apiModel =
-          activeProject?.ai_engine_rules?.openai_api_model ||
-          resolveModel(model);
+      const data = await response.json();
+      let text = '';
+      
+      // Normalização da resposta dependendo da engine
+      if (engine === 'gemini') {
+        text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else if (engine === 'openai') {
+        text = data.choices?.[0]?.message?.content || '';
+      }
 
-        const supportsTemperature = !isReasoningModel(model);
-        const requestBody: Record<string, unknown> = {
-          model: apiModel,
-          messages: [{ role: 'system', content: prompt }],
-          response_format: { type: "json_object" }
-        };
-        if (supportsTemperature) requestBody.temperature = 0.8;
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          let text = data.choices?.[0]?.message?.content;
-          if (text) {
-             try {
-                text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(text);
-                const extractedTitles = parsed.titles || parsed; // fallback
-
-                setGeneratedTitles(extractedTitles);
-                
-                const combinedAI = Object.values(extractedTitles).join(' ');
-                const newResult = getScore(baseTopic, newThemeNote, combinedAI);
-                setCurrentMatch(newResult.score);
-                setRefactoringSuggestion(newResult.suggestion);
-                console.log("Composition BI Log (OpenAI) salvo com sucesso:", parsed.composition_log);
-             } catch(e: any) { 
-                alert("Falha ao ler JSON do OpenAI. Resposta Crua:\n" + text.substring(0, 150));
-             }
-          } else {
-             alert("A API da OpenAI retornou uma resposta vazia.");
-          }
-        } else {
-          const errorBody = await response.text();
-          alert("Erro " + response.status + " na API da OpenAI:\n" + errorBody);
+      if (text) {
+        try {
+          // Limpeza de possíveis blocos de código Markdown
+          const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleanText);
+          const extractedTitles = parsed.titles || parsed; // fallback se não vier em objeto titles
+          
+          setGeneratedTitles(extractedTitles);
+          
+          const combinedAI = Object.values(extractedTitles).join(' ');
+          const newResult = getScore(baseTopic, newThemeNote, combinedAI);
+          setCurrentMatch(newResult.score);
+          setRefactoringSuggestion(newResult.suggestion);
+          
+          console.log(`Composition BI Log (${engine}) processado com sucesso:`, parsed.composition_log);
+        } catch(e: any) { 
+          alert(`Falha ao processar resposta JSON da IA. Resposta Crua:\n` + text.substring(0, 150));
         }
       } else {
-        await new Promise(r => setTimeout(r, 1000));
+        alert("A IA retornou uma resposta vazia.");
       }
     } catch(err) {
       console.error("AI Title Generator Error:", err);
     }
+
     
     setIsAnalyzing(false);
     setShowResults(true);

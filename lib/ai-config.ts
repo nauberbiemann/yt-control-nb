@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export const AI_MODELS = {
   openai: [
     { id: 'gpt-5.1',     name: 'GPT-5.1',      isDefault: true  },
@@ -61,3 +63,25 @@ export function isReasoningModel(modelId: string): boolean {
   const resolved = resolveModel(modelId);
   return resolved.startsWith('o1') || resolved.startsWith('o3') || resolved.startsWith('gpt-5');
 }
+
+/**
+ * ZOD SCHEMA: CONTRACT FOR AI GENERATED CONTENT
+ * Ensures that the LLM response contains all necessary fields for Titles and BI Logging.
+ */
+export const AIResponseSchema = z.object({
+  titles: z.object({
+    S1: z.string(),
+    S2: z.string(),
+    S3: z.string(),
+    S4: z.string(),
+    S5: z.string(),
+  }),
+  composition_log: z.object({
+    theme_mapped: z.string(),
+    journey_layer: z.string(),
+    metaphors_used: z.array(z.string()),
+  })
+});
+
+export type AIResponse = z.infer<typeof AIResponseSchema>;
+

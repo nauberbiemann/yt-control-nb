@@ -23,7 +23,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AIConfig, resolveModel, isReasoningModel } from '@/lib/ai-config';
+import { AIConfig, resolveModel, isReasoningModel, AIResponseSchema } from '@/lib/ai-config';
 
 interface Theme {
   id: string;
@@ -353,7 +353,22 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
           // Limpeza de possíveis blocos de código Markdown
           const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
           const parsed = JSON.parse(cleanText);
-          const extractedTitles = parsed.titles || parsed; // fallback se não vier em objeto titles
+          
+          // --- VALIDAÇÃO DE INTEGRIDADE (ZOD) ---
+          const validation = AIResponseSchema.safeParse(parsed);
+          
+          if (!validation.success) {
+            const errorDetails = validation.error.issues
+              .map(issue => `- ${issue.path.join('.')}: ${issue.message}`)
+              .join('\n');
+            
+            alert(`⚠️ FALHA DE CONTRATO (SCHEMA ERROR):\nA IA retornou um JSON incompleto ou inválido.\n\nErros detectados:\n${errorDetails}\n\nResposta Raw:\n${cleanText.substring(0, 100)}...`);
+            setIsAnalyzing(false);
+            return;
+          }
+
+          const validatedData = validation.data;
+          const extractedTitles = validatedData.titles;
           
           setGeneratedTitles(extractedTitles);
           
@@ -362,13 +377,13 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
           setCurrentMatch(newResult.score);
           setRefactoringSuggestion(newResult.suggestion);
           
-          console.log(`Composition BI Log (${engine}) processado com sucesso:`, parsed.composition_log);
+          console.log(`Composition BI Log (${engine}) processado com sucesso:`, validatedData.composition_log);
 
           // Passo Final: BI Log
           setCurrentStep(3);
           await delay(800);
         } catch(e: any) { 
-          alert(`Falha ao processar resposta JSON da IA. Resposta Crua:\n` + text.substring(0, 150));
+          alert(`ERRO TÉCNICO DE PARSING: Falha ao ler o formato da resposta.\n` + e.message);
         }
       } else {
         alert("A IA retornou uma resposta vazia.");

@@ -256,49 +256,48 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
         alert("⚠️ Chave API do Google Gemini ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
       }
 
-      const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V3 - PIPELINE CI/CD)
+      const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V4 - SENIOR TECH LEAD)
 
-1. DEFINIÇÃO DE PAPEL E CONCEITO CENTRAL:
-Você é um especialista em Copywriting Técnico sênior. A definição de temas sob esta arquitetura funciona como um pipeline de CI/CD para a vida e a carreira técnica.
+1. DEFINIÇÃO DE PAPEL:
+Você é um Arquiteto de Software/Copywriter escrevendo para Tech Leads. Seu objetivo é criar títulos cirúrgicos usando analogias profundas de Engenharia e CI/CD.
 
-2. LÓGICA DE DEFINIÇÃO POR MÓDULO (O FUNIL DO ESPECTADOR):
-Ajuste organicamente o tom dos títulos gerados dependendo da "Camada" de jornada que o tema se encontra:
-- M1 (Teoria / Diagnóstico): A "Camada de Log". Foque na identificação de falhas críticas, nos "bugs invisíveis" da rotina e na "Dívida Técnica Humana" (ex: Thermal Throttling da mente). Consciência situacional.
-- M2 (Prática / Implementação): A "Camada de Refactor". Foco total em execução. Sobre "como consertar" o sistema via "Refactoring de Rotina". Crie a sensação de entregar um protocolo ou script (ex: Firewall de Prioridades) para rodar imediatamente.
-- M3 (Otimização / Lifestyle): A "Camada de Kernel". Foco em sustentabilidade e arquitetura de longo prazo. O "Deploy de Carreira" estável, operando no estágio Kernel para um uptime infinito sem picos de estresse.
+2. LÓGICA DO MÓDULO ALVO (${newThemeCategory}):
+Mergulhe no jargão técnico da camada correspondente para gerar o título perfeito:
+- Se 'M1': Use jargão de diagnóstico (Logs, Profiling, Bugs Invisíveis, Dívida Técnica, Thermal Throttling mental, Memory Leaks).
+- Se 'M2': Use jargão de execução (Refactoring, CI/CD Pipeline, Scripts, Firewalls, Hotfix comportamental). 
+- Se 'M3': Use jargão de infra (Kernel, Uptime absoluto, High Availability mental, Deploy Seguro de Carreira).
 
-3. REGRAS DE OURO (NÃO VIOLAR):
-- MÁXIMO DE 70 CARACTERES POR TÍTULO.
-- Sintaxe Humana Sênior (Café com Dev): Adapte preposições (de, do, da) e verbos genéricos para que a leitura seja altamente fluida, intrigante e sênior. Evite fórmulas engessadas "robóticas".
-- Adaptação Sensível do Tema: Sinta-se 100% livre para reduzir, encurtar, ignorar conectivos ou transmutar o "[TEMA]" para que ele caiba organicamente na frase original. Exemplo: "gerenciar estresse" em vez de "impacto do estresse na tomada de decisão".
-- Metáfora Oculta (Sem Explicar): Onde a estrutura pedir '[METAFORA]', insira a criatividade mas NUNCA explique a metáfora no título.
+3. REGRAS DE OURO V4 (NÃO VIOLAR):
+- MÁXIMO DE 70 CARACTERES POR TÍTULO. Seja brutalmente conciso e denso.
+- Nível Sênior Absoluto: Recuse títulos genéricos ("dominar o estresse"). Transmute para jargão pesado inteligível apenas por Devs Pleno/Sênior.
+- Adaptação Semântica: Encurte ou modifique o texto de [TEMA] organicamente para não parecer robótico.
+- Oculte a Explicação: Se a estrutura pedir '[METAFORA]', jogue a metáfora direta. (ex: "Evite Kernel Panic no estresse"), NUNCA explique a analogia.
 
-[CONTEXTO ALVO DO PROJETO E DO TEMA ATUAL]
-Tema Bruto do Usuário: ${baseTopic}
-Módulo da Jornada Base Escolhido: ${newThemeCategory}
-Atmosfera / DNA da Persona: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior'}
-Vocabulário Base / Metáforas Disponíveis: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'Metáforas CI/CD'}
+[CONTEXTO ALVO]
+Tema Central: ${baseTopic}
+DNA / Público Alvo: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
+Analogias Disponíveis: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'Metáforas Base'}
 
-[ESTRUTURAS-BASE A PREENCHER (Preencha as Lacunas com Maestria Sintática)]
-S1 (Provocação Crítica): O erro técnico que [TARGET] ignora ao abordar [TEMA]
-S2 (Analógico/Authority): [METAFORA]: A analogia definitiva para dominar [TEMA]
-S3 (Quebra de Padrão): PARE de usar métodos genéricos em [TEMA]! Aplique o M1: Diagnóstico
-S4 (Desconstrução/Insight): Por que a abordagem tradicional de [TEMA] falha (A verdade do nicho)
-S5 (Lifestyle/Blueprint): O [METAFORA] em [TEMA]: Roteiro Técnico do Diagnóstico ao Lifestyle
+[ESTRUTURAS DINÂMICAS PARA PREENCHER (Sintaxe Livre para Adaptação)]
+S1 (Provocação Crítica): O erro de arquitetura que [TARGET] ignora ao rodar [TEMA]
+S2 (Authority Analógica): [METAFORA]: A arquitetura definitiva para debugar [TEMA]
+S3 (Quebra de Padrão): PARE de tratar [TEMA] com gambiarras! Execute o ${newThemeCategory}
+S4 (Insight de Performance): Por que o padrão tradicional de [TEMA] gera dívida técnica
+S5 (Lifestyle CI/CD): A documentação completa de [TEMA]: Do Diagnóstico M1 ao Lifestyle
 
 [OUTPUT OBRIGATÓRIO (MÁQUINA - APENAS JSON STRICT)]
-Retorne APENAS um objeto JSON válido. NUNCA envolva em textos ou blocos extra. Garanta as chaves:
+Retorne APENAS um objeto JSON válido. Use APENAS chaves S1 a S5.
 {
-  "S1": "Título incrivel gerado aqui",
-  "S2": "Título incrivel gerado aqui",
-  "S3": "Título incrivel gerado aqui",
-  "S4": "Título incrivel gerado aqui",
-  "S5": "Título incrivel gerado aqui"
+  "S1": "...",
+  "S2": "...",
+  "S3": "...",
+  "S4": "...",
+  "S5": "..."
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        let apiModel = 'gemini-1.5-flash';
-        if (model.includes('pro')) apiModel = 'gemini-1.5-pro';
+        let apiModel = 'gemini-1.5-flash-latest';
+        if (model.includes('pro')) apiModel = 'gemini-1.5-pro-latest';
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',

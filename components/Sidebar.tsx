@@ -7,7 +7,8 @@ import {
   PenTool, 
   CheckSquare, 
   History,
-  BookOpen
+  BookOpen,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -15,6 +16,7 @@ interface SidebarProps {
   onViewChange: (view: string) => void;
   activeProject?: any;
   onResetProject: () => void;
+  userRole?: string;
 }
 
 export default function Sidebar({ currentView, onViewChange, activeProject, onResetProject }: SidebarProps) {
@@ -28,6 +30,12 @@ export default function Sidebar({ currentView, onViewChange, activeProject, onRe
     { id: 'calendar', label: 'Calendário', icon: CalendarDays },
     { id: 'analytics', label: 'Memória Analytics', icon: History, strategic: true },
   ];
+
+  const adminItems = [
+    { id: 'admin', label: 'Gestão Master', icon: ShieldCheck }
+  ];
+
+  const allItems = [...menuItems, ...(userRole === 'admin' ? adminItems : [])];
 
   return (
     <aside 
@@ -45,7 +53,7 @@ export default function Sidebar({ currentView, onViewChange, activeProject, onRe
       </div>
 
       <nav className="flex flex-col gap-1 px-2 text-white">
-        {menuItems.map((item) => (
+        {allItems.map((item) => (
           <button
             key={item.id}
             onClick={() => onViewChange(item.id)}
@@ -54,14 +62,14 @@ export default function Sidebar({ currentView, onViewChange, activeProject, onRe
               ${currentView === item.id 
                 ? 'text-[var(--accent-color)] border-[var(--accent-color-glow)] bg-[var(--accent-color-glow)] shadow-lg shadow-[var(--accent-color-glow)]' 
                 : 'text-white/40 hover:text-white hover:bg-white/5 border-transparent'}
-              ${item.strategic && !activeProject ? 'opacity-20 cursor-not-allowed grayscale' : ''}
+              ${(item as any).strategic && !activeProject ? 'opacity-20 cursor-not-allowed grayscale' : ''}
             `}
-            disabled={item.strategic && !activeProject}
+            disabled={(item as any).strategic && !activeProject}
           >
             <item.icon size={18} className={currentView === item.id ? 'text-[var(--accent-color)]' : 'opacity-40 group-hover:opacity-100 transition-opacity'} />
             <span className="text-sm font-medium tracking-tight">
               {item.label}
-              {item.strategic && !activeProject && <span className="ml-2 text-[8px] opacity-50">🔒</span>}
+              {(item as any).strategic && !activeProject && <span className="ml-2 text-[8px] opacity-50">🔒</span>}
             </span>
           </button>
         ))}

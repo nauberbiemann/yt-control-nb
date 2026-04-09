@@ -12,6 +12,8 @@ import ProductionTracker from '@/components/ProductionTracker';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import NarrativeLibrary from '@/components/NarrativeLibrary';
 import AuthOverlay from '@/components/auth/AuthOverlay';
+import AwaitingApproval from '@/components/auth/AwaitingApproval';
+import UserManagement from '@/components/admin/UserManagement';
 import { supabase } from '@/lib/supabase';
 import { AI_MODELS, DEFAULT_CONFIG, AIConfig } from '@/lib/ai-config';
 import { 
@@ -37,6 +39,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState('home');
   const [showSettings, setShowSettings] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -51,11 +54,13 @@ export default function Home() {
 
   useEffect(() => {
     // 1. Escutar Mudanças de Auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
+        await fetchProfile(session.user.id);
         fetchProjects();
       } else {
+        setProfile(null);
         setProjects([]);
         setLoading(false);
       }
@@ -77,6 +82,22 @@ export default function Home() {
   const handleUpdateAI = (config: AIConfig) => {
     setActiveAIConfig(config);
     localStorage.setItem('ws_ai_config', JSON.stringify(config));
+  };
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) throw error;
+      setProfile(data);
+    } catch (err) {
+      console.error('Erro ao buscar perfil:', err);
+      // Opcional: Se der erro (ex: trigger ainda rodando), podemos tentar novamente ou deslogar.
+    }
   };
 
   const fetchProjects = async () => {
@@ -700,6 +721,8 @@ export default function Home() {
         );
       case 'analytics':
         return <AnalyticsDashboard activeProject={activeProject} />;
+      case 'admin':
+        return <UserManagement />;
       default:
         return <div className="glass-card p-12 opacity-10 italic">Módulo em desenvolvimento...</div>;
     }
@@ -720,6 +743,10 @@ export default function Home() {
     return <AuthOverlay />;
   }
 
+  if (profile && profile.status !== 'approved') {
+    return <AwaitingApproval email={user.email!} />;
+  }
+
   return (
     <main 
       className="min-h-screen bg-midnight text-white flex overflow-hidden font-sans"
@@ -736,6 +763,7 @@ export default function Home() {
           setActiveProjectId(null);
           setCurrentView('home');
         }}
+        userRole={profile?.role}
       />
       
       <main className="main-content">

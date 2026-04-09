@@ -173,33 +173,32 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     { id: 'S5', name: 'Blueprint', pattern: 'O [METAFORA] do [TEMA]: Roteiro Técnico do Diagnóstico ao Lifestyle', type: 'practical' },
   ];
 
-  const getScore = (topic: string, note: string) => {
+  const getScore = (topic: string, note: string, generatedText: string = '') => {
     const metaphorsStr = activeProject.ai_engine_rules?.metaphors?.join(', ') || activeProject.metaphor_library || '';
     const metaphors = metaphorsStr.split(',').map((s: string) => s.trim()).filter(Boolean);
     
     const prohibitedStr = activeProject.ai_engine_rules?.prohibited?.join(', ') || activeProject.prohibited_terms || '';
     const prohibited = prohibitedStr.split(',').map((s: string) => s.trim()).filter(Boolean);
 
+    const evalText = (topic + ' ' + note + ' ' + generatedText).toLowerCase();
+
     const hasMetaphorPotential = metaphors.some((m: string) => 
-      topic.toLowerCase().includes(m.toLowerCase()) || 
-      note.toLowerCase().includes(m.toLowerCase())
+      evalText.includes(m.toLowerCase())
     );
 
     // Dynamic DNA Alignment
     const painAlignment = activeProject.persona_matrix?.pain_alignment || activeProject.target_persona?.pain_point || '';
-    const hasPainAlignment = topic.toLowerCase().includes(painAlignment.toLowerCase()) || 
-                             note.toLowerCase().includes(painAlignment.toLowerCase());
+    const hasPainAlignment = evalText.includes(painAlignment.toLowerCase());
     
     // Editorial Pillar Check
     const pillars = activeProject.editorial_line?.pillars || [];
     const hasEditorialMatch = pillars.some((p: string) => 
-      p.trim() !== '' && (topic.toLowerCase().includes(p.toLowerCase()) || note.toLowerCase().includes(p.toLowerCase()))
+      p.trim() !== '' && evalText.includes(p.toLowerCase())
     );
 
     // PHD Skill Alignment
     const skillFocus = activeProject.phd_strategy?.skill || '';
-    const hasSkillMatch = topic.toLowerCase().includes(skillFocus.toLowerCase()) || 
-                          note.toLowerCase().includes(skillFocus.toLowerCase());
+    const hasSkillMatch = evalText.includes(skillFocus.toLowerCase());
 
     const hasConnectionDepth = note.length > 30;
     
@@ -211,8 +210,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     if (hasConnectionDepth) score += 5;
 
     const detectedProhibited = prohibited.filter((p: string) => 
-      topic.toLowerCase().includes(p.toLowerCase()) || 
-      note.toLowerCase().includes(p.toLowerCase())
+      evalText.includes(p.toLowerCase())
     );
 
     score -= (detectedProhibited.length * 20);
@@ -266,7 +264,8 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
 
 3. REGRAS DE OURO:
 - MÁXIMO DE 70 CARACTERES.
-- Gramática Humana Sênior (Não pareça um relatório de BD).
+- Gramática Humana Sênior: Adapte preposições (de, do, da) e substitua verbos para garantir conexão fluida. O texto não pode parecer gerado por robô.
+- Adaptação de Tema: Sinta-se livre para encurtar ou mesclar o [TEMA] organicamente na frase. 
 - Onde pedir 'Provocação' crie frase curta. Onde pedir 'Metáfora' use APENAS O NOME dela.
 
 [CONTEXTO DO PROJETO]
@@ -313,7 +312,14 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
              try {
-                setGeneratedTitles(JSON.parse(text));
+                const parsed = JSON.parse(text);
+                setGeneratedTitles(parsed);
+                
+                // Recalculate score with AI context
+                const combinedAI = Object.values(parsed).join(' ');
+                const newResult = getScore(baseTopic, newThemeNote, combinedAI);
+                setCurrentMatch(newResult.score);
+                setRefactoringSuggestion(newResult.suggestion);
              } catch(e) { console.error("JSON parse erro (Gemini):", text); }
           }
         }
@@ -341,7 +347,14 @@ Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exat
           const text = data.choices?.[0]?.message?.content;
           if (text) {
              try {
-                setGeneratedTitles(JSON.parse(text));
+                const parsed = JSON.parse(text);
+                setGeneratedTitles(parsed);
+                
+                // Recalculate score with AI context
+                const combinedAI = Object.values(parsed).join(' ');
+                const newResult = getScore(baseTopic, newThemeNote, combinedAI);
+                setCurrentMatch(newResult.score);
+                setRefactoringSuggestion(newResult.suggestion);
              } catch(e) { console.error("JSON parse erro (OpenAI):", text); }
           }
         }

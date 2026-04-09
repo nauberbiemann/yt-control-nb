@@ -20,7 +20,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AIConfig } from '@/lib/ai-config';
+import { AIConfig, resolveModel } from '@/lib/ai-config';
 
 interface Theme {
   id: string;
@@ -302,11 +302,7 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
 }`;
 
       if (engine === 'gemini' && geminiKey) {
-        // Remap UI model names to currently valid Google API endpoints
-        let apiModel = 'gemini-2.0-flash';
-        if (model?.toLowerCase().includes('pro')) apiModel = 'gemini-2.0-flash'; // gemini-2.5-pro requires allowlisting
-        else if (model?.toLowerCase().includes('flash')) apiModel = 'gemini-2.0-flash';
-        else apiModel = 'gemini-2.0-flash';
+        const apiModel = resolveModel(model);
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
           method: 'POST',
@@ -344,9 +340,7 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
           alert("Erro " + response.status + " na API do Gemini:\n" + errorBody);
         }
       } else if (engine === 'openai' && openaiKey) {
-        let apiModel = 'gpt-4o-mini';
-        if (model.includes('4o')) apiModel = 'gpt-4o';
-        if (model.includes('3.5')) apiModel = 'gpt-3.5-turbo';
+        const apiModel = resolveModel(model);
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',

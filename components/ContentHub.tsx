@@ -62,6 +62,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
   const [newThemeDemand, setNewThemeDemand] = useState('');
   const [newThemeNote, setNewThemeNote] = useState('');
   const [selectedStructureId, setSelectedStructureId] = useState<string>('S1');
+  const [generatedTitles, setGeneratedTitles] = useState<Record<string, string>>({});
   
   // Refinement & Assets States
   const [activeEditTheme, setActiveEditTheme] = useState<Theme | null>(null);
@@ -229,19 +230,94 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     };
   };
 
-  const calculateMatchScore = () => {
+  const calculateMatchScore = async () => {
     if (!baseTopic || !activeProject) return;
     setIsAnalyzing(true);
     setLowMatchAlert(null);
+    setGeneratedTitles({});
     
-    setTimeout(() => {
-      const result = getScore(baseTopic, newThemeNote);
-      setCurrentMatch(result.score);
-      setProhibitedWarning(result.detectedProhibited);
-      setRefactoringSuggestion(result.suggestion);
-      setIsAnalyzing(false);
-      setShowResults(true);
-    }, 1500);
+    // Process local score immediately
+    const result = getScore(baseTopic, newThemeNote);
+    setCurrentMatch(result.score);
+    setProhibitedWarning(result.detectedProhibited);
+    setRefactoringSuggestion(result.suggestion);
+    
+    try {
+      const geminiKey = localStorage.getItem('yt_gemini_key');
+      if (geminiKey) {
+        let apiModel = 'gemini-1.5-flash';
+        if (selectedAIConfig?.model?.includes('pro')) {
+          apiModel = 'gemini-1.5-pro';
+        }
+
+        const prompt = `DIRETRIZ DE SÍNTESE NARRATIVA (PROMPT ENGINE V2)
+
+1. DEFINIÇÃO DE PAPEL: Você é um especialista em Copywriting que transforma dados técnicos em títulos de alto impacto.
+
+2. LOGICA DE PROCESSAMENTO: NÃO copie e cole descrições longas. Extraia apenas o conceito-chave da Persona e a Metáfora. Aplique ao Core Pattern mantendo a essência.
+
+3. REGRAS DE OURO:
+- MÁXIMO DE 70 CARACTERES.
+- Gramática Humana Sênior (Não pareça um relatório de BD).
+- Onde pedir 'Provocação' crie frase curta. Onde pedir 'Metáfora' use APENAS O NOME dela.
+
+[CONTEXTO DO PROJETO]
+Tema Bruto: ${baseTopic}
+Atmosfera Narrativa / Persona: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'N/A'}
+Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'N/A'}
+Jornada: ${activeProject?.playlists?.tactical_journey?.[0]?.title || 'Fundamentos'}
+
+[ESTRUTURAS-BASE A PREENCHER (Substitua as Tags)]
+S1 (Provocação): O erro técnico que [TARGET] ignora ao abordar [TEMA]
+S2 (Metáfora): [METAFORA]: A analogia definitiva para dominar [TEMA]
+S3 (Interrupção): PARE de usar métodos genéricos em [TEMA]! Aplique o M1: [JORNADA]
+S4 (Desconstrução): Por que o [TEMA] tradicional falha (A verdade do nicho)
+S5 (Blueprint): O [METAFORA] do [TEMA]: Roteiro Técnico do Diagnóstico ao Lifestyle
+
+[OUTPUT OBRIGATORIO MÁQUINA - APENAS JSON]
+Retorne APENAS um objeto JSON válido, sem formato markdown extra, seguindo exatamente estas chaves:
+{
+  "S1": "Título gerado para S1",
+  "S2": "Título gerado para S2",
+  "S3": "Título gerado para S3",
+  "S4": "Título gerado para S4",
+  "S5": "Título gerado para S5"
+}`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.7,
+              responseMimeType: "application/json"
+            }
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+             try {
+                const parsed = JSON.parse(text);
+                setGeneratedTitles(parsed);
+             } catch(e) {
+                console.error("Failed to parse Gemini JSON:", text);
+             }
+          }
+        }
+      } else {
+        // Fallback fake delay if no AI key
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    } catch(err) {
+      console.error("AI Title Generator Error:", err);
+    }
+    
+    setIsAnalyzing(false);
+    setShowResults(true);
   };
 
   const handleUpdateTheme = async (themeId: string, updatedData: Partial<Theme>) => {
@@ -454,9 +530,14 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
 
           {showResults && (
             <div className="grid grid-cols-1 gap-3 mt-8 animate-in slide-in-from-top-4 duration-500">
-              <div className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-[0.3em] mb-2 px-2">Clique na Estrutura para Salvar no Banco</div>
+              <div className="flex justify-between items-center mb-2 px-2">
+                <span className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-[0.3em]">Clique na Estrutura para Salvar no Banco</span>
+                {Object.keys(generatedTitles).length > 0 && (
+                  <span className="text-[9px] font-bold text-sage uppercase border border-sage/20 bg-sage/5 px-2 py-1 rounded">Síntese IA Ativa</span>
+                )}
+              </div>
               {titleStructures.map(s => {
-                const finalTitle = getDynamicTitle(s.pattern);
+                const finalTitle = generatedTitles[s.id] || getDynamicTitle(s.pattern);
                 return (
                   <div 
                     key={s.id} 

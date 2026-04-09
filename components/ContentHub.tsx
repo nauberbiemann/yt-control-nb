@@ -17,7 +17,10 @@ import {
   Trash2,
   Send,
   Target as TargetIcon,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles,
+  History,
+  Cpu
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { AIConfig, resolveModel, isReasoningModel } from '@/lib/ai-config';
@@ -52,10 +55,20 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
   const [showResults, setShowResults] = useState(false);
   const [baseTopic, setBaseTopic] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const [currentMatch, setCurrentMatch] = useState<number | null>(null);
   const [lowMatchAlert, setLowMatchAlert] = useState<string | null>(null);
   const [refactoringSuggestion, setRefactoringSuggestion] = useState<string | null>(null);
   const [prohibitedWarning, setProhibitedWarning] = useState<string[]>([]);
+
+  const GENERATION_STEPS = [
+    { label: "Sincronizando Metadados de Contexto...", icon: Database },
+    { label: "Injetando Ativos da Biblioteca Técnica...", icon: Cpu },
+    { label: "Sintetizando Escopo via Backend Proxy...", icon: Sparkles },
+    { label: "Finalizando DNA do Conteúdo (BI Log)...", icon: History }
+  ];
+
+  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
   // Form States for New Theme
   const [newThemeCategory, setNewThemeCategory] = useState<string>('');
@@ -231,6 +244,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
   const calculateMatchScore = async () => {
     if (!baseTopic || !activeProject) return;
     setIsAnalyzing(true);
+    setCurrentStep(0); // 1. Sincronizando Metadados
     setLowMatchAlert(null);
     setGeneratedTitles({});
     
@@ -241,6 +255,10 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     setRefactoringSuggestion(result.suggestion);
     
     try {
+      await delay(600);
+      setCurrentStep(1); // 2. Processando Ativos Técnicos
+      await delay(600);
+      setCurrentStep(2); // 3. Sintetizando Escopo Antigravity (API)
       const engine = selectedAIConfig?.engine || 'gemini';
       const model = selectedAIConfig?.model || 'gemini-1.5-flash';
       
@@ -345,6 +363,10 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
           setRefactoringSuggestion(newResult.suggestion);
           
           console.log(`Composition BI Log (${engine}) processado com sucesso:`, parsed.composition_log);
+
+          // Passo Final: BI Log
+          setCurrentStep(3);
+          await delay(800);
         } catch(e: any) { 
           alert(`Falha ao processar resposta JSON da IA. Resposta Crua:\n` + text.substring(0, 150));
         }
@@ -509,63 +531,88 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                 onClick={calculateMatchScore}
                 disabled={!baseTopic || isAnalyzing || !activeProject}
                 className={`px-8 rounded-xl font-bold transition-all flex items-center gap-3 shadow-lg ${
-                  isAnalyzing ? 'bg-white/5 text-white/20 cursor-wait' : 'bg-[var(--accent-color)] text-midnight hover:scale-105 active:scale-95 shadow-[var(--accent-color-glow)]'
+                  isAnalyzing ? 'bg-white/5 text-white/10 cursor-wait opacity-50' : 'bg-[var(--accent-color)] text-midnight hover:scale-105 active:scale-95 shadow-[var(--accent-color-glow)]'
                 }`}
               >
-                {isAnalyzing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-midnight/20 border-t-midnight animate-spin rounded-full" />
-                    ANALISANDO COM {selectedAIConfig.model.toUpperCase()}...
-                  </>
-                ) : (
-                  <>ANALISAR MATCH <ChevronRight size={18} /></>
-                )}
+                {isAnalyzing ? "EQUILIBRANDO ENGINE..." : <>ANALISAR MATCH <ChevronRight size={18} /></>}
               </button>
             </div>
 
-            {/* Strategic Metadata Inputs (V3 Final) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-700">
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Playlist / Categoria</label>
-                <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Ponto da jornada tática (M1-M3).</span>
-                <select 
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-bold appearance-none cursor-pointer"
-                  value={newThemeCategory}
-                  onChange={(e: any) => setNewThemeCategory(e.target.value)}
-                >
-                  {(activeProject?.playlists?.tactical_journey || [
-                    { label: 'M1', title: 'Teoria / Diagnóstico' },
-                    { label: 'M2', title: 'Prática / Implementação' },
-                    { label: 'M3', title: 'Otimização / Lifestyle' }
-                  ]).map((item: any) => (
-                    <option key={item.label} value={`${item.label}: ${item.title}`} className="bg-midnight text-white">
-                      {item.label}: {item.title}
-                    </option>
-                  ))}
-                </select>
+            {/* --- PROGRESSO MINIMALISTA (ENGINE ANTIGRAVITY) --- */}
+            {isAnalyzing && (
+              <div className="bg-midnight/40 backdrop-blur-md border border-[var(--accent-color)]/20 p-8 rounded-2xl animate-in fade-in zoom-in duration-300 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
+                {/* Progress Bar (Glow Line) */}
+                <div className="absolute top-0 left-0 h-[2px] bg-[var(--accent-color)] shadow-[0_0_15px_var(--accent-color)] transition-all duration-700 ease-out" 
+                     style={{ width: `${((currentStep + 1) / GENERATION_STEPS.length) * 100}%` }} />
+                
+                <div className="p-4 bg-[var(--accent-color)]/10 rounded-full animate-pulse border border-[var(--accent-color)]/20">
+                  {(() => {
+                    const Icon = GENERATION_STEPS[currentStep]?.icon || Database;
+                    return <Icon className="text-[var(--accent-color)]" size={32} />;
+                  })()}
+                </div>
+
+                <div className="text-center space-y-2">
+                  <h4 className="text-lg font-bold tracking-tight text-white animate-in slide-in-from-bottom-2 duration-500">
+                    {GENERATION_STEPS[currentStep]?.label}
+                  </h4>
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--accent-color)] animate-pulse">
+                    Fase {currentStep + 1} de {GENERATION_STEPS.length}
+                  </p>
+                </div>
+
+                {/* Micro-Interaction Background */}
+                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[var(--accent-color)]/5 blur-3xl rounded-full group-hover:bg-[var(--accent-color)]/10 transition-all duration-1000" />
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Demanda (Views Estimadas)</label>
-                <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Volume de audiência real detectado.</span>
-                <input 
-                  type="text"
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-bold placeholder:text-white/5"
-                  placeholder="Ex: 50k"
-                  value={newThemeDemand}
-                  onChange={(e) => setNewThemeDemand(e.target.value)}
-                />
+            )}
+
+
+            {/* Strategic Metadata Inputs (V3 Final) - Hidden during Analysis for Minimalism */}
+            {!isAnalyzing && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-700">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Playlist / Categoria</label>
+                  <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Ponto da jornada tática (M1-M3).</span>
+                  <select 
+                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-bold appearance-none cursor-pointer"
+                    value={newThemeCategory}
+                    onChange={(e: any) => setNewThemeCategory(e.target.value)}
+                  >
+                    {(activeProject?.playlists?.tactical_journey || [
+                      { label: 'M1', title: 'Teoria / Diagnóstico' },
+                      { label: 'M2', title: 'Prática / Implementação' },
+                      { label: 'M3', title: 'Otimização / Lifestyle' }
+                    ]).map((item: any) => (
+                      <option key={item.label} value={`${item.label}: ${item.title}`} className="bg-midnight text-white">
+                        {item.label}: {item.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Demanda (Views Estimadas)</label>
+                  <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Volume de audiência real detectado.</span>
+                  <input 
+                    type="text"
+                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-bold placeholder:text-white/5"
+                    placeholder="Ex: 50k"
+                    value={newThemeDemand}
+                    onChange={(e) => setNewThemeDemand(e.target.value)}
+                  />
+                </div>
+                <div className="md:col-span-2 flex flex-col gap-2">
+                  <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Observação de Conexão (Match Persona)</label>
+                  <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Como este tema alivia a dor central do seu avatar?</span>
+                  <textarea 
+                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-medium placeholder:text-white/5 min-h-[100px] resize-none"
+                    placeholder="Injete o motivo estratégico para falar sobre isso agora."
+                    value={newThemeNote}
+                    onChange={(e) => setNewThemeNote(e.target.value)}
+                  />
+                </div>
               </div>
-              <div className="md:col-span-2 flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Observação de Conexão (Match Persona)</label>
-                <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Como este tema alivia a dor central do seu avatar?</span>
-                <textarea 
-                  className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-medium placeholder:text-white/5 min-h-[100px] resize-none"
-                  placeholder="Injete o motivo estratégico para falar sobre isso agora."
-                  value={newThemeNote}
-                  onChange={(e) => setNewThemeNote(e.target.value)}
-                />
-              </div>
-            </div>
+            )}
+
           </div>
 
           {showResults && (

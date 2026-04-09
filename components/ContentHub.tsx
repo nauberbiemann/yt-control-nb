@@ -321,13 +321,19 @@ Retorne APENAS um objeto JSON válido. NUNCA envolva em textos ou blocos extra. 
                 const parsed = JSON.parse(text);
                 setGeneratedTitles(parsed);
                 
-                // Recalculate score with AI context
                 const combinedAI = Object.values(parsed).join(' ');
                 const newResult = getScore(baseTopic, newThemeNote, combinedAI);
                 setCurrentMatch(newResult.score);
                 setRefactoringSuggestion(newResult.suggestion);
-             } catch(e) { console.error("JSON parse erro (Gemini):", text); }
+             } catch(e: any) { 
+                alert("Falha ao ler JSON do Gemini. Resposta Crua:\\n" + text.substring(0, 150));
+             }
+          } else {
+             alert("A API do Gemini retornou uma resposta vazia.");
           }
+        } else {
+          const errorBody = await response.text();
+          alert("Erro " + response.status + " na API do Gemini:\\n" + errorBody);
         }
       } else if (engine === 'openai' && openaiKey) {
         let apiModel = 'gpt-4o-mini';
@@ -357,13 +363,19 @@ Retorne APENAS um objeto JSON válido. NUNCA envolva em textos ou blocos extra. 
                 const parsed = JSON.parse(text);
                 setGeneratedTitles(parsed);
                 
-                // Recalculate score with AI context
                 const combinedAI = Object.values(parsed).join(' ');
                 const newResult = getScore(baseTopic, newThemeNote, combinedAI);
                 setCurrentMatch(newResult.score);
                 setRefactoringSuggestion(newResult.suggestion);
-             } catch(e) { console.error("JSON parse erro (OpenAI):", text); }
+             } catch(e: any) { 
+                alert("Falha ao ler JSON do OpenAI. Resposta Crua:\\n" + text.substring(0, 150));
+             }
+          } else {
+             alert("A API da OpenAI retornou uma resposta vazia.");
           }
+        } else {
+          const errorBody = await response.text();
+          alert("Erro " + response.status + " na API da OpenAI:\\n" + errorBody);
         }
       } else {
         await new Promise(r => setTimeout(r, 1000));

@@ -1,4 +1,4 @@
--- SQL MIGRATION: USER PROFILES & MASTER APPROVAL
+-- SQL MIGRATION: USER PROFILES & MASTER APPROVAL (V2 - Anti-Recursion)
 -- Local: Supabase SQL Editor
 
 -- 1. Criar Tabela de Perfis
@@ -11,20 +11,33 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Ativar RLS na tabela profiles
+-- 2. Ativar RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- 3. Políticas de Visualização (Profiles)
--- O usuário pode ver seu próprio perfil. O Master pode ver todos.
+-- 3. Função de Verificação de Admin (SECURITY DEFINER para evitar recursão)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN (
+    SELECT role = 'admin' 
+    FROM public.profiles 
+    WHERE id = auth.uid()
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 4. Políticas de Visualização (Profiles)
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" 
 ON public.profiles FOR SELECT 
-USING (auth.uid() = id OR (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+USING (auth.uid() = id OR public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
 CREATE POLICY "Admins can update all profiles" 
 ON public.profiles FOR UPDATE 
-USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+USING (public.is_admin());
 
--- 4. Função Automática de Cadastro (Trigger)
+-- 5. Função Automática de Cadastro (Trigger)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -32,22 +45,23 @@ BEGIN
   VALUES (
     new.id, 
     new.email, 
-    -- Auto-aprovação para o Master
     CASE WHEN new.email = 'nauber.biemann@gmail.com' THEN 'approved' ELSE 'pending' END,
-    -- Cargo de Admin para o Master
     CASE WHEN new.email = 'nauber.biemann@gmail.com' THEN 'admin' ELSE 'user' END
   );
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Vincular Gatilho ao Auth
+-- 6. Vincular Gatilho ao Auth
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- 6. Promoção Retroativa (Caso o Master já esteja cadastrado)
-UPDATE public.profiles 
-SET status = 'approved', role = 'admin' 
-WHERE email = 'nauber.biemann@gmail.com';
+-- 7. Promoção Retroativa (Caso o Master já esteja cadastrado)
+INSERT INTO public.profiles (id, email, status, role)
+SELECT id, email, 'approved', 'admin'
+FROM auth.users
+WHERE email = 'nauber.biemann@gmail.com'
+ON CONFLICT (id) DO UPDATE 
+SET status = 'approved', role = 'admin';

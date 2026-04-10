@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AI_MODELS } from '@/lib/ai-config';
+import CustomSelect from './ui/CustomSelect';
+import { Cpu, Zap } from 'lucide-react';
 
 export default function EngineSelector() {
   const [activeEngine, setActiveEngine] = useState<'openai' | 'gemini'>('openai');
@@ -74,13 +76,13 @@ export default function EngineSelector() {
             OpenAI Engine
             {activeEngine === 'openai' && <span style={{ color: 'var(--primary)', fontSize: '0.8rem' }}>Ativo</span>}
           </h3>
-          <select 
+          <CustomSelect
             value={activeEngine === 'openai' ? selectedModel : ''}
-            onChange={(e) => updateConfig('openai', e.target.value)}
-            style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#111', color: '#fff', border: '1px solid var(--card-border)' }}
-          >
-            {AI_MODELS.openai.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
+            onChange={(val) => updateConfig('openai', val)}
+            options={AI_MODELS.openai.map(m => ({ value: m.id, label: m.name }))}
+            icon={<Zap size={14} />}
+            placeholder="Modelo OpenAI"
+          />
           <button 
             onClick={() => updateConfig('openai', AI_MODELS.openai[0].id)}
             className="btn-primary" 
@@ -95,13 +97,13 @@ export default function EngineSelector() {
             Google Gemini Engine
             {activeEngine === 'gemini' && <span style={{ color: 'var(--primary)', fontSize: '0.8rem' }}>Ativo</span>}
           </h3>
-          <select 
+          <CustomSelect
             value={activeEngine === 'gemini' ? selectedModel : ''}
-            onChange={(e) => updateConfig('gemini', e.target.value)}
-            style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#111', color: '#fff', border: '1px solid var(--card-border)' }}
-          >
-            {AI_MODELS.gemini.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
+            onChange={(val) => updateConfig('gemini', val)}
+            options={AI_MODELS.gemini.map(m => ({ value: m.id, label: m.name }))}
+            icon={<Cpu size={14} />}
+            placeholder="Modelo Gemini"
+          />
           <button 
             onClick={() => updateConfig('gemini', AI_MODELS.gemini[0].id)}
             className="btn-primary" 

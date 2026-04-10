@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useActiveProject } from '@/lib/store/projectStore';
 import { 
   History, 
   TrendingUp, 
@@ -23,7 +24,10 @@ interface AnalyticsDashboardProps {
   activeProject?: any;
 }
 
-export default function AnalyticsDashboard({ activeProject }: AnalyticsDashboardProps) {
+export default function AnalyticsDashboard({ activeProject: propProject }: AnalyticsDashboardProps) {
+  const storeProject = useActiveProject();
+  const activeProject = storeProject || propProject;
+
   const [stats] = useState([
     { id: '1', date: '01/04', title: 'Domine Next.js', views: '12.4k', ctr: '8.4%', retention: '52%', model: 'GPT-5.1 Preview' },
     { id: '2', date: '28/03', title: 'Segredo Tailwind', views: '8.2k', ctr: '6.5%', retention: '45%', model: 'Gemini 3.1 Pro' },

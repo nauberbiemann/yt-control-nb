@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useActiveProject } from '@/lib/store/projectStore';
 import { 
   Plus, 
   Search, 
@@ -24,18 +25,21 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { AIConfig, resolveModel, isReasoningModel, AIResponseSchema } from '@/lib/ai-config';
+import CustomSelect from './ui/CustomSelect';
 
 interface Theme {
   id: string;
   project_id: string;
-  raw_theme: string;
-  category: string;
-  demand_views: string;
-  connection_note: string;
-  match_score: number;
-  selected_structure: 'S1' | 'S2' | 'S3' | 'S4' | 'S5';
-  title: string; 
-  status: 'Backlog' | 'Roteirização' | 'Produção' | 'Publicado';
+  title: string; // Raw theme
+  category?: string;
+  pipeline_level?: string;
+  demand_views?: string;
+  notes?: string;
+  match_score?: number;
+  selected_structure?: string;
+  title_structure?: string;
+  refined_title?: string; 
+  status: 'backlog' | 'vetted' | 'scripted' | 'published' | 'Roteirização' | 'Produção';
   created_at: string;
   production_assets?: {
     thumb_prompt: string;
@@ -50,7 +54,10 @@ interface ContentHubProps {
   onGerarRoteiro?: (data: any) => void;
 }
 
-export default function ContentHub({ activeProject, selectedAIConfig, onGerarRoteiro }: ContentHubProps) {
+export default function ContentHub({ activeProject: propProject, selectedAIConfig, onGerarRoteiro }: ContentHubProps) {
+  const storeProject = useActiveProject();
+  const activeProject = storeProject || propProject;
+
   const [themes, setThemes] = useState<Theme[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [baseTopic, setBaseTopic] = useState('');
@@ -98,9 +105,18 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     if (!activeProject?.id) return;
     
     try {
+      // 1. Carregar local primeiro para UI imediata
+      const local = localStorage.getItem(`themes_${activeProject.id}`);
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed)) setThemes(parsed);
+        } catch (e) {}
+      }
+
       if (supabase) {
         const { data, error } = await supabase
-          .from('content_hub')
+          .from('themes')
           .select('*')
           .eq('project_id', activeProject.id)
           .order('created_at', { ascending: false });
@@ -108,19 +124,12 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
         if (error) throw error;
         if (data && data.length > 0) {
           setThemes(data);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(data));
           return;
         }
       }
-
-      // Fallback para LocalStorage se a nuvem estiver vazia ou offline
-      const local = localStorage.getItem(`themes_${activeProject.id}`);
-      if (local) setThemes(JSON.parse(local));
-      else setThemes([]);
-      
     } catch (err) {
-      console.warn('Fallback: Usando LocalStorage para temas.', err);
-      const local = localStorage.getItem(`themes_${activeProject.id}`);
-      if (local) setThemes(JSON.parse(local));
+      console.warn('Erro ao buscar temas:', err);
     }
   };
 
@@ -130,14 +139,14 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     const newTheme: Theme = {
       id: Date.now().toString(),
       project_id: activeProject.id,
-      raw_theme: baseTopic,
-      category: newThemeCategory,
+      title: baseTopic, // Mapeia Raw Theme para Title
+      pipeline_level: newThemeCategory,
       demand_views: newThemeDemand,
-      connection_note: newThemeNote,
+      notes: newThemeNote,
       match_score: currentMatch || 0,
-      selected_structure: structureId as any,
-      title: generatedTitle,
-      status: 'Backlog',
+      title_structure: structureId,
+      refined_title: generatedTitle,
+      status: 'vetted', // Quando gerado no Content Hub, já entra como Vetted/Aprovado
       created_at: new Date().toISOString()
     };
 
@@ -147,7 +156,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase) {
-        const { error } = await supabase.from('content_hub').upsert(newTheme);
+        const { error } = await supabase.from('themes').upsert(newTheme);
         if (error) console.error('Supabase save error:', error);
       }
       
@@ -169,7 +178,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(filtered));
 
       if (supabase) {
-        const { error } = await supabase.from('content_hub').delete().eq('id', id);
+        const { error } = await supabase.from('themes').delete().eq('id', id);
         if (error) console.error('Supabase delete error:', error);
       }
     } catch (err) {
@@ -193,7 +202,7 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     const prohibitedStr = activeProject.ai_engine_rules?.prohibited?.join(', ') || activeProject.prohibited_terms || '';
     const prohibited = prohibitedStr.split(',').map((s: string) => s.trim()).filter(Boolean);
 
-    const evalText = (topic + ' ' + note + ' ' + generatedText).toLowerCase();
+    const evalText = ((topic || '') + ' ' + (note || '') + ' ' + (generatedText || '')).toLowerCase();
 
     const hasMetaphorPotential = metaphors.some((m: string) => 
       evalText.includes(m.toLowerCase())
@@ -213,12 +222,12 @@ export default function ContentHub({ activeProject, selectedAIConfig, onGerarRot
     const skillFocus = activeProject.phd_strategy?.skill || '';
     const hasSkillMatch = evalText.includes(skillFocus.toLowerCase());
 
-    const hasConnectionDepth = note.length > 30;
+    const hasConnectionDepth = (note || '').length > 20;
     
-    let score = 30;
-    if (hasPainAlignment) score += 20; 
+    let score = 40; // Base score higher for relevant context
+    if (hasPainAlignment) score += 25; 
     if (hasMetaphorPotential) score += 20; 
-    if (hasEditorialMatch) score += 15;
+    if (hasEditorialMatch) score += 10; 
     if (hasSkillMatch) score += 10;
     if (hasConnectionDepth) score += 5;
 
@@ -276,48 +285,54 @@ const missingGemini = engine === 'gemini' && !geminiKey;
 
       const prompt = `PROMPT ANTIGRAVITY: ENGINE DE COMPOSIÇÃO DINÂMICA (DB-DRIVEN)
 
-OBJETIVO: Agir como um sintetizador de conteúdo agnóstico. 100% do vocabulário, estruturas e ganchos da saída devem ser derivados dos dados informados no contexto sistêmico, não de vocabulário genérico da AI.
+OBJETIVO: Agir como um sintetizador de conteúdo agnóstico. 100% do vocabulário, estruturas e ganchos da saída devem ser derivados dos dados informados no contexto sistêmico.
 
 1. LÓGICA DE INJEÇÃO E MAPEAMENTO
-Você não está apenas escrevendo; você está processando ativos.
-- Metáforas: Use estritamente as terminologias técnicas fornecidas. Aja sob a persona de um Engenheiro / Arquiteto que está construindo o título a partir desse vocabulário exato. Ex: Se foi dado "Thermal Throttling", substitua o genérico "Estresse" por "Thermal Throttling Mental".
-- Conector de Abstração: Todo termo técnico utilizado na saída DEVE estar no \`composition_log\`.
+- Metáforas: Escolha APENAS 1 ou 2 metáforas mais adequadas por título. NUNCA faça uma lista de todas as metáforas. Aja sob a persona de um Engenheiro Sênior.
+- Conector de Abstração: Todo termo técnico utilizado na saída DEVE estar no contexto do projeto.
 
 2. REGRAS DE COMPOSIÇÃO - O FILTRO "SÊNIOR NO CAFÉ"
 - Fale de sênior para sênior de forma brutalmente cética e pragmática.
-- ZERO VAZAMENTO DE ABSTRAÇÃO: É TERMINANTEMENTE PROIBIDO colocar "S1:", "M1:", "Diagnóstico M1", "Blueprint", IDs, chaves de db ou metadados de prompt dentro das frases geradas. Os leitores nunca devem ler a infraestrutura.
-- Não use "roda o estresse". Use verbos de consequência sistêmica (Ex: "Quando o estresse vira Dívida Técnica").
-- 70 CARACTERES MÁXIMO POR LINHA.
+- ZERO VAZAMENTO DE ABSTRAÇÃO: É TERMINANTEMENTE PROIBIDO colocar "S1:", "M1:", IDs, ou chaves de db dentro das frases geradas.
+- Máximo 70 caracteres por título.
 
 [CONTEXTO DE CONFIGURAÇÃO]
 Tema do Usuário: ${baseTopic}
 DNA / Target Persona: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
-Módulo Atual da Jornada (Tonalidade e Escopo Técnico): ${newThemeCategory}
-Metáforas Cadastradas do BD: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'N/A'}
+Dor Central: ${activeProject?.persona_matrix?.pain_alignment || activeProject?.target_persona?.pain_point || 'N/A'}
+Observação de Conexão: ${newThemeNote}
+Metáforas Disponíveis: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'N/A'}
 
-[REFINAMENTO DE PADRÕES E ESTRUTURAS (Templates Puros)]
-S1 (Provocação): Um tapa técnico. Aponte o erro crônico sobre [TEMA]. (Ex: "O erro de arquitetura que está fritando sua carreira antes dos 40.").
-S2 (Autoridade Analógica): A metáfora deve ser o sujeito, não a explicação. (Ex: "Thermal Throttling: Por que você não foca em código complexo.").
-S3 (Quebra / Interrupção): "Pare de ser o herói". (Ex: "Pare de tratar seu cérebro como servidor legado.").
-S4 (Insight Radical): Desconstrua por que o padrão tradicional de [TEMA] gera dívida técnica silenciosa.
-S5 (Sustentabilidade/Workflow): O Blueprint de refatoração para sobreviver sobre [TEMA].
+[REFINAMENTO DE PADRÕES]
+S1 (Provocação): Erro técnico que o [TARGET] ignora.
+S2 (Autoridade Analógica): A metáfora é o sujeito.
+S3 (Quebra): Pare de [ERRO].
+S4 (Insight Radical): Por que o padrão atual falha.
+S5 (Workflow): O roteiro de refatoração.
 
-[OUTPUT OBRIGATÓRIO (JSON STRICT BI & TRACKING)]
-Prepare e retorne estritamente um objeto JSON com duas chaves principais: "titles" (contendo S1 a S5 com vazamento zero da abstração) e "composition_log". Nunca adicione blocos de markdown em volta.
+[ANÁLISE DE MATCH]
+Avalie o quanto o Tema + Observação de Conexão se alinham com a Dor Central do projeto em uma escala de 0 a 100.
+Se houver uso inteligente de metáforas e alinhamento com a dor do Sênior, o score deve ser alto (85-98%).
+
+[OUTPUT OBRIGATÓRIO - RETORNE APENAS O JSON ABAIXO]
 {
   "titles": {
-    "S1": "...",
-    "S2": "...",
-    "S3": "...",
-    "S4": "...",
-    "S5": "..."
+    "S1": "Título 1",
+    "S2": "Título 2",
+    "S3": "Título 3",
+    "S4": "Título 4",
+    "S5": "Título 5"
   },
+  "refined_match_score": 85,
+  "analysis_suggestion": "Por que o score é este?",
   "composition_log": {
-    "theme_mapped": "${baseTopic}",
-    "journey_layer": "${newThemeCategory}",
-    "metaphors_used": ["lista_dos_IDs_ou_termos_injetados_nestes_titulos"]
+    "metaphors_used": ["lista", "termos"]
   }
-}`;
+}
+REGRAS:
+- NUNCA adicione blocos de markdown ou comentários fora do JSON.
+- NUNCA quebre linhas dentro das strings do JSON.
+- Use aspas duplas em todas as chaves e valores.`;
 
       // --- CHAMADA VIA BACKEND PROXY (MÓDULO DE ENGENHARIA) ---
       const response = await fetch('/api/ai/generate', {
@@ -349,11 +364,56 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
       }
 
       if (text) {
+        let parsed: any = null;
+        let cleanText = text.trim();
+
         try {
-          // Limpeza de possíveis blocos de código Markdown
-          const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(cleanText);
+          // 1. TENTATIVA PADRÃO COM LIMPEZA AGRESSIVA
+          const firstBrace = cleanText.indexOf('{');
+          const lastBrace = cleanText.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            cleanText = cleanText.substring(firstBrace, lastBrace + 1);
+          }
+
+          // Sanitização preventiva
+          const preCleaned = cleanText
+            .replace(/\n/g, ' ')
+            .replace(/":\s*"(.*?)"(?=\s*[,}])/g, (match, p1) => `": "${p1.replace(/"/g, "'").trim()}"`)
+            .replace(/,\s*}/g, '}')
+            .replace(/,\s*\]/g, ']');
+
+          parsed = JSON.parse(preCleaned);
+        } catch (e) {
+          console.warn("FALHA NO PARSE PADRÃO. INICIANDO RECUPERAÇÃO ATÔMICA...", e);
           
+          // 2. RECUPERAÇÃO DE EMERGÊNCIA (REGEX EXTRACTION)
+          // Se o JSON quebrar, tentamos extrair os campos um a um
+          const extractField = (field: string) => {
+            const regex = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i');
+            const match = text.match(regex);
+            return match ? match[1] : null;
+          };
+
+          const extractedTitles = {
+            S1: extractField('S1') || "Falha na síntese S1",
+            S2: extractField('S2') || "Falha na síntese S2",
+            S3: extractField('S3') || "Falha na síntese S3",
+            S4: extractField('S4') || "Falha na síntese S4",
+            S5: extractField('S5') || "Falha na síntese S5"
+          };
+
+          const scoreMatch = text.match(/"refined_match_score"\s*:\s*(\d+)/);
+          const suggestionMatch = text.match(/"analysis_suggestion"\s*:\s*"([^"]*)"/);
+
+          parsed = {
+            titles: extractedTitles,
+            refined_match_score: scoreMatch ? parseInt(scoreMatch[1]) : 50,
+            analysis_suggestion: suggestionMatch ? suggestionMatch[1] : "Recuperação de emergência ativa.",
+            composition_log: { metaphors_used: [] }
+          };
+        }
+
+        if (parsed) {
           // --- VALIDAÇÃO DE INTEGRIDADE (ZOD) ---
           const validation = AIResponseSchema.safeParse(parsed);
           
@@ -372,18 +432,22 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
           
           setGeneratedTitles(extractedTitles);
           
-          const combinedAI = Object.values(extractedTitles).join(' ');
-          const newResult = getScore(baseTopic, newThemeNote, combinedAI);
-          setCurrentMatch(newResult.score);
-          setRefactoringSuggestion(newResult.suggestion);
+          // 🏆 Prioridade para o Score Refinado da IA (Análise Semântica V2)
+          if (validatedData.refined_match_score !== undefined) {
+            setCurrentMatch(validatedData.refined_match_score);
+            setRefactoringSuggestion(validatedData.analysis_suggestion || "Análise semântica concluída.");
+          } else {
+            const combinedAI = Object.values(extractedTitles).join(' ');
+            const newResult = getScore(baseTopic, newThemeNote, combinedAI);
+            setCurrentMatch(newResult.score);
+            setRefactoringSuggestion(newResult.suggestion);
+          }
           
           console.log(`Composition BI Log (${engine}) processado com sucesso:`, validatedData.composition_log);
 
           // Passo Final: BI Log
           setCurrentStep(3);
           await delay(800);
-        } catch(e: any) { 
-          alert(`ERRO TÉCNICO DE PARSING: Falha ao ler o formato da resposta.\n` + e.message);
         }
       } else {
         alert("A IA retornou uma resposta vazia.");
@@ -402,8 +466,8 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
       const themeToUpdate = themes.find(t => t.id === themeId);
       if (!themeToUpdate) return;
 
-      const newScore = updatedData.title || updatedData.connection_note 
-        ? getScore(updatedData.title || themeToUpdate.title, updatedData.connection_note || themeToUpdate.connection_note).score 
+      const newScore = updatedData.refined_title || updatedData.notes 
+        ? getScore(updatedData.refined_title || themeToUpdate.refined_title || '', updatedData.notes || themeToUpdate.notes || '').score 
         : themeToUpdate.match_score;
 
       const updatedTheme = { ...themeToUpdate, ...updatedData, match_score: newScore };
@@ -413,7 +477,7 @@ Prepare e retorne estritamente um objeto JSON com duas chaves principais: "title
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase) {
-        await supabase.from('content_hub').upsert(updatedTheme);
+        await supabase.from('themes').upsert(updatedTheme);
       }
       setActiveEditTheme(null);
     } catch (err) {
@@ -588,21 +652,19 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                 <div className="flex flex-col gap-2">
                   <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Playlist / Categoria</label>
                   <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Ponto da jornada tática (M1-M3).</span>
-                  <select 
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-bold appearance-none cursor-pointer"
+                  <CustomSelect
                     value={newThemeCategory}
-                    onChange={(e: any) => setNewThemeCategory(e.target.value)}
-                  >
-                    {(activeProject?.playlists?.tactical_journey || [
+                    onChange={setNewThemeCategory}
+                    options={(activeProject?.playlists?.tactical_journey || [
                       { label: 'M1', title: 'Teoria / Diagnóstico' },
                       { label: 'M2', title: 'Prática / Implementação' },
                       { label: 'M3', title: 'Otimização / Lifestyle' }
-                    ]).map((item: any) => (
-                      <option key={item.label} value={`${item.label}: ${item.title}`} className="bg-midnight text-white">
-                        {item.label}: {item.title}
-                      </option>
-                    ))}
-                  </select>
+                    ]).map((item: any) => ({
+                      value: `${item.label}: ${item.title}`,
+                      label: `${item.label}: ${item.title}`
+                    }))}
+                    placeholder="Selecionar Categoria"
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Demanda (Views Estimadas)</label>
@@ -754,29 +816,29 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                   <tr key={theme.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
                     <td className="px-6 py-5">
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest ${
-                        theme.status === 'Backlog' ? 'bg-white/5 border-white/10 text-white/40' :
-                        theme.status === 'Roteirização' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                        theme.status === 'Produção' ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' :
-                        'bg-sage/10 border-sage/20 text-sage'
+                        ['backlog', 'Backlog'].includes(theme.status) ? 'bg-white/5 border-white/10 text-white/40' :
+                        ['vetted', 'Aprovado'].includes(theme.status) ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                        ['scripted', 'Roteirização'].includes(theme.status) ? 'bg-sage/10 border-sage/20 text-sage' :
+                        'bg-orange-500/10 border-orange-500/20 text-orange-400'
                       }`}>
-                        {theme.status === 'Backlog' && <Clock size={10} />}
-                        {theme.status === 'Produção' && <Zap size={10} />}
-                        {theme.status === 'Publicado' && <CheckCircle2 size={10} />}
-                        {theme.status}
+                        {['backlog', 'Backlog'].includes(theme.status) && <Clock size={10} />}
+                        {['vetted', 'Aprovado'].includes(theme.status) && <CheckCircle2 size={10} />}
+                        {['scripted', 'Roteirização'].includes(theme.status) && <Zap size={10} />}
+                        {theme.status === 'vetted' ? 'Aprovado' : theme.status === 'backlog' ? 'Backlog' : theme.status === 'scripted' ? 'Roteirizado' : theme.status}
                       </div>
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-3">
                           <span className="text-[10px] font-black px-2 py-0.5 bg-white/5 rounded border border-white/10 text-white/40 uppercase">
-                            {theme.selected_structure}
+                            {theme.title_structure || theme.selected_structure || 'S?'}
                           </span>
-                          <span className="text-sm font-bold text-white/90 group-hover:text-sage transition-colors">{theme.title}</span>
+                          <span className="text-sm font-bold text-white/90 group-hover:text-sage transition-colors">{theme.refined_title || theme.title}</span>
                         </div>
                         <div className="flex items-center gap-4 text-[10px] text-white/20 uppercase font-black tracking-widest">
-                          <span className="flex items-center gap-1"><TargetIcon size={10} /> {theme.category}</span>
+                          <span className="flex items-center gap-1"><TargetIcon size={10} /> {theme.pipeline_level || theme.category || 'T?'}</span>
                           <span className="opacity-30">|</span>
-                          <span className="truncate max-w-[300px] italic font-medium normal-case">"{theme.connection_note || 'Sem nota de conexão'}"</span>
+                          <span className="truncate max-w-[300px] italic font-medium normal-case">"{theme.notes || theme.connection_note || 'Sem nota de conexão'}"</span>
                         </div>
                       </div>
                     </td>
@@ -786,10 +848,10 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                     <td className="px-6 py-5">
                       <div className="flex flex-col items-center gap-1">
                         <span className={`text-sm font-black ${
-                          theme.match_score > 80 ? 'text-sage' : 
-                          theme.match_score > 60 ? 'text-blue-400' : 'text-red-400'
+                          (theme.match_score || 0) > 80 ? 'text-sage' : 
+                          (theme.match_score || 0) > 60 ? 'text-blue-400' : 'text-red-400'
                         }`}>
-                          {theme.match_score}%
+                          {theme.match_score || 0}%
                         </span>
                         <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
                           <div 
@@ -865,19 +927,19 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-sage">Título Final (Ajuste Fino)</label>
+                <label className="text-[10px] uppercase font-black tracking-widest text-sage">Título Refinado (Ajuste Fino)</label>
                 <textarea 
                   className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-sage/40 transition-all text-white min-h-[80px]"
-                  value={activeEditTheme.title}
-                  onChange={(e) => setActiveEditTheme({...activeEditTheme, title: e.target.value})}
+                  value={activeEditTheme.refined_title || activeEditTheme.title || ''}
+                  onChange={(e) => setActiveEditTheme({...activeEditTheme, refined_title: e.target.value})}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] uppercase font-black tracking-widest text-white/20">Nota de Conexão</label>
                 <textarea 
                   className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-sage/40 transition-all text-white/60 text-sm"
-                  value={activeEditTheme.connection_note}
-                  onChange={(e) => setActiveEditTheme({...activeEditTheme, connection_note: e.target.value})}
+                  value={activeEditTheme.notes || activeEditTheme.connection_note || ''}
+                  onChange={(e) => setActiveEditTheme({...activeEditTheme, notes: e.target.value})}
                 />
               </div>
             </div>
@@ -886,7 +948,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
               <TrendingUp className="text-sage" size={24} />
               <div>
                 <p className="text-[9px] font-black uppercase text-sage tracking-widest">Match Score Real-Time</p>
-                <p className="text-2xl font-black text-white">{getScore(activeEditTheme.title, activeEditTheme.connection_note).score}%</p>
+                <p className="text-2xl font-black text-white">{getScore(activeEditTheme.refined_title || activeEditTheme.title || '', activeEditTheme.notes || activeEditTheme.connection_note || '').score}%</p>
               </div>
             </div>
 
@@ -919,7 +981,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
             )}
 
             <button 
-              onClick={() => handleUpdateTheme(activeEditTheme.id, { title: activeEditTheme.title, connection_note: activeEditTheme.connection_note })}
+              onClick={() => handleUpdateTheme(activeEditTheme.id, { refined_title: activeEditTheme.refined_title || activeEditTheme.title, notes: activeEditTheme.notes || activeEditTheme.connection_note })}
               className="w-full py-4 bg-sage text-midnight font-black uppercase tracking-[3px] text-xs rounded-xl shadow-lg shadow-sage/20 hover:scale-[1.02] active:scale-95 transition-all mt-4"
             >
               SALVAR REFINAMENTO

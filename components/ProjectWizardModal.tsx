@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import CustomSelect from './ui/CustomSelect';
 import { 
   Building2, 
   Target, 
@@ -22,10 +23,13 @@ interface WizardProps {
   onClose: () => void;
   onComplete: (projectData: any) => void;
   initialData?: any;
+  existingProjects?: any[];
 }
 
-export default function ProjectWizardModal({ onClose, onComplete, initialData }: WizardProps) {
+export default function ProjectWizardModal({ onClose, onComplete, initialData, existingProjects = [] }: WizardProps) {
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nameError, setNameError] = useState('');
   
   // Data Normalization & Initialization
   const [formData, setFormData] = useState(() => {
@@ -51,19 +55,19 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
       
       // Stage 4: Produção (SOP)
       editing_sop: d.detailed_sop || d.editing_sop || { 
-        cut_rhythm: '3s', 
-        zoom_style: 'Dynamic', 
-        soundtrack: 'Epic',
-        art_direction: 'Cinematic',
-        overlays: 'Apenas palavras-chave',
-        duration: '18-22',
-        blocks_variation: '8-13',
-        asset_types: ['IA Images', 'Stock Video', 'Avatar']
+        cut_rhythm: '', 
+        zoom_style: '', 
+        soundtrack: '',
+        art_direction: '',
+        overlays: '',
+        duration: '',
+        blocks_variation: '',
+        asset_types: []
       },
       tactical_journey: d.playlists?.tactical_journey || [
-        { id: 'm1', label: 'M1', title: 'Teoria / Diagnóstico', value: '', isFixed: true },
-        { id: 'm2', label: 'M2', title: 'Prática / Implementação', value: '', isFixed: true },
-        { id: 'm3', label: 'M3', title: 'Otimização / Lifestyle', value: '', isFixed: true }
+        { id: 't1', label: 'T1', title: 'Topo de Funil (Viral)', value: '', isFixed: true },
+        { id: 't2', label: 'T2', title: 'Meio de Funil (Retenção)', value: '', isFixed: true },
+        { id: 't3', label: 'T3', title: 'Fundo de Funil (Comunidade)', value: '', isFixed: true }
       ]
     };
   });
@@ -74,17 +78,30 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
 
   const isStepValid = () => {
     switch(step) {
-      case 1: return formData.name.trim() !== '' && formData.puc.trim() !== '' && formData.phd_strategy.passion.trim() !== '';
+      case 1: 
+        const isNameTaken = existingProjects.some(p => 
+          p.name?.toLowerCase() === formData.name.trim().toLowerCase() && p.id !== formData.id
+        );
+        return formData.name.trim() !== '' && !isNameTaken && formData.puc.trim() !== '' && formData.phd_strategy.passion.trim() !== '';
       case 2: return formData.editorial_line.pillars.filter((p: string) => p.trim() !== '').length >= 3;
       case 3: return formData.metaphor_library.trim() !== '';
-      case 4: return formData.tactical_journey.every((m: any) => m.title.trim() !== '' && m.value.trim() !== '');
+      case 4: 
+        const sop = formData.editing_sop;
+        const hasSopConfig = sop.cut_rhythm && sop.zoom_style && sop.soundtrack && sop.art_direction && sop.overlays;
+        const hasValidRanges = sop.duration_min > 0 && sop.duration_max >= sop.duration_min && sop.blocks_min > 0 && sop.blocks_max >= sop.blocks_min;
+        const hasTacticalJourney = formData.tactical_journey.every((m: any) => m.title.trim() !== '' && m.value.trim() !== '');
+        return hasSopConfig && hasValidRanges && hasTacticalJourney;
       default: return false;
     }
   };
 
   const handleFinalize = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     onComplete({
       ...formData,
+      id: formData.id || crypto.randomUUID(),
       target_persona: {
         audience: formData.persona_matrix.demographics,
         pain_point: formData.persona_matrix.pain_alignment
@@ -94,12 +111,12 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
         prohibited: formData.prohibited_terms.split(',').map((s: string) => s.trim()).filter(Boolean)
       },
       playlists: {
-        m1: formData.tactical_journey[0]?.value || '',
-        m1_title: formData.tactical_journey[0]?.title || '',
-        m2: formData.tactical_journey[1]?.value || '',
-        m2_title: formData.tactical_journey[1]?.title || '',
-        m3: formData.tactical_journey[2]?.value || '',
-        m3_title: formData.tactical_journey[2]?.title || '',
+        t1: formData.tactical_journey[0]?.value || '',
+        t1_title: formData.tactical_journey[0]?.title || '',
+        t2: formData.tactical_journey[1]?.value || '',
+        t2_title: formData.tactical_journey[1]?.title || '',
+        t3: formData.tactical_journey[2]?.value || '',
+        t3_title: formData.tactical_journey[2]?.title || '',
         tactical_journey: formData.tactical_journey 
       }
     });
@@ -112,14 +129,22 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
             <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Project Identifier</label>
-                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">Nome de destaque da sua instância.</span>
+                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Identificador do Canal</label>
+                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">Nome de destaque da instância.</span>
                 <input 
-                  className="w-full bg-sage/5 border border-sage/30 rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white font-black text-lg placeholder:text-white/10"
-                  placeholder="Ex: DevZen"
+                  className={`w-full bg-sage/5 border ${nameError ? 'border-red-500/50 focus:border-red-500' : 'border-sage/30 focus:border-sage'} rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-sage/10 transition-all text-white font-black text-lg placeholder:text-white/10`}
+                  placeholder="Nome do Canal"
                   value={formData.name}
-                  onChange={(e) => updateFormData({ name: e.target.value })}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    updateFormData({ name: newName });
+                    const isTaken = existingProjects.some(p => 
+                      p.name?.toLowerCase() === newName.trim().toLowerCase() && p.id !== formData.id
+                    );
+                    setNameError(isTaken ? 'Este nome já está sendo usado por outra instância.' : '');
+                  }}
                 />
+                {nameError && <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider ml-1">{nameError}</span>}
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1">Proposta Única do Canal (PUC)</label>
@@ -156,7 +181,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
                   <span className="text-[9px] uppercase font-black text-white/40 ml-1">Lifestyle / Demografia</span>
                   <input 
                     className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
-                    placeholder="Ex: Desenvolvedor Senior, 30 anos..."
+                    placeholder="Defina o perfil do público"
                     value={formData.persona_matrix.demographics}
                     onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, demographics: e.target.value } })}
                   />
@@ -165,7 +190,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
                   <span className="text-[9px] uppercase font-black text-white/40 ml-1">Ponto de Dor Central</span>
                   <input 
                     className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
-                    placeholder="Ex: Medo de ser substituído pela IA."
+                    placeholder="Defina o problema principal que o conteúdo resolve"
                     value={formData.persona_matrix.pain_alignment}
                     onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, pain_alignment: e.target.value } })}
                   />
@@ -247,7 +272,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-6 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white text-sm min-h-[250px] leading-relaxed resize-none placeholder:text-white/10 shadow-inner"
                   value={formData.metaphor_library}
                   onChange={(e) => updateFormData({ metaphor_library: e.target.value })}
-                  placeholder="Ex: Kernel, Hardware Biológico, Filtro de Ruído..."
+                  placeholder="Cadastre as analogias e termos técnicos proprietários do canal..."
                 />
               </div>
               <div className="flex flex-col gap-4">
@@ -309,81 +334,102 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
       case 4:
         return (
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[
-                { label: 'Ritmo de Corte', field: 'cut_rhythm', type: 'select', options: ['1s', '2-3s', '3s', '5s'], tooltip: 'Cortes mais rápidos (2-3s) aumentam a retenção em temas densos.' },
-                { label: 'Estilo de Zoom', field: 'zoom_style', type: 'select', options: ['Stable', 'Dynamic', 'Punch'], tooltip: 'Zoom dinâmico prende a atenção em partes técnicas e explicações.' },
-                { label: 'Trilha Sonora', field: 'soundtrack', type: 'select', options: ['Epic', 'Chill', 'Dark', 'Lofi'], tooltip: 'A narrativa musical dita a profundidade do sentimento.' },
-                { label: 'Estilo Visual', field: 'art_direction', type: 'select', options: ['Realista', 'Cinematic', 'Minimalista', 'Cyberpunk'], tooltip: 'Trava a estética visual para não haver improviso na direção de arte.' },
-                { label: 'Textos (Overlays)', field: 'overlays', type: 'select', options: ['Apenas palavras-chave', 'Legendas completas', 'Sem texto'], tooltip: 'Controla a carga de leitura; palavras-chave destacam o principal.' },
-                { label: 'Duração (min)', field: 'duration', type: 'text', tooltip: 'Duração alvo em range (ex: 18-22) para alinhar o esforço de produção.' },
-                { label: 'Variação Blocos', field: 'blocks_variation', type: 'select', options: ['4-7', '6-11', '8-13', '12+'], tooltip: 'Mais blocos permitem transições de assunto mais frequentes, evitando o tédio.' },
-                { label: 'Tipos de Assets', field: 'asset_types', type: 'multiselect', options: ['IA Images', 'Stock Video', 'Code Snippets', 'B-Roll', 'Avatar'], tooltip: 'Elementos visuais liberados para enriquecer a narrativa visual.' },
-              ].map((item: any) => (
-                <div key={item.field} className="p-5 bg-white/[0.03] rounded-2xl border border-white/10 shadow-inner group hover:border-sage/40 transition-all flex flex-col justify-between">
-                  <div className="flex items-center gap-2 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Configurações de Estilo */}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: 'Ritmo de Corte', field: 'cut_rhythm', options: ['1s', '2-3s', '3s', '5s'] },
+                  { label: 'Estilo de Zoom', field: 'zoom_style', options: ['Stable', 'Dynamic', 'Punch'] },
+                  { label: 'Trilha Sonora', field: 'soundtrack', options: ['Epic', 'Chill', 'Dark', 'Lofi'] },
+                  { label: 'Estilo Visual', field: 'art_direction', options: ['Realista', 'Cinematic', 'Minimalista', 'Cyberpunk'] },
+                  { label: 'Textos (Overlays)', field: 'overlays', options: ['Apenas palavras-chave', 'Legendas completas', 'Sem texto'] },
+                ].map((item) => (
+                  <div key={item.field} className="flex flex-col gap-1.5">
                     <label className="text-[9px] font-black uppercase tracking-widest text-sage">{item.label}</label>
-                    <div className="relative group/tooltip">
-                      <HelpCircle size={10} className="text-white/30 hover:text-sage cursor-help" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-midnight/95 border border-sage/30 rounded-xl text-[9px] text-white/80 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-all z-20 text-center font-medium leading-relaxed">
-                        {item.tooltip}
-                        {/* Triângulo do tooltip */}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[5px] border-transparent border-t-sage/30"></div>
-                      </div>
+                    <CustomSelect
+                      value={(formData.editing_sop as any)[item.field]}
+                      onChange={(val) => updateFormData({ editing_sop: { ...formData.editing_sop, [item.field]: val } })}
+                      options={item.options.map((opt: string) => ({ value: opt, label: opt }))}
+                      placeholder="Selecionar..."
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Configurações de Range (Duração e Blocos) */}
+              <div className="grid grid-cols-1 gap-6 p-6 bg-white/[0.03] rounded-3xl border border-white/10 shadow-inner">
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black uppercase tracking-[3px] text-sage block mb-2">Controle de Range (Calibragem)</label>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[9px] uppercase font-bold text-white/40">Duração Mín (min)</span>
+                      <input 
+                        type="number"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
+                        value={formData.editing_sop.duration_min || ''}
+                        onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, duration_min: Number(e.target.value) } })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[9px] uppercase font-bold text-white/40">Duração Máx (min)</span>
+                      <input 
+                        type="number"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
+                        value={formData.editing_sop.duration_max || ''}
+                        onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, duration_max: Number(e.target.value) } })}
+                      />
                     </div>
                   </div>
-                  
-                  {item.type === 'select' && (
-                    <select 
-                      className="w-full bg-transparent border-b border-transparent hover:border-white/10 focus:border-sage text-white text-xs font-black outline-none cursor-pointer appearance-none pb-1 transition-all"
-                      value={(formData.editing_sop as any)[item.field]}
-                      onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, [item.field]: e.target.value } })}
-                    >
-                      {item.options.map((opt: string) => <option key={opt} value={opt} className="bg-midnight text-white">{opt}</option>)}
-                    </select>
-                  )}
-                  
-                  {(item.type === 'number' || item.type === 'text') && (
-                    <input 
-                      type={item.type}
-                      className="w-full bg-transparent border-b border-transparent hover:border-white/10 focus:border-sage text-white text-xs font-black outline-none pb-1 transition-all"
-                      placeholder={item.type === 'text' ? 'Ex: 18-22' : ''}
-                      value={(formData.editing_sop as any)[item.field]}
-                      onChange={(e) => updateFormData({ 
-                        editing_sop: { 
-                          ...formData.editing_sop, 
-                          [item.field]: item.type === 'number' ? Number(e.target.value) : e.target.value 
-                        } 
-                      })}
-                    />
-                  )}
 
-                  {item.type === 'multiselect' && (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {item.options.map((opt: string) => {
-                        const isSelected = (formData.editing_sop.asset_types || []).includes(opt);
-                        return (
-                          <button
-                            key={opt}
-                            onClick={() => {
-                              const current = formData.editing_sop.asset_types || [];
-                              const next = isSelected ? current.filter((c: string) => c !== opt) : [...current, opt];
-                              updateFormData({ editing_sop: { ...formData.editing_sop, asset_types: next } });
-                            }}
-                            className={`px-1.5 py-1 rounded text-[8px] font-bold border transition-all ${
-                              isSelected 
-                              ? 'bg-sage border-sage text-midnight shadow-sm' 
-                              : 'bg-white/5 border-white/10 text-white/40 hover:border-white/30'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        );
-                      })}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[9px] uppercase font-bold text-white/40">Mínimo de Blocos</span>
+                      <input 
+                        type="number"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
+                        value={formData.editing_sop.blocks_min || ''}
+                        onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, blocks_min: Number(e.target.value) } })}
+                      />
                     </div>
-                  )}
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[9px] uppercase font-bold text-white/40">Máximo de Blocos</span>
+                      <input 
+                        type="number"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
+                        value={formData.editing_sop.blocks_max || ''}
+                        onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, blocks_max: Number(e.target.value) } })}
+                      />
+                    </div>
+                  </div>
                 </div>
-              ))}
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-sage">Tipos de Assets</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['IA Images', 'Stock Video', 'Code Snippets', 'B-Roll', 'Avatar'].map((opt: string) => {
+                      const isSelected = (formData.editing_sop.asset_types || []).includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() => {
+                            const current = formData.editing_sop.asset_types || [];
+                            const next = isSelected ? current.filter((c: string) => c !== opt) : [...current, opt];
+                            updateFormData({ editing_sop: { ...formData.editing_sop, asset_types: next } });
+                          }}
+                          className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${
+                            isSelected 
+                            ? 'bg-sage border-sage text-midnight shadow-lg shadow-sage/20' 
+                            : 'bg-white/5 border-white/10 text-white/30 hover:border-white/30'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="space-y-4">
               <div className="flex flex-col">
@@ -486,15 +532,15 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData }:
             )}
             <button 
               onClick={() => step === 4 ? handleFinalize() : setStep(s => s + 1)}
-              disabled={!isStepValid()}
+              disabled={!isStepValid() || isSubmitting}
               className={`px-12 py-4 rounded-xl text-[10px] font-black uppercase tracking-[3px] transition-all duration-500 group flex items-center gap-3 ${
-                isStepValid() 
+                isStepValid() && !isSubmitting
                 ? 'bg-sage text-midnight shadow-[0_10px_30px_rgba(155,176,165,0.2)] hover:scale-[1.05] active:scale-95' 
                 : 'bg-white/5 text-white/10 cursor-not-allowed opacity-30 border border-white/5'
               }`}
             >
               {step === 4 ? (
-                <>DEPLOY ESTRATÉGICO <Rocket size={16} className="group-hover:animate-bounce" /></>
+                isSubmitting ? 'SALVANDO...' : <>DEPLOY ESTRATÉGICO <Rocket size={16} className="group-hover:animate-bounce" /></>
               ) : (
                 <>PRÓXIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
               )}

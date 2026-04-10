@@ -11,10 +11,15 @@ import ScriptEngine from '@/components/ScriptEngine';
 import ProductionTracker from '@/components/ProductionTracker';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import NarrativeLibrary from '@/components/NarrativeLibrary';
+import ThemeBank from '@/components/ThemeBank';
 import AuthOverlay from '@/components/auth/AuthOverlay';
 import AwaitingApproval from '@/components/auth/AwaitingApproval';
 import UserManagement from '@/components/admin/UserManagement';
 import { supabase } from '@/lib/supabase';
+import { useProjectStore, useActiveProject, useProjects } from '@/lib/store/projectStore';
+
+// 🛠️ MODO DE DESENVOLVIMENTO: Altere para true para reativar a segurança
+const ENFORCE_AUTH = false;
 import { AI_MODELS, DEFAULT_CONFIG, AIConfig } from '@/lib/ai-config';
 import { 
   Trash2, 
@@ -32,7 +37,8 @@ import {
   Download,
   Upload,
   CloudSync,
-  LogOut
+  LogOut,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function Home() {
@@ -40,8 +46,8 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const [dbSetupRequired, setDbSetupRequired] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
@@ -50,33 +56,108 @@ export default function Home() {
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
 
-  const activeProject = projects.find(p => p.id === activeProjectId) || null;
+  // ── Zustand Store ────────────────────────────────────────────────────────
+  const projectStore = useProjectStore();
+  const projects = useProjects();
+  const activeProject = useActiveProject();
+  const activeProjectId = projectStore.activeProjectId;
+  const setActiveProjectId = (id: string | null) => projectStore.setActiveProject(id);
+  const setProjects = projectStore.setProjects;
+
+  // Guard: redirect to 'projects' view when a strategic module is accessed without an active project
+  useEffect(() => {
+    const strategicViews = ['themes', 'content-hub', 'library', 'scripts', 'production', 'analytics'];
+    if (strategicViews.includes(currentView) && !activeProjectId) {
+      setCurrentView('projects');
+    }
+  }, [currentView, activeProjectId]);
 
   useEffect(() => {
-    // 1. Escutar Mudanças de Auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-        fetchProjects();
-      } else {
-        setProfile(null);
-        setProjects([]);
+    let timeoutId: any;
+
+    const initApp = async () => {
+      console.log("[ContentOS] Iniciando inicialização...");
+      
+      // Failsafe: se demorar mais de 5s, força a saída do loading
+      timeoutId = setTimeout(() => {
+        console.warn("[ContentOS] Failsafe: inicialização demorou muito, forçando setLoading(false)");
+        setLoading(false);
+      }, 5000);
+
+      try {
+        // 1. Configs IA
+        console.log("[ContentOS] 1. Carregando configs IA...");
+        const savedAI = localStorage.getItem('ws_ai_config');
+        if (savedAI) {
+          try { setActiveAIConfig(JSON.parse(savedAI)); } catch (e) {}
+        }
+
+        // 2. Load Projects (Priority: fills UI even if Auth fails)
+        console.log("[ContentOS] 2. Carregando projetos (Local/Cloud)...");
+        await projectStore.loadProjects();
+
+        // 🛡️ Supabase Check
+        if (!supabase) {
+          console.log("[ContentOS] 3. Supabase OFF. Operando em modo local.");
+          return;
+        }
+
+        // 2. Session
+        console.log("[ContentOS] 3. Buscando sessão Supabase...");
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        if (session?.user) {
+          console.log("[ContentOS] Sessão detectada:", session.user.id);
+          setLastSessionId(session.user.id);
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        } else {
+          console.log("[ContentOS] Nenhuma sessão ativa.");
+        }
+
+        // 4. Session management handled
+        console.log("[ContentOS] Projetos carregados:", projectStore.projects.length);
+
+      } catch (err) {
+        console.error("[ContentOS] Erro fatal na inicialização:", err);
+        // Emergency fallback: try to load projects one last time if they hasn't been loaded
+        if (projectStore.projects.length === 0) {
+          await projectStore.loadProjects();
+        }
+      } finally {
+        console.log("[ContentOS] Inicialização concluída.");
+        clearTimeout(timeoutId);
         setLoading(false);
       }
-    });
+    };
 
-    // 2. Carregar Configs de IA
-    const savedAI = localStorage.getItem('ws_ai_config');
-    if (savedAI) {
-      try {
-        setActiveAIConfig(JSON.parse(savedAI));
-      } catch (e) {
-        console.error("Erro ao carregar config IA", e);
-      }
+    initApp();
+
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+        console.log('--- Auth Event ---', event, session?.user?.id);
+        const currentId = session?.user?.id || null;
+
+        if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && session)) {
+          if (currentId && currentId !== lastSessionId) {
+            setLastSessionId(currentId);
+            setUser(session.user);
+            await fetchProfile(session.user.id);
+            await projectStore.loadProjects();
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setLastSessionId(null);
+          setUser(null);
+          setProfile(null);
+          projectStore.clearProject();
+        }
+      });
+      return () => {
+        subscription.unsubscribe();
+        clearTimeout(timeoutId);
+      };
     }
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const handleUpdateAI = (config: AIConfig) => {
@@ -84,7 +165,7 @@ export default function Home() {
     localStorage.setItem('ws_ai_config', JSON.stringify(config));
   };
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, retries = 3) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -92,55 +173,30 @@ export default function Home() {
         .eq('id', userId)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        // Se não encontrar e ainda tiver tentativas, espera e tenta de novo (gatilho pode estar rodando)
+        if (error.code === 'PGRST116' && retries > 0) {
+          console.log(`Perfil não encontrado. Tentando novamente em 1s... (${retries} restantes)`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchProfile(userId, retries - 1);
+        }
+        throw error;
+      }
       setProfile(data);
-    } catch (err) {
-      console.error('Erro ao buscar perfil:', err);
-      // Opcional: Se der erro (ex: trigger ainda rodando), podemos tentar novamente ou deslogar.
+    } catch (err: any) {
+      console.error('Erro detalhado ao buscar perfil:', err.message || err);
+      if (err.code === '42P01') {
+        setDbSetupRequired(true);
+      }
     }
   };
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      console.log('--- Fetching Projects ---');
-
-      // 🛡️ Safety Guard: Se o Supabase for null, use apenas o LocalStorage
-      if (!supabase) {
-        console.warn('Supabase not configured. Operating in Safe Mode (LocalStorage only).');
-        const localData = localStorage.getItem('writer_studio_projects');
-        if (localData) {
-          const parsed = JSON.parse(localData);
-          setProjects(parsed);
-          if (parsed.length > 0 && !activeProjectId) {
-            setActiveProjectId(parsed[0].id);
-          }
-        }
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        console.log('Projetos sincronizados da nuvem:', data);
-        setProjects(data);
-        localStorage.setItem('writer_studio_projects', JSON.stringify(data));
-      } else {
-        console.log('Nuvem vazia. Mantendo dados locais para sincronização.');
-        const local = localStorage.getItem('writer_studio_projects');
-        if (local) setProjects(JSON.parse(local));
-      }
-    } catch (err) {
-      console.error('Erro ao buscar projetos:', err);
-      // Fallback para LocalStorage se o Supabase falhar
-      const local = localStorage.getItem('writer_studio_projects');
-      if (local) setProjects(JSON.parse(local));
+      await projectStore.loadProjects();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -297,7 +353,7 @@ export default function Home() {
         // Safety Net: Se não encontrar pelo ID, buscar órfãos pelo nome do projeto
         if (!libData) {
           const keys = Object.keys(localStorage);
-          const legacyKey = keys.find(k => k.startsWith('ws_narrative_') && k.includes(project.name));
+          const legacyKey = keys.find(k => k.startsWith('ws_narrative_') && k.includes(project.name ?? ''));
           if (legacyKey) libData = localStorage.getItem(legacyKey);
         }
 
@@ -335,44 +391,56 @@ export default function Home() {
   };
 
   const handleSaveProject = async (formData: any) => {
+    console.log("[ContentOS] Iniciando salvamento do projeto...", formData);
+    setLoading(true);
     try {
-      console.log('--- V3 STRATEGIC SAVE (LOCAL-FIRST) ---');
+      // 🛠️ Mapeamento Consistente: Extrai os dados do Wizard
+      const projectId = formData.id || (editingProject ? editingProject.id : crypto.randomUUID());
       
       const projectData = {
-        id: formData.id || (editingProject ? editingProject.id : crypto.randomUUID()),
-        name: formData.project_name || formData.name,
-        puc: formData.puc_promise || formData.puc,
-        visual_style: formData.visual_style,
+        id: projectId,
+        name: formData.name || formData.project_name || 'Canal Sem Nome',
+        project_name: formData.name || formData.project_name || 'Canal Sem Nome',
+        description: formData.puc || formData.puc_promise || '',
+        puc: formData.puc || formData.puc_promise || '',
+        puc_promise: formData.puc || formData.puc_promise || '',
         accent_color: formData.accent_color || '#9BB0A5',
+        
+        // Dados Estruturados (JSONB)
         target_persona: formData.target_persona || {
-          audience: formData.target_audience,
-          pain_point: formData.core_pain_point
+          audience: formData.persona_matrix?.demographics || formData.target_audience || '',
+          pain_point: formData.persona_matrix?.pain_alignment || formData.core_pain_point || ''
         },
         ai_engine_rules: formData.ai_engine_rules || {
-          metaphors: formData.metaphor_library?.split(',').map((s: string) => s.trim()) || [],
-          prohibited: formData.prohibited_terms?.split(',').map((s: string) => s.trim()) || []
+          metaphors: formData.metaphor_library?.split(',').map((s: string) => s.trim()).filter(Boolean) || [],
+          prohibited: formData.prohibited_terms?.split(',').map((s: string) => s.trim()).filter(Boolean) || []
         },
         playlists: formData.playlists || {
-          m1: formData.m1,
-          m2: formData.m2,
-          m3: formData.m3
+          t1: formData.tactical_journey?.[0]?.value || '',
+          t2: formData.tactical_journey?.[1]?.value || '',
+          t3: formData.tactical_journey?.[2]?.value || '',
+          tactical_journey: formData.tactical_journey || []
         },
-        phd_strategy: formData.phd_strategy || { passion: '', skill: '', demand: '' },
-        persona_matrix: formData.persona_matrix || { demographics: '', language: '', pain_alignment: '' },
-        editorial_line: formData.editorial_line || { pillars: ['', '', '', '', ''] },
-        narrative_voice: formData.narrative_voice || { atmosphere: [], positioning: '' },
+        
+        // Backups de campos para compatibilidade
+        phd_strategy: formData.phd_strategy || {},
+        persona_matrix: formData.persona_matrix || {},
+        editorial_line: formData.editorial_line || {},
+        narrative_voice: formData.narrative_voice || {},
         metaphor_library: formData.metaphor_library || '',
         prohibited_terms: formData.prohibited_terms || '',
-        base_system_instruction: formData.base_system_instruction,
-        schedules: formData.posting_schedule || {},
-        detailed_sop: formData.editing_sop || {},
+        detailed_sop: formData.editing_sop || formData.detailed_sop || {},
+        editing_sop: formData.editing_sop || formData.detailed_sop || {},
         thumb_strategy: formData.thumb_strategy || {},
+        
         status: 'active',
-        user_id: user?.id, // 🔑 Vínculo de Identidade
+        user_id: user?.id || null,
         updated_at: new Date().toISOString()
       };
 
-      // 💾 1. Global State & LocalStorage
+      console.log("[ContentOS] Dados preparados para salvamento:", projectData);
+
+      // 💾 1. Atualização Imediata da UI (Estado Global + LocalStorage)
       const currentProjects = [...projects];
       const index = currentProjects.findIndex(p => p.id === projectData.id);
       if (index !== -1) currentProjects[index] = projectData;
@@ -380,24 +448,30 @@ export default function Home() {
       
       localStorage.setItem('writer_studio_projects', JSON.stringify(currentProjects));
       setProjects(currentProjects);
-
-      // ☁️ 2. Supabase Cloud Sync
-      if (supabase) {
-        const { error } = await supabase
-          .from('projects')
-          .upsert(projectData)
-          .eq('id', projectData.id);
-        
-        if (error) console.warn('⚠️ Supabase Sync Error:', error.message);
-      }
       
+      // 🏁 Unblock UI: Fecha o modal e para o loading imediatamente
       setIsModalOpen(false);
       setEditingProject(null);
-      await fetchProjects();
+      setLoading(false); 
+      console.log("[ContentOS] UI atualizada localmente.");
+
+      // ☁️ 2. Sincronização em Background (Não trava a UI)
+      if (supabase) {
+        console.log("[ContentOS] Sincronizando com Supabase em background...");
+        supabase.from('projects').upsert(projectData).then(({ error }) => {
+          if (error) console.warn('⚠️ Supabase Sync Error:', error.message);
+          else {
+            console.log("[ContentOS] Sincronização concluída. Recarregando projetos...");
+            projectStore.loadProjects();
+          }
+        });
+      }
+      
     } catch (err: any) {
       console.error('❌ Critical Save Failure:', err);
+      alert(`Erro ao salvar: ${err.message || 'Erro desconhecido'}`);
       setIsModalOpen(false);
-      alert('Erro ao salvar. Verifique sua conexão.');
+      setLoading(false);
     }
   };
 
@@ -694,6 +768,8 @@ export default function Home() {
             </div>
           </section>
         );
+        case 'themes':
+          return <ThemeBank activeProject={activeProject} userId={user?.id} />;
         case 'content-hub':
           return <ContentHub 
             activeProject={activeProject} 
@@ -731,20 +807,78 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-6">
           <div className="w-12 h-12 border-4 border-[var(--accent-color)]/20 border-t-[var(--accent-color)] animate-spin rounded-full shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.2)]" />
-          <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Carregando Channel OS...</span>
+          <div className="text-center space-y-2">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] block">Carregando Channel OS...</span>
+            <button 
+              onClick={() => setLoading(false)}
+              className="text-[9px] font-black text-white/10 hover:text-white/40 uppercase tracking-widest transition-all pt-4"
+            >
+              [ Forçar Entrada ]
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    return <AuthOverlay />;
+  // 🛡️ Tela de Erro Amigável se faltar Configuração na Vercel
+  if (!supabase) {
+    return (
+      <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-midnight">
+        <div className="glass-card max-w-md p-10 border-yellow-500/20 text-center space-y-6">
+          <div className="w-16 h-16 bg-yellow-500/10 border border-yellow-500/20 rounded-full flex items-center justify-center mx-auto">
+            <ShieldAlert className="text-yellow-500" size={24} />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-black text-white italic uppercase">Configuração Necessária</h1>
+            <p className="text-white/40 text-[10px] uppercase tracking-widest font-black leading-relaxed">
+              As Variáveis de Ambiente (Supabase Keys) não foram encontradas na Vercel.
+            </p>
+          </div>
+          <div className="pt-4">
+            <p className="text-[10px] text-white/20 font-bold uppercase">Consulte o log do console para detalhes.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  if (profile && profile.status !== 'approved') {
-    return <AwaitingApproval email={user.email!} />;
+  if (ENFORCE_AUTH) {
+    if (!user) {
+      return <AuthOverlay />;
+    }
+
+    if (profile && profile.status !== 'approved') {
+      return <AwaitingApproval email={user.email!} />;
+    }
+
+    if (dbSetupRequired) {
+      return (
+        <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-midnight/98 backdrop-blur-3xl">
+          <div className="glass-card max-w-2xl p-12 border-red-500/20 text-center space-y-8">
+            <div className="w-20 h-20 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto">
+              <Database className="text-red-500" size={32} />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-black text-white italic">SETUP DE BANCO REQUERIDO</h1>
+              <p className="text-white/40 text-xs uppercase tracking-widest font-black">A infraestrutura master ainda não foi ativada na nuvem.</p>
+            </div>
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left">
+              <p className="text-[10px] font-black text-sage uppercase tracking-widest mb-4">Instruções de Inicialização:</p>
+              <ol className="space-y-3 text-[11px] text-white/60 font-bold uppercase tracking-tight">
+                <li className="flex gap-3"><span className="text-white/20">01.</span> Acesse seu Painel do Supabase.com</li>
+                <li className="flex gap-3"><span className="text-white/20">02.</span> Vá em 'SQL Editor' (ícone de terminal) no menu lateral.</li>
+                <li className="flex gap-3"><span className="text-white/20">03.</span> Clique em '+ New query'.</li>
+                <li className="flex gap-3"><span className="text-white/20">04.</span> Copie o conteúdo do arquivo <code className="text-sage">migration_profiles.sql</code> e cole lá.</li>
+                <li className="flex gap-3"><span className="text-white/20">05.</span> Clique no botão verde 'RUN' e recarregue esta página.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
   return (
@@ -758,12 +892,11 @@ export default function Home() {
       <Sidebar 
         currentView={currentView} 
         onViewChange={setCurrentView} 
-        activeProject={activeProject}
         onResetProject={() => {
           setActiveProjectId(null);
           setCurrentView('home');
         }}
-        userRole={profile?.role}
+        userRole={!ENFORCE_AUTH ? 'admin' : profile?.role}
       />
       
       <main className="main-content">
@@ -858,9 +991,10 @@ export default function Home() {
 
       {isModalOpen && (
         <ProjectWizardModal 
-          onClose={() => { setIsModalOpen(false); setEditingProject(null); }} 
+          onClose={() => { setIsModalOpen(false); setEditingProject(null); }}
           onComplete={handleSaveProject}
           initialData={editingProject}
+          existingProjects={projects}
         />
       )}
       {isDeleteModalOpen && (

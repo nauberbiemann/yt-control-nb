@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
+import { useActiveProject } from '@/lib/store/projectStore';
+import CustomSelect from './ui/CustomSelect';
 import { 
   BookOpen, 
   Plus, 
@@ -11,8 +13,29 @@ import {
   Edit3,
   TrendingUp,
   Wand2,
-  AlertTriangle
+  AlertTriangle,
+  Lightbulb,
+  Target,
+  Sparkles,
+  Hash,
+  Users
 } from 'lucide-react';
+const TYPE_OPTIONS = [
+  { value: 'Hook', label: 'Hook (Gancho Estratégico)' },
+  { value: 'CTA', label: 'CTA (Call-to-Action)' },
+  { value: 'Title Structure', label: 'Estrutura de Título' },
+  { value: 'Community', label: 'Elemento de Comunidade (Bordão / Engajamento)' },
+];
+
+const HOOK_CATEGORIES = ['Curiosidade', 'Dor', 'Autoridade', 'Paradoxo', 'Urgência', 'Social Proof'];
+
+const S_STRUCTURES = [
+  { id: 'S1', name: 'Curiosidade / Erro Oculto', desc: 'Revela um erro comum que a persona não percebe. Gera tensão cognitiva.', example: 'Você acha que [X] funciona, mas na verdade está sabotando [Y].' },
+  { id: 'S2', name: 'Dor + Solução', desc: 'Identifica uma dor específica e posiciona o vídeo como a cura.', example: 'Se você sofre com [Problema], este vídeo vai mudar tudo.' },
+  { id: 'S3', name: 'Autoridade / Credencial', desc: 'Usa a autoridade do criador ou de dados para validar o conteúdo.', example: 'Após [N anos / N experimentos], descobri que [Insight].' },
+  { id: 'S4', name: 'Contrário / Paradoxo', desc: 'Vai contra o senso comum. Ideal para nichos com muito conteúdo mediano.', example: 'O que todos ensinam sobre [X] está errado. O real motivo é [Y].' },
+  { id: 'S5', name: 'Lista / Blueprint', desc: 'Apresenta um mapa claro e acionável. Alta retenção por progressão.', example: '[N] passos que [resultado transformador] em [tempo].' },
+];
 
 interface NarrativeLibraryProps {
   activeProject?: any;
@@ -24,13 +47,19 @@ interface NarrativeComponent {
   name: string;
   description: string;
   content_pattern: string;
+  category?: string;
   is_active: boolean;
 }
 
-export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProps) {
+export default function NarrativeLibrary({ activeProject: propProject }: NarrativeLibraryProps) {
+  // Zustand store takes priority for data isolation
+  const storeProject = useActiveProject();
+  const activeProject = storeProject || propProject;
+
   const [components, setComponents] = useState<NarrativeComponent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'All' | 'Hook' | 'CTA' | 'Title Structure'>('All');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'All' | 'Hook' | 'CTA' | 'Title Structure' | 'Community' | 'Padrões S1-S5'>('All');
   
   // Create / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,7 +68,8 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
     type: 'Hook',
     name: '',
     description: '',
-    content_pattern: ''
+    content_pattern: '',
+    category: ''
   });
 
   useEffect(() => {
@@ -52,82 +82,106 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
   }, [activeProject?.id]);
 
   const fetchComponents = async () => {
+    if (!activeProject?.id) {
+      setComponents([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
+      console.log("[ContentOS] Buscando componentes para o projeto:", activeProject.id);
       
-      // 1. Tentar Supabase se disponível
+      // 1. Tentar LocalStorage primeiro para velocidade (UI Unblock)
+      const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        setComponents(parsed);
+        // Não paramos o loading aqui se quisermos sincronizar com a nuvem, 
+        // mas vamos parar para garantir que o usuário veja algo.
+        setIsLoading(false); 
+      }
+
+      // 2. Sincronizar com Supabase em background
       if (supabase) {
         const { data, error } = await supabase
           .from('narrative_components')
           .select('*')
-          .eq('project_id', activeProject?.id)
+          .eq('project_id', activeProject.id)
           .order('created_at', { ascending: false });
           
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
+        if (error) {
+          console.warn('⚠️ Supabase Fetch Error:', error.message);
+        } else if (data && data.length > 0) {
           setComponents(data);
-          return;
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(data));
         }
-        console.log('Nuvem vazia para Biblioteca Narrativa. Buscando no LocalStorage...');
-      }
-
-      // 2. Fallback para LocalStorage se a nuvem estiver vazia ou offline
-      const localData = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
-      if (localData) {
-        setComponents(JSON.parse(localData));
-      } else {
-        // 3. Injetar Mocks apenas se for projeto totalmente novo
-        const initialMocks = [
-          { id: '1', type: 'Hook', name: 'Provocação S1', description: 'Começa com um erro técnico comum do qual a persona não tem ciência.', content_pattern: 'Você acha que [Ação Comum] traz [Benefício Esperado], mas na verdade está matando seu [Métrica Importante].', is_active: true },
-          { id: '2', type: 'CTA', name: 'Conversão Lead', description: 'Gatilho direto para a landing page.', content_pattern: 'Quer o passo a passo completo? Link no primeiro comentário fixado.', is_active: true },
-        ];
-        setComponents(initialMocks);
-        localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(initialMocks));
       }
     } catch (e) {
-      console.error('Erro ao buscar componentes narrativos:', e);
-      const fallback = localStorage.getItem(`ws_narrative_${activeProject?.id}`);
-      if (fallback) setComponents(JSON.parse(fallback));
+      console.error('❌ Erro crítico ao buscar componentes:', e);
     } finally {
       setIsLoading(false);
+      console.log("[ContentOS] Carregamento da Biblioteca concluído.");
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeProject) return;
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!activeProject || isSubmitting) return;
+
+    setIsSubmitting(true);
+    console.log("[ContentOS] Iniciando salvamento de Ativo Narrativo...", formData);
 
     try {
       const payload = {
-        ...formData,
+        type: formData.type,
+        name: formData.name,
+        description: formData.description,
+        content_pattern: formData.content_pattern,
+        category: formData.category || '',
         project_id: activeProject.id,
         is_active: true
       };
 
-      if (supabase) {
-        if (editingItem) {
-          await supabase.from('narrative_components').update(payload).eq('id', editingItem.id);
-        } else {
-          await supabase.from('narrative_components').insert(payload);
-        }
-        fetchComponents();
+      // 💾 1. Persistência Local Imediata (UI Unblock)
+      let newComponents = [...components];
+      const tempId = editingItem ? editingItem.id : Date.now().toString();
+      
+      if (editingItem) {
+        newComponents = newComponents.map(c => c.id === editingItem.id ? { ...payload, id: editingItem.id } as NarrativeComponent : c);
       } else {
-        let newComponents = [...components];
-        if (editingItem) {
-          newComponents = newComponents.map(c => c.id === editingItem.id ? { ...payload, id: editingItem.id } as NarrativeComponent : c);
-        } else {
-          newComponents = [{ ...payload, id: Date.now().toString() } as NarrativeComponent, ...newComponents];
-        }
-        setComponents(newComponents);
-        localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(newComponents));
+        newComponents = [{ ...payload, id: tempId } as NarrativeComponent, ...newComponents];
       }
       
+      setComponents(newComponents);
+      localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(newComponents));
+      
+      // 🏁 UI Feedback: Fecha modal e limpa form
       setIsModalOpen(false);
       resetForm();
-    } catch (err) {
-      console.error(err);
-      alert('Falha ao salvar componente.');
+      console.log("[ContentOS] Ativo salvo localmente.");
+
+      // ☁️ 2. Sincronização Supabase (Background)
+      if (supabase) {
+        console.log("[ContentOS] Sincronizando Ativo com Supabase...");
+        const action = editingItem 
+          ? supabase.from('narrative_components').update(payload).eq('id', editingItem.id)
+          : supabase.from('narrative_components').insert(payload);
+          
+        action.then(({ error }) => {
+          if (error) console.warn('⚠️ Supabase Narrative Error:', error.message);
+          else {
+            console.log("[ContentOS] Sincronização concluída. Recarregando...");
+            fetchComponents();
+          }
+        });
+      }
+    } catch (err: any) {
+      console.error('❌ Erro crítico na Biblioteca:', err);
+      alert(`Erro: ${err.message || 'Falha ao processar ativo'}`);
+      setIsModalOpen(false);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -146,7 +200,7 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
 
   const resetForm = () => {
     setEditingItem(null);
-    setFormData({ type: 'Hook', name: '', description: '', content_pattern: '' });
+    setFormData({ type: 'Hook', name: '', description: '', content_pattern: '', category: '' });
   };
 
   const openNewModal = () => {
@@ -160,7 +214,8 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
       type: item.type,
       name: item.name,
       description: item.description,
-      content_pattern: item.content_pattern
+      content_pattern: item.content_pattern,
+      category: item.category || ''
     });
     setIsModalOpen(true);
   };
@@ -199,18 +254,18 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
 
       {/* Analytics & Filters Insight Container */}
       <section className="glass-card p-2 flex justify-between items-center bg-midnight/40 max-w-2xl border-white/5">
-        <div className="flex gap-2 p-1">
-          {['All', 'Hook', 'CTA', 'Title Structure'].map(tab => (
+        <div className="flex gap-2 p-1 flex-wrap">
+          {['All', 'Hook', 'CTA', 'Title Structure', 'Community'].map(tab => (
             <button 
               key={tab}
               onClick={() => setActiveTab(tab as any)}
-              className={`px-6 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all
+              className={`px-5 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all
                 ${activeTab === tab 
                   ? 'bg-sage text-midnight shadow-[0_0_15px_rgba(155,176,165,0.4)]' 
                   : 'text-white/40 hover:text-white hover:bg-white/5'}`
               }
             >
-              {tab === 'All' ? 'Tudo' : tab}
+              {tab === 'All' ? 'Tudo' : tab === 'Community' ? 'Comunidade' : tab}
             </button>
           ))}
         </div>
@@ -231,11 +286,12 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
                 <div>
                   <span className={`text-[8px] uppercase tracking-widest font-black px-2 py-1 rounded inline-block mb-3 border
                     ${comp.type === 'Hook' ? 'bg-sage/10 text-sage border-sage/20' : 
-                      comp.type === 'CTA' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20' : 
+                      comp.type === 'CTA' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20' :
+                      comp.type === 'Community' ? 'bg-purple-400/10 text-purple-400 border-purple-400/20' :
                       'bg-orange-400/10 text-orange-400 border-orange-400/20'
                     }`}
                   >
-                    {comp.type}
+                    {comp.type === 'Community' ? '◈ Comunidade' : comp.type}
                   </span>
                   <h3 className="font-bold text-white tracking-tight">{comp.name}</h3>
                 </div>
@@ -289,16 +345,12 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
               
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Categoria</label>
-                <select 
-                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[var(--accent-color)] focus:outline-none"
+                <CustomSelect
                   value={formData.type}
-                  onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  required
-                >
-                  <option className="bg-[#0A0E17] text-white" value="Hook">Hook (Gancho Estratégico)</option>
-                  <option className="bg-[#0A0E17] text-white" value="CTA">CTA (Call-to-Action)</option>
-                  <option className="bg-[#0A0E17] text-white" value="Title Structure">Estrutura de Título</option>
-                </select>
+                  onChange={val => setFormData({...formData, type: val})}
+                  options={TYPE_OPTIONS}
+                  placeholder="Selecionar Categoria"
+                />
               </div>
 
               <div className="flex flex-col gap-2">
@@ -338,15 +390,18 @@ export default function NarrativeLibrary({ activeProject }: NarrativeLibraryProp
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-3 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
                 >
                   Cancelar
                 </button>
                 <button 
-                  type="submit"
-                  className="btn-primary py-3 px-8 text-[10px]"
+                  type="button"
+                  onClick={() => handleSave()}
+                  disabled={isSubmitting || !formData.name || !formData.content_pattern}
+                  className={`btn-primary py-3 px-8 text-[10px] ${isSubmitting ? 'opacity-50 cursor-wait' : ''}`}
                 >
-                  SALVAR NO KERNEL
+                  {isSubmitting ? 'SALVANDO NO KERNEL...' : 'SALVAR NO KERNEL'}
                 </button>
               </div>
 

@@ -9,7 +9,8 @@ export async function POST(req: NextRequest) {
       model, 
       prompt, 
       apiKeyOverwrite,
-      projectConfig // Adicionado para prioridade DB-driven se enviada
+      projectConfig,
+      responseType = 'json'
     } = body;
 
     if (!prompt) {
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
               topK: 1,
               topP: 1,
               maxOutputTokens: 2048,
-              response_mime_type: "application/json"
+              ...(responseType === 'json' ? { response_mime_type: 'application/json' } : {})
             }
           })
         }
@@ -69,9 +70,9 @@ export async function POST(req: NextRequest) {
       const requestBody: any = {
         model: apiModel,
         messages: [{ role: 'system', content: prompt }],
-        response_format: { type: "json_object" }
       };
       if (supportsTemperature) requestBody.temperature = 0.8;
+      if (responseType === 'json') requestBody.response_format = { type: 'json_object' };
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',

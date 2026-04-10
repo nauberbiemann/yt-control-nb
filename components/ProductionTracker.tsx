@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useActiveProject } from '@/lib/store/projectStore';
 import { 
   CheckSquare, 
   Image as ImageIcon, 
@@ -28,7 +29,10 @@ interface ProductionTrackerProps {
   activeProject?: any;
 }
 
-export default function ProductionTracker({ activeProject }: ProductionTrackerProps) {
+export default function ProductionTracker({ activeProject: propProject }: ProductionTrackerProps) {
+  const storeProject = useActiveProject();
+  const activeProject = storeProject || propProject;
+
   const [activeVideo] = useState('Nenhum Tema Selecionado');
   const [productionTasks, setProductionTasks] = useState<ProductionTask[]>([]);
 

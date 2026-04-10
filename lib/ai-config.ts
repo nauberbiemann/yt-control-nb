@@ -76,11 +76,13 @@ export const AIResponseSchema = z.object({
     S4: z.string(),
     S5: z.string(),
   }),
+  refined_match_score: z.number().optional(),
+  analysis_suggestion: z.string().optional(),
   composition_log: z.object({
-    theme_mapped: z.string(),
-    journey_layer: z.string(),
-    metaphors_used: z.array(z.string()),
-  })
+    theme_mapped: z.string().optional(),
+    journey_layer: z.string().optional(),
+    metaphors_used: z.array(z.string()).optional(),
+  }).optional()
 });
 
 export type AIResponse = z.infer<typeof AIResponseSchema>;

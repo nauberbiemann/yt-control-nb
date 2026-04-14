@@ -64,6 +64,11 @@ interface TitleStructureAsset {
   source: 'library' | 'fallback';
 }
 
+const normalizeTheme = (theme: Theme): Theme => ({
+  ...theme,
+  selected_structure: theme.selected_structure ?? theme.title_structure_asset_id ?? undefined,
+});
+
 const mergeNarrativeComponents = (localItems: any[], remoteItems: any[]) => {
   const merged = new Map<string, any>();
   localItems.forEach((item) => {
@@ -214,10 +219,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
         try {
           const parsed = JSON.parse(local);
           if (Array.isArray(parsed)) {
-            setThemes(parsed.map((theme: Theme) => ({
-              ...theme,
-              selected_structure: theme.selected_structure || theme.title_structure_asset_id,
-            })));
+            setThemes(parsed.map((theme: Theme) => normalizeTheme(theme)));
           }
         } catch (e) {}
       }
@@ -231,10 +233,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
         
         if (error) throw error;
         if (data && data.length > 0) {
-          const normalizedThemes = data.map((theme: Theme) => ({
-            ...theme,
-            selected_structure: theme.selected_structure || theme.title_structure_asset_id,
-          }));
+          const normalizedThemes = data.map((theme: Theme) => normalizeTheme(theme));
           setThemes(normalizedThemes);
           localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedThemes));
           return;
@@ -585,7 +584,7 @@ REGRAS:
         ? getScore(updatedData.refined_title || themeToUpdate.refined_title || '', updatedData.notes || themeToUpdate.notes || '').score 
         : themeToUpdate.match_score;
 
-      const updatedTheme = { ...themeToUpdate, ...updatedData, match_score: newScore };
+      const updatedTheme = normalizeTheme({ ...themeToUpdate, ...updatedData, match_score: newScore });
       const updatedThemes = themes.map(t => t.id === themeId ? updatedTheme : t);
       
       setThemes(updatedThemes);

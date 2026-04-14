@@ -186,7 +186,11 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       case 4: 
         const sop = formData.editing_sop;
         const hasSopConfig = sop.cut_rhythm && sop.zoom_style && sop.soundtrack && sop.art_direction && sop.overlays;
-        const hasValidRanges = sop.duration_min > 0 && sop.duration_max >= sop.duration_min && sop.blocks_min > 0 && sop.blocks_max >= sop.blocks_min;
+        const durationMin = Number(sop.duration_min || 0);
+        const durationMax = Number(sop.duration_max || 0);
+        const blocksMin = Number(sop.blocks_min || 0);
+        const blocksMax = Number(sop.blocks_max || 0);
+        const hasValidRanges = durationMin > 0 && durationMax >= durationMin && blocksMin > 0 && blocksMax >= blocksMin;
         const hasTacticalJourney = formData.tactical_journey.every((m: any) => m.title.trim() !== '' && m.value.trim() !== '');
         return hasSopConfig && hasValidRanges && hasTacticalJourney;
       default: return false;

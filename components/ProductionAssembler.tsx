@@ -240,7 +240,7 @@ const getNarrativeTensionMap = (
     };
   }
 
-  if (voiceStyle === 'DiagnÃ³stico TÃ©cnico') {
+  if (voiceStyle === 'Diagnóstico Técnico') {
     return {
       tensionLevel: 'Media',
       narrativeRole: 'Diagnostico',

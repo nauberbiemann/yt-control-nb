@@ -186,8 +186,9 @@ export const useProjectStore = create<ProjectStore>()(
           if (data && data.length > 0) {
             const localById = new Map(localProjects.map((project) => [project.id, project]));
             const remoteIds = new Set<string>();
+            const remoteProjects = data as Project[];
 
-            const mergedRemote = data.map((project) => {
+            const mergedRemote = remoteProjects.map((project: Project) => {
               remoteIds.add(project.id);
               const localProject = localById.get(project.id);
               return localProject ? mergeProjectRecords(localProject, project) : project;

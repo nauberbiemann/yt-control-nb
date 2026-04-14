@@ -141,7 +141,7 @@ export async function fetchLastCompositions(projectId: string, limit = 3): Promi
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      remoteEntries = (data || []).map((entry) => ({
+      remoteEntries = ((data || []) as any[]).map((entry: any) => ({
         ...entry,
         selectedHookId: entry.selectedHookId || undefined,
         selectedCtaId: entry.selectedCtaId || undefined,

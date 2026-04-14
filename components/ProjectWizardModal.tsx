@@ -125,6 +125,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       name: d.name || d.project_name || '',
       puc: d.puc || d.puc_promise || '',
       accent_color: d.accent_color || '#9BB0A5',
+      default_execution_mode: d.default_execution_mode || 'internal',
       
       // Stage 1: Fundação (DNA)
       phd_strategy: normalizePhdStrategy(d.phd_strategy),
@@ -205,6 +206,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
     onComplete({
       ...formData,
       id: formData.id || crypto.randomUUID(),
+      default_execution_mode: formData.default_execution_mode || 'internal',
       target_persona: {
         audience: formData.persona_matrix.demographics,
         pain_point: formData.persona_matrix.pain_alignment
@@ -519,6 +521,40 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               </div>
 
               {/* Configurações de Range (Duração e Blocos) */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[9px] font-black uppercase tracking-widest text-sage">Modo Padrao de Producao</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { value: 'internal', title: 'No aplicativo', description: 'Usa a geracao do proprio app como caminho padrao.' },
+                    { value: 'external', title: 'Em plataforma externa', description: 'Gera o prompt no app e recebe o roteiro final por texto ou .txt.' }
+                  ].map((option) => {
+                    const isActive = formData.default_execution_mode === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => updateFormData({ default_execution_mode: option.value })}
+                        className={`text-left rounded-2xl border px-4 py-4 transition-all ${
+                          isActive
+                            ? 'bg-sage/10 border-sage/40 shadow-lg shadow-sage/10'
+                            : 'bg-white/5 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <span className={`block text-[11px] font-black uppercase tracking-[2px] ${isActive ? 'text-sage' : 'text-white/80'}`}>
+                          {option.title}
+                        </span>
+                        <span className="block mt-2 text-[10px] leading-relaxed text-white/45">
+                          {option.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="text-[10px] text-white/35">
+                  Esse modo vira o padrao do canal, mas pode ser trocado dentro da Escrita Criativa a cada roteiro.
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 gap-6 p-6 bg-white/[0.03] rounded-3xl border border-white/10 shadow-inner">
                 <div className="space-y-4">
                   <label className="text-[10px] font-black uppercase tracking-[3px] text-sage block mb-2">Controle de Range (Calibragem)</label>

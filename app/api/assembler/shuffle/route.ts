@@ -17,6 +17,9 @@ interface ShuffleRequest {
     hooks: Array<{ id: string; name: string; content_pattern?: string }>;
     ctas: Array<{ id: string; name: string; content_pattern?: string; is_soft?: boolean }>;
     communityElements?: Array<{ id: string; name: string; content_pattern?: string }>;
+    narrativeCurves?: Array<{ id: string; name: string; content_pattern?: string; description?: string; category?: string }>;
+    argumentModes?: Array<{ id: string; name: string; content_pattern?: string; description?: string; category?: string }>;
+    repetitionRules?: Array<{ id: string; name: string; content_pattern?: string; description?: string; category?: string }>;
   };
   metaphorLibrary: string[];
   titleStructures: Array<{ id: string; name: string; content_pattern?: string }>;
@@ -24,6 +27,9 @@ interface ShuffleRequest {
     selectedHookId?: string;
     selectedCtaId?: string;
     selectedTitleStructureId?: string;
+    selectedCurveId?: string;
+    selectedArgumentModeId?: string;
+    selectedRepetitionRuleIds?: string[];
     blockCount?: number;
     durationMinutes?: number;
     voicePattern?: string;
@@ -45,6 +51,9 @@ interface SelectionPlan {
   hookId: string;
   ctaId: string;
   titleStructureId: string;
+  curveId?: string;
+  argumentModeId?: string;
+  repetitionRuleIds: string[];
   blockCount: number;
   durationMinutes: number;
   voicePatternId: string;
@@ -58,24 +67,33 @@ interface SelectionDiagnostics {
     hookId: string;
     ctaId: string;
     titleStructureId: string;
+    curveId?: string;
+    argumentModeId?: string;
+    repetitionRuleIds: string[];
     blockCount: number;
     durationMinutes: number;
     voicePatternId: string;
   };
   blocked: {
-    titleStructureIds: string[];
-    comboKeys: string[];
+      titleStructureIds: string[];
+      curveIds: string[];
+      argumentModeIds: string[];
+      repetitionRuleIds: string[];
+      comboKeys: string[];
     blockCounts: number[];
     durationMinutes: number[];
     voicePatternIds: string[];
   };
   recentUsage: {
-    hookIds: string[];
-    ctaIds: string[];
-    titleStructureIds: string[];
-    blockCounts: number[];
-    durationMinutes: number[];
-    voicePatternIds: string[];
+      hookIds: string[];
+      ctaIds: string[];
+      titleStructureIds: string[];
+      curveIds: string[];
+      argumentModeIds: string[];
+      repetitionRuleIds: string[];
+      blockCounts: number[];
+      durationMinutes: number[];
+      voicePatternIds: string[];
     sourceBreakdown: {
       session: number;
       registered: number;
@@ -91,6 +109,11 @@ const VOICE_PATTERNS: VoicePatternOption[] = [
 
 const countUsage = (items: Array<string | undefined>, target: string) =>
   items.filter((item) => item === target).length;
+
+const getBehaviorFlag = (item?: { category?: string }) => (item?.category || '').toLowerCase();
+const isFixed = (item?: { category?: string }) => getBehaviorFlag(item) === 'fixed';
+const isRotative = (item?: { category?: string }) => getBehaviorFlag(item) === 'rotative';
+const isExperimental = (item?: { category?: string }) => getBehaviorFlag(item) === 'experimental';
 
 const pickLeastUsedDifferent = <T extends { id: string }>(
   items: T[],
@@ -110,10 +133,59 @@ const pickLeastUsedDifferent = <T extends { id: string }>(
   return scored[0]?.item || candidates[0];
 };
 
+const pickDirectiveItem = <T extends { id: string; category?: string }>(
+  items: T[],
+  recentIds: string[]
+) => {
+  if (!items.length) return null;
+
+  const fixedItem = items.find((item) => isFixed(item));
+  if (fixedItem) return fixedItem;
+
+  const rotativeItems = items.filter((item) => isRotative(item));
+  if (rotativeItems.length > 0) {
+    return pickLeastUsedDifferent(rotativeItems, recentIds) || rotativeItems[0];
+  }
+
+  const experimentalItems = items.filter((item) => isExperimental(item));
+  if (experimentalItems.length > 0) {
+    return pickLeastUsedDifferent(experimentalItems, recentIds) || experimentalItems[0];
+  }
+
+  return pickLeastUsedDifferent(items, recentIds) || items[0];
+};
+
+const pickRepetitionRules = <T extends { id: string; category?: string }>(
+  items: T[],
+  recentIds: string[]
+) => {
+  if (!items.length) return [];
+
+  const fixedItems = items.filter((item) => isFixed(item));
+  const rotativeItems = items.filter((item) => isRotative(item));
+  const experimentalItems = items.filter((item) => isExperimental(item));
+
+  const selected: T[] = [...fixedItems];
+  const optionalPool = rotativeItems.length > 0 ? rotativeItems : experimentalItems;
+  const extra = pickLeastUsedDifferent(optionalPool, recentIds);
+  if (extra && !selected.some((item) => item.id === extra.id)) {
+    selected.push(extra);
+  }
+
+  if (selected.length === 0 && items[0]) {
+    selected.push(items[0]);
+  }
+
+  return selected;
+};
+
 function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
   const hooks = req.narrativeLibrary.hooks.filter((item) => item?.id);
   const ctas = req.narrativeLibrary.ctas.filter((item) => item?.id);
   const structures = req.titleStructures.filter((item) => item?.id);
+  const narrativeCurves = (req.narrativeLibrary.narrativeCurves || []).filter((item) => item?.id);
+  const argumentModes = (req.narrativeLibrary.argumentModes || []).filter((item) => item?.id);
+  const repetitionRules = (req.narrativeLibrary.repetitionRules || []).filter((item) => item?.id);
   const blockCounts = Array.from(
     { length: Math.max(0, req.projectConfig.maxBlocks - req.projectConfig.minBlocks + 1) },
     (_, index) => req.projectConfig.minBlocks + index
@@ -136,6 +208,9 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
   const recentHookIds = recent10.map((entry) => entry.selectedHookId).filter(Boolean) as string[];
   const recentCtaIds = recent10.map((entry) => entry.selectedCtaId).filter(Boolean) as string[];
   const recentStructureIds = recent10.map((entry) => entry.selectedTitleStructureId).filter(Boolean) as string[];
+  const recentCurveIds = recent10.map((entry) => entry.selectedCurveId).filter(Boolean) as string[];
+  const recentArgumentModeIds = recent10.map((entry) => entry.selectedArgumentModeId).filter(Boolean) as string[];
+  const recentRepetitionRuleIds = recent10.flatMap((entry) => entry.selectedRepetitionRuleIds || []).filter(Boolean) as string[];
   const recentVoicePatterns = recent10.map((entry) => entry.voicePattern).filter(Boolean) as string[];
   const recentBlockCounts = recent10
     .map((entry) => Number(entry.blockCount || 0))
@@ -169,6 +244,10 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
       ? recent2.map((entry) => entry.voicePattern).filter(Boolean)
       : []
   );
+
+  const selectedCurve = pickDirectiveItem(narrativeCurves, recentCurveIds);
+  const selectedArgumentMode = pickDirectiveItem(argumentModes, recentArgumentModeIds);
+  const selectedRepetitionRules = pickRepetitionRules(repetitionRules, recentRepetitionRuleIds);
 
   const candidates: SelectionPlan[] = [];
 
@@ -205,6 +284,9 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
                 hookId: hook.id,
                 ctaId: cta.id,
                 titleStructureId: structure.id,
+                curveId: selectedCurve?.id,
+                argumentModeId: selectedArgumentMode?.id,
+                repetitionRuleIds: selectedRepetitionRules.map((item) => item.id),
                 blockCount,
                 durationMinutes,
                 voicePatternId: voicePattern.id,
@@ -220,13 +302,16 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
 
   const ranked = (candidates.length > 0 ? candidates : hooks.flatMap((hook) =>
     ctas.flatMap((cta) =>
-      structures.flatMap((structure) =>
-        blockCounts.flatMap((blockCount) =>
+        structures.flatMap((structure) =>
+          blockCounts.flatMap((blockCount) =>
           durations.flatMap((durationMinutes) =>
             VOICE_PATTERNS.map((voicePattern) => ({
               hookId: hook.id,
               ctaId: cta.id,
               titleStructureId: structure.id,
+              curveId: selectedCurve?.id,
+              argumentModeId: selectedArgumentMode?.id,
+              repetitionRuleIds: selectedRepetitionRules.map((item) => item.id),
               blockCount,
               durationMinutes,
               voicePatternId: voicePattern.id,
@@ -237,10 +322,18 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
         )
       )
     )
-  ))
+    ))
     .sort((a, b) => b.noveltyScore - a.noveltyScore);
 
-  return ranked[0] || null;
+  if (ranked.length === 0) return null;
+
+  const bestScore = ranked[0].noveltyScore;
+  const competitivePool = ranked.filter((candidate) => candidate.noveltyScore >= bestScore - 4);
+  const differentFromLast = competitivePool.filter((candidate) => candidate.blockCount !== req.projectConfig.lastBlockCount);
+  const selectionPool = differentFromLast.length > 0 ? differentFromLast : competitivePool;
+  const pickedIndex = Math.floor(Math.random() * selectionPool.length);
+
+  return selectionPool[pickedIndex] || ranked[0] || null;
 }
 
 function buildSelectionDiagnostics(req: ShuffleRequest, plan: SelectionPlan): SelectionDiagnostics {
@@ -258,6 +351,9 @@ function buildSelectionDiagnostics(req: ShuffleRequest, plan: SelectionPlan): Se
       hookId: plan.hookId,
       ctaId: plan.ctaId,
       titleStructureId: plan.titleStructureId,
+      curveId: plan.curveId,
+      argumentModeId: plan.argumentModeId,
+      repetitionRuleIds: plan.repetitionRuleIds,
       blockCount: plan.blockCount,
       durationMinutes: plan.durationMinutes,
       voicePatternId: plan.voicePatternId,
@@ -266,6 +362,13 @@ function buildSelectionDiagnostics(req: ShuffleRequest, plan: SelectionPlan): Se
       titleStructureIds: req.titleStructures.length > 1
         ? recent3.map((entry) => entry.selectedTitleStructureId).filter(Boolean) as string[]
         : [],
+      curveIds: (req.narrativeLibrary.narrativeCurves || []).length > 1
+        ? recent3.map((entry) => entry.selectedCurveId).filter(Boolean) as string[]
+        : [],
+      argumentModeIds: (req.narrativeLibrary.argumentModes || []).length > 1
+        ? recent3.map((entry) => entry.selectedArgumentModeId).filter(Boolean) as string[]
+        : [],
+      repetitionRuleIds: recent5.flatMap((entry) => entry.selectedRepetitionRuleIds || []).filter(Boolean) as string[],
       comboKeys: recent5
         .map((entry) => `${entry.selectedHookId || ''}|${entry.selectedCtaId || ''}|${entry.selectedTitleStructureId || ''}`)
         .filter((value) => value !== '||'),
@@ -283,6 +386,9 @@ function buildSelectionDiagnostics(req: ShuffleRequest, plan: SelectionPlan): Se
       hookIds: recent10.map((entry) => entry.selectedHookId).filter(Boolean) as string[],
       ctaIds: recent10.map((entry) => entry.selectedCtaId).filter(Boolean) as string[],
       titleStructureIds: recent10.map((entry) => entry.selectedTitleStructureId).filter(Boolean) as string[],
+      curveIds: recent10.map((entry) => entry.selectedCurveId).filter(Boolean) as string[],
+      argumentModeIds: recent10.map((entry) => entry.selectedArgumentModeId).filter(Boolean) as string[],
+      repetitionRuleIds: recent10.flatMap((entry) => entry.selectedRepetitionRuleIds || []).filter(Boolean) as string[],
       blockCounts: recent10
         .map((entry) => Number(entry.blockCount || 0))
         .filter((value) => Number.isFinite(value) && value > 0),
@@ -352,6 +458,9 @@ function enforceShufflePlan(
     selectedHookId: plan.hookId,
     selectedCtaId: plan.ctaId,
     selectedTitleStructureId: plan.titleStructureId,
+    selectedCurveId: plan.curveId,
+    selectedArgumentModeId: plan.argumentModeId,
+    selectedRepetitionRuleIds: plan.repetitionRuleIds,
     blockCount: plan.blockCount,
     estimatedDurationMinutes: plan.durationMinutes,
     dominantVoice: plan.voiceSequence[0],
@@ -444,6 +553,9 @@ function localShuffleFallback(req: ShuffleRequest) {
     selectedHookId: plan.hookId,
     selectedCtaId:  plan.ctaId,
     selectedTitleStructureId: plan.titleStructureId,
+    selectedCurveId: plan.curveId,
+    selectedArgumentModeId: plan.argumentModeId,
+    selectedRepetitionRuleIds: plan.repetitionRuleIds,
     midCta: midCtaEl ? { id: midCtaEl.id, position: midCtaPosition } : undefined,
     blockCount: plan.blockCount,
     estimatedDurationMinutes: totalMinutes,
@@ -477,6 +589,9 @@ function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan): string {
   const allCtas      = narrativeLibrary.ctas;
   const ctasStr      = allCtas.map(c => `- [${c.id}] ${c.name}${c.is_soft ? ' [SOFT/INTERMEDIÃRIA]' : ' [HARD/FINAL]'}: "${c.content_pattern || ''}"`).join('\n');
   const communityStr = (narrativeLibrary.communityElements || []).map(e => `- [${e.id}] "${e.content_pattern || e.name}"`).join('\n') || 'Nenhum cadastrado ainda.';
+  const narrativeCurvesStr = (narrativeLibrary.narrativeCurves || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhuma curva cadastrada ainda.';
+  const argumentModesStr = (narrativeLibrary.argumentModes || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhum modo cadastrado ainda.';
+  const repetitionRulesStr = (narrativeLibrary.repetitionRules || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhuma regra cadastrada ainda.';
   const titleStructuresStr = titleStructures.map(t => '- [' + t.id + '] ' + t.name + ': "' + (t.content_pattern || '') + '"').join('\n') || 'Nenhuma estrutura cadastrada ainda.';
   const pureMetaphorsStr = metaphorLibrary.join(', ') || 'Não há metáforas cadastradas.';
   const metaphorsStr = pureMetaphorsStr;
@@ -514,10 +629,22 @@ ${metaphorsStr}
 TITLE_STRUCTURES â€” Use these only to frame the title pattern for the current project:
 ${titleStructuresStr}
 
+WRITING_LIBRARY â€” Narrative Curves:
+${narrativeCurvesStr}
+
+WRITING_LIBRARY â€” Argument Modes:
+${argumentModesStr}
+
+WRITING_LIBRARY â€” Repetition Rules:
+${repetitionRulesStr}
+
 LOCKED_SELECTION (non-negotiable):
 - Hook ID: ${plan.hookId}
 - CTA Final ID: ${plan.ctaId}
 - Title Structure ID: ${plan.titleStructureId}
+- Narrative Curve ID: ${plan.curveId || 'none'}
+- Argument Mode ID: ${plan.argumentModeId || 'none'}
+- Repetition Rule IDs: ${plan.repetitionRuleIds.join(', ') || 'none'}
 - Voice Pattern ID: ${plan.voicePatternId}
 - Voice rotation for body blocks: ${plan.voiceSequence.join(' -> ')}
 - Novelty score target: ${plan.noveltyScore}
@@ -532,6 +659,9 @@ COMPOSITION PROTOCOL (V15 â€” TOTAL INTELLIGENCE):
 7. COMMUNITY IDENTITY: Inject 2â€“3 community elements into development blocks as communityElement (include their ID).
 8. MULTI-CTA FLOW: 1 SOFT mid-CTA (engagement) + 1 HARD final-CTA (conversion).
 9. EXCLUSIVITY: Asset sequence must differ from previous composition logs.
+10. MACRO ORCHESTRATION: if a Narrative Curve is locked, use it as the macro progression of the body blocks.
+11. ARGUMENT POSTURE: if an Argument Mode is locked, adopt it as the dominant persuasion posture without flattening the text.
+12. REPETITION LIMITS: if Repetition Rules are locked, treat them as hard constraints and avoid recurring formulations.
 
 PREVIOUS_LOGS:
 - Last hook: ${lastHookId} | Last CTA: ${lastCtaId} | Last title structure: ${lastTitleStructureId} | Last block count: ${lastCount}
@@ -543,6 +673,9 @@ Respond ONLY with raw JSON (no markdown fences):
   "selectedHookChars": ${hookChars},
   "selectedCtaId": "${plan.ctaId}",
   "selectedTitleStructureId": "${plan.titleStructureId}",
+  "selectedCurveId": "${plan.curveId || ''}",
+  "selectedArgumentModeId": "${plan.argumentModeId || ''}",
+  "selectedRepetitionRuleIds": ${JSON.stringify(plan.repetitionRuleIds)},
   "ctaFinalChars": ${ctaChars},
   "midCta": {
     "id": "<SOFT CTA id>",

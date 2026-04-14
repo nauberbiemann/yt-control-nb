@@ -555,6 +555,7 @@ export default function Home() {
         detailed_sop: normalizedSop,
         editing_sop: normalizedSop,
         thumb_strategy: normalizedThumb,
+        default_execution_mode: formData.default_execution_mode || baseProject.default_execution_mode || 'internal',
         traceability_summary: formData.traceability_summary || [],
         traceability_sources: formData.traceability_sources || {},
         status: 'active',

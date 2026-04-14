@@ -66,12 +66,18 @@ interface ProductionBriefing {
       hookId: string;
       ctaId: string;
       titleStructureId: string;
+      curveId?: string;
+      argumentModeId?: string;
+      repetitionRuleIds: string[];
       blockCount: number;
       durationMinutes: number;
       voicePatternId: string;
     };
     blocked: {
       titleStructureIds: string[];
+      curveIds: string[];
+      argumentModeIds: string[];
+      repetitionRuleIds: string[];
       comboKeys: string[];
       blockCounts: number[];
       durationMinutes: number[];
@@ -81,6 +87,9 @@ interface ProductionBriefing {
       hookIds: string[];
       ctaIds: string[];
       titleStructureIds: string[];
+      curveIds: string[];
+      argumentModeIds: string[];
+      repetitionRuleIds: string[];
       blockCounts: number[];
       durationMinutes: number[];
       voicePatternIds: string[];
@@ -93,6 +102,9 @@ interface ProductionBriefing {
   openingHook: { id: string; name: string; pattern: string };
   selectedCta: { id: string; name: string; pattern: string };
   selectedTitleStructure?: { id: string; name: string; pattern: string };
+  selectedNarrativeCurve?: { id: string; name: string; pattern: string; behaviorFlag?: string };
+  selectedArgumentMode?: { id: string; name: string; pattern: string; behaviorFlag?: string };
+  selectedRepetitionRules?: Array<{ id: string; name: string; pattern: string; behaviorFlag?: string }>;
   // V14: mid CTA positioned between central blocks
   midCta?: { id: string; name: string; pattern: string; position: number };
   blocks: AssemblerBlock[];
@@ -105,6 +117,7 @@ interface ProductionBriefing {
 
 interface ProductionAssemblerProps {
   components: any[]; // from NarrativeLibrary
+  componentsHydrated?: boolean;
   onApprove: (briefing: ProductionBriefing, theme: string) => void;
 }
 
@@ -439,7 +452,7 @@ const redistributeBlockCharsByNarrativeMap = (blocks: AssemblerBlock[], totalBod
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
-export default function ProductionAssembler({ components, onApprove }: ProductionAssemblerProps) {
+export default function ProductionAssembler({ components, componentsHydrated = true, onApprove }: ProductionAssemblerProps) {
   const activeProject = useActiveProject();
 
   const [theme, setTheme] = useState('');
@@ -457,6 +470,16 @@ export default function ProductionAssembler({ components, onApprove }: Productio
   const ctas = uniqueComponents.filter(c => c.type === 'CTA');
   const titleStructures = uniqueComponents.filter(c => c.type === 'Title Structure');
   const communityItems  = uniqueComponents.filter(c => c.type === 'Community');
+  const narrativeCurves = uniqueComponents.filter(c => c.type === 'Narrative Curve');
+  const argumentModes = uniqueComponents.filter(c => c.type === 'Argument Mode');
+  const repetitionRules = uniqueComponents.filter(c => c.type === 'Repetition Rule');
+  const narrativeLibraryReady = componentsHydrated;
+  const hasMinimumNarrativeAssets = hooks.length > 0 && ctas.length > 0;
+  const libraryStatusMessage = !narrativeLibraryReady
+    ? 'Carregando a Biblioteca Narrativa do projeto ativo. Aguarde um instante antes de montar a estrutura.'
+    : !hasMinimumNarrativeAssets
+      ? 'Biblioteca Narrativa sem ativos minimos. Adicione Hooks e CTAs antes de montar a estrutura.'
+      : 'Biblioteca detectada. O Gatekeeper vai validar estrategicamente o seu tema antes do shuffle.';
 
   const projectMetaphors = (activeProject?.metaphor_library || '')
     .split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -530,6 +553,9 @@ export default function ProductionAssembler({ components, onApprove }: Productio
         selectedHookId: briefing.openingHook?.id,
         selectedCtaId: briefing.selectedCta?.id,
         selectedTitleStructureId: briefing.selectedTitleStructure?.id,
+        selectedCurveId: briefing.selectedNarrativeCurve?.id,
+        selectedArgumentModeId: briefing.selectedArgumentMode?.id,
+        selectedRepetitionRuleIds: briefing.selectedRepetitionRules?.map((item) => item.id) || [],
         blockCount: briefing.blockCount,
         durationMinutes: Number((briefing.estimatedDuration || '').match(/\d+/)?.[0] || 0) || undefined,
         voicePattern: briefing.diagnostics?.locked?.voicePatternId,
@@ -626,6 +652,9 @@ export default function ProductionAssembler({ components, onApprove }: Productio
             hooks,
             ctas: ctas.map(c => ({ ...c, is_soft: c.name?.toLowerCase().includes('soft') })),
             communityElements: communityItems, // already derived at component level
+            narrativeCurves,
+            argumentModes,
+            repetitionRules,
           },
           metaphorLibrary: projectMetaphors,
           titleStructures,
@@ -651,6 +680,11 @@ export default function ProductionAssembler({ components, onApprove }: Productio
       const selectedHook = hooks.find(h => h.id === data.selectedHookId) || hooks[0];
       const selectedCta  = ctas.find(c => c.id === data.selectedCtaId)   || ctas[0];
       const selectedTitleStructure = titleStructures.find(t => t.id === data.selectedTitleStructureId) || titleStructures[0];
+      const selectedNarrativeCurve = narrativeCurves.find(c => c.id === data.selectedCurveId);
+      const selectedArgumentMode = argumentModes.find(c => c.id === data.selectedArgumentModeId);
+      const selectedRepetitionRules = (Array.isArray(data.selectedRepetitionRuleIds) ? data.selectedRepetitionRuleIds : [])
+        .map((id: string) => repetitionRules.find(rule => rule.id === id))
+        .filter(Boolean);
       const midCtaAsset  = data.midCta?.id ? ctas.find(c => c.id === data.midCta.id) : null;
       const sessionHistoryCount = Number(data?.diagnostics?.recentUsage?.sourceBreakdown?.session || 0);
       const registeredHistoryCount = Number(data?.diagnostics?.recentUsage?.sourceBreakdown?.registered || 0);
@@ -662,10 +696,10 @@ export default function ProductionAssembler({ components, onApprove }: Productio
             : 'Historico registrado';
       const historyChoiceReason =
         sessionHistoryCount > 0 && registeredHistoryCount > 0
-          ? 'O motor combinou o historico ja registrado com a sessao atual para evitar repetir hook, cta, estrutura, duracao, contagem e voz.'
+          ? 'O motor combinou o historico ja registrado com a sessao atual para evitar repetir hook, cta, estrutura, curva, argumento, duracao, contagem e voz.'
           : sessionHistoryCount > 0
             ? 'O motor usou a sessao atual como memoria temporaria para variar a nova composicao mesmo antes do DNA ser registrado.'
-            : 'O motor usou apenas o historico registrado do projeto ativo para travar uma composicao menos repetitiva.';
+            : 'O motor usou apenas o historico registrado do projeto ativo para travar uma composicao menos repetitiva e menos previsivel.';
 
       // ── HARD ENFORCE: duration must be within [minDuration, maxDuration] ──────
       const aiMinutes  = data.estimatedDurationMinutes;
@@ -777,6 +811,24 @@ export default function ProductionAssembler({ components, onApprove }: Productio
           name: selectedTitleStructure.name || '—',
           pattern: selectedTitleStructure.content_pattern || selectedTitleStructure.description || '',
         } : undefined,
+        selectedNarrativeCurve: selectedNarrativeCurve ? {
+          id: selectedNarrativeCurve.id,
+          name: selectedNarrativeCurve.name || '—',
+          pattern: selectedNarrativeCurve.content_pattern || selectedNarrativeCurve.description || '',
+          behaviorFlag: selectedNarrativeCurve.category || undefined,
+        } : undefined,
+        selectedArgumentMode: selectedArgumentMode ? {
+          id: selectedArgumentMode.id,
+          name: selectedArgumentMode.name || '—',
+          pattern: selectedArgumentMode.content_pattern || selectedArgumentMode.description || '',
+          behaviorFlag: selectedArgumentMode.category || undefined,
+        } : undefined,
+        selectedRepetitionRules: selectedRepetitionRules.map((rule: any) => ({
+          id: rule.id,
+          name: rule.name || '—',
+          pattern: rule.content_pattern || rule.description || '',
+          behaviorFlag: rule.category || undefined,
+        })),
         midCta: midCtaAsset ? {
           id: midCtaAsset.id,
           name: midCtaAsset.name || '—',
@@ -791,6 +843,9 @@ export default function ProductionAssembler({ components, onApprove }: Productio
           hook: selectedHook?.id || '',
           ctaFinal: selectedCta?.id || '',
           titleStructure: selectedTitleStructure?.id || '',
+          narrativeCurve: selectedNarrativeCurve?.id || '',
+          argumentMode: selectedArgumentMode?.id || '',
+          repetitionRules: selectedRepetitionRules.map((rule: any) => rule.id).join(','),
           ctaMid: midCtaAsset?.id || '',
         },
       });
@@ -865,10 +920,13 @@ export default function ProductionAssembler({ components, onApprove }: Productio
               { label: 'CTAs', count: ctas.length, icon: Target, color: 'text-blue-400' },
               { label: 'Estruturas', count: titleStructures.length, icon: Sparkles, color: 'text-purple-400' },
               { label: 'Comunidade', count: communityItems.length, icon: BookOpen, color: 'text-cyan-400' },
+              { label: 'Curvas', count: narrativeCurves.length, icon: Shuffle, color: 'text-pink-400' },
+              { label: 'Argumentos', count: argumentModes.length, icon: Mic, color: 'text-amber-300' },
+              { label: 'Regras', count: repetitionRules.length, icon: Info, color: 'text-red-300' },
             ].map(({ label, count, icon: Icon, color }) => (
               <div key={label} className="flex flex-col items-center p-3 bg-white/5 border border-white/10 rounded-xl">
                 <Icon size={16} className={color} />
-                <span className="text-lg font-black text-white mt-1">{count}</span>
+                <span className="text-lg font-black text-white mt-1">{narrativeLibraryReady ? count : '...'}</span>
                 <span className="text-[11px] font-black uppercase tracking-widest text-white/30">{label}</span>
               </div>
             ))}
@@ -878,15 +936,13 @@ export default function ProductionAssembler({ components, onApprove }: Productio
           <div className="flex items-start gap-3 p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-xl">
             <Info size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-yellow-300/70 font-bold leading-relaxed">
-              {hooks.length === 0 || ctas.length === 0
-                ? '⚠️ Biblioteca Narrativa sem ativos. Adicione Hooks e CTAs na Biblioteca Narrativa antes de montar a estrutura.'
-                : '✓ Biblioteca detectada. O Gatekeeper irá validar estrategicamente o seu tema antes do shuffle.'}
+              {libraryStatusMessage}
             </p>
           </div>
 
           <button
             onClick={runGatekeeper}
-            disabled={!theme.trim() || loading}
+            disabled={!theme.trim() || loading || !narrativeLibraryReady}
             className="w-full flex items-center justify-center gap-3 py-4 bg-sage text-midnight rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-sage/80 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ShieldCheck size={16} /> Analisar com Gatekeeper
@@ -1094,6 +1150,47 @@ export default function ProductionAssembler({ components, onApprove }: Productio
               </div>
             )}
 
+            {(briefing.selectedNarrativeCurve || briefing.selectedArgumentMode) && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                {briefing.selectedNarrativeCurve && (
+                  <div className="p-4 bg-pink-500/5 border border-pink-500/20 rounded-xl min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shuffle size={14} className="text-pink-300" />
+                      <span className="text-xs font-black uppercase tracking-widest text-pink-300">Curva Narrativa</span>
+                    </div>
+                    <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedNarrativeCurve.name}</p>
+                    <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedNarrativeCurve.pattern}</p>
+                  </div>
+                )}
+                {briefing.selectedArgumentMode && (
+                  <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Mic size={14} className="text-amber-300" />
+                      <span className="text-xs font-black uppercase tracking-widest text-amber-300">Modo de Argumentacao</span>
+                    </div>
+                    <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedArgumentMode.name}</p>
+                    <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedArgumentMode.pattern}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!!briefing.selectedRepetitionRules?.length && (
+              <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl min-w-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle size={14} className="text-red-300" />
+                  <span className="text-xs font-black uppercase tracking-widest text-red-300">Regras Anti-Repeticao Ativas</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {briefing.selectedRepetitionRules.map((rule) => (
+                    <span key={rule.id} className="px-3 py-1.5 rounded-full border border-red-400/20 bg-red-400/5 text-[10px] font-black uppercase tracking-widest text-red-200">
+                      {rule.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {briefing.diagnostics && (
               <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl min-w-0 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1111,6 +1208,8 @@ export default function ProductionAssembler({ components, onApprove }: Productio
                     { label: 'Hook travado', value: briefing.openingHook.name },
                     { label: 'CTA travado', value: briefing.selectedCta.name },
                     { label: 'Estrutura travada', value: briefing.selectedTitleStructure?.name || 'Nao definida' },
+                    { label: 'Curva travada', value: briefing.selectedNarrativeCurve?.name || 'Nao definida' },
+                    { label: 'Argumento travado', value: briefing.selectedArgumentMode?.name || 'Nao definido' },
                     { label: 'Padrao de voz', value: formatVoicePatternLabel(briefing.diagnostics.locked.voicePatternId) },
                     { label: 'Duracao travada', value: formatDurationLabel(briefing.diagnostics.locked.durationMinutes) },
                     { label: 'Blocos travados', value: `${briefing.diagnostics.locked.blockCount} blocos` },
@@ -1127,6 +1226,9 @@ export default function ProductionAssembler({ components, onApprove }: Productio
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Bloqueios ativos</p>
                     <div className="space-y-1 text-[11px] text-white/70">
                       <p>Estruturas bloqueadas: {briefing.diagnostics.blocked.titleStructureIds.length}</p>
+                      <p>Curvas bloqueadas: {briefing.diagnostics.blocked.curveIds.length}</p>
+                      <p>Argumentos bloqueados: {briefing.diagnostics.blocked.argumentModeIds.length}</p>
+                      <p>Regras ativas: {briefing.diagnostics.blocked.repetitionRuleIds.length || 'Nenhuma'}</p>
                       <p>Combos bloqueados: {briefing.diagnostics.blocked.comboKeys.length}</p>
                       <p>Blocos bloqueados: {briefing.diagnostics.blocked.blockCounts.join(', ') || 'Nenhum'}</p>
                       <p>Duracoes bloqueadas: {briefing.diagnostics.blocked.durationMinutes.map((value) => `${value}m`).join(', ') || 'Nenhuma'}</p>
@@ -1141,6 +1243,9 @@ export default function ProductionAssembler({ components, onApprove }: Productio
                       <p>Hooks recentes: {briefing.diagnostics.recentUsage.hookIds.length}</p>
                       <p>CTAs recentes: {briefing.diagnostics.recentUsage.ctaIds.length}</p>
                       <p>Estruturas recentes: {briefing.diagnostics.recentUsage.titleStructureIds.length}</p>
+                      <p>Curvas recentes: {briefing.diagnostics.recentUsage.curveIds.length}</p>
+                      <p>Argumentos recentes: {briefing.diagnostics.recentUsage.argumentModeIds.length}</p>
+                      <p>Regras recentes: {briefing.diagnostics.recentUsage.repetitionRuleIds.length}</p>
                       <p>Blocos recentes: {briefing.diagnostics.recentUsage.blockCounts.map((value) => `${value}`).join(', ') || 'Nenhum'}</p>
                       <p>Duracoes recentes: {briefing.diagnostics.recentUsage.durationMinutes.map((value) => `${value}m`).join(', ') || 'Nenhuma'}</p>
                     </div>

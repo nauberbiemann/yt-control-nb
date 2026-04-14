@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 
+const PROJECTS_STORAGE_KEY = 'writer_studio_projects';
+const PROJECTS_BACKUP_STORAGE_KEY = 'writer_studio_projects_backup';
+const PROJECTS_ARCHIVE_STORAGE_KEY = 'writer_studio_projects_archive';
+
 export interface Project {
   id: string;
   name?: string;
@@ -34,6 +38,110 @@ interface ProjectStore {
   getActiveProject: () => Project | null;
 }
 
+const hasMeaningfulValue = (value: unknown) =>
+  value !== undefined && value !== null && value !== '';
+
+const isPlainObject = (value: unknown): value is Record<string, any> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const mergeProjectRecords = (local: any, remote: any): any => {
+  if (!isPlainObject(local) || !isPlainObject(remote)) {
+    return hasMeaningfulValue(remote) ? remote : local;
+  }
+
+  const merged: Record<string, any> = { ...local };
+  const keys = new Set([...Object.keys(local), ...Object.keys(remote)]);
+
+  keys.forEach((key) => {
+    const localValue = local[key];
+    const remoteValue = remote[key];
+
+    if (Array.isArray(localValue) || Array.isArray(remoteValue)) {
+      merged[key] = Array.isArray(remoteValue) && remoteValue.length > 0
+        ? remoteValue
+        : localValue ?? remoteValue ?? [];
+      return;
+    }
+
+    if (isPlainObject(localValue) && isPlainObject(remoteValue)) {
+      merged[key] = mergeProjectRecords(localValue, remoteValue);
+      return;
+    }
+
+    merged[key] = hasMeaningfulValue(remoteValue) ? remoteValue : localValue;
+  });
+
+  return merged;
+};
+
+const parseProjectCache = (raw: string | null): Project[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const mergeProjectCollections = (primary: Project[], secondary: Project[]) => {
+  const merged = new Map<string, Project>();
+
+  [...primary, ...secondary].forEach((project) => {
+    if (!project?.id) return;
+    const existing = merged.get(project.id);
+    merged.set(project.id, existing ? mergeProjectRecords(existing, project) : project);
+  });
+
+  return Array.from(merged.values());
+};
+
+const readArchivedProjects = (): Project[] => {
+  try {
+    const raw = localStorage.getItem(PROJECTS_ARCHIVE_STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const latestSnapshot = parsed.find((snapshot) => Array.isArray(snapshot?.projects) && snapshot.projects.length > 0);
+    return latestSnapshot?.projects || [];
+  } catch {
+    return [];
+  }
+};
+
+const readLocalProjectCaches = () => {
+  const primary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
+  const backup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
+  const archived = readArchivedProjects();
+  return mergeProjectCollections(mergeProjectCollections(primary, backup), archived);
+};
+
+const writeLocalProjectCaches = (projects: Project[]) => {
+  const payload = JSON.stringify(projects || []);
+  localStorage.setItem(PROJECTS_STORAGE_KEY, payload);
+  localStorage.setItem(PROJECTS_BACKUP_STORAGE_KEY, payload);
+
+  try {
+    const currentArchive = JSON.parse(localStorage.getItem(PROJECTS_ARCHIVE_STORAGE_KEY) || '[]');
+    const archive = Array.isArray(currentArchive) ? currentArchive : [];
+    const lastSnapshot = archive[0];
+    const isSameAsLast = lastSnapshot && JSON.stringify(lastSnapshot.projects || []) === payload;
+
+    if (!isSameAsLast) {
+      const nextArchive = [
+        { saved_at: new Date().toISOString(), projects: projects || [] },
+        ...archive,
+      ].slice(0, 15);
+
+      localStorage.setItem(PROJECTS_ARCHIVE_STORAGE_KEY, JSON.stringify(nextArchive));
+    }
+  } catch {
+    // Ignore archive write failures and keep main/backup keys working
+  }
+};
+
 export const useProjectStore = create<ProjectStore>()(
   persist(
     (set, get) => ({
@@ -54,18 +162,17 @@ export const useProjectStore = create<ProjectStore>()(
         const activeProject = activeId
           ? (projectList.find((p: any) => p.id === activeId) || null)
           : null;
+        writeLocalProjectCaches(projectList);
         set({ projects: projectList, activeProject, projectsLoaded: true });
       },
 
       loadProjects: async () => {
         try {
+          const localProjects = readLocalProjectCaches();
+
           if (!supabase) {
             // LocalStorage fallback
-            const local = localStorage.getItem('writer_studio_projects');
-            if (local) {
-              const projects = JSON.parse(local);
-              get().setProjects(projects);
-            }
+            get().setProjects(localProjects);
             return;
           }
 
@@ -77,18 +184,27 @@ export const useProjectStore = create<ProjectStore>()(
           if (error) throw error;
 
           if (data && data.length > 0) {
-            get().setProjects(data);
-            // Keep local cache in sync
-            localStorage.setItem('writer_studio_projects', JSON.stringify(data));
+            const localById = new Map(localProjects.map((project) => [project.id, project]));
+            const remoteIds = new Set<string>();
+
+            const mergedRemote = data.map((project) => {
+              remoteIds.add(project.id);
+              const localProject = localById.get(project.id);
+              return localProject ? mergeProjectRecords(localProject, project) : project;
+            });
+
+            const localOnly = localProjects.filter((project) => !remoteIds.has(project.id));
+            const mergedProjects = [...mergedRemote, ...localOnly];
+
+            get().setProjects(mergedProjects);
           } else {
             // Cloud empty → use local cache
-            const local = localStorage.getItem('writer_studio_projects');
-            if (local) get().setProjects(JSON.parse(local));
+            get().setProjects(localProjects);
           }
         } catch (err) {
           console.error('[ProjectStore] Failed to load projects:', err);
-          const local = localStorage.getItem('writer_studio_projects');
-          if (local) get().setProjects(JSON.parse(local));
+          const localProjects = readLocalProjectCaches();
+          get().setProjects(localProjects);
         }
       },
 

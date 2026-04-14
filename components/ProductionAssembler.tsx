@@ -47,20 +47,58 @@ interface AssemblerBlock {
   bridgeInstruction?: string;  // transition hint to next block
   communityElement?: string;   // organic community phrase injected
   isMidCta?: boolean;          // marks the intermediate CTA slot
+  tensionLevel?: 'Baixa' | 'Media' | 'Alta';
+  narrativeRole?: 'Ruptura' | 'Espelho' | 'Diagnostico' | 'Virada' | 'Aplicacao' | 'Fechamento';
+  transitionMode?: 'Contraste' | 'Aprofundamento' | 'Consequencia' | 'Alivio' | 'Convocacao';
 }
 
 interface ProductionBriefing {
   title: string;
   estimatedDuration: string;
   estimatedChars: number;
+  hookChars?: number;
+  ctaChars?: number;
   blockCount: number;
   dominantVoice: string;
+  diagnostics?: {
+    noveltyScore: number;
+    locked: {
+      hookId: string;
+      ctaId: string;
+      titleStructureId: string;
+      blockCount: number;
+      durationMinutes: number;
+      voicePatternId: string;
+    };
+    blocked: {
+      titleStructureIds: string[];
+      comboKeys: string[];
+      blockCounts: number[];
+      durationMinutes: number[];
+      voicePatternIds: string[];
+    };
+    recentUsage: {
+      hookIds: string[];
+      ctaIds: string[];
+      titleStructureIds: string[];
+      blockCounts: number[];
+      durationMinutes: number[];
+      voicePatternIds: string[];
+      sourceBreakdown?: {
+        session: number;
+        registered: number;
+      };
+    };
+  };
   openingHook: { id: string; name: string; pattern: string };
   selectedCta: { id: string; name: string; pattern: string };
+  selectedTitleStructure?: { id: string; name: string; pattern: string };
   // V14: mid CTA positioned between central blocks
   midCta?: { id: string; name: string; pattern: string; position: number };
   blocks: AssemblerBlock[];
   compositionLogId: string;
+  historySourceLabel?: string;
+  historyChoiceReason?: string;
   // V14: asset traceability log
   assetLog?: Record<string, string>; // { assetType: assetId }
 }
@@ -105,138 +143,23 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a;
 }
 
-function runShuffleEngine(
-  hooks: any[],
-  ctas: any[],
-  metaphors: any[], // "Title Structure" type from library
-  projectMetaphors: string[], // from project.metaphor_library
-  previousCompositions: any[],
-  activeProject: any
-): ProductionBriefing | null {
-  // Guard: need at least one Hook OR one CTA
-  if (hooks.length === 0 || ctas.length === 0) return null;
+const componentSignature = (item: any) => [
+  item?.type || '',
+  item?.name || '',
+  item?.description || '',
+  item?.content_pattern || '',
+  item?.category || '',
+].join('|').toLowerCase().replace(/\s+/g, ' ').trim();
 
-  // 1. Pick random Hook
-  const selectedHook = hooks.length > 0
-    ? hooks[Math.floor(Math.random() * hooks.length)]
-    : { id: 'default-hook', name: 'Hook Estratégico', content_pattern: 'Abertura baseada na PUC do projeto.' };
-
-  // 2. Pick random CTA
-  const selectedCta = ctas.length > 0
-    ? ctas[Math.floor(Math.random() * ctas.length)]
-    : { id: 'default-cta', name: 'Conversão PUC', content_pattern: 'Transição para a promessa do canal.' };
-
-  // 3. Build metaphor pool from library + project free-text metaphors
-  const libraryMetaphors = metaphors.map(m => ({
-    id: m.id,
-    name: m.name,
-    pattern: m.content_pattern,
-    isLibrary: true,
-  }));
-
-  const projectTextMetaphors = projectMetaphors.map((m, i) => ({
-    id: `pm-${i}`,
-    name: m,
-    pattern: `Aplicar a metáfora "${m}" para ilustrar o conceito central.`,
-    isLibrary: false,
-  }));
-
-  const allMetaphors = [...libraryMetaphors, ...projectTextMetaphors];
-
-  // 4. Get previously used asset IDs to enforce different order
-  const usedIds = new Set(
-    previousCompositions.flatMap(c => c.narrative_asset_ids || [])
-  );
-
-  // Prefer assets NOT recently used
-  const unusedMetaphors = allMetaphors.filter(m => !usedIds.has(m.id));
-  const metaphorPool = unusedMetaphors.length >= 3 ? unusedMetaphors : allMetaphors;
-
-  // 4. Guard: if no metaphors are available, let the engine error out gracefully
-  if (metaphorPool.length === 0) return null;
-
-  // 4b. Use block_variation and duration from project SOP settings directly
-  const minBlocks = Number(activeProject?.editing_sop?.blocks_min);
-  const maxBlocks = Number(activeProject?.editing_sop?.blocks_max);
-  const minDurMin = Number(activeProject?.editing_sop?.duration_min);
-  const maxDurMin = Number(activeProject?.editing_sop?.duration_max);
-
-  // 4c. Guard: Bloquear geração se o SOP não estiver configurado
-  if (!minBlocks || !maxBlocks || !minDurMin || !maxDurMin) return null;
-
-  // 4d. Randomize body block count within user-configured range
-  const bodyCount = Math.floor(Math.random() * (maxBlocks - minBlocks + 1)) + minBlocks;
-  const blockCount = bodyCount + 2; // +1 hook +1 CTA (Total final: min+2 a max+2)
-
-  // 8. Estimate duration and calibrate block density
-  const totalMinutes = Math.floor(Math.random() * (maxDurMin - minDurMin + 1)) + minDurMin;
-  const estimatedDuration = `~${totalMinutes} minutos`;
-  const estimatedChars = totalMinutes * 1200; // ~1200 chars per minute
-  const charsPerBlock = Math.floor(estimatedChars / blockCount);
-
-  // 4d. Cycle metaphors if bodyCount > available pool (with shuffle for variety)
-  const shuffledPool = shuffleArray(metaphorPool);
-  const selectedMetaphors: typeof allMetaphors = [];
-  for (let i = 0; i < bodyCount; i++) {
-    selectedMetaphors.push(shuffledPool[i % shuffledPool.length]);
-  }
-  
-  const finalSelectedMetaphors = shuffleArray(selectedMetaphors);
-
-  // 5. Build voice rotation (ensure no two consecutive same voice)
-  const shuffledVoices = shuffleArray([...VOICE_STYLES, ...VOICE_STYLES, ...VOICE_STYLES, ...VOICE_STYLES, ...VOICE_STYLES]);
-
-  // 6. Assemble blocks with Calibration and Bridges
-  const bodyBlocks: AssemblerBlock[] = finalSelectedMetaphors.map((m, i) => {
-    const voice = shuffledVoices[i % shuffledVoices.length];
-    const missions = VOICE_MISSION_MAP[voice];
-    return {
-      id: `${m.id}-slot-${i}`,
-      name: m.name,
-      missionNarrative: missions[Math.floor(Math.random() * missions.length)],
-      voiceStyle: voice,
-      assetId: m.isLibrary ? m.id : undefined,
-      type: 'Metaphor' as const,
-      blockChars: charsPerBlock,
-      bridgeInstruction: i === bodyCount - 1 
-        ? "Transição final para a chamada de ação (CTA)." 
-        : `Elo de ligação para o próximo bloco: ${finalSelectedMetaphors[i+1].name}.`,
-      communityElement: activeProject?.community_elements?.[Math.floor(Math.random() * (activeProject?.community_elements?.length || 1))]
-    };
+const dedupeNarrativeComponents = (items: any[]) => {
+  const merged = new Map<string, any>();
+  items.forEach((item) => {
+    const key = componentSignature(item);
+    if (!merged.has(key)) merged.set(key, item);
   });
+  return Array.from(merged.values());
+};
 
-  // 9. Determine dominant voice
-  const voiceCounts = bodyBlocks.reduce((acc, b) => {
-    acc[b.voiceStyle] = (acc[b.voiceStyle] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const dominantVoice = Object.entries(voiceCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diagnóstico Técnico';
-
-  // 10. Creative title from PUC + first metaphor
-  const mainMetaphor = selectedMetaphors[0]?.name || 'Conceito Central';
-  const pucText = activeProject?.puc ? activeProject.puc.split(' ').slice(0, 5).join(' ') : 'A Estratégia que Muda Tudo';
-  const title = `${mainMetaphor}: ${pucText}`;
-
-  return {
-    title,
-    estimatedDuration,
-    estimatedChars,
-    blockCount,
-    dominantVoice,
-    openingHook: {
-      id: selectedHook.id,
-      name: selectedHook.name,
-      pattern: selectedHook.content_pattern || selectedHook.description || '',
-    },
-    selectedCta: {
-      id: selectedCta.id,
-      name: selectedCta.name,
-      pattern: selectedCta.content_pattern || selectedCta.description || '',
-    },
-    blocks: bodyBlocks,
-    compositionLogId,
-  };
-}
 
 // ─── COMPONENTS ──────────────────────────────────────────────────────────────
 
@@ -258,6 +181,262 @@ const VOICE_COLOR: Record<string, string> = {
   'Diagnóstico Técnico': 'text-blue-400 border-blue-400/20 bg-blue-400/5',
 };
 
+const formatVoicePatternLabel = (patternId?: string) => {
+  if (!patternId) return 'Padrao livre';
+  return patternId
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const formatDurationLabel = (minutes?: number) => {
+  if (!minutes || minutes <= 0) return 'Nao definida';
+  return `~${minutes} min`;
+};
+
+const getNarrativeTensionMap = (
+  index: number,
+  total: number,
+  voiceStyle: AssemblerBlock['voiceStyle'],
+  isNarrativeTwist?: boolean
+): Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole' | 'transitionMode'> => {
+  if (isNarrativeTwist) {
+    return {
+      tensionLevel: 'Alta',
+      narrativeRole: 'Virada',
+      transitionMode: 'Contraste',
+    };
+  }
+
+  if (index === 0) {
+    return {
+      tensionLevel: 'Alta',
+      narrativeRole: voiceStyle === 'Vulnerabilidade' ? 'Espelho' : 'Ruptura',
+      transitionMode: 'Contraste',
+    };
+  }
+
+  if (index === total - 1) {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: 'Fechamento',
+      transitionMode: 'Convocacao',
+    };
+  }
+
+  if (index >= Math.max(total - 2, 1)) {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: 'Aplicacao',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  if (voiceStyle === 'Vulnerabilidade') {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: 'Espelho',
+      transitionMode: 'Aprofundamento',
+    };
+  }
+
+  if (voiceStyle === 'DiagnÃ³stico TÃ©cnico') {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: 'Diagnostico',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  return {
+    tensionLevel: 'Alta',
+    narrativeRole: 'Ruptura',
+    transitionMode: 'Aprofundamento',
+  };
+};
+
+const normalizeSignal = (value?: string) =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const getAdvancedNarrativeTensionMap = ({
+  index,
+  total,
+  voiceStyle,
+  voicePatternId,
+  themeText,
+  blockName,
+  missionNarrative,
+  isNarrativeTwist,
+}: {
+  index: number;
+  total: number;
+  voiceStyle: AssemblerBlock['voiceStyle'];
+  voicePatternId?: string;
+  themeText?: string;
+  blockName?: string;
+  missionNarrative?: string;
+  isNarrativeTwist?: boolean;
+}): Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole' | 'transitionMode'> => {
+  const baseMap = getNarrativeTensionMap(index, total, voiceStyle, isNarrativeTwist);
+  const themeSignal = normalizeSignal(themeText);
+  const blockSignal = normalizeSignal(`${blockName || ''} ${missionNarrative || ''}`);
+  const patternSignal = normalizeSignal(voicePatternId);
+
+  const isChallengeTheme = /(erro|falha|choque|crash|vicio|burnout|vazamento|leak|queda|perda|throttling|divida|ego|panic)/.test(themeSignal);
+  const isTransformationTheme = /(refator|rebuild|reconstr|patch|plano|melhor|otimiz|implement|rotina|sistema|build|protocolo|firewall)/.test(themeSignal);
+  const isDiagnosticBlock = /(diagnost|framework|analise|sintoma|evidenc|medida|mape|causa)/.test(blockSignal);
+  const isMirrorBlock = /(vulnerab|historia|confiss|falha|espelho|cansa|dor|relato|depoimento)/.test(blockSignal);
+  const isActionBlock = /(aplic|pratica|checklist|passo|implement|protocolo|acao|plano|execuc|deploy)/.test(blockSignal);
+  const challengeFirst = patternSignal.includes('challenge-first');
+  const vulnerabilityFirst = patternSignal.includes('vulnerability-first');
+  const diagnosticFirst = patternSignal.includes('diagnostic-first');
+
+  if (isNarrativeTwist) {
+    return {
+      tensionLevel: 'Alta',
+      narrativeRole: 'Virada',
+      transitionMode: isTransformationTheme ? 'Consequencia' : 'Contraste',
+    };
+  }
+
+  if (index === 0) {
+    if (vulnerabilityFirst || voiceStyle === 'Vulnerabilidade') {
+      return {
+        tensionLevel: 'Media',
+        narrativeRole: 'Espelho',
+        transitionMode: 'Aprofundamento',
+      };
+    }
+
+    if (diagnosticFirst || isDiagnosticBlock) {
+      return {
+        tensionLevel: 'Media',
+        narrativeRole: 'Diagnostico',
+        transitionMode: 'Consequencia',
+      };
+    }
+
+    return {
+      tensionLevel: isChallengeTheme ? 'Alta' : baseMap.tensionLevel,
+      narrativeRole: 'Ruptura',
+      transitionMode: 'Contraste',
+    };
+  }
+
+  if (index === total - 1) {
+    return {
+      tensionLevel: isTransformationTheme ? 'Media' : 'Baixa',
+      narrativeRole: 'Fechamento',
+      transitionMode: 'Convocacao',
+    };
+  }
+
+  if (index >= Math.max(total - 2, 1) || isActionBlock) {
+    return {
+      tensionLevel: isTransformationTheme ? 'Media' : 'Baixa',
+      narrativeRole: 'Aplicacao',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  if (isMirrorBlock || voiceStyle === 'Vulnerabilidade') {
+    return {
+      tensionLevel: isChallengeTheme ? 'Media' : 'Baixa',
+      narrativeRole: 'Espelho',
+      transitionMode: 'Aprofundamento',
+    };
+  }
+
+  if (isDiagnosticBlock || voiceStyle === 'Diagnóstico Técnico') {
+    return {
+      tensionLevel: challengeFirst || isChallengeTheme ? 'Media' : 'Baixa',
+      narrativeRole: 'Diagnostico',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  return {
+    tensionLevel: challengeFirst ? 'Alta' : baseMap.tensionLevel,
+    narrativeRole: isTransformationTheme ? 'Aplicacao' : baseMap.narrativeRole,
+    transitionMode: isTransformationTheme ? 'Consequencia' : baseMap.transitionMode,
+  };
+};
+
+const getNarrativeCharWeight = (block: Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole'>) => {
+  const roleWeightMap: Record<string, number> = {
+    Ruptura: 0.82,
+    Espelho: 0.98,
+    Diagnostico: 1.12,
+    Virada: 0.94,
+    Aplicacao: 1.28,
+    Fechamento: 0.86,
+  };
+
+  const tensionWeightMap: Record<string, number> = {
+    Alta: 0.9,
+    Media: 1,
+    Baixa: 1.08,
+  };
+
+  const roleWeight = roleWeightMap[block.narrativeRole || 'Diagnostico'] || 1;
+  const tensionWeight = tensionWeightMap[block.tensionLevel || 'Media'] || 1;
+  return roleWeight * tensionWeight;
+};
+
+const redistributeBlockCharsByNarrativeMap = (blocks: AssemblerBlock[], totalBodyChars: number) => {
+  if (!blocks.length || totalBodyChars <= 0) return blocks;
+
+  const minCharsPerBlock = 320;
+  const safeTotal = Math.max(totalBodyChars, minCharsPerBlock * blocks.length);
+  const weights = blocks.map((block) => getNarrativeCharWeight(block));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || blocks.length;
+
+  const provisional = blocks.map((block, index) => {
+    const exact = (safeTotal * weights[index]) / totalWeight;
+    const floored = Math.max(minCharsPerBlock, Math.floor(exact));
+    return {
+      block,
+      index,
+      exact,
+      chars: floored,
+      remainder: exact - Math.floor(exact),
+    };
+  });
+
+  let assigned = provisional.reduce((sum, item) => sum + item.chars, 0);
+
+  if (assigned < safeTotal) {
+    const sortedUp = [...provisional].sort((a, b) => b.remainder - a.remainder);
+    let cursor = 0;
+    while (assigned < safeTotal) {
+      sortedUp[cursor % sortedUp.length].chars += 1;
+      assigned += 1;
+      cursor += 1;
+    }
+  } else if (assigned > safeTotal) {
+    const sortedDown = [...provisional].sort((a, b) => a.remainder - b.remainder);
+    let cursor = 0;
+    while (assigned > safeTotal && sortedDown.length > 0) {
+      const candidate = sortedDown[cursor % sortedDown.length];
+      if (candidate.chars > minCharsPerBlock) {
+        candidate.chars -= 1;
+        assigned -= 1;
+      }
+      cursor += 1;
+      if (cursor > safeTotal * 2) break;
+    }
+  }
+
+  const finalByIndex = provisional.sort((a, b) => a.index - b.index);
+  return finalByIndex.map(({ block, chars }) => ({
+    ...block,
+    blockChars: chars,
+  }));
+};
+
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
 export default function ProductionAssembler({ components, onApprove }: ProductionAssemblerProps) {
@@ -273,10 +452,11 @@ export default function ProductionAssembler({ components, onApprove }: Productio
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const hooks = components.filter(c => c.type === 'Hook');
-  const ctas = components.filter(c => c.type === 'CTA');
-  const titleStructures = components.filter(c => c.type === 'Title Structure');
-  const communityItems  = components.filter(c => c.type === 'Community');
+  const uniqueComponents = dedupeNarrativeComponents(components);
+  const hooks = uniqueComponents.filter(c => c.type === 'Hook');
+  const ctas = uniqueComponents.filter(c => c.type === 'CTA');
+  const titleStructures = uniqueComponents.filter(c => c.type === 'Title Structure');
+  const communityItems  = uniqueComponents.filter(c => c.type === 'Community');
 
   const projectMetaphors = (activeProject?.metaphor_library || '')
     .split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -343,9 +523,20 @@ export default function ProductionAssembler({ components, onApprove }: Productio
 
       // Control log with timeout
       const previousComps = await Promise.race([
-        fetchLastCompositions(activeProject?.id || '', 3),
+        fetchLastCompositions(activeProject?.id || '', 10),
         new Promise<any[]>(resolve => setTimeout(() => resolve([]), 4000))
       ]);
+      const inMemoryComp = briefing ? [{
+        selectedHookId: briefing.openingHook?.id,
+        selectedCtaId: briefing.selectedCta?.id,
+        selectedTitleStructureId: briefing.selectedTitleStructure?.id,
+        blockCount: briefing.blockCount,
+        durationMinutes: Number((briefing.estimatedDuration || '').match(/\d+/)?.[0] || 0) || undefined,
+        voicePattern: briefing.diagnostics?.locked?.voicePatternId,
+        source: 'session' as const,
+        created_at: new Date().toISOString(),
+      }] : [];
+      const controlHistory = [...inMemoryComp, ...previousComps];
 
       // Parse SOP ranges — handles formats: '4-7', '8-13', '12+', '18', '18-22'
       const sopRaw = activeProject?.editing_sop || {};
@@ -368,8 +559,8 @@ export default function ProductionAssembler({ components, onApprove }: Productio
         return [fa, fb];
       };
       // Project scope (authoritative): duration_min/max and blocks_min/max.
-      // blocks_min/max are TOTAL blocks shown in the UI (Hook + Body + CTA).
-      // The shuffle API expects BODY blocks only, so we convert total → body by subtracting 2.
+      // blocks_min/max represent BODY blocks only. Hook and CTA are handled as
+      // separate strategic elements and do not reduce the body count.
       const totalBlocksMin = Number(sopRaw.blocks_min);
       const totalBlocksMax = Number(sopRaw.blocks_max);
       const totalDurationMin = Number(sopRaw.duration_min);
@@ -393,16 +584,14 @@ export default function ProductionAssembler({ components, onApprove }: Productio
       if (hasNewRanges) {
         minDuration = totalDurationMin;
         maxDuration = totalDurationMax;
-        const bodyMin = Math.max(1, totalBlocksMin - 2);
-        const bodyMax = Math.max(bodyMin, totalBlocksMax - 2);
-        minBlocks = bodyMin;
-        maxBlocks = bodyMax;
+        minBlocks = Math.max(1, totalBlocksMin);
+        maxBlocks = Math.max(minBlocks, totalBlocksMax);
       } else {
         // Backward compatibility: legacy single-field ranges
         [minBlocks, maxBlocks] = parseRange(sopRaw.blocks_variation, 4, 8);
         [minDuration, maxDuration] = parseRange(sopRaw.duration, 12, 22);
       }
-      const lastBlockCount = previousComps[0]?.blockCount;
+      const lastBlockCount = controlHistory[0]?.blockCount;
       console.debug('[V15 Range]', {
         blocks_min: sopRaw.blocks_min,
         blocks_max: sopRaw.blocks_max,
@@ -440,7 +629,7 @@ export default function ProductionAssembler({ components, onApprove }: Productio
           },
           metaphorLibrary: projectMetaphors,
           titleStructures,
-          controlLog: previousComps,
+          controlLog: controlHistory,
           engine,
           model,
           apiKey,
@@ -461,48 +650,95 @@ export default function ProductionAssembler({ components, onApprove }: Productio
       // Map API response → ProductionBriefing
       const selectedHook = hooks.find(h => h.id === data.selectedHookId) || hooks[0];
       const selectedCta  = ctas.find(c => c.id === data.selectedCtaId)   || ctas[0];
+      const selectedTitleStructure = titleStructures.find(t => t.id === data.selectedTitleStructureId) || titleStructures[0];
       const midCtaAsset  = data.midCta?.id ? ctas.find(c => c.id === data.midCta.id) : null;
+      const sessionHistoryCount = Number(data?.diagnostics?.recentUsage?.sourceBreakdown?.session || 0);
+      const registeredHistoryCount = Number(data?.diagnostics?.recentUsage?.sourceBreakdown?.registered || 0);
+      const historySourceLabel =
+        sessionHistoryCount > 0 && registeredHistoryCount > 0
+          ? 'Sessao atual + historico registrado'
+          : sessionHistoryCount > 0
+            ? 'Sessao atual'
+            : 'Historico registrado';
+      const historyChoiceReason =
+        sessionHistoryCount > 0 && registeredHistoryCount > 0
+          ? 'O motor combinou o historico ja registrado com a sessao atual para evitar repetir hook, cta, estrutura, duracao, contagem e voz.'
+          : sessionHistoryCount > 0
+            ? 'O motor usou a sessao atual como memoria temporaria para variar a nova composicao mesmo antes do DNA ser registrado.'
+            : 'O motor usou apenas o historico registrado do projeto ativo para travar uma composicao menos repetitiva.';
 
       // ── HARD ENFORCE: duration must be within [minDuration, maxDuration] ──────
       const aiMinutes  = data.estimatedDurationMinutes;
-      const finalMinutes = (aiMinutes && aiMinutes >= minDuration && aiMinutes <= maxDuration)
-        ? aiMinutes
-        : Math.floor(Math.random() * (maxDuration - minDuration + 1)) + minDuration;
-      if (!aiMinutes || aiMinutes < minDuration || aiMinutes > maxDuration) {
+      const lockedMinutes = Number(data?.diagnostics?.locked?.durationMinutes || 0);
+      const finalMinutes = (lockedMinutes && lockedMinutes >= minDuration && lockedMinutes <= maxDuration)
+        ? lockedMinutes
+        : (aiMinutes && aiMinutes >= minDuration && aiMinutes <= maxDuration)
+          ? aiMinutes
+          : Math.floor(Math.random() * (maxDuration - minDuration + 1)) + minDuration;
+      if (!lockedMinutes && (!aiMinutes || aiMinutes < minDuration || aiMinutes > maxDuration)) {
         console.warn(`[V15 Enforce] AI duration ${aiMinutes} outside [${minDuration}, ${maxDuration}] → corrected to ${finalMinutes}`);
       }
       // estimatedChars ALWAYS derived from finalMinutes to keep duration/chars in sync
       const estimatedChars = finalMinutes * 1200;
+      const hookCharsBudget = Number(data?.hookChars || 0) || Math.floor(estimatedChars * 0.08);
+      const ctaCharsBudget = Number(data?.ctaChars || 0) || Math.floor(estimatedChars * 0.06);
+      const bodyCharsBudget = Math.max(estimatedChars - hookCharsBudget - ctaCharsBudget, minBlocks * 320);
 
       const VALID_VOICES = ['Desafio Direto', 'Vulnerabilidade', 'Diagnóstico Técnico'] as const;
-      let rawBlocks: AssemblerBlock[] = (data.blocks || []).map((b: any, i: number) => ({
-        id: `ai-block-${i}`,
-        name: b.name || `Bloco ${i + 1}`,
-        missionNarrative: b.missionNarrative || '',
-        voiceStyle: (VALID_VOICES.includes(b.voiceStyle) ? b.voiceStyle : VALID_VOICES[i % 3]) as AssemblerBlock['voiceStyle'],
-        type: 'Metaphor' as const,
-        isNarrativeTwist: !!b.isNarrativeTwist,
-        blockChars: b.blockChars || Math.floor(estimatedChars / Math.max(data.blocks.length + 2, 1)),
-        bridgeInstruction: b.bridgeInstruction || undefined,
-        communityElement: b.communityElement || undefined,
-      }));
+      let rawBlocks: AssemblerBlock[] = (data.blocks || []).map((b: any, i: number) => {
+        const voiceStyle = (VALID_VOICES.includes(b.voiceStyle) ? b.voiceStyle : VALID_VOICES[i % 3]) as AssemblerBlock['voiceStyle'];
+        const narrativeMap = getAdvancedNarrativeTensionMap({
+          index: i,
+          total: Math.max(data.blocks.length, 1),
+          voiceStyle,
+          voicePatternId: data?.diagnostics?.locked?.voicePatternId || data?.voicePattern,
+          themeText: chosenTheme,
+          blockName: b.name || `Bloco ${i + 1}`,
+          missionNarrative: b.missionNarrative || '',
+          isNarrativeTwist: !!b.isNarrativeTwist,
+        });
+        return {
+          id: `ai-block-${i}`,
+          name: b.name || `Bloco ${i + 1}`,
+          missionNarrative: b.missionNarrative || '',
+          voiceStyle,
+          type: 'Metaphor' as const,
+          isNarrativeTwist: !!b.isNarrativeTwist,
+          blockChars: b.blockChars || Math.floor(bodyCharsBudget / Math.max(data.blocks.length, 1)),
+          bridgeInstruction: b.bridgeInstruction || undefined,
+          communityElement: b.communityElement || undefined,
+          ...narrativeMap,
+        };
+      });
 
       // ── HARD ENFORCE: block count must be within [minBlocks, maxBlocks] ───────
       if (rawBlocks.length < minBlocks) {
         console.warn(`[V15 Enforce] AI returned ${rawBlocks.length} blocks but min is ${minBlocks} — padding`);
-        const perBlock = Math.floor(estimatedChars / (minBlocks + 2));
+        const perBlock = Math.floor(bodyCharsBudget / Math.max(minBlocks, 1));
         while (rawBlocks.length < minBlocks) {
           const i = rawBlocks.length;
+          const voiceStyle = VALID_VOICES[i % 3];
+          const narrativeMap = getAdvancedNarrativeTensionMap({
+            index: i,
+            total: minBlocks,
+            voiceStyle,
+            voicePatternId: data?.diagnostics?.locked?.voicePatternId || data?.voicePattern,
+            themeText: chosenTheme,
+            blockName: `Bloco ${i + 1}`,
+            missionNarrative: 'Desenvolva este segmento aprofundando o tema central com exemplos concretos e dados do nicho.',
+            isNarrativeTwist: false,
+          });
           rawBlocks.push({
             id: `pad-block-${i}`,
             name: `Bloco ${i + 1}`,
             missionNarrative: 'Desenvolva este segmento aprofundando o tema central com exemplos concretos e dados do nicho.',
-            voiceStyle: VALID_VOICES[i % 3],
+            voiceStyle,
             type: 'Metaphor' as const,
             isNarrativeTwist: false,
             blockChars: perBlock,
             bridgeInstruction: undefined,
             communityElement: undefined,
+            ...narrativeMap,
           });
         }
       }
@@ -510,8 +746,8 @@ export default function ProductionAssembler({ components, onApprove }: Productio
         console.warn(`[V15 Enforce] AI returned ${rawBlocks.length} blocks but max is ${maxBlocks} — truncating`);
         rawBlocks = rawBlocks.slice(0, maxBlocks);
       }
-      const blocks = rawBlocks;
-      const blockCount = blocks.length + 2; // +1 hook +1 CTA final
+      const blocks = redistributeBlockCharsByNarrativeMap(rawBlocks, bodyCharsBudget);
+      const blockCount = blocks.length;
 
       const hookCode = (selectedHook?.id || 'HOOK').slice(0, 4).toUpperCase();
       const ctaCode  = (selectedCta?.id  || 'CTA' ).slice(0, 4).toUpperCase();
@@ -521,8 +757,11 @@ export default function ProductionAssembler({ components, onApprove }: Productio
         title: chosenTheme,
         estimatedDuration: `~${finalMinutes} minutos`,
         estimatedChars,
+        hookChars: hookCharsBudget,
+        ctaChars: ctaCharsBudget,
         blockCount,
         dominantVoice: data.dominantVoice || blocks[0]?.voiceStyle || 'Diagnóstico Técnico',
+        diagnostics: data.diagnostics,
         openingHook: {
           id: selectedHook?.id || '',
           name: selectedHook?.name || '—',
@@ -533,6 +772,11 @@ export default function ProductionAssembler({ components, onApprove }: Productio
           name: selectedCta?.name || '—',
           pattern: selectedCta?.content_pattern || selectedCta?.description || '',
         },
+        selectedTitleStructure: selectedTitleStructure ? {
+          id: selectedTitleStructure.id,
+          name: selectedTitleStructure.name || '—',
+          pattern: selectedTitleStructure.content_pattern || selectedTitleStructure.description || '',
+        } : undefined,
         midCta: midCtaAsset ? {
           id: midCtaAsset.id,
           name: midCtaAsset.name || '—',
@@ -541,9 +785,12 @@ export default function ProductionAssembler({ components, onApprove }: Productio
         } : undefined,
         blocks,
         compositionLogId,
+        historySourceLabel,
+        historyChoiceReason,
         assetLog: {
           hook: selectedHook?.id || '',
           ctaFinal: selectedCta?.id || '',
+          titleStructure: selectedTitleStructure?.id || '',
           ctaMid: midCtaAsset?.id || '',
         },
       });
@@ -803,9 +1050,9 @@ export default function ProductionAssembler({ components, onApprove }: Productio
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
+              {[ 
                 { label: 'Duração',    value: briefing.estimatedDuration },
-                { label: 'Blocos',     value: `${briefing.blocks.length} blocos` },
+                { label: 'Blocos',     value: `${briefing.blockCount} blocos` },
                 { label: 'Voz Dom.',   value: briefing.dominantVoice.split(' ')[0] },
                 { label: 'Caracteres', value: `~${briefing.estimatedChars.toLocaleString('pt-BR')}` },
               ].map(({ label, value }) => (
@@ -835,6 +1082,78 @@ export default function ProductionAssembler({ components, onApprove }: Productio
                 <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedCta.pattern}</p>
               </div>
             </div>
+
+            {briefing.selectedTitleStructure && (
+              <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles size={14} className="text-purple-400" />
+                  <span className="text-xs font-black uppercase tracking-widest text-purple-400">Estrutura do Projeto</span>
+                </div>
+                <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedTitleStructure.name}</p>
+                <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedTitleStructure.pattern}</p>
+              </div>
+            )}
+
+            {briefing.diagnostics && (
+              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl min-w-0 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Info size={14} className="text-amber-400" />
+                    <span className="text-xs font-black uppercase tracking-widest text-amber-400">Painel Anti-Repeticao</span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full border border-amber-400/30 bg-amber-400/10 text-[10px] font-black uppercase tracking-widest text-amber-300">
+                    Score de novidade: {briefing.diagnostics.noveltyScore}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Hook travado', value: briefing.openingHook.name },
+                    { label: 'CTA travado', value: briefing.selectedCta.name },
+                    { label: 'Estrutura travada', value: briefing.selectedTitleStructure?.name || 'Nao definida' },
+                    { label: 'Padrao de voz', value: formatVoicePatternLabel(briefing.diagnostics.locked.voicePatternId) },
+                    { label: 'Duracao travada', value: formatDurationLabel(briefing.diagnostics.locked.durationMinutes) },
+                    { label: 'Blocos travados', value: `${briefing.diagnostics.locked.blockCount} blocos` },
+                  ].map((item) => (
+                    <div key={item.label} className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1">{item.label}</p>
+                      <p className="text-xs font-black text-white leading-snug break-words">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Bloqueios ativos</p>
+                    <div className="space-y-1 text-[11px] text-white/70">
+                      <p>Estruturas bloqueadas: {briefing.diagnostics.blocked.titleStructureIds.length}</p>
+                      <p>Combos bloqueados: {briefing.diagnostics.blocked.comboKeys.length}</p>
+                      <p>Blocos bloqueados: {briefing.diagnostics.blocked.blockCounts.join(', ') || 'Nenhum'}</p>
+                      <p>Duracoes bloqueadas: {briefing.diagnostics.blocked.durationMinutes.map((value) => `${value}m`).join(', ') || 'Nenhuma'}</p>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Historico recente</p>
+                    <div className="space-y-1 text-[11px] text-white/70">
+                      <p>Fonte da variacao: {briefing.historySourceLabel || 'Historico registrado'}</p>
+                      <p>Sessao atual: {briefing.diagnostics.recentUsage.sourceBreakdown?.session || 0}</p>
+                      <p>Historico registrado: {briefing.diagnostics.recentUsage.sourceBreakdown?.registered || 0}</p>
+                      <p>Hooks recentes: {briefing.diagnostics.recentUsage.hookIds.length}</p>
+                      <p>CTAs recentes: {briefing.diagnostics.recentUsage.ctaIds.length}</p>
+                      <p>Estruturas recentes: {briefing.diagnostics.recentUsage.titleStructureIds.length}</p>
+                      <p>Blocos recentes: {briefing.diagnostics.recentUsage.blockCounts.map((value) => `${value}`).join(', ') || 'Nenhum'}</p>
+                      <p>Duracoes recentes: {briefing.diagnostics.recentUsage.durationMinutes.map((value) => `${value}m`).join(', ') || 'Nenhuma'}</p>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Motivo da escolha</p>
+                    <p className="text-[11px] text-white/70 leading-relaxed">
+                      {briefing.historyChoiceReason || 'O motor travou uma composicao menos usada no projeto ativo e evitou repetir a mesma combinacao recente de hook, cta, estrutura, duracao, contagem e voz.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Modular Structure */}
             <div>
@@ -876,6 +1195,25 @@ export default function ProductionAssembler({ components, onApprove }: Productio
                                 <span className="text-[9px] font-black text-white/20 ml-auto">~{block.blockChars.toLocaleString('pt-BR')} chars</span>
                               )}
                             </div>
+                            {(block.tensionLevel || block.narrativeRole || block.transitionMode) && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {block.tensionLevel && (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
+                                    Tensão: {block.tensionLevel}
+                                  </span>
+                                )}
+                                {block.narrativeRole && (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
+                                    Papel: {block.narrativeRole}
+                                  </span>
+                                )}
+                                {block.transitionMode && (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
+                                    Transição: {block.transitionMode}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <p className={`text-sm font-black leading-snug ${isTwist ? 'text-amber-50' : 'text-white'}`}>{block.name}</p>
                             <p className="text-xs text-white/40 italic mt-1 leading-relaxed">{block.missionNarrative}</p>
                             {block.communityElement && (

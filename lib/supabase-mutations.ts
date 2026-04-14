@@ -116,25 +116,57 @@ export async function immutableInsert<T extends Record<string, any>>(
 // ─── FETCH LAST COMPOSITIONS (for Anti-Repetition Shuffle) ───────────────────
 
 export async function fetchLastCompositions(projectId: string, limit = 3): Promise<any[]> {
+  const normalizeLocalEntries = (entries: any[]) =>
+    entries
+      .filter(Boolean)
+      .map((entry) => ({
+        ...entry,
+        selectedHookId: entry.selectedHookId || undefined,
+        selectedCtaId: entry.selectedCtaId || undefined,
+        selectedTitleStructureId: entry.selectedTitleStructureId || entry.title_structure_asset_id || undefined,
+        blockCount: Number(entry.blockCount || entry.block_count || 0) || undefined,
+        durationMinutes: Number(entry.durationMinutes || entry.estimatedDurationMinutes || entry.duration_minutes || 0) || undefined,
+        voicePattern: entry.voicePattern || undefined,
+        created_at: entry.created_at || new Date(0).toISOString(),
+      }));
+
   // Try Supabase first
+  let remoteEntries: any[] = [];
   if (supabase) {
     try {
       const { data } = await supabase
         .from('composition_log')
-        .select('narrative_asset_ids, selected_variation, theme_title')
+        .select('narrative_asset_ids, selected_variation, title_structure_asset_id, theme_title, created_at, estimated_duration_minutes')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false })
         .limit(limit);
-      if (data && data.length > 0) return data;
+
+      remoteEntries = (data || []).map((entry) => ({
+        ...entry,
+        selectedHookId: entry.selectedHookId || undefined,
+        selectedCtaId: entry.selectedCtaId || undefined,
+        selectedTitleStructureId: entry.title_structure_asset_id || undefined,
+        blockCount: Number(entry.blockCount || entry.block_count || 0) || undefined,
+        durationMinutes: Number(entry.durationMinutes || entry.estimated_duration_minutes || 0) || undefined,
+        voicePattern: entry.voicePattern || undefined,
+      }));
     } catch {
       // fallthrough to localStorage
     }
   }
+
   // LocalStorage fallback
   try {
     const local = JSON.parse(localStorage.getItem(`bi_${projectId}`) || '[]') as any[];
-    return local.slice(-limit).reverse();
+    const merged = [...normalizeLocalEntries(local), ...remoteEntries]
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || 0).getTime();
+        const timeB = new Date(b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
+
+    return merged.slice(0, limit);
   } catch {
-    return [];
+    return remoteEntries.slice(0, limit);
   }
 }

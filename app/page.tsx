@@ -1,12 +1,11 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import EngineSelector from '@/components/EngineSelector';
 import ApiKeyManager from '@/components/ApiKeyManager';
 import ProjectWizardModal from '@/components/ProjectWizardModal';
 import DeleteProjectModal from '@/components/DeleteProjectModal';
-import ContentHub from '@/components/ContentHub';
 import ScriptEngine from '@/components/ScriptEngine';
 import ProductionTracker from '@/components/ProductionTracker';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
@@ -42,6 +41,30 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
+  const persistProjectsLocally = (projectList: any[]) => {
+    const payload = JSON.stringify(projectList || []);
+    localStorage.setItem('writer_studio_projects', payload);
+    localStorage.setItem('writer_studio_projects_backup', payload);
+
+    try {
+      const currentArchive = JSON.parse(localStorage.getItem('writer_studio_projects_archive') || '[]');
+      const archive = Array.isArray(currentArchive) ? currentArchive : [];
+      const lastSnapshot = archive[0];
+      const isSameAsLast = lastSnapshot && JSON.stringify(lastSnapshot.projects || []) === payload;
+
+      if (!isSameAsLast) {
+        const nextArchive = [
+          { saved_at: new Date().toISOString(), projects: projectList || [] },
+          ...archive,
+        ].slice(0, 15);
+
+        localStorage.setItem('writer_studio_projects_archive', JSON.stringify(nextArchive));
+      }
+    } catch {
+      // non-blocking local archive
+    }
+  };
+
   const [currentView, setCurrentView] = useState('home');
   const [showSettings, setShowSettings] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -55,6 +78,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
+  const hasInitialized = useRef(false);
 
   // ── Zustand Store ────────────────────────────────────────────────────────
   const projectStore = useProjectStore();
@@ -66,7 +90,7 @@ export default function Home() {
 
   // Guard: redirect to 'projects' view when a strategic module is accessed without an active project
   useEffect(() => {
-    const strategicViews = ['themes', 'content-hub', 'library', 'scripts', 'production', 'analytics'];
+    const strategicViews = ['themes', 'library', 'scripts', 'production', 'analytics'];
     if (strategicViews.includes(currentView) && !activeProjectId) {
       setCurrentView('projects');
     }
@@ -76,13 +100,18 @@ export default function Home() {
     let timeoutId: any;
 
     const initApp = async () => {
+      if (hasInitialized.current) return;
+      hasInitialized.current = true;
+      
       console.log("[ContentOS] Iniciando inicialização...");
       
-      // Failsafe: se demorar mais de 5s, força a saída do loading
+      // Failsafe: se demorar mais de 10s, força a saída do loading (mais generoso)
       timeoutId = setTimeout(() => {
-        console.warn("[ContentOS] Failsafe: inicialização demorou muito, forçando setLoading(false)");
-        setLoading(false);
-      }, 5000);
+        if (loading) {
+          console.warn("[ContentOS] Failsafe: inicialização demorou muito, forçando setLoading(false)");
+          setLoading(false);
+        }
+      }, 10000);
 
       try {
         // 1. Configs IA
@@ -208,7 +237,7 @@ export default function Home() {
   };
 
   const handleExport = () => {
-    const projectsData = localStorage.getItem('writer_studio_projects');
+    const projectsData = localStorage.getItem('writer_studio_projects_backup') || localStorage.getItem('writer_studio_projects');
     if (!projectsData) return alert('Nenhum dado local para exportar.');
     
     const exportBundle: any = {
@@ -274,7 +303,7 @@ export default function Home() {
         });
 
         // 2. Persistir Projetos
-        localStorage.setItem('writer_studio_projects', JSON.stringify(sanitizedProjects));
+        persistProjectsLocally(sanitizedProjects);
         setProjects(sanitizedProjects);
 
         // 3. Remapear e Persistir Bibliotecas Narrativas
@@ -324,69 +353,92 @@ export default function Home() {
     if (!supabase) return alert('Supabase não configurado.');
     
     setLoading(true);
+    console.log("[ContentOS-Sync] Iniciando Sincronização Mestre...");
+    
     try {
       const updatedProjects = [...projects];
-      let fullSyncCount = 0;
+      let totalSynced = 0;
       
       for (let i = 0; i < updatedProjects.length; i++) {
-        const originalId = updatedProjects[i].id; // 🔑 Guardar ID original para buscar sub-dados
         const project = { ...updatedProjects[i] };
+        const originalId = project.id; 
         
+        console.log(`[ContentOS-Sync] Sincronizando Projeto: ${project.project_name || project.name}`);
+
         // 🛡️ Sanitize ID: Se não for um UUID válido, gere um novo
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(project.id)) {
           project.id = crypto.randomUUID();
           updatedProjects[i] = project;
         }
 
-        // 1. Upsert Projeto com user_id
+        // 1. Upsert Projeto
         const { error: projError } = await supabase
           .from('projects')
-          .upsert({ ...project, user_id: user?.id })
-          .eq('id', project.id);
+          .upsert({ ...project, user_id: user?.id });
           
         if (projError) throw projError;
+        totalSynced++;
 
-        // 2. Sincronizar Biblioteca Narrativa Associada
-        let libData = localStorage.getItem(`ws_narrative_${project.id}`) || localStorage.getItem(`ws_narrative_${originalId}`);
-        
-        // Safety Net: Se não encontrar pelo ID, buscar órfãos pelo nome do projeto
-        if (!libData) {
-          const keys = Object.keys(localStorage);
-          const legacyKey = keys.find(k => k.startsWith('ws_narrative_') && k.includes(project.name ?? ''));
-          if (legacyKey) libData = localStorage.getItem(legacyKey);
-        }
-
-        if (libData) {
-          const components = JSON.parse(libData);
-          if (Array.isArray(components) && components.length > 0) {
-            for (const comp of components) {
-              const { error: libError } = await supabase
-                .from('narrative_components')
-                .upsert({
-                  ...comp,
-                  project_id: project.id
-                });
-              if (libError) console.warn('Falha ao sincronizar componente:', libError.message);
-            }
-            fullSyncCount += components.length;
+        // Helper para sincronização EM LOTE (Muito mais rápido e confiável)
+        const batchSync = async (localKey: string, tableName: string, foreignKey: string) => {
+          const rawData = localStorage.getItem(localKey);
+          if (!rawData) return;
+          
+          try {
+            const items = JSON.parse(rawData);
+            if (!Array.isArray(items) || items.length === 0) return;
             
-            // Auto-reparo Local: Mover dados para a chave correta para o futuro
-            localStorage.setItem(`ws_narrative_${project.id}`, libData);
+            console.log(`[ContentOS-Sync]   - Efetuando batch upload em ${tableName} (${items.length} itens)...`);
+
+            // Sanitizar IDs dos itens no lote
+            const sanitizedItems = items.map(item => ({
+              ...item,
+              [foreignKey]: project.id,
+              id: uuidRegex.test(item.id) ? item.id : crypto.randomUUID(),
+              updated_at: new Date().toISOString()
+            }));
+
+            // Upsert do lote inteiro
+            const { error } = await supabase
+              .from(tableName)
+              .upsert(sanitizedItems);
+            
+            if (error) {
+              console.error(`[ContentOS-Sync] ❌ Erro no lote de ${tableName}:`, error.message);
+            } else {
+              totalSynced += sanitizedItems.length;
+            }
+          } catch (e) {
+            console.error(`[ContentOS-Sync] ❌ Erro ao ler dados de ${localKey}:`, e);
           }
+        };
+
+        // 2, 3, 4 - Sincronização em Lote
+        await batchSync(`ws_narrative_${originalId}`, 'narrative_components', 'project_id');
+        await batchSync(`themes_${originalId}`, 'themes', 'project_id');
+        await batchSync(`bi_${originalId}`, 'composition_log', 'project_id');
+
+        // Auto-reparo das chaves locais se o ID mudou
+        if (originalId !== project.id) {
+          ['ws_narrative_', 'themes_', 'bi_'].forEach(p => {
+            const d = localStorage.getItem(`${p}${originalId}`);
+            if (d) localStorage.setItem(`${p}${project.id}`, d);
+          });
         }
       }
       
-      // Atualizar estado e localStorage com os novos UUIDs
       setProjects(updatedProjects);
-      localStorage.setItem('writer_studio_projects', JSON.stringify(updatedProjects));
+      persistProjectsLocally(updatedProjects);
       
-      alert(`Sincronização global concluída! ${updatedProjects.length} canais e ${fullSyncCount} itens de biblioteca salvos.`);
+      console.log("[ContentOS-Sync] Sincronização Concluída!");
+      alert(`Sincronização mestre concluída!\n${updatedProjects.length} canais e ${totalSynced} itens migrados com sucesso.`);
     } catch (err: any) {
+      console.error("[ContentOS-Sync] ❌ Falha Crítica na Sincronização:", err);
       alert('Erro na sincronização: ' + err.message);
     } finally {
       setLoading(false);
-      await fetchProjects();
+      await projectStore.loadProjects();
     }
   };
 
@@ -394,10 +446,90 @@ export default function Home() {
     console.log("[ContentOS] Iniciando salvamento do projeto...", formData);
     setLoading(true);
     try {
-      // 🛠️ Mapeamento Consistente: Extrai os dados do Wizard
+      const normalizePillarList = (pillars: any) => {
+        const list = Array.isArray(pillars) ? pillars : [];
+        return [...list, '', '', '', '', ''].slice(0, 5).map((item) => item || '');
+      };
+
+      const normalizeJourney = (journey: any[] = []) => {
+        const fallback = [
+          { id: 't1', label: 'T1', title: 'Topo de Funil (Viral)', value: '', isFixed: true },
+          { id: 't2', label: 'T2', title: 'Meio de Funil (Retenção)', value: '', isFixed: true },
+          { id: 't3', label: 'T3', title: 'Fundo de Funil (Comunidade)', value: '', isFixed: true }
+        ];
+        return [0, 1, 2].map((index) => ({
+          ...fallback[index],
+          ...(journey[index] || {}),
+          id: journey[index]?.id || fallback[index].id,
+          label: journey[index]?.label || fallback[index].label,
+          title: journey[index]?.title || fallback[index].title,
+          value: journey[index]?.value || '',
+          isFixed: journey[index]?.isFixed ?? true,
+        }));
+      };
+
+      const normalizeEditingSop = (source: any = {}) => ({
+        cut_rhythm: source.cut_rhythm || '',
+        zoom_style: source.zoom_style || '',
+        soundtrack: source.soundtrack || '',
+        art_direction: source.art_direction || '',
+        overlays: source.overlays || '',
+        duration: source.duration || '',
+        duration_min: Number(source.duration_min || source.duration || 0) || '',
+        duration_max: Number(source.duration_max || 0) || '',
+        blocks_variation: source.blocks_variation || '',
+        blocks_min: Number(source.blocks_min || 0) || '',
+        blocks_max: Number(source.blocks_max || 0) || '',
+        asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
+        measurement_focus: source.measurement_focus || '',
+      });
+
+      const normalizeThumbStrategy = (source: any = {}) => {
+        const layouts = Array.isArray(source.layouts) && source.layouts.length > 0
+          ? source.layouts
+          : source.layout
+            ? [source.layout]
+            : ['Rosto+Texto'];
+        return {
+          layouts,
+          layout: source.layout || layouts[0] || 'Rosto+Texto',
+          description: source.description || '',
+          consistency_rules: source.consistency_rules || '',
+        };
+      };
+
+      const normalizePersonaMatrix = (source: any = {}, targetPersona: any = {}) => ({
+        demographics: source.demographics || targetPersona.audience || '',
+        language: source.language || '',
+        pain_alignment: source.pain_alignment || targetPersona.pain_point || '',
+        desired_outcome: source.desired_outcome || '',
+        proof_points: source.proof_points || '',
+      });
+
+      const normalizeEditorialLine = (source: any = {}) => ({
+        pillars: normalizePillarList(source.pillars),
+        positioning_angle: source.positioning_angle || '',
+        content_boundaries: source.content_boundaries || '',
+      });
+
+      const normalizeNarrativeVoice = (source: any = {}) => ({
+        atmosphere: Array.isArray(source.atmosphere) ? source.atmosphere : (source.atmosphere ? [source.atmosphere] : []),
+        positioning: source.positioning || '',
+      });
+
       const projectId = formData.id || (editingProject ? editingProject.id : crypto.randomUUID());
-      
+      const normalizedPlaylists = formData.playlists || {
+        t1: formData.tactical_journey?.[0]?.value || '',
+        t2: formData.tactical_journey?.[1]?.value || '',
+        t3: formData.tactical_journey?.[2]?.value || '',
+        tactical_journey: normalizeJourney(formData.tactical_journey || [])
+      };
+      const normalizedSop = normalizeEditingSop(formData.editing_sop || formData.detailed_sop || {});
+      const normalizedThumb = normalizeThumbStrategy(formData.thumb_strategy || {});
+
+      const baseProject = editingProject || {};
       const projectData = {
+        ...baseProject,
         id: projectId,
         name: formData.name || formData.project_name || 'Canal Sem Nome',
         project_name: formData.name || formData.project_name || 'Canal Sem Nome',
@@ -405,8 +537,6 @@ export default function Home() {
         puc: formData.puc || formData.puc_promise || '',
         puc_promise: formData.puc || formData.puc_promise || '',
         accent_color: formData.accent_color || '#9BB0A5',
-        
-        // Dados Estruturados (JSONB)
         target_persona: formData.target_persona || {
           audience: formData.persona_matrix?.demographics || formData.target_audience || '',
           pain_point: formData.persona_matrix?.pain_alignment || formData.core_pain_point || ''
@@ -415,24 +545,18 @@ export default function Home() {
           metaphors: formData.metaphor_library?.split(',').map((s: string) => s.trim()).filter(Boolean) || [],
           prohibited: formData.prohibited_terms?.split(',').map((s: string) => s.trim()).filter(Boolean) || []
         },
-        playlists: formData.playlists || {
-          t1: formData.tactical_journey?.[0]?.value || '',
-          t2: formData.tactical_journey?.[1]?.value || '',
-          t3: formData.tactical_journey?.[2]?.value || '',
-          tactical_journey: formData.tactical_journey || []
-        },
-        
-        // Backups de campos para compatibilidade
+        playlists: normalizedPlaylists,
         phd_strategy: formData.phd_strategy || {},
-        persona_matrix: formData.persona_matrix || {},
-        editorial_line: formData.editorial_line || {},
-        narrative_voice: formData.narrative_voice || {},
+        persona_matrix: formData.persona_matrix ? normalizePersonaMatrix(formData.persona_matrix, formData.target_persona) : {},
+        editorial_line: formData.editorial_line ? normalizeEditorialLine(formData.editorial_line) : {},
+        narrative_voice: formData.narrative_voice ? normalizeNarrativeVoice(formData.narrative_voice) : {},
         metaphor_library: formData.metaphor_library || '',
         prohibited_terms: formData.prohibited_terms || '',
-        detailed_sop: formData.editing_sop || formData.detailed_sop || {},
-        editing_sop: formData.editing_sop || formData.detailed_sop || {},
-        thumb_strategy: formData.thumb_strategy || {},
-        
+        detailed_sop: normalizedSop,
+        editing_sop: normalizedSop,
+        thumb_strategy: normalizedThumb,
+        traceability_summary: formData.traceability_summary || [],
+        traceability_sources: formData.traceability_sources || {},
         status: 'active',
         user_id: user?.id || null,
         updated_at: new Date().toISOString()
@@ -440,25 +564,22 @@ export default function Home() {
 
       console.log("[ContentOS] Dados preparados para salvamento:", projectData);
 
-      // 💾 1. Atualização Imediata da UI (Estado Global + LocalStorage)
       const currentProjects = [...projects];
       const index = currentProjects.findIndex(p => p.id === projectData.id);
       if (index !== -1) currentProjects[index] = projectData;
       else currentProjects.push(projectData);
-      
-      localStorage.setItem('writer_studio_projects', JSON.stringify(currentProjects));
+
+      persistProjectsLocally(currentProjects);
       setProjects(currentProjects);
-      
-      // 🏁 Unblock UI: Fecha o modal e para o loading imediatamente
+
       setIsModalOpen(false);
       setEditingProject(null);
-      setLoading(false); 
+      setLoading(false);
       console.log("[ContentOS] UI atualizada localmente.");
 
-      // ☁️ 2. Sincronização em Background (Não trava a UI)
       if (supabase) {
         console.log("[ContentOS] Sincronizando com Supabase em background...");
-        supabase.from('projects').upsert(projectData).then(({ error }) => {
+        supabase.from('projects').upsert(projectData).then(({ error }: { error: any }) => {
           if (error) console.warn('⚠️ Supabase Sync Error:', error.message);
           else {
             console.log("[ContentOS] Sincronização concluída. Recarregando projetos...");
@@ -466,16 +587,14 @@ export default function Home() {
           }
         });
       }
-      
+
     } catch (err: any) {
       console.error('❌ Critical Save Failure:', err);
       alert(`Erro ao salvar: ${err.message || 'Erro desconhecido'}`);
       setIsModalOpen(false);
       setLoading(false);
     }
-  };
-
-  const handleDeleteProject = async () => {
+  };  const handleDeleteProject = async () => {
     if (!projectToDelete) return;
     
     try {
@@ -491,7 +610,7 @@ export default function Home() {
       // 💾 Persistência Local (Modo de Segurança / Offline)
       const currentProjects = projects.filter(p => p.id !== projectToDelete.id);
       setProjects(currentProjects);
-      localStorage.setItem('writer_studio_projects', JSON.stringify(currentProjects));
+      persistProjectsLocally(currentProjects);
 
       if (activeProjectId === projectToDelete.id) {
         setActiveProjectId(null);
@@ -507,7 +626,7 @@ export default function Home() {
       // Fallback de emergência caso tudo falhe
       const filtered = projects.filter(p => p.id !== projectToDelete.id);
       setProjects(filtered);
-      localStorage.setItem('writer_studio_projects', JSON.stringify(filtered));
+      persistProjectsLocally(filtered);
       setIsDeleteModalOpen(false);
       setProjectToDelete(null);
     }
@@ -520,7 +639,7 @@ export default function Home() {
 
   const renderView = () => {
     // Strategic Views Guard (Locked State)
-    const strategicViews = ['content-hub', 'scripts', 'production', 'analytics', 'library'];
+    const strategicViews = ['themes', 'scripts', 'production', 'analytics', 'library'];
     if (strategicViews.includes(currentView) && !activeProject) {
       return (
         <div className="glass-card p-20 text-center flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
@@ -566,7 +685,7 @@ export default function Home() {
                       className={`glass-card group transition-all duration-500 hover:translate-y-[-8px] cursor-pointer ${isActive ? 'ring-2 active-glow shadow-2xl' : 'border-transparent hover:border-white/10'}`} 
                       onClick={() => {
                         setActiveProjectId(project.id);
-                        setCurrentView('content-hub');
+                        setCurrentView('themes');
                       }}
                       style={{ 
                         borderLeft: `5px solid ${brandColor}`,
@@ -593,7 +712,7 @@ export default function Home() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveProjectId(project.id);
-                              setCurrentView('content-hub');
+                              setCurrentView('themes');
                             }}
                           >
                             {isActive ? 'GESTÃO ATIVA' : 'GERAR CONTEÚDO'}
@@ -769,12 +888,15 @@ export default function Home() {
           </section>
         );
         case 'themes':
-          return <ThemeBank activeProject={activeProject} userId={user?.id} />;
-        case 'content-hub':
-          return <ContentHub 
+          return <ThemeBank 
             activeProject={activeProject} 
-            selectedAIConfig={activeAIConfig} 
+            userId={user?.id} 
+            selectedAIConfig={activeAIConfig}
             onGerarRoteiro={handleGerarRoteiro}
+            onOpenInWriting={() => {
+              setPendingScript(null);
+              setCurrentView('scripts');
+            }}
           />;
         case 'scripts':
           return <ScriptEngine 
@@ -804,25 +926,6 @@ export default function Home() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-midnight flex items-center justify-center">
-        <div className="flex flex-col items-center gap-6">
-          <div className="w-12 h-12 border-4 border-[var(--accent-color)]/20 border-t-[var(--accent-color)] animate-spin rounded-full shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.2)]" />
-          <div className="text-center space-y-2">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] block">Carregando Channel OS...</span>
-            <button 
-              onClick={() => setLoading(false)}
-              className="text-[9px] font-black text-white/10 hover:text-white/40 uppercase tracking-widest transition-all pt-4"
-            >
-              [ Forçar Entrada ]
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // 🛡️ Tela de Erro Amigável se faltar Configuração na Vercel
   if (!supabase) {
     return (
@@ -839,6 +942,25 @@ export default function Home() {
           </div>
           <div className="pt-4">
             <p className="text-[10px] text-white/20 font-bold uppercase">Consulte o log do console para detalhes.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-midnight flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-12 h-12 border-4 border-[var(--accent-color)]/20 border-t-[var(--accent-color)] animate-spin rounded-full shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.2)]" />
+          <div className="text-center space-y-2">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] block">Carregando Channel OS...</span>
+            <button 
+              onClick={() => setLoading(false)}
+              className="text-[9px] font-black text-white/10 hover:text-white/40 uppercase tracking-widest transition-all pt-4"
+            >
+              [ Forçar Entrada ]
+            </button>
           </div>
         </div>
       </div>
@@ -1008,3 +1130,4 @@ export default function Home() {
   );
 
 }
+

@@ -30,10 +30,96 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nameError, setNameError] = useState('');
+
+  const toNumberOrEmpty = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : '';
+  };
+
+  const normalizeJourney = (journey: any[] = []) => {
+    const fallback = [
+      { id: 't1', label: 'T1', title: 'Topo de Funil (Viral)', value: '', isFixed: true },
+      { id: 't2', label: 'T2', title: 'Meio de Funil (Retenção)', value: '', isFixed: true },
+      { id: 't3', label: 'T3', title: 'Fundo de Funil (Comunidade)', value: '', isFixed: true }
+    ];
+    return [0, 1, 2].map((index) => ({
+      ...fallback[index],
+      ...(journey[index] || {}),
+      id: journey[index]?.id || fallback[index].id,
+      label: journey[index]?.label || fallback[index].label,
+      title: journey[index]?.title || fallback[index].title,
+      value: journey[index]?.value || '',
+      isFixed: journey[index]?.isFixed ?? true,
+    }));
+  };
+
+  const normalizeEditingSop = (source: any = {}) => ({
+    cut_rhythm: source.cut_rhythm || '',
+    zoom_style: source.zoom_style || '',
+    soundtrack: source.soundtrack || '',
+    art_direction: source.art_direction || '',
+    overlays: source.overlays || '',
+    duration: source.duration || '',
+    duration_min: toNumberOrEmpty(source.duration_min ?? source.duration),
+    duration_max: toNumberOrEmpty(source.duration_max),
+    blocks_variation: source.blocks_variation || '',
+    blocks_min: toNumberOrEmpty(source.blocks_min),
+    blocks_max: toNumberOrEmpty(source.blocks_max),
+    asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
+    measurement_focus: source.measurement_focus || '',
+  });
+
+  const normalizeThumbStrategy = (source: any = {}) => {
+    const layouts = Array.isArray(source.layouts) && source.layouts.length > 0
+      ? source.layouts
+      : source.layout
+        ? [source.layout]
+        : ['Rosto+Texto'];
+
+    return {
+      layouts,
+      layout: source.layout || layouts[0] || 'Rosto+Texto',
+      description: source.description || '',
+      consistency_rules: source.consistency_rules || '',
+    };
+  };
+
+  const normalizePhdStrategy = (source: any = {}) => ({
+    passion: source.passion || '',
+    skill: source.skill || '',
+    demand: source.demand || '',
+  });
+
+  const normalizePersonaMatrix = (source: any = {}, targetPersona: any = {}) => ({
+    demographics: source.demographics || targetPersona.audience || '',
+    language: source.language || '',
+    pain_alignment: source.pain_alignment || targetPersona.pain_point || '',
+    desired_outcome: source.desired_outcome || '',
+    proof_points: source.proof_points || '',
+  });
+
+  const normalizeEditorialLine = (source: any = {}) => ({
+    pillars: normalizePillarList(source.pillars),
+    positioning_angle: source.positioning_angle || '',
+    content_boundaries: source.content_boundaries || '',
+  });
+
+  const normalizeNarrativeVoice = (source: any = {}) => ({
+    atmosphere: Array.isArray(source.atmosphere) ? source.atmosphere : (source.atmosphere ? [source.atmosphere] : []),
+    positioning: source.positioning || '',
+  });
+
+  const normalizePillarList = (pillars: any) => {
+    const list = Array.isArray(pillars) ? pillars : [];
+    return [...list, '', '', '', '', ''].slice(0, 5).map((item) => item || '');
+  };
   
   // Data Normalization & Initialization
   const [formData, setFormData] = useState(() => {
     const d = initialData || {};
+    const journey = normalizeJourney(d.playlists?.tactical_journey || d.tactical_journey || []);
+    const thumbStrategy = normalizeThumbStrategy(d.thumb_strategy || {});
+    const editingSop = normalizeEditingSop(d.detailed_sop || d.editing_sop || {});
     return {
       id: d.id || '',
       name: d.name || d.project_name || '',
@@ -41,39 +127,51 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       accent_color: d.accent_color || '#9BB0A5',
       
       // Stage 1: Fundação (DNA)
-      phd_strategy: d.phd_strategy || { passion: '', skill: '', demand: '' },
-      persona_matrix: d.persona_matrix || { demographics: '', language: '', pain_alignment: d.target_persona?.pain_point || '' },
+      phd_strategy: normalizePhdStrategy(d.phd_strategy),
+      persona_matrix: normalizePersonaMatrix(d.persona_matrix, d.target_persona),
       
       // Stage 2: Inteligência (Editorial)
-      editorial_line: d.editorial_line || { pillars: d.editorial_line?.pillars || ['', '', '', '', ''] },
-      narrative_voice: d.narrative_voice || { atmosphere: d.narrative_voice?.atmosphere || [], positioning: d.narrative_voice?.positioning || '' },
+      editorial_line: normalizeEditorialLine(d.editorial_line),
+      narrative_voice: normalizeNarrativeVoice(d.narrative_voice),
       
       // Stage 3: Engenharia (Packaging)
       metaphor_library: d.metaphor_library || d.ai_engine_rules?.metaphors?.join(', ') || '',
       prohibited_terms: d.prohibited_terms || d.ai_engine_rules?.prohibited?.join(', ') || '',
-      thumb_strategy: d.thumb_strategy || { layouts: d.thumb_strategy?.layout ? [d.thumb_strategy.layout] : ['Rosto+Texto'], description: '' },
+      thumb_strategy: thumbStrategy,
       
       // Stage 4: Produção (SOP)
-      editing_sop: d.detailed_sop || d.editing_sop || { 
-        cut_rhythm: '', 
-        zoom_style: '', 
-        soundtrack: '',
-        art_direction: '',
-        overlays: '',
-        duration: '',
-        blocks_variation: '',
-        asset_types: []
-      },
-      tactical_journey: d.playlists?.tactical_journey || [
-        { id: 't1', label: 'T1', title: 'Topo de Funil (Viral)', value: '', isFixed: true },
-        { id: 't2', label: 'T2', title: 'Meio de Funil (Retenção)', value: '', isFixed: true },
-        { id: 't3', label: 'T3', title: 'Fundo de Funil (Comunidade)', value: '', isFixed: true }
-      ]
+      editing_sop: editingSop,
+      tactical_journey: journey
     };
   });
 
   const updateFormData = (data: Partial<typeof formData>) => {
     setFormData(prev => ({ ...prev, ...data }));
+  };
+
+  const buildTraceabilitySummary = () => {
+    const pillars = formData.editorial_line.pillars.filter((p: string) => p.trim() !== '');
+    const layouts = formData.thumb_strategy.layouts || [];
+    return {
+      summary: [
+        `PUC: ${formData.puc}`,
+        `Persona: ${formData.persona_matrix.demographics}${formData.persona_matrix.language ? ` | Linguagem: ${formData.persona_matrix.language}` : ''}`,
+        `Dor central: ${formData.persona_matrix.pain_alignment}`,
+        `Transformação desejada: ${formData.persona_matrix.desired_outcome || 'Não definida'}`,
+        `Pilares: ${pillars.join(', ') || 'Não definidos'}`,
+        `Metáforas: ${formData.metaphor_library || 'Não definidas'}`,
+        `Thumb: ${layouts.join(' + ') || 'Não definida'}`,
+        `SOP foco: ${formData.editing_sop.measurement_focus || 'Não definido'}`
+      ],
+      sources: {
+        puc: formData.puc,
+        persona: formData.persona_matrix,
+        editorial_line: formData.editorial_line,
+        metaphor_library: formData.metaphor_library,
+        thumb_strategy: formData.thumb_strategy,
+        editing_sop: formData.editing_sop
+      }
+    };
   };
 
   const isStepValid = () => {
@@ -98,6 +196,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
   const handleFinalize = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    const traceability = buildTraceabilitySummary();
     
     onComplete({
       ...formData,
@@ -118,7 +217,9 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         t3: formData.tactical_journey[2]?.value || '',
         t3_title: formData.tactical_journey[2]?.title || '',
         tactical_journey: formData.tactical_journey 
-      }
+      },
+      traceability_summary: traceability.summary,
+      traceability_sources: traceability.sources
     });
   };
 
@@ -129,11 +230,11 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
             <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Identificador do Canal</label>
+                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Identificador do Projeto</label>
                 <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">Nome de destaque da instância.</span>
                 <input 
                   className={`w-full bg-sage/5 border ${nameError ? 'border-red-500/50 focus:border-red-500' : 'border-sage/30 focus:border-sage'} rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-sage/10 transition-all text-white font-black text-lg placeholder:text-white/10`}
-                  placeholder="Nome do Canal"
+                  placeholder="Nome da instancia"
                   value={formData.name}
                   onChange={(e) => {
                     const newName = e.target.value;
@@ -195,6 +296,35 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, pain_alignment: e.target.value } })}
                   />
                 </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] uppercase font-black text-white/40 ml-1">Linguagem e Repertorio</span>
+                  <input 
+                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
+                    placeholder="Como esse publico fala, pensa e se reconhece"
+                    value={formData.persona_matrix.language || ''}
+                    onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, language: e.target.value } })}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] uppercase font-black text-white/40 ml-1">Transformacao Desejada</span>
+                  <input 
+                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
+                    placeholder="Qual mudanca pratica esse projeto quer habilitar"
+                    value={formData.persona_matrix.desired_outcome || ''}
+                    onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, desired_outcome: e.target.value } })}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="p-8 rounded-[32px] border border-white/10 bg-white/[0.02] shadow-inner">
+              <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1 block">Rastreabilidade Gerada pela Aplicação</label>
+              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Você não precisa preencher isto manualmente. A aplicação monta esse resumo a partir dos campos anteriores e usa isso nas análises futuras.</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {buildTraceabilitySummary().summary.map((item: string) => (
+                  <div key={item} className="p-4 rounded-2xl border border-white/10 bg-white/[0.03]">
+                    <p className="text-[10px] text-white/70 leading-relaxed">{item}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -259,6 +389,26 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <span className="text-[8px] uppercase font-bold opacity-10 ml-2">Define a hierarquia de autoridade com a persona.</span>
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] uppercase font-bold text-white/20 ml-2">Angulo Editorial</span>
+                <textarea
+                  className="p-5 bg-white/5 border border-white/10 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none min-h-[110px]"
+                  placeholder="Qual e o recorte que diferencia esta instancia de outras no mesmo universo?"
+                  value={formData.editorial_line.positioning_angle || ''}
+                  onChange={(e) => updateFormData({ editorial_line: { ...formData.editorial_line, positioning_angle: e.target.value } })}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] uppercase font-bold text-white/20 ml-2">Fronteiras de Conteudo</span>
+                <textarea
+                  className="p-5 bg-white/5 border border-white/10 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none min-h-[110px]"
+                  placeholder="O que entra, o que nao entra e quais desvios devem ser evitados"
+                  value={formData.editorial_line.content_boundaries || ''}
+                  onChange={(e) => updateFormData({ editorial_line: { ...formData.editorial_line, content_boundaries: e.target.value } })}
+                />
+              </div>
+            </div>
           </div>
         );
       case 3:
@@ -317,6 +467,14 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     />
                   </div>
                 )}
+                <div className="mt-2 animate-in fade-in slide-in-from-top-2">
+                  <textarea
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none text-xs text-white resize-none h-20 placeholder:text-white/20 font-medium"
+                    placeholder="Regras de consistencia visual: estilo da imagem, enquadramento, contraste, tipografia e o que evitar"
+                    value={formData.thumb_strategy.consistency_rules || ''}
+                    onChange={(e) => updateFormData({ thumb_strategy: { ...formData.thumb_strategy, consistency_rules: e.target.value } })}
+                  />
+                </div>
                 <div className="flex flex-col gap-2 mt-2">
                   <label className="text-[10px] uppercase font-black tracking-widest text-red-100/30">Termos Proibidos</label>
                   <span className="text-[8px] uppercase font-bold opacity-10 -mt-1">Palavras genéricas que destroem sua autoridade.</span>
@@ -463,6 +621,15 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   />
                 </div>
               ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] uppercase font-black tracking-widest text-sage">Foco de Analise e Revisao</label>
+              <textarea
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white min-h-[96px] resize-none placeholder:text-white/10"
+                placeholder="O que deve ser verificado depois: retencao, CTR, aderencia ao publico, consistencia dos assets, clareza da promessa..."
+                value={formData.editing_sop.measurement_focus || ''}
+                onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, measurement_focus: e.target.value } })}
+              />
             </div>
           </div>
         );

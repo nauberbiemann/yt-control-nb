@@ -35,9 +35,11 @@ interface Theme {
   pipeline_level?: string;
   demand_views?: string;
   notes?: string;
+  connection_note?: string;
   match_score?: number;
   selected_structure?: string;
   title_structure?: string;
+  title_structure_asset_id?: string | null;
   refined_title?: string; 
   status: 'backlog' | 'vetted' | 'scripted' | 'published' | 'Roteirização' | 'Produção';
   created_at: string;
@@ -52,6 +54,66 @@ interface ContentHubProps {
   activeProject?: any;
   selectedAIConfig: AIConfig;
   onGerarRoteiro?: (data: any) => void;
+}
+
+interface TitleStructureAsset {
+  id: string;
+  name: string;
+  pattern: string;
+  slotId: 'S1' | 'S2' | 'S3' | 'S4' | 'S5';
+  source: 'library' | 'fallback';
+}
+
+const mergeNarrativeComponents = (localItems: any[], remoteItems: any[]) => {
+  const merged = new Map<string, any>();
+  localItems.forEach((item) => {
+    if (item?.id) merged.set(item.id, item);
+  });
+  remoteItems.forEach((item) => {
+    if (item?.id) merged.set(item.id, item);
+  });
+  return Array.from(merged.values());
+};
+
+const DEFAULT_TITLE_STRUCTURES: TitleStructureAsset[] = [
+  { id: 'fallback-s1', slotId: 'S1', name: 'Provocacao', pattern: 'O erro tecnico que [TARGET] ignora ao abordar [TEMA]', source: 'fallback' },
+  { id: 'fallback-s2', slotId: 'S2', name: 'Metafora', pattern: '[METAFORA]: A analogia definitiva para dominar [TEMA]', source: 'fallback' },
+  { id: 'fallback-s3', slotId: 'S3', name: 'Interrupcao', pattern: 'PARE de usar metodos genericos em [TEMA]! Aplique o M1: [JORNADA]', source: 'fallback' },
+  { id: 'fallback-s4', slotId: 'S4', name: 'Desconstrucao', pattern: 'Por que o [TEMA] tradicional falha (A verdade do nicho)', source: 'fallback' },
+  { id: 'fallback-s5', slotId: 'S5', name: 'Blueprint', pattern: 'O [METAFORA] do [TEMA]: Roteiro Tecnico do Diagnostico ao Lifestyle', source: 'fallback' },
+];
+
+function inferStructureSlot(value: string, index: number): 'S1' | 'S2' | 'S3' | 'S4' | 'S5' {
+  const normalized = value.toUpperCase();
+  if (normalized.includes('S1')) return 'S1';
+  if (normalized.includes('S2')) return 'S2';
+  if (normalized.includes('S3')) return 'S3';
+  if (normalized.includes('S4')) return 'S4';
+  if (normalized.includes('S5')) return 'S5';
+  return (['S1', 'S2', 'S3', 'S4', 'S5'][index] || 'S1') as 'S1' | 'S2' | 'S3' | 'S4' | 'S5';
+}
+
+function normalizeTitleStructures(components: any[]): TitleStructureAsset[] {
+  const titleAssets = components
+    .filter((component) => component.type === 'Title Structure')
+    .map((component, index) => ({
+      id: component.id,
+      name: component.name || `Estrutura ${index + 1}`,
+      pattern: component.content_pattern || component.description || '',
+      slotId: inferStructureSlot(`${component.name || ''} ${component.category || ''} ${component.content_pattern || ''}`, index),
+      source: 'library' as const,
+    }))
+    .filter((component) => component.pattern.trim() !== '');
+
+  if (titleAssets.length === 0) {
+    return DEFAULT_TITLE_STRUCTURES;
+  }
+
+  const mergedBySlot = new Map<string, TitleStructureAsset>();
+  DEFAULT_TITLE_STRUCTURES.forEach((fallback) => mergedBySlot.set(fallback.slotId, fallback));
+  titleAssets.forEach((asset) => mergedBySlot.set(asset.slotId, asset));
+
+  return ['S1', 'S2', 'S3', 'S4', 'S5'].map((slotId) => mergedBySlot.get(slotId) as TitleStructureAsset);
 }
 
 export default function ContentHub({ activeProject: propProject, selectedAIConfig, onGerarRoteiro }: ContentHubProps) {
@@ -83,6 +145,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
   const [newThemeNote, setNewThemeNote] = useState('');
   const [selectedStructureId, setSelectedStructureId] = useState<string>('S1');
   const [generatedTitles, setGeneratedTitles] = useState<Record<string, string>>({});
+  const [projectTitleStructures, setProjectTitleStructures] = useState<TitleStructureAsset[]>(DEFAULT_TITLE_STRUCTURES);
   
   // Refinement & Assets States
   const [activeEditTheme, setActiveEditTheme] = useState<Theme | null>(null);
@@ -91,6 +154,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
   useEffect(() => {
     if (activeProject?.id) {
       fetchThemes();
+      fetchTitleStructures();
       // Initialize with first journey module title
       const journey = activeProject.playlists?.tactical_journey || [];
       if (journey.length > 0) {
@@ -101,6 +165,45 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     }
   }, [activeProject?.id, activeProject?.playlists?.tactical_journey]);
 
+  const fetchTitleStructures = async () => {
+    if (!activeProject?.id) {
+      setProjectTitleStructures(DEFAULT_TITLE_STRUCTURES);
+      return;
+    }
+
+    try {
+      let localItems: any[] = [];
+      const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            localItems = parsed;
+            setProjectTitleStructures(normalizeTitleStructures(parsed));
+          }
+        } catch (e) {}
+      }
+
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('narrative_components')
+          .select('*')
+          .eq('project_id', activeProject.id)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          const titleOnly = (data as any[]).filter((component) => component.type === 'Title Structure');
+          const merged = mergeNarrativeComponents(localItems, titleOnly);
+          setProjectTitleStructures(normalizeTitleStructures(merged));
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
+        }
+      }
+    } catch (err) {
+      console.warn('Error loading title structures:', err);
+      setProjectTitleStructures(DEFAULT_TITLE_STRUCTURES);
+    }
+  };
+
   const fetchThemes = async () => {
     if (!activeProject?.id) return;
     
@@ -110,7 +213,12 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       if (local) {
         try {
           const parsed = JSON.parse(local);
-          if (Array.isArray(parsed)) setThemes(parsed);
+          if (Array.isArray(parsed)) {
+            setThemes(parsed.map((theme: Theme) => ({
+              ...theme,
+              selected_structure: theme.selected_structure || theme.title_structure_asset_id,
+            })));
+          }
         } catch (e) {}
       }
 
@@ -123,8 +231,12 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
         
         if (error) throw error;
         if (data && data.length > 0) {
-          setThemes(data);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(data));
+          const normalizedThemes = data.map((theme: Theme) => ({
+            ...theme,
+            selected_structure: theme.selected_structure || theme.title_structure_asset_id,
+          }));
+          setThemes(normalizedThemes);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedThemes));
           return;
         }
       }
@@ -133,7 +245,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     }
   };
 
-  const handleSaveTheme = async (generatedTitle: string, structureId: string) => {
+  const handleSaveTheme = async (generatedTitle: string, structure: TitleStructureAsset) => {
     if (!baseTopic || !activeProject) return;
 
     const newTheme: Theme = {
@@ -144,7 +256,9 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       demand_views: newThemeDemand,
       notes: newThemeNote,
       match_score: currentMatch || 0,
-      title_structure: structureId,
+      title_structure: structure.slotId,
+      selected_structure: structure.id,
+      title_structure_asset_id: structure.source === 'library' ? structure.id : null,
       refined_title: generatedTitle,
       status: 'vetted', // Quando gerado no Content Hub, já entra como Vetted/Aprovado
       created_at: new Date().toISOString()
@@ -156,7 +270,8 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase) {
-        const { error } = await supabase.from('themes').upsert(newTheme);
+        const { selected_structure, ...cloudTheme } = newTheme;
+        const { error } = await supabase.from('themes').upsert(cloudTheme);
         if (error) console.error('Supabase save error:', error);
       }
       
@@ -187,7 +302,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
   };
 
   // S1-S5 Strategic Title Structures (V3 Final Technical Patterns)
-  const titleStructures = [
+  const legacyTitleStructures = [
     { id: 'S1', name: 'Provocação', pattern: 'O erro técnico que [TARGET] ignora ao abordar [TEMA]', type: 'ego' },
     { id: 'S2', name: 'Metáfora', pattern: '[METAFORA]: A analogia definitiva para dominar [TEMA]', type: 'authority' },
     { id: 'S3', name: 'Interrupção', pattern: 'PARE de usar métodos genéricos em [TEMA]! Aplique o M1: [JORNADA]', type: 'pattern-break' },
@@ -477,7 +592,8 @@ REGRAS:
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase) {
-        await supabase.from('themes').upsert(updatedTheme);
+        const { selected_structure, ...cloudTheme } = updatedTheme;
+        await supabase.from('themes').upsert(cloudTheme);
       }
       setActiveEditTheme(null);
     } catch (err) {
@@ -579,7 +695,7 @@ Atmosfera Narrativa / Persona: ${activeProject?.persona_matrix?.demographics || 
 Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || 'N/A'}
 
 [ESTRUTURAS-BASE A PREENCHER]
-` + titleStructures.map(s => `${s.id} (${s.name}): ${s.pattern}`).join('\n');
+` + projectTitleStructures.map(s => `${s.slotId} (${s.name}): ${s.pattern}`).join('\n');
                 
                 navigator.clipboard.writeText(prompt);
                 alert("Prompt Engine V2 copiado para a área de transferência!");
@@ -700,17 +816,20 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                   <span className="text-[9px] font-bold text-sage uppercase border border-sage/20 bg-sage/5 px-2 py-1 rounded">Síntese IA Ativa</span>
                 )}
               </div>
-              {titleStructures.map(s => {
-                const finalTitle = generatedTitles[s.id] || getDynamicTitle(s.pattern);
+              {projectTitleStructures.map(s => {
+                const finalTitle = generatedTitles[s.slotId] || getDynamicTitle(s.pattern);
                 return (
                   <div 
                     key={s.id} 
-                    onClick={() => handleSaveTheme(finalTitle, s.id)}
+                    onClick={() => {
+                      setSelectedStructureId(s.slotId);
+                      handleSaveTheme(finalTitle, s);
+                    }}
                     className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl group hover:border-[var(--accent-color)]/50 hover:bg-[var(--accent-color-glow)] transition-all cursor-pointer"
                   >
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-white/20 group-hover:text-[var(--accent-color)] group-hover:bg-[var(--accent-color-glow)] transition-all border border-white/5 uppercase">
-                        {s.id}
+                        {s.slotId}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[8px] uppercase tracking-widest font-black text-[var(--accent-color)] opacity-60 mb-0.5">{s.name}</span>
@@ -856,10 +975,10 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                         <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
                           <div 
                             className={`h-full transition-all duration-1000 ${
-                              theme.match_score > 80 ? 'bg-sage' : 
-                              theme.match_score > 60 ? 'bg-blue-400' : 'bg-red-400'
+                              (theme.match_score || 0) > 80 ? 'bg-sage' : 
+                              (theme.match_score || 0) > 60 ? 'bg-blue-400' : 'bg-red-400'
                             }`}
-                            style={{ width: `${theme.match_score}%` }}
+                            style={{ width: `${theme.match_score || 0}%` }}
                           />
                         </div>
                       </div>

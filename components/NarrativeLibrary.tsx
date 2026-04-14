@@ -51,6 +51,50 @@ interface NarrativeComponent {
   is_active: boolean;
 }
 
+const mergeNarrativeComponents = (
+  localItems: NarrativeComponent[],
+  remoteItems: NarrativeComponent[]
+) => {
+  const merged = new Map<string, NarrativeComponent>();
+
+  localItems.forEach((item) => {
+    if (item?.id) merged.set(item.id, item);
+  });
+
+  remoteItems.forEach((item) => {
+    if (item?.id) merged.set(item.id, item);
+  });
+
+  return Array.from(merged.values());
+};
+
+const componentSignature = (item: Partial<NarrativeComponent>) => {
+  return [
+    item.type || '',
+    item.name || '',
+    item.description || '',
+    item.content_pattern || '',
+    item.category || '',
+  ]
+    .join('|')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const dedupeNarrativeComponents = (items: NarrativeComponent[]) => {
+  const merged = new Map<string, NarrativeComponent>();
+
+  items.forEach((item) => {
+    const key = componentSignature(item);
+    if (!merged.has(key) || (item.is_active && !merged.get(key)?.is_active)) {
+      merged.set(key, item);
+    }
+  });
+
+  return Array.from(merged.values());
+};
+
 export default function NarrativeLibrary({ activeProject: propProject }: NarrativeLibraryProps) {
   // Zustand store takes priority for data isolation
   const storeProject = useActiveProject();
@@ -92,14 +136,23 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       setIsLoading(true);
       console.log("[ContentOS] Buscando componentes para o projeto:", activeProject.id);
       
+      let localItems: NarrativeComponent[] = [];
+
       // 1. Tentar LocalStorage primeiro para velocidade (UI Unblock)
       const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
       if (localData) {
-        const parsed = JSON.parse(localData);
-        setComponents(parsed);
-        // Não paramos o loading aqui se quisermos sincronizar com a nuvem, 
-        // mas vamos parar para garantir que o usuário veja algo.
-        setIsLoading(false); 
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            localItems = parsed;
+            setComponents(parsed);
+            // Não paramos o loading aqui se quisermos sincronizar com a nuvem, 
+            // mas vamos parar para garantir que o usuário veja algo.
+            setIsLoading(false);
+          }
+        } catch (parseErr) {
+          console.warn('[ContentOS] LocalStorage narrativa inválido, ignorando cache local.', parseErr);
+        }
       }
 
       // 2. Sincronizar com Supabase em background
@@ -113,8 +166,15 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
         if (error) {
           console.warn('⚠️ Supabase Fetch Error:', error.message);
         } else if (data && data.length > 0) {
-          setComponents(data);
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(data));
+          const remoteItems = data as NarrativeComponent[];
+          const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, remoteItems));
+          setComponents(merged);
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
+        } else if (localItems.length > 0) {
+          // Mantém o cache local quando a nuvem não tiver o conjunto completo ainda.
+          const dedupedLocal = dedupeNarrativeComponents(localItems);
+          setComponents(dedupedLocal);
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
         }
       }
     } catch (e) {
@@ -145,16 +205,18 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
 
       // 💾 1. Persistência Local Imediata (UI Unblock)
       let newComponents = [...components];
-      const tempId = editingItem ? editingItem.id : Date.now().toString();
+      const tempId = editingItem ? editingItem.id : crypto.randomUUID();
+      const nextItem = { ...payload, id: tempId } as NarrativeComponent;
       
       if (editingItem) {
-        newComponents = newComponents.map(c => c.id === editingItem.id ? { ...payload, id: editingItem.id } as NarrativeComponent : c);
+        newComponents = newComponents.map(c => c.id === editingItem.id ? nextItem : c);
       } else {
-        newComponents = [{ ...payload, id: tempId } as NarrativeComponent, ...newComponents];
+        newComponents = [nextItem, ...newComponents];
       }
-      
-      setComponents(newComponents);
-      localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(newComponents));
+
+      const dedupedLocal = dedupeNarrativeComponents(newComponents);
+      setComponents(dedupedLocal);
+      localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
       
       // 🏁 UI Feedback: Fecha modal e limpa form
       setIsModalOpen(false);
@@ -165,10 +227,10 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       if (supabase) {
         console.log("[ContentOS] Sincronizando Ativo com Supabase...");
         const action = editingItem 
-          ? supabase.from('narrative_components').update(payload).eq('id', editingItem.id)
-          : supabase.from('narrative_components').insert(payload);
+          ? supabase.from('narrative_components').upsert(nextItem)
+          : supabase.from('narrative_components').upsert(nextItem);
           
-        action.then(({ error }) => {
+        action.then(({ error }: { error: any }) => {
           if (error) console.warn('⚠️ Supabase Narrative Error:', error.message);
           else {
             console.log("[ContentOS] Sincronização concluída. Recarregando...");

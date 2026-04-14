@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject } from '@/lib/store/projectStore';
 import CustomSelect from './ui/CustomSelect';
+import ContentHub from './ContentHub';
 import {
   Lightbulb,
   Plus,
@@ -44,6 +45,22 @@ const STATUS_OPTIONS = STATUSES.map(s => ({ value: s, label: STATUS_META[s].labe
 const STRUCTURE_OPTIONS = STRUCTURES.map(s => ({ value: s, label: s }));
 const PIPELINE_OPTIONS = PIPELINES.map(p => ({ value: p.value, label: p.label }));
 
+interface TitleStructureAsset {
+  id: string;
+  name: string;
+  pattern: string;
+  slotId: 'S1' | 'S2' | 'S3' | 'S4' | 'S5';
+  source: 'library' | 'fallback';
+}
+
+const DEFAULT_TITLE_STRUCTURES: TitleStructureAsset[] = [
+  { id: 'fallback-s1', slotId: 'S1', name: 'Provocacao', pattern: 'O erro tecnico que [TARGET] ignora ao abordar [TEMA]', source: 'fallback' },
+  { id: 'fallback-s2', slotId: 'S2', name: 'Metafora', pattern: '[METAFORA]: A analogia definitiva para dominar [TEMA]', source: 'fallback' },
+  { id: 'fallback-s3', slotId: 'S3', name: 'Interrupcao', pattern: 'PARE de usar metodos genericos em [TEMA]! Aplique o M1: [JORNADA]', source: 'fallback' },
+  { id: 'fallback-s4', slotId: 'S4', name: 'Desconstrucao', pattern: 'Por que o [TEMA] tradicional falha (A verdade do nicho)', source: 'fallback' },
+  { id: 'fallback-s5', slotId: 'S5', name: 'Blueprint', pattern: 'O [METAFORA] do [TEMA]: Roteiro Tecnico do Diagnostico ao Lifestyle', source: 'fallback' },
+];
+
 interface Theme {
   id: string;
   title: string;
@@ -51,6 +68,8 @@ interface Theme {
   editorial_pillar?: string;
   status: typeof STATUSES[number];
   title_structure?: string;
+  selected_structure?: string;
+  title_structure_asset_id?: string | null;
   pipeline_level?: string;
   is_demand_vetted: boolean;
   is_persona_vetted: boolean;
@@ -66,6 +85,9 @@ interface Theme {
 interface ThemeBankProps {
   activeProject?: any; // Optional: store takes priority
   userId?: string;
+  selectedAIConfig?: any;
+  onGerarRoteiro?: (data: any) => void;
+  onOpenInWriting?: (theme: any) => void;
 }
 
 const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
@@ -74,6 +96,8 @@ const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   editorial_pillar: '',
   status: 'backlog',
   title_structure: '',
+  selected_structure: '',
+  title_structure_asset_id: null,
   pipeline_level: '',
   is_demand_vetted: false,
   is_persona_vetted: false,
@@ -82,7 +106,7 @@ const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   notes: '',
 };
 
-export default function ThemeBank({ activeProject: propProject, userId }: ThemeBankProps) {
+export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, onGerarRoteiro, onOpenInWriting }: ThemeBankProps) {
   // Zustand store takes priority over prop for isolation guarantee
   const storeProject = useActiveProject();
   const activeProject = storeProject || propProject;
@@ -96,6 +120,8 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
   const [form, setForm] = useState(emptyTheme);
   const [saving, setSaving] = useState(false);
+  const [workspace, setWorkspace] = useState<'fila' | 'briefing'>('fila');
+  const [projectTitleStructures, setProjectTitleStructures] = useState<TitleStructureAsset[]>(DEFAULT_TITLE_STRUCTURES);
 
   // 🛠️ Agnosticismo de Dados: Puxa os pilares configurados no Projeto
   const projectPillars = activeProject?.editorial_line?.pillars?.filter((p: string) => p.trim() !== '') || [];
@@ -104,8 +130,97 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
     : PILLAR_OPTIONS; // Fallback se não houver pilares cadastrados
 
   useEffect(() => {
-    if (activeProject?.id) fetchThemes();
+    if (activeProject?.id) {
+      fetchThemes();
+      fetchTitleStructures();
+    }
   }, [activeProject?.id]);
+
+  const mergeNarrativeComponents = (localItems: any[], remoteItems: any[]) => {
+    const merged = new Map<string, any>();
+    localItems.forEach((item) => {
+      if (item?.id) merged.set(item.id, item);
+    });
+    remoteItems.forEach((item) => {
+      if (item?.id) merged.set(item.id, item);
+    });
+    return Array.from(merged.values());
+  };
+
+  const inferStructureSlot = (value: string, index: number): 'S1' | 'S2' | 'S3' | 'S4' | 'S5' => {
+    const normalized = value.toUpperCase();
+    if (normalized.includes('S1')) return 'S1';
+    if (normalized.includes('S2')) return 'S2';
+    if (normalized.includes('S3')) return 'S3';
+    if (normalized.includes('S4')) return 'S4';
+    if (normalized.includes('S5')) return 'S5';
+    return (['S1', 'S2', 'S3', 'S4', 'S5'][index] || 'S1') as 'S1' | 'S2' | 'S3' | 'S4' | 'S5';
+  };
+
+  const normalizeTitleStructures = (components: any[]): TitleStructureAsset[] => {
+    const titleAssets = components
+      .filter((component) => component.type === 'Title Structure')
+      .map((component, index) => ({
+        id: component.id,
+        name: component.name || `Estrutura ${index + 1}`,
+        pattern: component.content_pattern || component.description || '',
+        slotId: inferStructureSlot(`${component.name || ''} ${component.category || ''} ${component.content_pattern || ''}`, index),
+        source: 'library' as const,
+      }))
+      .filter((component) => component.pattern.trim() !== '');
+
+    if (titleAssets.length === 0) {
+      return DEFAULT_TITLE_STRUCTURES;
+    }
+
+    const mergedBySlot = new Map<string, TitleStructureAsset>();
+    DEFAULT_TITLE_STRUCTURES.forEach((fallback) => mergedBySlot.set(fallback.slotId, fallback));
+    titleAssets.forEach((asset) => mergedBySlot.set(asset.slotId, asset));
+
+    return ['S1', 'S2', 'S3', 'S4', 'S5'].map((slotId) => mergedBySlot.get(slotId) as TitleStructureAsset);
+  };
+
+  const fetchTitleStructures = async () => {
+    if (!activeProject?.id) {
+      setProjectTitleStructures(DEFAULT_TITLE_STRUCTURES);
+      return;
+    }
+
+    try {
+      let localItems: any[] = [];
+      const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            localItems = parsed;
+          }
+        } catch {}
+      }
+
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('narrative_components')
+          .select('*')
+          .eq('project_id', activeProject.id)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          const titleOnly = (data as any[]).filter((component) => component.type === 'Title Structure');
+          const merged = mergeNarrativeComponents(localItems, titleOnly);
+          const normalized = normalizeTitleStructures(merged);
+          setProjectTitleStructures(normalized);
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
+          return;
+        }
+      }
+
+      setProjectTitleStructures(normalizeTitleStructures(localItems));
+    } catch (err) {
+      console.warn('Erro ao buscar title structures:', err);
+      setProjectTitleStructures(DEFAULT_TITLE_STRUCTURES);
+    }
+  };
 
   const fetchThemes = async () => {
     if (!activeProject?.id) return;
@@ -147,12 +262,16 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
     if (!form.title.trim()) return;
     setSaving(true);
     try {
+      const selectedStructure = projectTitleStructures.find((structure) => structure.slotId === form.title_structure);
+      const titleStructureAssetId = selectedStructure?.source === 'library' ? selectedStructure.id : null;
       const payload = {
         title: form.title,
         description: form.description || '',
         editorial_pillar: form.editorial_pillar || '',
         status: form.status,
         title_structure: form.title_structure || '',
+        selected_structure: titleStructureAssetId || form.title_structure || '',
+        title_structure_asset_id: titleStructureAssetId,
         pipeline_level: form.pipeline_level || '',
         is_demand_vetted: !!form.is_demand_vetted,
         is_persona_vetted: !!form.is_persona_vetted,
@@ -239,18 +358,68 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Deletar este tema?')) return;
+    const themeToDelete = themes.find((item) => item.id === id);
+    if (!themeToDelete) return;
+
+    const confirmationMessage = [
+      'Voce esta apagando um registro do Banco de Temas.',
+      '',
+      `Tema: ${themeToDelete.title}`,
+      `Projeto: ${activeProject?.name || activeProject?.project_name || 'Projeto ativo'}`,
+      `Status atual: ${STATUS_META[themeToDelete.status]?.label || themeToDelete.status}`,
+      '',
+      'Isto vai remover deste projeto:',
+      '- titulo, descricao e notas do tema',
+      '- status, pilar, pipeline e estrutura vinculada no Banco de Temas',
+      '- o atalho de retorno deste tema para a Escrita Criativa',
+      '',
+      'Isto nao apaga:',
+      '- Biblioteca Narrativa',
+      '- DNA/composition logs ja registrados',
+      '- metricas e analytics ja salvos',
+      '',
+      'Deseja apagar definitivamente este registro do Banco de Temas?',
+    ].join('\n');
+
+    if (!confirm(confirmationMessage)) return;
+
     try {
-      if (!supabase) {
-        const updated = themes.filter(t => t.id !== id);
-        setThemes(updated);
-        localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updated));
+      const updated = themes.filter(t => t.id !== id);
+      setThemes(updated);
+      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updated));
+
+      if (editingTheme?.id === id) {
+        closeForm();
+      }
+
+      if (!supabase) return;
+
+      let { error, count } = await supabase
+        .from('themes')
+        .delete({ count: 'exact' })
+        .eq('id', id);
+
+      if (!error && !count) {
+        const fallbackDelete = await supabase
+          .from('themes')
+          .delete({ count: 'exact' })
+          .eq('project_id', activeProject.id)
+          .eq('title', themeToDelete.title)
+          .eq('status', themeToDelete.status);
+
+        error = fallbackDelete.error;
+      }
+
+      if (error) {
+        console.error('Erro ao deletar tema na nuvem:', error);
+        alert('O tema foi removido localmente, mas a exclusao na nuvem falhou. Ele pode reaparecer se a sincronizacao remota ainda tiver esse registro.');
         return;
       }
-      await supabase.from('themes').delete().eq('id', id);
+
       await fetchThemes();
     } catch (err) {
       console.error('Erro ao deletar tema:', err);
+      alert('Nao foi possivel concluir a exclusao deste tema.');
     }
   };
 
@@ -262,6 +431,8 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
       editorial_pillar: theme.editorial_pillar || '',
       status: theme.status,
       title_structure: theme.title_structure || '',
+      selected_structure: theme.selected_structure || '',
+      title_structure_asset_id: theme.title_structure_asset_id || null,
       pipeline_level: theme.pipeline_level || '',
       is_demand_vetted: theme.is_demand_vetted || false,
       is_persona_vetted: theme.is_persona_vetted || false,
@@ -277,6 +448,32 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
     setEditingTheme(null);
     setForm(emptyTheme);
   };
+
+  const isScriptEngineTheme = (theme: Theme) =>
+    theme?.production_assets?.source === 'script_engine_manual_approval';
+
+  const reopenInWriting = (theme: Theme) => {
+    if (!activeProject?.id) return;
+
+    const executionSnapshot = theme?.production_assets?.execution_snapshot;
+    if (!executionSnapshot) {
+      alert('Este tema ainda nao tem um snapshot da Escrita Criativa para retomar.');
+      return;
+    }
+
+    localStorage.setItem(`ws_script_execution_${activeProject.id}`, JSON.stringify({
+      ...executionSnapshot,
+      updated_at: new Date().toISOString(),
+    }));
+
+    closeForm();
+    onOpenInWriting?.(theme);
+  };
+
+  const structureOptions = projectTitleStructures.map((structure) => ({
+    value: structure.slotId,
+    label: `${structure.slotId} — ${structure.name}`,
+  }));
 
   const filtered = themes
     .filter(t => !search || t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase()))
@@ -299,6 +496,70 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
     );
   }
 
+  if (workspace === 'briefing') {
+    return (
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-sage/10 border border-sage/20 rounded-xl flex items-center justify-center">
+              <Lightbulb className="text-sage" size={18} />
+            </div>
+            <div>
+              <h2 className="font-black text-white italic text-sm uppercase tracking-widest">Banco de Temas</h2>
+              <p className="text-white/30 text-[10px] uppercase tracking-widest font-black">Montagem de briefing · {activeProject.name}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setWorkspace('fila')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/60 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+          >
+            Voltar para fila
+          </button>
+        </div>
+
+        <div className="px-8 pt-4">
+          <div className="rounded-2xl border border-sage/15 bg-sage/5 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-sage mb-1">O que fazer agora</p>
+            <p className="text-[10px] text-white/40 leading-relaxed">
+              Escolha um tema com potencial, conecte a estrutura narrativa certa e feche o briefing para seguir ao roteiro.
+            </p>
+            <p className="text-[10px] text-white/25 leading-relaxed mt-2">
+              Saída esperada: tema qualificado, DNA narrativo definido e ponto de partida pronto para a Escrita Criativa.
+            </p>
+          </div>
+        </div>
+
+        <div className="px-8 pt-5 pb-4 border-b border-white/5">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { step: '1', title: 'Escolher tema', desc: 'Use um tema da fila com boa chance de virar pauta.' },
+              { step: '2', title: 'Definir DNA', desc: 'Junte estrutura, hook e ativos da biblioteca narrativa.' },
+              { step: '3', title: 'Gerar briefing', desc: 'Saia com o pacote pronto para escrever o roteiro.' },
+            ].map(item => (
+              <div key={item.step} className="p-4 rounded-2xl border border-white/5 bg-white/[0.02]">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="w-7 h-7 rounded-lg bg-sage/10 border border-sage/20 text-sage text-[10px] font-black flex items-center justify-center">
+                    {item.step}
+                  </span>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-white">{item.title}</h3>
+                </div>
+                <p className="text-[10px] text-white/30 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          <ContentHub
+            activeProject={activeProject}
+            selectedAIConfig={selectedAIConfig}
+            onGerarRoteiro={onGerarRoteiro}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -312,12 +573,32 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
             <p className="text-white/30 text-[10px] uppercase tracking-widest font-black">{activeProject.name} · {themes.length} ideias</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-sage text-midnight rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-sage/80 transition-all"
-        >
-          <Plus size={12} /> Nova Ideia
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setWorkspace('briefing')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/60 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+          >
+            Criar briefing
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-sage text-midnight rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-sage/80 transition-all"
+          >
+            <Plus size={12} /> Nova Ideia
+          </button>
+        </div>
+      </div>
+
+      <div className="px-8 pt-4">
+        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest font-black text-white/40 mb-1">O que fazer agora</p>
+          <p className="text-[10px] text-white/35 leading-relaxed">
+            Cadastre ou encontre um tema, acompanhe o status e mova para o briefing quando a ideia estiver madura.
+          </p>
+          <p className="text-[10px] text-white/25 leading-relaxed mt-2">
+            Saída esperada: tema organizado, com prioridade, pilar e base pronta para qualificação.
+          </p>
+        </div>
       </div>
 
       {/* Stats Dashboard */}
@@ -385,6 +666,15 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-black text-white text-[11px] leading-tight">{theme.title}</p>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                          {isScriptEngineTheme(theme) && (
+                            <button
+                              onClick={() => reopenInWriting(theme)}
+                              className="p-1 rounded hover:bg-sage/20 text-white/40 hover:text-sage transition-all"
+                              title="Retomar na Escrita Criativa"
+                            >
+                              <FileText size={10} />
+                            </button>
+                          )}
                           <button onClick={() => openEdit(theme)} className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-white transition-all">
                             <Edit3 size={10} />
                           </button>
@@ -412,12 +702,25 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
                             {theme.title_structure.split(' ')[0]}
                           </span>
                         )}
+                        {isScriptEngineTheme(theme) && (
+                          <span className="px-2 py-0.5 bg-sage/10 border border-sage/20 rounded text-sage text-[9px] font-black uppercase tracking-widest">
+                            Retomavel
+                          </span>
+                        )}
                         {(theme.is_demand_vetted && theme.is_persona_vetted) && (
                           <span className="ml-auto text-blue-400">
                             <CheckCircle2 size={10} />
                           </span>
                         )}
                       </div>
+                      {isScriptEngineTheme(theme) && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <FileText size={10} className="text-sage/70" />
+                          <p className="text-[10px] text-sage/70 font-black uppercase tracking-widest">
+                            Retome este tema na Escrita Criativa
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                   {items.length === 0 && (
@@ -440,7 +743,17 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
               <h3 className="font-black text-white italic text-sm uppercase tracking-widest">
                 {editingTheme ? 'Editar Tema' : 'Nova Ideia'}
               </h3>
-              <button onClick={closeForm} className="text-white/30 hover:text-white transition-all text-lg">✕</button>
+              <div className="flex items-center gap-2">
+                {editingTheme && isScriptEngineTheme(editingTheme) && (
+                  <button
+                    onClick={() => reopenInWriting(editingTheme)}
+                    className="px-3 py-2 bg-sage/10 border border-sage/20 rounded-xl text-sage text-[10px] font-black uppercase tracking-widest hover:bg-sage/20 transition-all"
+                  >
+                    Voltar para Escrita
+                  </button>
+                )}
+                <button onClick={closeForm} className="text-white/30 hover:text-white transition-all text-lg">✕</button>
+              </div>
             </div>
 
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
@@ -470,7 +783,7 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1 block">Pilar Editorial</label>
                   <CustomSelect
-                    value={form.editorial_pillar}
+                    value={form.editorial_pillar || ''}
                     onChange={val => setForm(f => ({ ...f, editorial_pillar: val }))}
                     options={currentPillarOptions}
                     placeholder="Selecionar"
@@ -479,7 +792,7 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1 block">Pipeline de Deploy</label>
                   <CustomSelect
-                    value={form.pipeline_level}
+                    value={form.pipeline_level || ''}
                     onChange={val => setForm(f => ({ ...f, pipeline_level: val }))}
                     options={PIPELINE_OPTIONS}
                     placeholder="Selecionar T1-T3"
@@ -491,10 +804,10 @@ export default function ThemeBank({ activeProject: propProject, userId }: ThemeB
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1 block">Estrutura de Título</label>
                   <CustomSelect
-                    value={form.title_structure}
+                    value={form.title_structure || ''}
                     onChange={val => setForm(f => ({ ...f, title_structure: val }))}
-                    options={STRUCTURE_OPTIONS}
-                    placeholder="Selecionar S1-S5"
+                    options={structureOptions}
+                    placeholder="Selecionar estrutura do projeto"
                   />
                 </div>
                 <div>

@@ -486,7 +486,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .filter((line) => !/^(Desenvolver:|Elemento de comunidade:|Estrutura de titulo|Hook de referencia:|CTA de referencia:|Objetivo:|Conecte com a PUC:)/i.test(line));
+        .filter((line) => !/^(Desenvolver:|Elemento de comunidade:|Estrutura de titulo|Camada de abertura de referencia:|Camada final de conversao de referencia:|Hook de referencia:|CTA de referencia:|Objetivo:|Conecte com a PUC:)/i.test(line));
       return filtered[0] || content.trim();
     };
 
@@ -515,6 +515,33 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       return `Transicao obrigatoria: termine este bloco preparando a entrada de "${nextBlock.title}" como evolucao direta do raciocinio atual, ${roleGuidance}.`;
     };
 
+    const buildExecutionPosture = (
+      voiceStyle?: string,
+      narrativeRole?: string
+    ) => {
+      const voiceGuidance =
+        voiceStyle === 'Desafio Direto'
+          ? 'fale em segunda pessoa, com urgencia clara, comando pratico e confronto sem agressividade vazia'
+          : voiceStyle === 'Vulnerabilidade'
+            ? 'fale em primeira pessoa, com cena concreta, vulnerabilidade real e intimidade sem melodrama'
+            : 'fale em terceira pessoa tecnica, mostrando mecanismo, criterio observavel e impacto mensuravel';
+
+      const roleGuidance =
+        narrativeRole === 'Ruptura'
+          ? 'abra quebrando a inercia e expondo a tensao central logo no primeiro paragrafo'
+          : narrativeRole === 'Espelho'
+            ? 'priorize identificacao, reconhecimento e proximidade emocional antes de ampliar a explicacao'
+            : narrativeRole === 'Diagnostico'
+              ? 'priorize causa, mecanismo e leitura estrutural antes de prescrever'
+              : narrativeRole === 'Virada'
+                ? 'introduza uma mudanca perceptivel de eixo, verdade contraintuitiva ou decisao irreversivel'
+                : narrativeRole === 'Aplicacao'
+                  ? 'converta o raciocinio em experimento, checklist, protocolo ou decisao executavel'
+                  : 'sintetize, convoque e conclua com sensacao de fechamento natural';
+
+      return `Postura obrigatoria: ${voiceGuidance}; ${roleGuidance}.`;
+    };
+
     let developmentIndex = 0;
     const blockSpecifications = promptBlocks.map((block, index) => {
       const previousBlock = promptBlocks[index - 1];
@@ -535,6 +562,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         `Voz dominante: ${orchestratedBlock?.voiceStyle || approvedBriefing?.dominantVoice || 'Nao definida'}`,
         `Mapa de tensao: ${orchestratedBlock?.tensionLevel || 'Media'} | Papel: ${orchestratedBlock?.narrativeRole || 'Diagnostico'} | Transicao: ${orchestratedBlock?.transitionMode || 'Consequencia'}`,
         `Funcao narrativa: ${orchestratedBlock?.missionNarrative || block.content}`,
+        buildExecutionPosture(orchestratedBlock?.voiceStyle, orchestratedBlock?.narrativeRole),
         `Diretriz estrutural: ${extractPrimaryDirective(block.content)}`,
         `SOP / entonacao: ${block.sop || 'Nao definido'}`,
         ...connectionLines,
@@ -565,8 +593,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       : '';
 
     const lockedCompositionSection = approvedBriefing?.diagnostics ? [
-      `Hook selecionado: ${approvedBriefing?.openingHook?.name || 'Nao definido'}`,
-      `CTA selecionado: ${approvedBriefing?.selectedCta?.name || 'Nao definido'}`,
+      `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
+      `Camada final de conversao selecionada: ${approvedBriefing?.selectedCta?.name || 'Nao definida'}`,
       `Estrutura selecionada: ${approvedBriefing?.selectedTitleStructure?.name || 'Nao definida'}`,
       `Curva selecionada: ${selectedNarrativeCurve?.name || 'Nao definida'}`,
       `Modo de argumentacao: ${selectedArgumentMode?.name || 'Nao definido'}`,
@@ -587,7 +615,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 OBJETIVO
 - Produzir um roteiro final humano, natural e variado.
 - Respeitar a engenharia narrativa definida pelo orquestrador.
-- Tratar hook, CTA, estrutura de titulo e elementos de comunidade apenas como referencia funcional e semantica.
+- Tratar a camada de abertura, a camada final de conversao, a estrutura de titulo e os elementos de comunidade apenas como referencia funcional e semantica.
 - Nunca copiar literalmente frases, slogans, quotes, patterns ou construcoes reconheciveis vindas da biblioteca narrativa.
 - Fazer os blocos soarem como uma fala continua de um humano, nao como pecas coladas.
 - Tratar a curva narrativa como progressao macro obrigatoria do roteiro.
@@ -612,7 +640,7 @@ DIRECAO ORQUESTRADA
 ${lockedCompositionSection}
 - Blueprint macro da curva: ${selectedNarrativeCurve?.pattern || 'Nao definido'}
 - Diretriz do argumento: ${selectedArgumentMode?.pattern || 'Nao definida'}
-- O total de blocos acima ja inclui Hook e CTA final.
+- A camada de abertura deve viver no inicio do primeiro bloco, e a camada final de conversao deve fechar o ultimo bloco, sem criar blocos extras.
 ${hasMidCta ? '- Se houver intervencao intermediaria, ela deve ser embutida na passagem indicada, sem virar bloco extra.\n' : ''}
 RESTRICOES DE REPETICAO
 ${repetitionRulesSection}
@@ -630,7 +658,7 @@ MAPA DE TENSAO NARRATIVA
 - Transicao: define como o bloco deve empurrar o proximo, evitando texto compartimentado.
 
 CURVA DEFINIDA PELO ORQUESTRADOR
-${centralDevelopmentBlocks > 0 ? '- A curva abaixo vale para os blocos centrais de desenvolvimento, nao para Hook e CTA final.\n' : ''}${narrativeArcSummary || 'Curva narrativa nao definida.'}
+${centralDevelopmentBlocks > 0 ? '- A curva abaixo vale para os blocos centrais de desenvolvimento; a abertura e o fechamento funcionam como camadas narrativas acopladas ao primeiro e ao ultimo bloco.\n' : ''}${narrativeArcSummary || 'Curva narrativa nao definida.'}
 
 REGRAS GERAIS DE ESCRITA
 - Preserve a funcao de cada bloco exatamente na ordem fornecida.
@@ -644,6 +672,8 @@ REGRAS GERAIS DE ESCRITA
 - Use transicoes humanas: consequencia, contraste, aprofundamento, confissao, diagnostico, objecao respondida ou preparacao pratica.
 - Se um bloco trouxer vulnerabilidade, o proximo precisa aproveitar essa emocao e converte-la em raciocinio, nao trocar abruptamente de tom.
 - Se um bloco trouxer diagnostico, o proximo precisa parecer resposta ou evolucao natural desse diagnostico.
+- Quando houver qualquer ambiguidade entre a funcao narrativa e a redacao bruta do bloco, obedeca primeiro a postura obrigatoria e a voz dominante declarada.
+- Marcadores explicitos de narracao devem ser tratados como prioridade maxima: primeira pessoa para vulnerabilidade, segunda pessoa para desafio direto e terceira pessoa para diagnostico tecnico.
 - Sempre que possivel, transforme abstracao em cena, sintoma observavel, metrica simples ou decisao concreta.
 - O roteiro completo precisa parecer escrito de uma vez so, com progressao, cadencia e memoria interna.
 - Nao devolver explicacoes, rotulos tecnicos, markdown ou comentarios sobre o processo.
@@ -685,20 +715,20 @@ FORMATO DE SAIDA
 
   const buildScriptBlocksFromBriefing = (briefing: any, theme: string): ScriptBlock[] => {
     const sop = activeProject?.editing_sop || { cut_rhythm: '3s', zoom_style: 'Dynamic', soundtrack: 'Reflexive' };
-    const hookReference = describeNarrativeAssetReference('Hook de referencia', briefing.openingHook);
-    const ctaReference = describeNarrativeAssetReference('CTA de referencia', briefing.selectedCta);
+    const hookReference = describeNarrativeAssetReference('Camada de abertura de referencia', briefing.openingHook);
+    const ctaReference = describeNarrativeAssetReference('Camada final de conversao de referencia', briefing.selectedCta);
     const structureReference = describeNarrativeAssetReference('Estrutura de titulo', briefing.selectedTitleStructure);
     const midCtaPosition = Number(briefing?.midCta?.position ?? -1);
 
     return (briefing?.blocks || []).map((b: any, i: number) => {
       const openingLayer = i === 0
-        ? `Abra este primeiro bloco com a funcao narrativa do hook abaixo, sem copiar a formulacao original.\n\n${hookReference}\n`
+        ? `Abra este primeiro bloco incorporando a camada de abertura abaixo, sem copiar a formulacao original e sem transformar isso em um bloco separado.\n\n${hookReference}\n`
         : '';
       const midCtaLayer = briefing?.midCta && i === midCtaPosition
         ? `\n\nIntervencao intermediaria obrigatoria: embuta uma microchamada organicamente na passagem deste bloco, sem criar novo bloco numerado.\nReferencia funcional: ${briefing.midCta.pattern || 'Nao definida'}`
         : '';
       const closingLayer = i === ((briefing?.blocks?.length || 1) - 1)
-        ? `\n\nFechamento obrigatorio: encerre este ultimo bloco incorporando a funcao do CTA final, sem separar em um bloco adicional.\n\n${ctaReference}\n\nConecte com a PUC: ${activeProject?.puc || 'DNA do projeto'}`
+        ? `\n\nFechamento obrigatorio: encerre este ultimo bloco incorporando a camada final de conversao abaixo, sem separar isso em um bloco adicional.\n\n${ctaReference}\n\nConecte com a PUC: ${activeProject?.puc || 'DNA do projeto'}`
         : '';
 
       return {
@@ -1329,8 +1359,8 @@ FORMATO DE SAIDA
 
                   const minutes = Number((approvedBriefing.estimatedDuration || '').match(/\d+/)?.[0] || 0);
                   const targetChars = Number(approvedBriefing.estimatedChars || (minutes ? minutes * 1200 : 0)) || 0;
-                  const hookReference = describeNarrativeAssetReference('Hook de referencia', approvedBriefing?.openingHook);
-                  const ctaReference = describeNarrativeAssetReference('CTA de referencia', approvedBriefing?.selectedCta);
+                  const hookReference = describeNarrativeAssetReference('Camada de abertura de referencia', approvedBriefing?.openingHook);
+                  const ctaReference = describeNarrativeAssetReference('Camada final de conversao de referencia', approvedBriefing?.selectedCta);
                   const structureReference = describeNarrativeAssetReference('Estrutura de titulo de referencia', approvedBriefing?.selectedTitleStructure);
                   const curveReference = describeNarrativeAssetReference('Curva narrativa de referencia', approvedBriefing?.selectedNarrativeCurve);
                   const argumentReference = describeNarrativeAssetReference('Modo de argumentacao de referencia', approvedBriefing?.selectedArgumentMode);
@@ -1347,7 +1377,7 @@ REGRAS:
 - Linguagem direta, pragmÃ¡tica.
 - Voz coerente com o tipo do bloco.
 - Use metÃ¡foras do projeto quando fizer sentido.
-- Use hook, CTA, estrutura e elementos de comunidade apenas como referencia funcional e semantica.
+- Use a camada de abertura, a camada final de conversao, a estrutura e os elementos de comunidade apenas como referencia funcional e semantica.
 - NÃ£o copie literalmente frases, slogans, exemplos ou patterns vindos da biblioteca narrativa.
 - Reescreva com linguagem humana, natural e variada, preservando a funÃ§Ã£o estratÃ©gica do asset.
 - NÃ£o escreva markdown.
@@ -1358,8 +1388,8 @@ Persona: ${activeProject?.persona_matrix?.demographics || ''}
 Dor Central: ${activeProject?.persona_matrix?.pain_alignment || ''}
 MetÃ¡foras: ${activeProject?.metaphor_library || ''}
 Elementos de Comunidade: ${(uniqueCommunityTemplates || []).map((c: any) => c.content_pattern || c.name).filter(Boolean).join(' | ')}
-Hook de referÃªncia: ${describeNarrativeReference('Hook', approvedBriefing?.openingHook?.pattern)}
-CTA de referÃªncia: ${describeNarrativeReference('CTA', approvedBriefing?.selectedCta?.pattern)}
+Camada de abertura de referÃªncia: ${describeNarrativeReference('Camada de abertura', approvedBriefing?.openingHook?.pattern)}
+Camada final de conversÃ£o de referÃªncia: ${describeNarrativeReference('Camada final de conversao', approvedBriefing?.selectedCta?.pattern)}
 Estrutura de tÃ­tulo de referÃªncia: ${describeNarrativeReference('Estrutura', approvedBriefing?.selectedTitleStructure?.pattern)}
 
 TEMA: ${approvedBriefing.title}
@@ -1380,7 +1410,7 @@ REGRAS:
 - Linguagem direta, pragmÃƒÂ¡tica.
 - Voz coerente com o tipo do bloco.
 - Use metÃƒÂ¡foras do projeto quando fizer sentido.
-- Use hook, CTA, estrutura e elementos de comunidade apenas como referencia funcional e semantica.
+- Use a camada de abertura, a camada final de conversao, a estrutura e os elementos de comunidade apenas como referencia funcional e semantica.
 - NÃƒÂ£o copie literalmente frases, slogans, exemplos, quotes, patterns ou sequencias de palavras vindas da biblioteca narrativa.
 - Reescreva com linguagem humana, natural e variada, preservando a funÃƒÂ§ÃƒÂ£o estratÃƒÂ©gica do asset.
 - Quando receber referencias narrativas, extraia apenas a intencao, o papel do bloco e o efeito desejado.

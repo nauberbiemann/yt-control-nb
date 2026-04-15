@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useActiveProject } from '@/lib/store/projectStore';
@@ -22,7 +22,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-// ─── TYPES ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface GatekeeperResult {
   matchScore: number;
@@ -38,7 +38,7 @@ interface AssemblerBlock {
   id: string;
   name: string;
   missionNarrative: string;
-  voiceStyle: 'Desafio Direto' | 'Vulnerabilidade' | 'Diagnóstico Técnico';
+  voiceStyle: 'Desafio Direto' | 'Vulnerabilidade' | 'DiagnÃ³stico TÃ©cnico';
   assetId?: string;
   type: 'Hook' | 'Metaphor' | 'CTA';
   isNarrativeTwist?: boolean;
@@ -121,29 +121,29 @@ interface ProductionAssemblerProps {
   onApprove: (briefing: ProductionBriefing, theme: string) => void;
 }
 
-// ─── SHUFFLE ENGINE (CLIENT-SIDE) ────────────────────────────────────────────
+// â”€â”€â”€ SHUFFLE ENGINE (CLIENT-SIDE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const VOICE_STYLES: AssemblerBlock['voiceStyle'][] = [
   'Desafio Direto',
   'Vulnerabilidade',
-  'Diagnóstico Técnico',
+  'DiagnÃ³stico TÃ©cnico',
 ];
 
 const VOICE_MISSION_MAP: Record<AssemblerBlock['voiceStyle'], string[]> = {
   'Desafio Direto': [
-    'Provocar ação imediata — confrontar a crença limitante do espectador.',
-    'Challenger Frame — expor o que o espectador está fazendo errado.',
-    'Autoridade agressiva — posicionar a autoridade do criador com desafio direto.',
+    'Provocar aÃ§Ã£o imediata â€” confrontar a crenÃ§a limitante do espectador.',
+    'Challenger Frame â€” expor o que o espectador estÃ¡ fazendo errado.',
+    'Autoridade agressiva â€” posicionar a autoridade do criador com desafio direto.',
   ],
   'Vulnerabilidade': [
-    'Storytelling pessoal — compartilhar falha ou aprendizado do criador.',
-    'Espelho emocional — fazer o espectador se sentir visto e compreendido.',
-    'Jornada de herói — como o criador passou pelo mesmo problema.',
+    'Storytelling pessoal â€” compartilhar falha ou aprendizado do criador.',
+    'Espelho emocional â€” fazer o espectador se sentir visto e compreendido.',
+    'Jornada de herÃ³i â€” como o criador passou pelo mesmo problema.',
   ],
-  'Diagnóstico Técnico': [
-    'Análise de dados — apresentar evidências e números para validar o ponto.',
-    'Framework sistêmico — decompor o problema em componentes técnicos.',
-    'Diagnóstico de mercado — o que a maioria faz errado e por quê.',
+  'DiagnÃ³stico TÃ©cnico': [
+    'AnÃ¡lise de dados â€” apresentar evidÃªncias e nÃºmeros para validar o ponto.',
+    'Framework sistÃªmico â€” decompor o problema em componentes tÃ©cnicos.',
+    'DiagnÃ³stico de mercado â€” o que a maioria faz errado e por quÃª.',
   ],
 };
 
@@ -174,7 +174,7 @@ const dedupeNarrativeComponents = (items: any[]) => {
 };
 
 
-// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ COMPONENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SCORE_COLOR = (score: number) => {
   if (score >= 70) return { text: 'text-green-400', bg: 'bg-green-400', border: 'border-green-400/30', badge: 'bg-green-400/10 text-green-400 border-green-400/30' };
@@ -185,13 +185,13 @@ const SCORE_COLOR = (score: number) => {
 const VOICE_ICON: Record<string, any> = {
   'Desafio Direto': Zap,
   'Vulnerabilidade': Mic,
-  'Diagnóstico Técnico': TrendingUp,
+  'DiagnÃ³stico TÃ©cnico': TrendingUp,
 };
 
 const VOICE_COLOR: Record<string, string> = {
   'Desafio Direto': 'text-orange-400 border-orange-400/20 bg-orange-400/5',
   'Vulnerabilidade': 'text-purple-400 border-purple-400/20 bg-purple-400/5',
-  'Diagnóstico Técnico': 'text-blue-400 border-blue-400/20 bg-blue-400/5',
+  'DiagnÃ³stico TÃ©cnico': 'text-blue-400 border-blue-400/20 bg-blue-400/5',
 };
 
 const formatVoicePatternLabel = (patternId?: string) => {
@@ -253,7 +253,7 @@ const getNarrativeTensionMap = (
     };
   }
 
-  if (voiceStyle === 'Diagnóstico Técnico') {
+  if (voiceStyle === 'DiagnÃ³stico TÃ©cnico') {
     return {
       tensionLevel: 'Media',
       narrativeRole: 'Diagnostico',
@@ -273,6 +273,128 @@ const normalizeSignal = (value?: string) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+
+const analyzeNarrativeSignal = (value?: string) => {
+  const signal = normalizeSignal(value);
+
+  const explicitFirstPerson =
+    /(primeira pessoa|eu\b|eu confesso|eu precisei|eu descobri|eu acumulei|eu tive|eu descrevo|eu falo|eu comeco|eu começo|meu|minha)/.test(signal);
+  const explicitSecondPerson =
+    /(segunda pessoa|voce\b|voce precisa|voce vai|pare de|implemente|aplique|execute|liste|desenhe|mapeie|defina|instrua|enderece)/.test(signal);
+  const explicitThirdPerson =
+    /(3a pessoa|terceira pessoa|ele\b|ela\b|apresente|explique|modele|calcule|mostre o mecanismo)/.test(signal);
+
+  const diagnosticScore =
+    (/(diagnost|arquitet|mecanismo|metrica|metricas|mensur|framework|causa|impacto|analise|explique|apresente|modele|calcule|sistema|fisiolog)/.test(signal) ? 3 : 0)
+    + (/(throughput|latencia|sla|slo|rto|kpi|percentual|producao|produtividade|tempo de reacao|erros por tarefa)/.test(signal) ? 2 : 0)
+    + (explicitThirdPerson ? 4 : 0);
+
+  const vulnerabilityScore =
+    (/(vulnerab|intimidade|cena concreta|relato|confiss|eu confesso|eu precisei|eu descobri|eu acumulei|eu tive|eu falo|eu descrevo|eu comeco|eu começo)/.test(signal) ? 4 : 0)
+    + (/(cansaco|dor|culpa|falhei|falha pessoal|desgaste|esgotamento|recaida|recidiva|sinais do corpo)/.test(signal) ? 2 : 0)
+    + (explicitFirstPerson ? 4 : 0);
+
+  const challengeScore =
+    (/(desafio direto|fale direto|voce precisa|voce vai|implemente|aplique|execute|liste|defina|desenhe|mapeie|instrua|convide a audiencia|enderece o publico)/.test(signal) ? 4 : 0)
+    + (/(passos|checklist|comando pratico|hoje|agora|48|72|duas semanas|14 dias|implementar|negocie|registre metricas)/.test(signal) ? 2 : 0)
+    + (explicitSecondPerson ? 4 : 0);
+
+  return {
+    signal,
+    explicitFirstPerson,
+    explicitSecondPerson,
+    explicitThirdPerson,
+    diagnosticScore,
+    vulnerabilityScore,
+    challengeScore,
+    isDiagnosticBlock: /(diagnost|framework|analise|sintoma|evidenc|medida|mape|causa|mecanismo|metrica|sla|slo|rto|kpi)/.test(signal),
+    isMirrorBlock: /(vulnerab|historia|confiss|falha|espelho|cansa|dor|relato|depoimento|meu|minha)/.test(signal),
+    isActionBlock: /(aplic|pratica|checklist|passo|implement|protocolo|acao|plano|execuc|deploy|configure|negocie|registre|defina)/.test(signal),
+    isChallengeDirective: /(segunda pessoa|desafio|voce precisa|voce vai|implemente|aplique|execute|liste|defina|desenhe|mapeie|instrua|enderece)/.test(signal),
+  };
+};
+
+const normalizeMissionNarrativeForVoice = ({
+  missionNarrative,
+  voiceStyle,
+}: {
+  missionNarrative?: string;
+  voiceStyle: AssemblerBlock['voiceStyle'];
+}) => {
+  const raw = (missionNarrative || '').trim();
+  if (!raw) return raw;
+
+  let normalized = raw
+    .replace(/\b(em|na)\s+(3a|terceira)\s+pessoa\b[^:]*:?\s*/gi, '')
+    .replace(/\b(em|na)\s+primeira\s+pessoa\b[^:]*:?\s*/gi, '')
+    .replace(/\b(em|na)\s+segunda\s+pessoa\b[^:]*:?\s*/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (voiceStyle === 'Vulnerabilidade') {
+    normalized = normalized
+      .replace(/\bdesafie o espectador\b/gi, 'convide o espectador')
+      .replace(/\bfale direto ao espectador\b/gi, 'fale com honestidade a partir da propria experiencia')
+      .replace(/\bapresente em 3a pessoa\b/gi, 'compartilhe a partir da propria experiencia')
+      .replace(/\bdescreva em terceira pessoa\b/gi, 'descreva a partir da propria experiencia')
+      .replace(/\bele observa\b/gi, 'eu observo')
+      .replace(/\bele demonstra\b/gi, 'eu demonstro')
+      .replace(/\bele conclui\b/gi, 'eu concluo');
+  } else if (voiceStyle === 'Desafio Direto') {
+    normalized = normalized
+      .replace(/\bdescreva em terceira pessoa\b/gi, 'fale diretamente com o espectador e descreva')
+      .replace(/\bapresente em 3a pessoa\b/gi, 'fale diretamente com o espectador e apresente')
+      .replace(/\bele observa\b/gi, 'mostre ao espectador')
+      .replace(/\bele demonstra\b/gi, 'mostre ao espectador')
+      .replace(/\bele conclui\b/gi, 'leve o espectador a concluir')
+      .replace(/\beu confesso\b/gi, 'mostre sem rodeios')
+      .replace(/\beu descrevo\b/gi, 'oriente o espectador a mapear')
+      .replace(/\beu falo\b/gi, 'fale diretamente');
+  } else {
+    normalized = normalized
+      .replace(/\beu confesso\b/gi, 'ele observa com clareza')
+      .replace(/\beu descrevo\b/gi, 'ele descreve tecnicamente')
+      .replace(/\beu falo\b/gi, 'ele explica')
+      .replace(/\bdesafie o espectador\b/gi, 'explique ao espectador')
+      .replace(/\bfale direto ao espectador\b/gi, 'explique ao espectador')
+      .replace(/\bvocê\b/gi, 'o profissional');
+  }
+
+  return normalized.replace(/\s{2,}/g, ' ').trim();
+};
+
+const inferVoiceStyleFromMission = ({
+  missionNarrative,
+  blockName,
+  fallbackVoice,
+}: {
+  missionNarrative?: string;
+  blockName?: string;
+  fallbackVoice: AssemblerBlock['voiceStyle'];
+}): AssemblerBlock['voiceStyle'] => {
+  const {
+    explicitFirstPerson,
+    explicitSecondPerson,
+    explicitThirdPerson,
+    diagnosticScore,
+    vulnerabilityScore,
+    challengeScore,
+  } = analyzeNarrativeSignal(`${blockName || ''} ${missionNarrative || ''}`);
+
+  if (explicitFirstPerson && !explicitSecondPerson && !explicitThirdPerson) return 'Vulnerabilidade';
+  if (explicitSecondPerson && !explicitFirstPerson && !explicitThirdPerson) return 'Desafio Direto';
+  if (explicitThirdPerson && !explicitFirstPerson && !explicitSecondPerson) return 'DiagnÃ³stico TÃ©cnico';
+
+  const ranked = [
+    { voice: 'DiagnÃ³stico TÃ©cnico' as const, score: diagnosticScore },
+    { voice: 'Vulnerabilidade' as const, score: vulnerabilityScore },
+    { voice: 'Desafio Direto' as const, score: challengeScore },
+  ].sort((a, b) => b.score - a.score);
+
+  if ((ranked[0]?.score || 0) === 0) return fallbackVoice;
+  if (ranked[0].score === ranked[1]?.score) return fallbackVoice;
+  return ranked[0].voice;
+};
 
 const getAdvancedNarrativeTensionMap = ({
   index,
@@ -295,17 +417,31 @@ const getAdvancedNarrativeTensionMap = ({
 }): Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole' | 'transitionMode'> => {
   const baseMap = getNarrativeTensionMap(index, total, voiceStyle, isNarrativeTwist);
   const themeSignal = normalizeSignal(themeText);
-  const blockSignal = normalizeSignal(`${blockName || ''} ${missionNarrative || ''}`);
+  const {
+    signal: blockSignal,
+    explicitFirstPerson,
+    explicitSecondPerson,
+    explicitThirdPerson,
+    diagnosticScore,
+    vulnerabilityScore,
+    challengeScore,
+    isDiagnosticBlock,
+    isMirrorBlock,
+    isActionBlock,
+    isChallengeDirective,
+  } = analyzeNarrativeSignal(`${blockName || ''} ${missionNarrative || ''}`);
   const patternSignal = normalizeSignal(voicePatternId);
 
   const isChallengeTheme = /(erro|falha|choque|crash|vicio|burnout|vazamento|leak|queda|perda|throttling|divida|ego|panic)/.test(themeSignal);
   const isTransformationTheme = /(refator|rebuild|reconstr|patch|plano|melhor|otimiz|implement|rotina|sistema|build|protocolo|firewall)/.test(themeSignal);
-  const isDiagnosticBlock = /(diagnost|framework|analise|sintoma|evidenc|medida|mape|causa)/.test(blockSignal);
-  const isMirrorBlock = /(vulnerab|historia|confiss|falha|espelho|cansa|dor|relato|depoimento)/.test(blockSignal);
-  const isActionBlock = /(aplic|pratica|checklist|passo|implement|protocolo|acao|plano|execuc|deploy)/.test(blockSignal);
   const challengeFirst = patternSignal.includes('challenge-first');
   const vulnerabilityFirst = patternSignal.includes('vulnerability-first');
   const diagnosticFirst = patternSignal.includes('diagnostic-first');
+  const safeTotal = Math.max(total, 1);
+  const progress = safeTotal > 1 ? index / (safeTotal - 1) : 0;
+  const preTwistZone = progress < 0.45;
+  const postTwistZone = progress > 0.58;
+  const reflectiveLateZone = progress >= 0.68 && progress < 1;
 
   if (isNarrativeTwist) {
     return {
@@ -316,24 +452,8 @@ const getAdvancedNarrativeTensionMap = ({
   }
 
   if (index === 0) {
-    if (vulnerabilityFirst || voiceStyle === 'Vulnerabilidade') {
-      return {
-        tensionLevel: 'Media',
-        narrativeRole: 'Espelho',
-        transitionMode: 'Aprofundamento',
-      };
-    }
-
-    if (diagnosticFirst || isDiagnosticBlock) {
-      return {
-        tensionLevel: 'Media',
-        narrativeRole: 'Diagnostico',
-        transitionMode: 'Consequencia',
-      };
-    }
-
     return {
-      tensionLevel: isChallengeTheme ? 'Alta' : baseMap.tensionLevel,
+      tensionLevel: 'Alta',
       narrativeRole: 'Ruptura',
       transitionMode: 'Contraste',
     };
@@ -341,40 +461,88 @@ const getAdvancedNarrativeTensionMap = ({
 
   if (index === total - 1) {
     return {
-      tensionLevel: isTransformationTheme ? 'Media' : 'Baixa',
+      tensionLevel: 'Media',
       narrativeRole: 'Fechamento',
       transitionMode: 'Convocacao',
     };
   }
 
-  if (index >= Math.max(total - 2, 1) || isActionBlock) {
+  if (reflectiveLateZone && vulnerabilityScore > Math.max(diagnosticScore, challengeScore) && (isMirrorBlock || explicitFirstPerson || voiceStyle === 'Vulnerabilidade')) {
     return {
-      tensionLevel: isTransformationTheme ? 'Media' : 'Baixa',
-      narrativeRole: 'Aplicacao',
-      transitionMode: 'Consequencia',
-    };
-  }
-
-  if (isMirrorBlock || voiceStyle === 'Vulnerabilidade') {
-    return {
-      tensionLevel: isChallengeTheme ? 'Media' : 'Baixa',
+      tensionLevel: 'Baixa',
       narrativeRole: 'Espelho',
       transitionMode: 'Aprofundamento',
     };
   }
 
-  if (isDiagnosticBlock || voiceStyle === 'Diagnóstico Técnico') {
+  if (preTwistZone && vulnerabilityScore > Math.max(diagnosticScore, challengeScore) && (vulnerabilityFirst || isMirrorBlock || explicitFirstPerson || voiceStyle === 'Vulnerabilidade')) {
     return {
-      tensionLevel: challengeFirst || isChallengeTheme ? 'Media' : 'Baixa',
+      tensionLevel: 'Media',
+      narrativeRole: 'Espelho',
+      transitionMode: 'Aprofundamento',
+    };
+  }
+
+  if (preTwistZone && diagnosticScore >= Math.max(vulnerabilityScore, challengeScore) && (diagnosticFirst || isDiagnosticBlock || explicitThirdPerson || voiceStyle === 'DiagnÃ³stico TÃ©cnico')) {
+    return {
+      tensionLevel: 'Media',
       narrativeRole: 'Diagnostico',
       transitionMode: 'Consequencia',
     };
   }
 
+  if (preTwistZone && challengeScore > Math.max(vulnerabilityScore, diagnosticScore) && (isChallengeDirective || explicitSecondPerson || (voiceStyle === 'Desafio Direto' && isActionBlock))) {
+    return {
+      tensionLevel: challengeFirst || isChallengeTheme ? 'Alta' : 'Media',
+      narrativeRole: index <= 1 ? 'Ruptura' : 'Aplicacao',
+      transitionMode: index <= 1 ? 'Contraste' : 'Consequencia',
+    };
+  }
+
+  if (index >= Math.max(total - 2, 1)) {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: 'Aplicacao',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  if (postTwistZone && (isActionBlock || isTransformationTheme || voiceStyle === 'Desafio Direto')) {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: 'Aplicacao',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  if (diagnosticScore >= Math.max(vulnerabilityScore, challengeScore) && (isDiagnosticBlock || explicitThirdPerson || voiceStyle === 'DiagnÃ³stico TÃ©cnico')) {
+    return {
+      tensionLevel: 'Media',
+      narrativeRole: postTwistZone ? 'Aplicacao' : 'Diagnostico',
+      transitionMode: 'Consequencia',
+    };
+  }
+
+  if (vulnerabilityScore > Math.max(diagnosticScore, challengeScore) && (isMirrorBlock || explicitFirstPerson || voiceStyle === 'Vulnerabilidade')) {
+    return {
+      tensionLevel: postTwistZone ? 'Baixa' : 'Media',
+      narrativeRole: 'Espelho',
+      transitionMode: 'Aprofundamento',
+    };
+  }
+
+  if (challengeScore > Math.max(vulnerabilityScore, diagnosticScore) && (isChallengeDirective || explicitSecondPerson || voiceStyle === 'Desafio Direto')) {
+    return {
+      tensionLevel: postTwistZone ? 'Media' : (challengeFirst || isChallengeTheme ? 'Alta' : 'Media'),
+      narrativeRole: postTwistZone ? 'Aplicacao' : 'Ruptura',
+      transitionMode: postTwistZone ? 'Consequencia' : 'Contraste',
+    };
+  }
+
   return {
-    tensionLevel: challengeFirst ? 'Alta' : baseMap.tensionLevel,
-    narrativeRole: isTransformationTheme ? 'Aplicacao' : baseMap.narrativeRole,
-    transitionMode: isTransformationTheme ? 'Consequencia' : baseMap.transitionMode,
+    tensionLevel: challengeFirst || isChallengeTheme ? 'Alta' : baseMap.tensionLevel,
+    narrativeRole: postTwistZone || isTransformationTheme ? 'Aplicacao' : baseMap.narrativeRole,
+    transitionMode: postTwistZone || isTransformationTheme ? 'Consequencia' : baseMap.transitionMode,
   };
 };
 
@@ -450,7 +618,7 @@ const redistributeBlockCharsByNarrativeMap = (blocks: AssemblerBlock[], totalBod
   }));
 };
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// â”€â”€â”€ MAIN COMPONENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function ProductionAssembler({ components, componentsHydrated = true, onApprove }: ProductionAssemblerProps) {
   const activeProject = useActiveProject();
@@ -564,12 +732,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       }] : [];
       const controlHistory = [...inMemoryComp, ...previousComps];
 
-      // Parse SOP ranges — handles formats: '4-7', '8-13', '12+', '18', '18-22'
+      // Parse SOP ranges â€” handles formats: '4-7', '8-13', '12+', '18', '18-22'
       const sopRaw = activeProject?.editing_sop || {};
       const parseRange = (s: string | undefined, fa: number, fb: number): [number, number] => {
         if (!s) return [fa, fb];
         const str = String(s).trim();
-        // Handle '12+' notation → [12, 12+4]
+        // Handle '12+' notation â†’ [12, 12+4]
         if (str.endsWith('+')) {
           const n = parseInt(str, 10);
           return isNaN(n) ? [fa, fb] : [n, n + 4];
@@ -579,7 +747,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
           return [parts[0], parts[1]];
         }
-        // Handle plain number → [n, n]
+        // Handle plain number â†’ [n, n]
         const single = parseInt(str, 10);
         if (!isNaN(single)) return [single, single];
         return [fa, fb];
@@ -673,10 +841,10 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       const data = await res.json();
 
       if (!data.blocks || data.blocks.length === 0) {
-        throw new Error('O motor V14 não retornou blocos. Verifique se há Hooks e CTAs cadastrados na Biblioteca Narrativa.');
+        throw new Error('O motor V14 nÃ£o retornou blocos. Verifique se hÃ¡ Hooks e CTAs cadastrados na Biblioteca Narrativa.');
       }
 
-      // Map API response → ProductionBriefing
+      // Map API response â†’ ProductionBriefing
       const selectedHook = hooks.find(h => h.id === data.selectedHookId) || hooks[0];
       const selectedCta  = ctas.find(c => c.id === data.selectedCtaId)   || ctas[0];
       const selectedTitleStructure = titleStructures.find(t => t.id === data.selectedTitleStructureId) || titleStructures[0];
@@ -696,12 +864,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             : 'Historico registrado';
       const historyChoiceReason =
         sessionHistoryCount > 0 && registeredHistoryCount > 0
-          ? 'O motor combinou o historico ja registrado com a sessao atual para evitar repetir hook, cta, estrutura, curva, argumento, duracao, contagem e voz.'
+          ? 'O motor combinou o historico ja registrado com a sessao atual para evitar repetir abertura, conversao final, estrutura, curva, argumento, duracao, contagem e voz.'
           : sessionHistoryCount > 0
             ? 'O motor usou a sessao atual como memoria temporaria para variar a nova composicao mesmo antes do DNA ser registrado.'
             : 'O motor usou apenas o historico registrado do projeto ativo para travar uma composicao menos repetitiva e menos previsivel.';
 
-      // ── HARD ENFORCE: duration must be within [minDuration, maxDuration] ──────
+      // â”€â”€ HARD ENFORCE: duration must be within [minDuration, maxDuration] â”€â”€â”€â”€â”€â”€
       const aiMinutes  = data.estimatedDurationMinutes;
       const lockedMinutes = Number(data?.diagnostics?.locked?.durationMinutes || 0);
       const finalMinutes = (lockedMinutes && lockedMinutes >= minDuration && lockedMinutes <= maxDuration)
@@ -710,7 +878,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           ? aiMinutes
           : Math.floor(Math.random() * (maxDuration - minDuration + 1)) + minDuration;
       if (!lockedMinutes && (!aiMinutes || aiMinutes < minDuration || aiMinutes > maxDuration)) {
-        console.warn(`[V15 Enforce] AI duration ${aiMinutes} outside [${minDuration}, ${maxDuration}] → corrected to ${finalMinutes}`);
+        console.warn(`[V15 Enforce] AI duration ${aiMinutes} outside [${minDuration}, ${maxDuration}] â†’ corrected to ${finalMinutes}`);
       }
       // estimatedChars ALWAYS derived from finalMinutes to keep duration/chars in sync
       const estimatedChars = finalMinutes * 1200;
@@ -718,9 +886,18 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       const ctaCharsBudget = Number(data?.ctaChars || 0) || Math.floor(estimatedChars * 0.06);
       const bodyCharsBudget = Math.max(estimatedChars - hookCharsBudget - ctaCharsBudget, minBlocks * 320);
 
-      const VALID_VOICES = ['Desafio Direto', 'Vulnerabilidade', 'Diagnóstico Técnico'] as const;
+      const VALID_VOICES = ['Desafio Direto', 'Vulnerabilidade', 'DiagnÃ³stico TÃ©cnico'] as const;
       let rawBlocks: AssemblerBlock[] = (data.blocks || []).map((b: any, i: number) => {
-        const voiceStyle = (VALID_VOICES.includes(b.voiceStyle) ? b.voiceStyle : VALID_VOICES[i % 3]) as AssemblerBlock['voiceStyle'];
+        const suggestedVoice = (VALID_VOICES.includes(b.voiceStyle) ? b.voiceStyle : VALID_VOICES[i % 3]) as AssemblerBlock['voiceStyle'];
+        const voiceStyle = inferVoiceStyleFromMission({
+          missionNarrative: b.missionNarrative || '',
+          blockName: b.name || `Bloco ${i + 1}`,
+          fallbackVoice: suggestedVoice,
+        });
+        const normalizedMissionNarrative = normalizeMissionNarrativeForVoice({
+          missionNarrative: b.missionNarrative || '',
+          voiceStyle,
+        });
         const narrativeMap = getAdvancedNarrativeTensionMap({
           index: i,
           total: Math.max(data.blocks.length, 1),
@@ -728,13 +905,13 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           voicePatternId: data?.diagnostics?.locked?.voicePatternId || data?.voicePattern,
           themeText: chosenTheme,
           blockName: b.name || `Bloco ${i + 1}`,
-          missionNarrative: b.missionNarrative || '',
+          missionNarrative: normalizedMissionNarrative,
           isNarrativeTwist: !!b.isNarrativeTwist,
         });
         return {
           id: `ai-block-${i}`,
           name: b.name || `Bloco ${i + 1}`,
-          missionNarrative: b.missionNarrative || '',
+          missionNarrative: normalizedMissionNarrative,
           voiceStyle,
           type: 'Metaphor' as const,
           isNarrativeTwist: !!b.isNarrativeTwist,
@@ -745,13 +922,23 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         };
       });
 
-      // ── HARD ENFORCE: block count must be within [minBlocks, maxBlocks] ───────
+      // â”€â”€ HARD ENFORCE: block count must be within [minBlocks, maxBlocks] â”€â”€â”€â”€â”€â”€â”€
       if (rawBlocks.length < minBlocks) {
-        console.warn(`[V15 Enforce] AI returned ${rawBlocks.length} blocks but min is ${minBlocks} — padding`);
+        console.warn(`[V15 Enforce] AI returned ${rawBlocks.length} blocks but min is ${minBlocks} â€” padding`);
         const perBlock = Math.floor(bodyCharsBudget / Math.max(minBlocks, 1));
         while (rawBlocks.length < minBlocks) {
           const i = rawBlocks.length;
-          const voiceStyle = VALID_VOICES[i % 3];
+          const fallbackVoice = VALID_VOICES[i % 3];
+          const missionNarrative = 'Desenvolva este segmento aprofundando o tema central com exemplos concretos e dados do nicho.';
+          const voiceStyle = inferVoiceStyleFromMission({
+            missionNarrative,
+            blockName: `Bloco ${i + 1}`,
+            fallbackVoice,
+          });
+          const normalizedMissionNarrative = normalizeMissionNarrativeForVoice({
+            missionNarrative,
+            voiceStyle,
+          });
           const narrativeMap = getAdvancedNarrativeTensionMap({
             index: i,
             total: minBlocks,
@@ -759,13 +946,13 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             voicePatternId: data?.diagnostics?.locked?.voicePatternId || data?.voicePattern,
             themeText: chosenTheme,
             blockName: `Bloco ${i + 1}`,
-            missionNarrative: 'Desenvolva este segmento aprofundando o tema central com exemplos concretos e dados do nicho.',
+            missionNarrative: normalizedMissionNarrative,
             isNarrativeTwist: false,
           });
           rawBlocks.push({
             id: `pad-block-${i}`,
             name: `Bloco ${i + 1}`,
-            missionNarrative: 'Desenvolva este segmento aprofundando o tema central com exemplos concretos e dados do nicho.',
+            missionNarrative: normalizedMissionNarrative,
             voiceStyle,
             type: 'Metaphor' as const,
             isNarrativeTwist: false,
@@ -777,7 +964,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         }
       }
       if (rawBlocks.length > maxBlocks) {
-        console.warn(`[V15 Enforce] AI returned ${rawBlocks.length} blocks but max is ${maxBlocks} — truncating`);
+        console.warn(`[V15 Enforce] AI returned ${rawBlocks.length} blocks but max is ${maxBlocks} â€” truncating`);
         rawBlocks = rawBlocks.slice(0, maxBlocks);
       }
       const blocks = redistributeBlockCharsByNarrativeMap(rawBlocks, bodyCharsBudget);
@@ -794,44 +981,44 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         hookChars: hookCharsBudget,
         ctaChars: ctaCharsBudget,
         blockCount,
-        dominantVoice: data.dominantVoice || blocks[0]?.voiceStyle || 'Diagnóstico Técnico',
+        dominantVoice: data.dominantVoice || blocks[0]?.voiceStyle || 'DiagnÃ³stico TÃ©cnico',
         diagnostics: data.diagnostics,
         openingHook: {
           id: selectedHook?.id || '',
-          name: selectedHook?.name || '—',
+          name: selectedHook?.name || 'â€”',
           pattern: selectedHook?.content_pattern || selectedHook?.description || '',
         },
         selectedCta: {
           id: selectedCta?.id || '',
-          name: selectedCta?.name || '—',
+          name: selectedCta?.name || 'â€”',
           pattern: selectedCta?.content_pattern || selectedCta?.description || '',
         },
         selectedTitleStructure: selectedTitleStructure ? {
           id: selectedTitleStructure.id,
-          name: selectedTitleStructure.name || '—',
+          name: selectedTitleStructure.name || 'â€”',
           pattern: selectedTitleStructure.content_pattern || selectedTitleStructure.description || '',
         } : undefined,
         selectedNarrativeCurve: selectedNarrativeCurve ? {
           id: selectedNarrativeCurve.id,
-          name: selectedNarrativeCurve.name || '—',
+          name: selectedNarrativeCurve.name || 'â€”',
           pattern: selectedNarrativeCurve.content_pattern || selectedNarrativeCurve.description || '',
           behaviorFlag: selectedNarrativeCurve.category || undefined,
         } : undefined,
         selectedArgumentMode: selectedArgumentMode ? {
           id: selectedArgumentMode.id,
-          name: selectedArgumentMode.name || '—',
+          name: selectedArgumentMode.name || 'â€”',
           pattern: selectedArgumentMode.content_pattern || selectedArgumentMode.description || '',
           behaviorFlag: selectedArgumentMode.category || undefined,
         } : undefined,
         selectedRepetitionRules: selectedRepetitionRules.map((rule: any) => ({
           id: rule.id,
-          name: rule.name || '—',
+          name: rule.name || 'â€”',
           pattern: rule.content_pattern || rule.description || '',
           behaviorFlag: rule.category || undefined,
         })),
         midCta: midCtaAsset ? {
           id: midCtaAsset.id,
-          name: midCtaAsset.name || '—',
+          name: midCtaAsset.name || 'â€”',
           pattern: midCtaAsset.content_pattern || midCtaAsset.description || '',
           position: data.midCta?.position ?? Math.floor(blocks.length / 2),
         } : undefined,
@@ -877,7 +1064,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
     setEditedRefactoredTheme('');
   };
 
-  // ─── RENDER ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ RENDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500">
@@ -889,12 +1076,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           </div>
           <div>
             <h2 className="font-black text-white text-sm uppercase tracking-widest italic">Production Assembler V4</h2>
-            <p className="text-[11px] text-white/30 uppercase tracking-[2px] font-black">Gatekeeper · Shuffle Engine · Briefing</p>
+            <p className="text-[11px] text-white/30 uppercase tracking-[2px] font-black">Gatekeeper Â· Shuffle Engine Â· Briefing</p>
           </div>
         </div>
         {phase !== 'input' && (
           <button onClick={reset} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/30 hover:text-white transition-all">
-            <RotateCcw size={13} /> Recomeçar
+            <RotateCcw size={13} /> RecomeÃ§ar
           </button>
         )}
       </div>
@@ -903,7 +1090,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       {phase === 'input' && (
         <div className="glass-card p-8 space-y-6">
           <div>
-            <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Tema do Vídeo</label>
+            <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Tema do VÃ­deo</label>
             <textarea
               value={theme}
               onChange={e => setTheme(e.target.value)}
@@ -967,12 +1154,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               <AlertTriangle size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-yellow-400 mb-1">
-                  Análise Simplificada ({gatekeeperResult.fallbackReason === 'parse_error' ? 'Falha no Motor IA' : 'Sem Chave de API'})
+                  AnÃ¡lise Simplificada ({gatekeeperResult.fallbackReason === 'parse_error' ? 'Falha no Motor IA' : 'Sem Chave de API'})
                 </p>
                 <p className="text-xs text-yellow-300/60 leading-relaxed">
                   {gatekeeperResult.fallbackReason === 'parse_error'
-                    ? 'A Inteligência Artificial retornou dados em um formato inválido. O Gatekeeper aplicou a análise algorítmica local como plano de segurança.'
-                    : 'Nenhuma chave de API detectada. O Gatekeeper utilizou análise local baseada em palavras-chave. Configure sua chave em Configurações para validação com IA.'}
+                    ? 'A InteligÃªncia Artificial retornou dados em um formato invÃ¡lido. O Gatekeeper aplicou a anÃ¡lise algorÃ­tmica local como plano de seguranÃ§a.'
+                    : 'Nenhuma chave de API detectada. O Gatekeeper utilizou anÃ¡lise local baseada em palavras-chave. Configure sua chave em ConfiguraÃ§Ãµes para validaÃ§Ã£o com IA.'}
                 </p>
               </div>
             </div>
@@ -996,7 +1183,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Status Badge */}
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest mb-4 ${SCORE_COLOR(gatekeeperResult.matchScore).badge}`}>
               {gatekeeperResult.isValid ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-              {gatekeeperResult.isValid ? 'Tema Aprovado' : 'Tema Crítico — Pivô Necessário'}
+              {gatekeeperResult.isValid ? 'Tema Aprovado' : 'Tema CrÃ­tico â€” PivÃ´ NecessÃ¡rio'}
             </div>
 
             {/* Reasoning */}
@@ -1009,7 +1196,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Pivot Suggestion */}
             {gatekeeperResult.pivotSuggestion && (
               <div className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-[3px] text-white/30">Sugestão de Pivot</p>
+                <p className="text-xs font-black uppercase tracking-[3px] text-white/30">SugestÃ£o de Pivot</p>
                 <p className="text-sm text-white/70 leading-relaxed">{gatekeeperResult.pivotSuggestion}</p>
               </div>
             )}
@@ -1038,13 +1225,13 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                       }}
                       className="text-xs font-black uppercase tracking-widest px-2 py-1 rounded-full border border-white/20 text-white/40 hover:border-white/40 hover:text-white transition-all"
                     >
-                      {editingRefactored ? '✓ Salvar' : '✎ Editar'}
+                      {editingRefactored ? 'âœ“ Salvar' : 'âœŽ Editar'}
                     </button>
                     <button
                       onClick={() => setUseRefactored(v => !v)}
                       className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border transition-all ${useRefactored ? 'bg-sage/20 border-sage/40 text-sage' : 'border-white/20 text-white/40 hover:border-white/40'}`}
                     >
-                      {useRefactored ? '✓ Usando' : 'Usar Este'}
+                      {useRefactored ? 'âœ“ Usando' : 'Usar Este'}
                     </button>
                   </div>
                 </div>
@@ -1081,7 +1268,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         <div className="glass-card p-12 flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-purple-400/20 border-t-purple-400 rounded-full animate-spin" />
           <p className="text-xs font-black uppercase tracking-widest text-white/40">Shuffle Engine montando blocos...</p>
-          <p className="text-[11px] text-white/20 font-black uppercase tracking-widest">Motor V9 · Anti-repetição ativo</p>
+          <p className="text-[11px] text-white/20 font-black uppercase tracking-widest">Motor V9 Â· Anti-repetiÃ§Ã£o ativo</p>
         </div>
       )}
 
@@ -1093,7 +1280,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[3px] text-sage mb-1">Título Criativo</p>
+                <p className="text-xs font-black uppercase tracking-[3px] text-sage mb-1">TÃ­tulo Criativo</p>
                 <h3 className="text-xl font-black text-white italic leading-tight break-words">"{briefing.title}"</h3>
               </div>
               <button
@@ -1107,7 +1294,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[ 
-                { label: 'Duração',    value: briefing.estimatedDuration },
+                { label: 'DuraÃ§Ã£o',    value: briefing.estimatedDuration },
                 { label: 'Blocos',     value: `${briefing.blockCount} blocos` },
                 { label: 'Voz Dom.',   value: briefing.dominantVoice.split(' ')[0] },
                 { label: 'Caracteres', value: `~${briefing.estimatedChars.toLocaleString('pt-BR')}` },
@@ -1124,7 +1311,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               <div className="p-4 bg-sage/5 border border-sage/20 rounded-xl min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <Zap size={14} className="text-sage" />
-                  <span className="text-xs font-black uppercase tracking-widest text-sage">Abertura Estratégica</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-sage">Camada de Abertura</span>
                 </div>
                 <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.openingHook.name}</p>
                 <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.openingHook.pattern}</p>
@@ -1132,7 +1319,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <Target size={14} className="text-blue-400" />
-                  <span className="text-xs font-black uppercase tracking-widest text-blue-400">CTA Selecionado</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-blue-400">Camada Final de Conversao</span>
                 </div>
                 <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedCta.name}</p>
                 <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedCta.pattern}</p>
@@ -1205,8 +1392,8 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                   {[
-                    { label: 'Hook travado', value: briefing.openingHook.name },
-                    { label: 'CTA travado', value: briefing.selectedCta.name },
+                    { label: 'Abertura travada', value: briefing.openingHook.name },
+                    { label: 'Conversao final travada', value: briefing.selectedCta.name },
                     { label: 'Estrutura travada', value: briefing.selectedTitleStructure?.name || 'Nao definida' },
                     { label: 'Curva travada', value: briefing.selectedNarrativeCurve?.name || 'Nao definida' },
                     { label: 'Argumento travado', value: briefing.selectedArgumentMode?.name || 'Nao definido' },
@@ -1240,8 +1427,8 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                       <p>Fonte da variacao: {briefing.historySourceLabel || 'Historico registrado'}</p>
                       <p>Sessao atual: {briefing.diagnostics.recentUsage.sourceBreakdown?.session || 0}</p>
                       <p>Historico registrado: {briefing.diagnostics.recentUsage.sourceBreakdown?.registered || 0}</p>
-                      <p>Hooks recentes: {briefing.diagnostics.recentUsage.hookIds.length}</p>
-                      <p>CTAs recentes: {briefing.diagnostics.recentUsage.ctaIds.length}</p>
+                      <p>Aberturas recentes: {briefing.diagnostics.recentUsage.hookIds.length}</p>
+                      <p>Conversoes finais recentes: {briefing.diagnostics.recentUsage.ctaIds.length}</p>
                       <p>Estruturas recentes: {briefing.diagnostics.recentUsage.titleStructureIds.length}</p>
                       <p>Curvas recentes: {briefing.diagnostics.recentUsage.curveIds.length}</p>
                       <p>Argumentos recentes: {briefing.diagnostics.recentUsage.argumentModeIds.length}</p>
@@ -1253,7 +1440,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                   <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Motivo da escolha</p>
                     <p className="text-[11px] text-white/70 leading-relaxed">
-                      {briefing.historyChoiceReason || 'O motor travou uma composicao menos usada no projeto ativo e evitou repetir a mesma combinacao recente de hook, cta, estrutura, duracao, contagem e voz.'}
+                      {briefing.historyChoiceReason || 'O motor travou uma composicao menos usada no projeto ativo e evitou repetir a mesma combinacao recente de abertura, conversao final, estrutura, duracao, contagem e voz.'}
                     </p>
                   </div>
                 </div>
@@ -1288,12 +1475,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                             <div className="flex flex-wrap items-center gap-1.5 mb-1">
                               {isTwist && (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-400/5 px-1.5 py-0.5 rounded-full">
-                                  ↻ Virada Narrativa
+                                  â†» Virada Narrativa
                                 </span>
                               )}
                               {block.communityElement && (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-purple-400 border border-purple-400/30 bg-purple-400/5 px-1.5 py-0.5 rounded-full">
-                                  ◈ Comunidade
+                                  â—ˆ Comunidade
                                 </span>
                               )}
                               {block.blockChars && (
@@ -1304,7 +1491,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {block.tensionLevel && (
                                   <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    Tensão: {block.tensionLevel}
+                                    TensÃ£o: {block.tensionLevel}
                                   </span>
                                 )}
                                 {block.narrativeRole && (
@@ -1314,7 +1501,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                                 )}
                                 {block.transitionMode && (
                                   <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    Transição: {block.transitionMode}
+                                    TransiÃ§Ã£o: {block.transitionMode}
                                   </span>
                                 )}
                               </div>
@@ -1378,7 +1565,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               onClick={handleApprove}
               className="w-full sm:flex-1 flex items-center justify-center gap-3 py-3.5 bg-sage text-midnight rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-sage/80 transition-all shadow-lg shadow-sage/20"
             >
-              ✓ Aprovar e Gerar Roteiro <ArrowRight size={17} />
+              âœ“ Aprovar e Gerar Roteiro <ArrowRight size={17} />
             </button>
           </div>
         </div>
@@ -1394,3 +1581,5 @@ export default function ProductionAssembler({ components, componentsHydrated = t
     </div>
   );
 }
+
+

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@source not "./*.log";
+@source not "./.devserver*.log";
+@source not "./.chrome-profile/**";
+
 @theme {
   --color-midnight: #020617;
   --color-navy: #0F172A;
@@ -50,16 +54,55 @@
 
 .sidebar {
   width: 280px;
+  min-width: 280px;
+  flex: 0 0 280px;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--card-border);
   padding: 2rem 1.25rem;
+  transition: width 180ms ease, min-width 180ms ease, flex-basis 180ms ease, padding 180ms ease;
   @apply sticky top-0 h-screen overflow-y-auto;
+}
+
+.sidebar-collapsed .sidebar {
+  width: 76px;
+  min-width: 76px;
+  flex-basis: 76px;
+  padding: 1.5rem 0.6rem;
+}
+
+.sidebar-collapsed .sidebar-label {
+  display: none !important;
+}
+
+.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.sidebar-collapsed .sidebar button {
+  justify-content: center;
 }
 
 .main-content {
   flex: 1;
+  min-width: 0;
   padding: 2.5rem;
   @apply max-w-[1600px] mx-auto w-full;
+}
+
+@media (max-width: 1180px) {
+  .sidebar {
+    width: 236px;
+    min-width: 236px;
+    flex-basis: 236px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .main-content {
+    padding: 1.5rem;
+  }
 }
 
 .glass-card {
@@ -100,4 +143,3 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-700;
 }
-

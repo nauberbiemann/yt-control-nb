@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabase';
+import { MASTER_ACCESS_EMAILS } from '@/lib/auth-access';
 import { ShieldAlert, Clock, LogOut } from 'lucide-react';
 
 export default function AwaitingApproval({ email }: { email: string }) {
@@ -38,7 +39,7 @@ export default function AwaitingApproval({ email }: { email: string }) {
             <div className="flex items-start gap-4">
               <div className="w-1.5 h-1.5 rounded-full bg-sage mt-1.5 shrink-0 shadow-[0_0_8px_#9bb0a5]" />
               <p className="text-[10px] font-bold text-white/60 leading-relaxed uppercase">
-                O Master User (nauber.biemann) já foi notificado sobre seu cadastro.
+                O Master User ({MASTER_ACCESS_EMAILS[0]}) já foi notificado sobre seu cadastro.
               </p>
             </div>
             <div className="flex items-start gap-4">

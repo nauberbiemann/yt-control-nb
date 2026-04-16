@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 const PILLARS = ['Educação', 'Entretenimento', 'Autoridade', 'Conversão', 'Comunidade'];
-const STATUSES = ['backlog', 'vetted', 'scripted', 'published'] as const;
+const STATUSES = ['backlog', 'vetted', 'scripted', 'scheduled', 'published'] as const;
 const STRUCTURES = ['S1 — Curiosidade', 'S2 — Dor + Solução', 'S3 — Autoridade', 'S4 — Contrário', 'S5 — Lista'];
 const PIPELINES = [
   { value: 'T1', label: 'T1 — Topo de Funil (Viral)', desc: 'Foco em alcance e novos inscritos.' },
@@ -37,6 +37,7 @@ const STATUS_META: Record<string, { label: string; color: string; icon: any }> =
   backlog:   { label: 'Backlog',    color: 'text-slate-400 bg-slate-400/5 border-slate-400/10',  icon: Clock       },
   vetted:    { label: 'Aprovado',   color: 'text-blue-400 bg-blue-500/10 border-blue-500/20', icon: CheckCircle2 },
   scripted:  { label: 'Produção', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20', icon: FileText    },
+  scheduled: { label: 'Programado', color: 'text-amber-300 bg-amber-500/10 border-amber-500/20', icon: Clock },
   published: { label: 'Publicado',  color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', icon: Star },
 };
 
@@ -79,6 +80,7 @@ interface Theme {
   match_score?: number;
   demand_views?: string;
   production_assets?: any;
+  target_publish_date?: string;
   created_at: string;
 }
 
@@ -104,6 +106,7 @@ const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   refined_title: '',
   priority: 0,
   notes: '',
+  target_publish_date: '',
 };
 
 export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, onGerarRoteiro, onOpenInWriting }: ThemeBankProps) {
@@ -128,6 +131,72 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const currentPillarOptions = projectPillars.length > 0 
     ? projectPillars.map((p: string) => ({ value: p, label: p }))
     : PILLAR_OPTIONS; // Fallback se não houver pilares cadastrados
+
+  const getThemePublishDate = (theme: Partial<Theme>) =>
+    theme.target_publish_date || theme.production_assets?.target_publish_date || '';
+
+  const resolveThemeStatusFromPublishDate = (
+    dateValue: string,
+    fallbackStatus: typeof STATUSES[number]
+  ): typeof STATUSES[number] => {
+    if (!dateValue) return fallbackStatus;
+
+    const selected = new Date(dateValue.includes('T') ? dateValue : `${dateValue}T00:00:00`);
+    if (Number.isNaN(selected.getTime())) return fallbackStatus;
+
+    const today = new Date();
+
+    if (dateValue.includes('T')) {
+      return selected.getTime() <= today.getTime() ? 'published' : 'scheduled';
+    }
+
+    const selectedDay = new Date(selected);
+    selectedDay.setHours(0, 0, 0, 0);
+
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (selectedDay.getTime() < todayStart.getTime()) return 'published';
+    if (selectedDay.getTime() > todayStart.getTime()) return 'scheduled';
+    return 'scripted';
+  };
+
+  const formatPublishDate = (dateValue: string) => {
+    if (!dateValue) return '';
+    const date = new Date(dateValue.includes('T') ? dateValue : `${dateValue}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return dateValue;
+    return dateValue.includes('T')
+      ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+      : date.toLocaleDateString('pt-BR');
+  };
+
+  const toDateTimeInputValue = (dateValue: string) => {
+    if (!dateValue) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return `${dateValue}T00:00`;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateValue)) return dateValue.slice(0, 16);
+    return dateValue;
+  };
+
+  const normalizeThemeScheduleStatus = (theme: Theme): Theme => {
+    const targetPublishDate = getThemePublishDate(theme);
+    if (!targetPublishDate) return theme;
+
+    const normalizedStatus = resolveThemeStatusFromPublishDate(targetPublishDate, theme.status);
+    if (normalizedStatus === theme.status && theme.production_assets?.schedule_status === normalizedStatus) {
+      return theme;
+    }
+
+    return {
+      ...theme,
+      status: normalizedStatus,
+      production_assets: theme.production_assets
+        ? {
+            ...theme.production_assets,
+            schedule_status: normalizedStatus,
+          }
+        : theme.production_assets,
+    };
+  };
 
   useEffect(() => {
     if (activeProject?.id) {
@@ -230,7 +299,11 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       const localData = localStorage.getItem(`themes_${activeProject.id}`);
       if (localData) {
         const parsed = JSON.parse(localData);
-        if (parsed.length > 0) setThemes(parsed);
+        if (parsed.length > 0) {
+          const normalizedLocal = parsed.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
+          setThemes(normalizedLocal);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedLocal));
+        }
       }
 
       if (!supabase) return;
@@ -248,8 +321,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       // 🛠️ Proteção: Só sobrescreve o local se a nuvem realmente tiver dados.
       // Se a nuvem estiver vazia mas o local tiver dados, mantemos o local.
         if (data && data.length > 0) {
-          setThemes(data);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(data));
+          const normalizedRemote = data.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
+          setThemes(normalizedRemote);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedRemote));
         }
       } catch (err) {
         console.warn('[ThemeBank] falha ao buscar temas; mantendo dados locais.', err);
@@ -264,11 +338,21 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     try {
       const selectedStructure = projectTitleStructures.find((structure) => structure.slotId === form.title_structure);
       const titleStructureAssetId = selectedStructure?.source === 'library' ? selectedStructure.id : null;
+      const targetPublishDate = form.target_publish_date || '';
+      const resolvedStatus = resolveThemeStatusFromPublishDate(targetPublishDate, form.status);
+      const existingProductionAssets = (editingTheme as any)?.production_assets || null;
+      const productionAssets = targetPublishDate || existingProductionAssets
+        ? {
+            ...(existingProductionAssets || {}),
+            target_publish_date: targetPublishDate || null,
+            schedule_status: resolvedStatus,
+          }
+        : null;
       const payload = {
         title: form.title,
         description: form.description || '',
         editorial_pillar: form.editorial_pillar || '',
-        status: form.status,
+        status: resolvedStatus,
         title_structure: form.title_structure || '',
         selected_structure: titleStructureAssetId || form.title_structure || '',
         title_structure_asset_id: titleStructureAssetId,
@@ -281,7 +365,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         // 🛠️ Preserva campos de engenharia de cliques se existirem
         match_score: (editingTheme as any)?.match_score || 0,
         demand_views: (editingTheme as any)?.demand_views || '',
-        production_assets: (editingTheme as any)?.production_assets || null,
+        production_assets: productionAssets,
         project_id: activeProject.id,
         user_id: userId || null,
         updated_at: new Date().toISOString(),
@@ -439,6 +523,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       refined_title: theme.refined_title || '',
       priority: theme.priority,
       notes: theme.notes || '',
+      target_publish_date: getThemePublishDate(theme),
     });
     setShowForm(true);
   };
@@ -475,7 +560,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     label: `${structure.slotId} — ${structure.name}`,
   }));
 
-  const filtered = themes
+  const normalizedThemes = themes.map((theme) => normalizeThemeScheduleStatus(theme));
+
+  const filtered = normalizedThemes
     .filter(t => !search || t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase()))
     .filter(t => !filterPillar || t.editorial_pillar === filterPillar)
     .filter(t => !filterStatus || t.status === filterStatus);
@@ -601,7 +688,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       {/* Stats Dashboard */}
       <div className="px-8 py-4 border-b border-white/5 flex gap-4 overflow-x-auto no-scrollbar">
         {STATUSES.map(s => {
-          const count = themes.filter(t => t.status === s).length;
+          const count = normalizedThemes.filter(t => t.status === s).length;
           const meta = STATUS_META[s];
           const Icon = meta.icon;
           return (
@@ -658,7 +745,10 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                   <span className="ml-auto text-[9px] opacity-60">{items.length}</span>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                  {items.map(theme => (
+                  {items.map(theme => {
+                    const targetPublishDate = getThemePublishDate(theme);
+
+                    return (
                     <div key={theme.id} className="glass-card p-4 space-y-2 group cursor-pointer hover:border-sage/20 transition-all">
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-black text-white text-[11px] leading-tight">{theme.title}</p>
@@ -699,6 +789,11 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                             {theme.title_structure.split(' ')[0]}
                           </span>
                         )}
+                        {targetPublishDate && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-200 text-[9px] font-black uppercase tracking-widest">
+                            <Clock size={9} /> {formatPublishDate(targetPublishDate)}
+                          </span>
+                        )}
                         {isScriptEngineTheme(theme) && (
                           <span className="px-2 py-0.5 bg-sage/10 border border-sage/20 rounded text-sage text-[9px] font-black uppercase tracking-widest">
                             Retomavel
@@ -719,7 +814,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                   {items.length === 0 && (
                     <div className="flex items-center justify-center h-20 opacity-20">
                       <p className="text-[10px] font-black uppercase tracking-widest">Nenhum tema</p>
@@ -814,6 +910,30 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                     onChange={val => setForm(f => ({ ...f, status: val as any }))}
                     options={STATUS_OPTIONS}
                   />
+                </div>
+              </div>
+
+              <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-3 items-end">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300 mb-1 block">Data e horario de postagem</label>
+                    <input
+                      type="datetime-local"
+                      value={toDateTimeInputValue(form.target_publish_date || '')}
+                      onChange={(e) => {
+                        const dateValue = e.target.value;
+                        setForm(f => ({
+                          ...f,
+                          target_publish_date: dateValue,
+                          status: resolveThemeStatusFromPublishDate(dateValue, f.status),
+                        }));
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 font-bold"
+                    />
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-white/35">
+                    Com horario, passado vira Publicado e futuro vira Programado. Sem horario, vale a regra por dia.
+                  </p>
                 </div>
               </div>
 

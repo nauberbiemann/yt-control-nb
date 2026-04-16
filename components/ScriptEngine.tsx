@@ -32,6 +32,7 @@ interface ScriptBlock {
 type ExecutionMode = 'internal' | 'external';
 type ScriptStage = 'blueprint' | 'final';
 type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
+type VideoCharacterMode = 'male' | 'female' | 'custom';
 
 interface SrtPipelineObserverStep {
   key: 'upload' | 'csv' | 'assets' | 'prompts' | 'render' | 'persist';
@@ -62,6 +63,9 @@ interface ExecutionSnapshot {
   externalSourceLabel: string;
   externalSrtText: string;
   externalSrtFileName: string;
+  videoCharacterMode: VideoCharacterMode;
+  videoCharacterCustom: string;
+  manualPublishDate: string;
   externalSrtPipeline: SrtAssetPipelineResult | null;
   externalSrtObserver: SrtPipelineObserverStep[];
   postScriptPackage: PostScriptPackage | null;
@@ -197,6 +201,11 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [externalSourceLabel, setExternalSourceLabel] = useState('');
   const [externalSrtText, setExternalSrtText] = useState('');
   const [externalSrtFileName, setExternalSrtFileName] = useState('');
+  const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('male');
+  const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
+  const [manualPublishDate, setManualPublishDate] = useState('');
+  const [manualPublishDraftDate, setManualPublishDraftDate] = useState('');
+  const [manualPublishDraftTime, setManualPublishDraftTime] = useState('');
   const [externalSrtPipeline, setExternalSrtPipeline] = useState<SrtAssetPipelineResult | null>(null);
   const [externalSrtObserver, setExternalSrtObserver] = useState<SrtPipelineObserverStep[]>(buildInitialSrtObserver);
   const [postScriptPackage, setPostScriptPackage] = useState<PostScriptPackage | null>(null);
@@ -204,6 +213,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
+  const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
   const thumbnailPanelRef = useRef<HTMLDivElement | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
@@ -217,9 +227,101 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const executionStorageKey = activeProject?.id ? `ws_script_execution_${activeProject.id}` : null;
   const defaultExecutionMode: ExecutionMode = activeProject?.default_execution_mode === 'external' ? 'external' : 'internal';
 
+  const resolveThemeStatusFromPublishDate = (dateValue: string, fallbackStatus = 'scripted') => {
+    if (!dateValue) return fallbackStatus;
+
+    const selected = new Date(dateValue.includes('T') ? dateValue : `${dateValue}T00:00:00`);
+    if (Number.isNaN(selected.getTime())) return fallbackStatus;
+
+    const today = new Date();
+
+    if (dateValue.includes('T')) {
+      return selected.getTime() <= today.getTime() ? 'published' : 'scheduled';
+    }
+
+    const selectedDay = new Date(selected);
+    selectedDay.setHours(0, 0, 0, 0);
+
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (selectedDay.getTime() < todayStart.getTime()) return 'published';
+    if (selectedDay.getTime() > todayStart.getTime()) return 'scheduled';
+    return 'scripted';
+  };
+
+  const getManualPublishDateParts = (dateValue: string) => {
+    if (!dateValue) {
+      return {
+        date: '',
+        time: '',
+      };
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateValue)) {
+      return {
+        date: dateValue.slice(0, 10),
+        time: dateValue.slice(11, 16),
+      };
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return {
+        date: dateValue,
+        time: '',
+      };
+    }
+
+    return {
+      date: '',
+      time: '',
+    };
+  };
+
+  const updateManualPublishDate = (nextDate: string, nextTime: string) => {
+    if (!nextDate) {
+      setManualPublishDate('');
+      return;
+    }
+
+    if (nextTime) {
+      setManualPublishDate(`${nextDate}T${nextTime}`);
+      return;
+    }
+
+    setManualPublishDate(nextDate);
+  };
+
+  const composeManualPublishDate = (nextDate: string, nextTime: string) => {
+    if (!nextDate) return '';
+    if (nextTime) return `${nextDate}T${nextTime}`;
+    return nextDate;
+  };
+
+  const formatManualPublishTrace = (dateValue: string) => {
+    if (!dateValue) return 'Sem agendamento manual definido.';
+
+    const parsed = new Date(dateValue.includes('T') ? dateValue : `${dateValue}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return dateValue;
+
+    if (dateValue.includes('T')) {
+      return parsed.toLocaleString('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
+    }
+
+    return parsed.toLocaleDateString('pt-BR');
+  };
+
   useEffect(() => {
     void fetchComponents();
   }, [activeProject?.id]);
+
+  useEffect(() => {
+    const parts = getManualPublishDateParts(manualPublishDate);
+    setManualPublishDraftDate(parts.date);
+    setManualPublishDraftTime(parts.time);
+  }, [manualPublishDate]);
 
   const readLocalNarrativeCache = (projectId?: string) => {
     if (!projectId) return [];
@@ -292,6 +394,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSourceLabel,
     externalSrtText,
     externalSrtFileName,
+    videoCharacterMode,
+    videoCharacterCustom,
+    manualPublishDate,
     externalSrtPipeline,
     externalSrtObserver,
     postScriptPackage,
@@ -310,12 +415,14 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const themeIndex = existingThemes.findIndex((item: any) =>
       item?.title?.trim().toLowerCase() === themeTitle.trim().toLowerCase()
     );
+    const targetPublishDate = executionSnapshot?.manualPublishDate || manualPublishDate;
+    const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
 
     const themePayload = {
       title: themeTitle,
       description: `Tema aprovado manualmente na Escrita Criativa para o projeto ${activeProject?.name || activeProject?.project_name || 'ativo'}.`,
       editorial_pillar: activeProject?.playlists?.tactical_journey?.[0]?.label || '',
-      status: 'scripted',
+      status: scheduleStatus,
       title_structure: briefing?.selectedTitleStructure?.name || '',
       selected_structure: briefing?.selectedTitleStructure?.id || briefing?.assetLog?.titleStructure || '',
       title_structure_asset_id: briefing?.selectedTitleStructure?.id || briefing?.assetLog?.titleStructure || null,
@@ -345,6 +452,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         external_source_label: executionSnapshot?.externalSourceLabel || '',
         external_srt_text: executionSnapshot?.externalSrtText || '',
         external_srt_file_name: executionSnapshot?.externalSrtFileName || '',
+        target_publish_date: targetPublishDate || null,
+        schedule_status: scheduleStatus,
         execution_snapshot: executionSnapshot || null,
       },
       project_id: activeProject.id,
@@ -420,6 +529,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.externalSourceLabel === 'string') setExternalSourceLabel(snapshot.externalSourceLabel);
       if (typeof snapshot?.externalSrtText === 'string') setExternalSrtText(snapshot.externalSrtText);
       if (typeof snapshot?.externalSrtFileName === 'string') setExternalSrtFileName(snapshot.externalSrtFileName);
+      if (['male', 'female', 'custom'].includes(snapshot?.videoCharacterMode)) setVideoCharacterMode(snapshot.videoCharacterMode);
+      if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
+      if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       if (snapshot?.externalSrtPipeline) setExternalSrtPipeline(snapshot.externalSrtPipeline);
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
       if (snapshot?.postScriptPackage) setPostScriptPackage(snapshot.postScriptPackage);
@@ -454,6 +566,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSourceLabel,
     externalSrtText,
     externalSrtFileName,
+    videoCharacterMode,
+    videoCharacterCustom,
+    manualPublishDate,
     externalSrtPipeline,
     externalSrtObserver,
     postScriptPackage,
@@ -826,6 +941,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
+  const applyManualPublishRegistration = async () => {
+    const nextValue = composeManualPublishDate(manualPublishDraftDate, manualPublishDraftTime);
+    setManualPublishDate(nextValue);
+
+    if (approvedBriefing && approvedTheme) {
+      await syncApprovedThemeSnapshot({ manualPublishDate: nextValue });
+    }
+  };
+
   const resolveSnapshotBlocks = (snapshot: any): ScriptBlock[] => {
     if (Array.isArray(snapshot?.scriptBlocks) && snapshot.scriptBlocks.length > 0) {
       return snapshot.scriptBlocks;
@@ -1088,6 +1212,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
 
+    if (videoCharacterMode === 'custom' && !videoCharacterCustom.trim()) {
+      alert('Descreva o personagem personalizado antes de processar os prompts de video.');
+      return;
+    }
+
     const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
     const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
     const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
@@ -1131,6 +1260,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           model,
           apiKeyOverwrite: apiKey,
           projectConfig: activeProject?.ai_engine_rules,
+          characterProfile: {
+            mode: videoCharacterMode,
+            customDescription: videoCharacterCustom,
+          },
         }),
       });
 
@@ -1585,6 +1718,20 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const seoDescriptionSections = parseSeoDescriptionSections(postScriptPackage?.seoDescription || '');
   const sfxTimelinePreview = parseSfxTimelineEntries(postScriptPackage?.sfxTimelineTxt || '');
+  const manualPublishParts = getManualPublishDateParts(manualPublishDate);
+  const pendingManualPublishValue = composeManualPublishDate(manualPublishDraftDate, manualPublishDraftTime);
+  const hasPendingManualPublishChange = pendingManualPublishValue !== manualPublishDate;
+  const activeStageBlockId = scriptBlocks.some((block) => block.id === expandedStageId)
+    ? expandedStageId
+    : scriptBlocks[0]?.id || null;
+  const getBlockGenerationState = (index: number) =>
+    isGeneratingScript && generationProgress
+      ? index < generationProgress.completedCount
+        ? 'completed'
+        : index === generationProgress.currentIndex
+          ? 'generating'
+          : 'pending'
+      : null;
 
   const projectPillars = activeProject?.playlists?.tactical_journey || [];
   const projectPersona = activeProject?.persona_matrix || {};
@@ -1795,6 +1942,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       externalSourceLabel: '',
       externalSrtText: '',
       externalSrtFileName: '',
+      videoCharacterMode,
+      videoCharacterCustom,
+      manualPublishDate,
       externalSrtPipeline: null,
       externalSrtObserver: buildInitialSrtObserver(),
       postScriptPackage: null,
@@ -2315,27 +2465,33 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
         {approvedBriefing && (
           <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-blue-500/[0.035] border border-blue-500/18 rounded-[28px] shadow-[0_0_40px_rgba(59,130,246,0.08)] space-y-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 space-y-3 max-w-[28rem]">
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-300">Briefing aprovado</p>
-                <h4 className="text-2xl xl:text-[2rem] font-black text-white italic leading-[1.05] break-words max-w-[16ch]">{approvedBriefing.title}</h4>
-                <p className="text-[11px] text-white/45 leading-relaxed">
-                  O roteiro abaixo esta sendo montado com o briefing travado no assembler. O resumo principal fica visivel aqui para voce acompanhar o que esta sendo produzido sem perder o contexto editorial.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 xl:min-w-[560px]">
-                {[
-                  { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
-                  { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
-                  { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
-                  { label: 'Chars', value: approvedBriefing.estimatedChars ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}` : 'N/D' },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
-                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
-                    <span className="block text-sm font-black text-white">{item.value}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="min-w-0 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-300">Briefing aprovado</p>
+              <p className="max-w-3xl text-[11px] text-white/45 leading-relaxed">
+                O roteiro abaixo esta sendo montado com o briefing travado no assembler. O resumo principal fica visivel aqui para voce acompanhar o que esta sendo produzido sem perder o contexto editorial.
+              </p>
+            </div>
+
+            <div className="rounded-[24px] border border-white/10 bg-midnight/30 px-5 py-5 xl:px-6 xl:py-6">
+              <h4 className="max-w-5xl text-[2rem] xl:text-[2.65rem] font-black text-white italic leading-[0.98] break-words">
+                {approvedBriefing.title}
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[
+                { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
+                { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
+                { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
+                { label: 'Chars', value: approvedBriefing.estimatedChars ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}` : 'N/D' },
+              ].map((item) => (
+                <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
+                  <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
+                  <span className="block text-sm font-black leading-tight text-white break-words">
+                    {item.value}
+                  </span>
+                </div>
+              ))}
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -2352,14 +2508,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         )}
 
         <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
-              <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
+          <div className="space-y-4">
+            <div className="max-w-3xl">
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
+              <p className="mt-2 max-w-xl text-[11px] text-white/45 leading-relaxed">
                 O orquestrador continua montando o blueprint. Aqui voce decide se o texto final sera produzido no app ou em plataforma externa.
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xl:w-[420px]">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
               {[
                 { value: 'internal', title: 'Produzir no aplicativo', description: 'Gera o texto final por IA dentro do app.' },
                 { value: 'external', title: 'Produzir externamente', description: 'Copia o prompt e recebe o roteiro final por texto ou .txt.' },
@@ -2370,7 +2526,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     key={option.value}
                     type="button"
                     onClick={() => setExecutionMode(option.value as ExecutionMode)}
-                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                    className={`min-h-[168px] rounded-2xl border px-5 py-5 text-left transition-all ${
                       isActive
                         ? 'bg-blue-500/15 border-blue-400/40 shadow-lg shadow-blue-500/15'
                         : 'bg-white/5 border-white/10 hover:border-white/20'
@@ -2379,12 +2535,82 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <span className={`block text-[10px] font-black uppercase tracking-[2px] ${isActive ? 'text-blue-300' : 'text-white/80'}`}>
                       {option.title}
                     </span>
-                    <span className="block mt-2 text-[10px] text-white/40 leading-relaxed">
+                    <span className="block mt-3 text-[11px] text-white/45 leading-relaxed">
                       {option.description}
                     </span>
                   </button>
                 );
               })}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
+                  Data e hora de postagem
+                </label>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Data</span>
+                    <input
+                      type="date"
+                      value={manualPublishDraftDate}
+                      onChange={(e) => {
+                        const nextDate = e.target.value;
+                        setManualPublishDraftDate(nextDate);
+                        if (!nextDate) {
+                          setManualPublishDraftTime('');
+                          return;
+                        }
+
+                        if (!manualPublishDraftTime) {
+                          setManualPublishDraftTime('09:00');
+                        }
+                      }}
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Horario</span>
+                    <input
+                      type="time"
+                      value={manualPublishDraftTime}
+                      onChange={(e) => setManualPublishDraftTime(e.target.value)}
+                      disabled={!manualPublishDraftDate}
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] leading-5 text-white/35">
+                  Com horario, passado publica e futuro programa. Sem horario, vale a regra por dia.
+                </p>
+                <div className="mt-3 rounded-xl border border-white/8 bg-black/15 px-3 py-2">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-white/35">Rastreabilidade</span>
+                  <p className="mt-1 text-[10px] leading-5 text-white/60">
+                    Snapshot atual: {formatManualPublishTrace(manualPublishDate)}. Esse valor segue junto na execução salva e no tema quando houver registro no banco.
+                  </p>
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void applyManualPublishRegistration();
+                    }}
+                    disabled={!manualPublishDraftDate || !hasPendingManualPublishChange}
+                    className="rounded-xl border border-blue-400/30 bg-blue-500/15 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100 transition-all hover:border-blue-300/50 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {manualPublishDate ? 'Atualizar data registrada' : 'Registrar data de postagem'}
+                  </button>
+                  {hasPendingManualPublishChange && manualPublishDate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualPublishDraftDate(manualPublishParts.date);
+                        setManualPublishDraftTime(manualPublishParts.time);
+                      }}
+                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/65 transition-all hover:border-white/20 hover:text-white"
+                    >
+                      Descartar alteracao
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2453,6 +2679,45 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
                       {externalSrtFileName ? `Arquivo persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado ainda.'}
                     </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
+                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+                          Mantem continuidade visual entre cenas. Os prompts de video tambem serao gerados sem falas, apenas com som ambiente.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: 'male', label: 'Masculino' },
+                          { value: 'female', label: 'Feminino' },
+                          { value: 'custom', label: 'Personalizado' },
+                        ].map((option) => {
+                          const selected = videoCharacterMode === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setVideoCharacterMode(option.value as VideoCharacterMode)}
+                              className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                                selected
+                                  ? 'border-purple-300/40 bg-purple-500/15 text-purple-100'
+                                  : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {videoCharacterMode === 'custom' && (
+                        <textarea
+                          value={videoCharacterCustom}
+                          onChange={(e) => setVideoCharacterCustom(e.target.value)}
+                          placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
+                          className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
+                        />
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={processAttachedSrtAssets}
@@ -2506,8 +2771,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
               {(isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline) && (
                 <div className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.04] p-5 space-y-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="space-y-2">
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
+                      <div className="space-y-2 max-w-3xl">
                       <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-200">Pipeline SRT adaptado ao app</p>
                       <p className="text-sm font-black text-white">
                         {(isProcessingSrtPipeline || isRenderingTextAssets)
@@ -2518,9 +2784,13 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         Etapa 1 fica coberta pelo upload do arquivo. A partir daqui o app replica a conversao para CSV, a marcacao heuristica de assets, a geracao dos prompts visuais e o render dos assets marcados como texto.
                       </p>
                     </div>
+                      <div className="rounded-xl border border-purple-300/15 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-purple-100">
+                        {isProcessingSrtPipeline ? 'Processando' : isRenderingTextAssets ? 'Renderizando' : externalSrtPipeline ? 'Persistido' : 'Aguardando'}
+                      </div>
+                    </div>
 
                     {externalSrtPipeline && (
-                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 xl:min-w-[620px]">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
                         {[
                           { label: 'Linhas', value: externalSrtPipeline.stats.total },
                           { label: 'Texto', value: externalSrtPipeline.stats.texto },
@@ -2989,15 +3259,64 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         )}
 
         <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 xl:p-8 flex flex-col gap-8 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
-          {scriptBlocks.map((block, index) => {
-            const blockGenerationState =
-              isGeneratingScript && generationProgress
-                ? index < generationProgress.completedCount
-                  ? 'completed'
-                  : index === generationProgress.currentIndex
-                    ? 'generating'
-                    : 'pending'
-                : null;
+          {scriptBlocks.length > 0 && (
+            <div className="rounded-[28px] border border-white/10 bg-white/[0.02] p-4 xl:p-5 space-y-4">
+              <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.32em] text-blue-300">Blocos STG agrupados</p>
+                  <p className="mt-1 text-[10px] leading-5 text-white/40">
+                    Clique em um STG para abrir o bloco. Isso mantém a página navegável sem perder os cards editáveis.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
+                  {scriptBlocks.length} blocos
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                {scriptBlocks.map((block, index) => {
+                  const blockGenerationState = getBlockGenerationState(index);
+                  const isActive = block.id === activeStageBlockId;
+
+                  return (
+                    <button
+                      key={block.id}
+                      type="button"
+                      onClick={() => setExpandedStageId(block.id)}
+                      className={`rounded-2xl border px-3 py-3 text-left transition-all ${
+                        isActive
+                          ? 'border-blue-400/40 bg-blue-500/15 shadow-lg shadow-blue-500/10'
+                          : 'border-white/10 bg-black/10 hover:border-white/20 hover:bg-white/[0.03]'
+                      }`}
+                    >
+                      <span className={`block text-[10px] font-black uppercase tracking-[0.22em] ${isActive ? 'text-blue-200' : 'text-white/40'}`}>
+                        STG_{String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span className="mt-2 block truncate text-[11px] font-black text-white/80">
+                        {block.title}
+                      </span>
+                      {blockGenerationState && (
+                        <span
+                          className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] ${
+                            blockGenerationState === 'generating'
+                              ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
+                              : blockGenerationState === 'completed'
+                                ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                                : 'border-white/10 bg-white/5 text-white/35'
+                          }`}
+                        >
+                          {blockGenerationState === 'generating' ? 'Gerando' : blockGenerationState === 'completed' ? 'Concluido' : 'Pendente'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {scriptBlocks.filter((block) => block.id === activeStageBlockId).map((block) => {
+            const index = Math.max(0, scriptBlocks.findIndex((item) => item.id === block.id));
+            const blockGenerationState = getBlockGenerationState(index);
 
             return (
             <div key={block.id} className="relative group animate-in slide-in-from-bottom-4" style={{ animationDelay: `${index * 100}ms` }}>

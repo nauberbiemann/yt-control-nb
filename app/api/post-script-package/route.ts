@@ -44,6 +44,8 @@ Rules:
 - Avoid BPM, key, stems, section-by-section arrangements, or production notes unless absolutely necessary.
 - "sunoSuggestedTitle" should be short and in English.
 - "sfxTimelineTxt" must be in PT-BR and formatted as a clean plain-text timeline, not JSON.
+- In "sfxTimelineTxt", keep labels EFEITO/FUNCAO/TRECHO/OBS in PT-BR, but the value after EFEITO must be an English searchable sound effect name for CapCut PC.
+- Prefer simple English SFX names such as "Digital Glitch", "Low Rumble", "Cinematic Whoosh", "Keyboard Clicks", "Sub Bass Hit", "Notification Ping", "Metallic Impact", "Tension Riser", "Ambient Room Tone".
 - The SFX timeline must respect a minimum interval of 25 seconds between events.
 - Use the suggested SFX anchors as the primary map, but you may skip weak points if they would feel artificial.
 - In SFX timeline, use this format repeatedly:
@@ -145,6 +147,7 @@ const buildUserPrompt = ({
     '- Suno prompt should match the emotional journey of the script, but stay concise and direct.',
     '- Write the Suno prompt as a single practical line, not as a long production brief.',
     '- SFX timeline should feel editorially useful for a human video editor.',
+    '- In every EFEITO line, write only an English SFX name that is easy to search in CapCut PC.',
     '- Use the three decision layers: structural anchors, semantic anchors and rhythmic anchors.',
     '- Do not create SFX events closer than 25 seconds from each other.',
     '- Avoid sounding automated: prefer fewer, better-placed events over mechanically filling every anchor.',

@@ -84,6 +84,23 @@ const parseProjectCache = (raw: string | null): Project[] => {
   }
 };
 
+const readJsonCache = (key: string) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const hasUsefulCachePayload = (value: unknown) => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (isPlainObject(value)) return Object.keys(value).length > 0;
+  return typeof value === 'string' && value.trim().length > 0;
+};
+
+const AUXILIARY_PROJECT_PREFIXES = ['themes_', 'ws_script_execution_', 'ws_narrative_', 'bi_'];
+
 const mergeProjectCollections = (primary: Project[], secondary: Project[]) => {
   const merged = new Map<string, Project>();
 
@@ -96,6 +113,157 @@ const mergeProjectCollections = (primary: Project[], secondary: Project[]) => {
   return Array.from(merged.values());
 };
 
+const mergeArrayCache = (target: unknown, source: unknown) => {
+  const targetArray = Array.isArray(target) ? target : [];
+  const sourceArray = Array.isArray(source) ? source : [];
+  const merged = new Map<string, any>();
+
+  [...targetArray, ...sourceArray].forEach((item, index) => {
+    const key = item?.id || item?.title || item?.name || `${index}`;
+    const existing = merged.get(key);
+    merged.set(key, existing ? mergeProjectRecords(existing, item) : item);
+  });
+
+  return Array.from(merged.values());
+};
+
+const repairBootstrapAuxiliaryCaches = (sourceProjectId: string) => {
+  if (!sourceProjectId || sourceProjectId === BOOTSTRAP_PROJECT_ID) return;
+
+  AUXILIARY_PROJECT_PREFIXES.forEach((prefix) => {
+    const sourceKey = `${prefix}${sourceProjectId}`;
+    const targetKey = `${prefix}${BOOTSTRAP_PROJECT_ID}`;
+    const sourceRaw = localStorage.getItem(sourceKey);
+    if (!sourceRaw) return;
+
+    if (prefix === 'ws_script_execution_') {
+      const source = readJsonCache(sourceKey);
+      const target = readJsonCache(targetKey);
+      const sourceScore = getProjectRecoveryScore(sourceProjectId);
+      const targetScore = getProjectRecoveryScore(BOOTSTRAP_PROJECT_ID);
+
+      if (!target || sourceScore > targetScore) {
+        localStorage.setItem(targetKey, sourceRaw);
+      }
+      return;
+    }
+
+    const source = readJsonCache(sourceKey);
+    const target = readJsonCache(targetKey);
+
+    if (Array.isArray(source)) {
+      localStorage.setItem(targetKey, JSON.stringify(mergeArrayCache(target, source)));
+      return;
+    }
+
+    if (!hasUsefulCachePayload(target)) {
+      localStorage.setItem(targetKey, sourceRaw);
+    }
+  });
+};
+
+const inferRecoveredProjectName = (projectId: string) => {
+  const execution = readJsonCache(`ws_script_execution_${projectId}`);
+  const themes = readJsonCache(`themes_${projectId}`);
+  const firstTheme = Array.isArray(themes) ? themes.find(Boolean) : null;
+  const title = execution?.approvedBriefing?.projectName ||
+    execution?.approvedBriefing?.project_name ||
+    execution?.approvedBriefing?.channelName ||
+    firstTheme?.project_name ||
+    firstTheme?.channel_name;
+
+  if (typeof title === 'string' && title.trim()) return title.trim();
+  if (projectId === BOOTSTRAP_PROJECT_ID || projectId.toLowerCase().includes('devzen')) return 'DevZen';
+  return `Projeto recuperado ${projectId.slice(0, 6)}`;
+};
+
+const getPersistedActiveProjectId = () => {
+  const persisted = readJsonCache('content_os_active_project');
+  return persisted?.state?.activeProjectId || persisted?.activeProjectId || null;
+};
+
+const getProjectRecoveryScore = (projectId: string) => {
+  const execution = readJsonCache(`ws_script_execution_${projectId}`);
+  const themes = readJsonCache(`themes_${projectId}`);
+  const narrative = readJsonCache(`ws_narrative_${projectId}`);
+  const bi = readJsonCache(`bi_${projectId}`);
+  const persistedActiveProjectId = getPersistedActiveProjectId();
+
+  let score = projectId === persistedActiveProjectId ? 1000 : 0;
+
+  if (execution?.approvedBriefing) score += 120;
+  if (Array.isArray(execution?.scriptBlocks)) score += execution.scriptBlocks.length * 60;
+  if (typeof execution?.externalScriptText === 'string' && execution.externalScriptText.trim()) score += 250;
+  if (typeof execution?.externalSrtText === 'string' && execution.externalSrtText.trim()) score += 80;
+  if (execution?.externalSrtPipeline) score += 80;
+  if (execution?.postScriptPackage) score += 80;
+
+  if (Array.isArray(themes)) {
+    score += themes.length * 25;
+    if (themes.some((theme) => theme?.production_assets?.execution_snapshot)) score += 300;
+    if (themes.some((theme) => theme?.production_assets?.source === 'script_engine_manual_approval')) score += 120;
+  }
+
+  if (Array.isArray(narrative)) score += narrative.length * 8;
+  if (Array.isArray(bi)) score += bi.length * 8;
+
+  return score;
+};
+
+const recoverProjectsFromAuxiliaryCaches = (): Project[] => {
+  try {
+    const ids = new Set<string>();
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index) || '';
+      const prefix = AUXILIARY_PROJECT_PREFIXES.find((item) => key.startsWith(item));
+      if (!prefix) continue;
+
+      const projectId = key.slice(prefix.length);
+      if (!projectId) continue;
+
+      const payload = prefix === 'ws_script_execution_'
+        ? localStorage.getItem(key)
+        : readJsonCache(key);
+
+      if (hasUsefulCachePayload(payload)) {
+        ids.add(projectId);
+      }
+    }
+
+    const candidates = Array.from(ids).map((projectId) => {
+      const base = projectId === BOOTSTRAP_PROJECT_ID || projectId.toLowerCase().includes('devzen')
+        ? createBootstrapProject()
+        : {
+            ...createBootstrapProject(),
+            is_bootstrap_project: false,
+            visual_style: 'Recovered',
+          };
+
+      const name = inferRecoveredProjectName(projectId);
+      return {
+        ...base,
+        id: projectId,
+        name,
+        project_name: name,
+        is_recovered_project: true,
+        recovery_score: getProjectRecoveryScore(projectId),
+      };
+    });
+
+    return candidates
+      .filter((project) => Number(project.recovery_score || 0) > 0)
+      .sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0))
+      .slice(0, 1)
+      .map((project) => ({
+        ...project,
+        name: project.name?.startsWith('Projeto recuperado') ? 'DevZen recuperado' : project.name,
+        project_name: project.project_name?.startsWith('Projeto recuperado') ? 'DevZen recuperado' : project.project_name,
+      }));
+  } catch {
+    return [];
+  }
+};
+
 const readArchivedProjects = (): Project[] => {
   try {
     const raw = localStorage.getItem(PROJECTS_ARCHIVE_STORAGE_KEY);
@@ -104,8 +272,10 @@ const readArchivedProjects = (): Project[] => {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    const latestSnapshot = parsed.find((snapshot) => Array.isArray(snapshot?.projects) && snapshot.projects.length > 0);
-    return latestSnapshot?.projects || [];
+    return parsed.reduce((acc: Project[], snapshot: any) => {
+      if (!Array.isArray(snapshot?.projects) || snapshot.projects.length === 0) return acc;
+      return mergeProjectCollections(acc, snapshot.projects);
+    }, []);
   } catch {
     return [];
   }
@@ -115,13 +285,49 @@ const readLocalProjectCaches = () => {
   const primary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
   const backup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
   const archived = readArchivedProjects();
-  return mergeProjectCollections(mergeProjectCollections(primary, backup), archived);
+  const recovered = recoverProjectsFromAuxiliaryCaches();
+  const bestRecovered = recovered[0];
+
+  if (
+    bestRecovered?.id &&
+    bestRecovered.id !== BOOTSTRAP_PROJECT_ID &&
+    Number(bestRecovered.recovery_score || 0) > getProjectRecoveryScore(BOOTSTRAP_PROJECT_ID)
+  ) {
+    repairBootstrapAuxiliaryCaches(bestRecovered.id);
+  }
+
+  const repairedPrimary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
+  const repairedBackup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
+  const repairedRecovered = recoverProjectsFromAuxiliaryCaches();
+  const bestAfterRepair = repairedRecovered[0];
+  const shouldKeepRecoveredCard =
+    bestAfterRepair?.id &&
+    bestAfterRepair.id !== BOOTSTRAP_PROJECT_ID &&
+    getProjectRecoveryScore(bestAfterRepair.id) > getProjectRecoveryScore(BOOTSTRAP_PROJECT_ID);
+  const stablePrimary = repairedPrimary.filter((project) => !project.is_recovered_project);
+  const stableBackup = repairedBackup.filter((project) => !project.is_recovered_project);
+  const stableArchived = archived.filter((project) => !project.is_recovered_project);
+
+  return mergeProjectCollections(
+    mergeProjectCollections(mergeProjectCollections(stablePrimary, stableBackup), stableArchived),
+    shouldKeepRecoveredCard ? [bestAfterRepair] : []
+  );
 };
 
 const writeLocalProjectCaches = (projects: Project[]) => {
-  const payload = JSON.stringify(projects || []);
+  const safeProjects = Array.isArray(projects) && projects.length > 0 ? projects : [createBootstrapProject()];
+  const hasOnlySyntheticBootstrap =
+    safeProjects.length === 1 &&
+    isBootstrapProject(safeProjects[0]) &&
+    !localStorage.getItem(PROJECTS_STORAGE_KEY) &&
+    !localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY) &&
+    !localStorage.getItem(PROJECTS_ARCHIVE_STORAGE_KEY);
+
+  const payload = JSON.stringify(safeProjects);
   localStorage.setItem(PROJECTS_STORAGE_KEY, payload);
   localStorage.setItem(PROJECTS_BACKUP_STORAGE_KEY, payload);
+
+  if (hasOnlySyntheticBootstrap) return;
 
   try {
     const currentArchive = JSON.parse(localStorage.getItem(PROJECTS_ARCHIVE_STORAGE_KEY) || '[]');
@@ -146,6 +352,11 @@ const BOOTSTRAP_PROJECT_ID = 'demo-devzen-project';
 
 export const isBootstrapProject = (project: Project | null | undefined) =>
   project?.id === BOOTSTRAP_PROJECT_ID || project?.is_bootstrap_project === true;
+
+const isDevZenLikeProject = (project: Project | null | undefined) => {
+  const label = `${project?.project_name || ''} ${project?.name || ''}`.toLowerCase();
+  return label.includes('devzen');
+};
 
 const createBootstrapProject = (): Project => ({
   id: BOOTSTRAP_PROJECT_ID,
@@ -208,14 +419,34 @@ const createBootstrapProject = (): Project => ({
 
 const normalizeProjectList = (projects: Project[]) => {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
-  const withoutBootstrap = list.filter((project) => !isBootstrapProject(project));
+  const recoveredProjects = list
+    .filter((project) => project.is_recovered_project)
+    .sort((a, b) => Number(b.recovery_score || getProjectRecoveryScore(b.id)) - Number(a.recovery_score || getProjectRecoveryScore(a.id)))
+    .slice(0, 1);
+  const listWithoutRecovered = list.filter((project) => !project.is_recovered_project);
+  const normalizedList = [...recoveredProjects, ...listWithoutRecovered];
+  const withoutBootstrap = normalizedList.filter((project) => !isBootstrapProject(project));
+  const bootstrapProject = normalizedList.find((project) => isBootstrapProject(project));
 
-  if (withoutBootstrap.length > 0) {
+  if (recoveredProjects.length > 0) {
+    return [
+      ...recoveredProjects,
+      ...withoutBootstrap.filter((project) => !project.is_recovered_project),
+    ];
+  }
+
+  if (withoutBootstrap.some(isDevZenLikeProject)) {
     return withoutBootstrap;
   }
 
-  const bootstrapProject = list.find((project) => isBootstrapProject(project));
-  return [bootstrapProject || createBootstrapProject()];
+  if (withoutBootstrap.length > 0 && !bootstrapProject) {
+    return withoutBootstrap;
+  }
+
+  return [
+    bootstrapProject || createBootstrapProject(),
+    ...withoutBootstrap,
+  ];
 };
 
 export const useProjectStore = create<ProjectStore>()(
@@ -223,7 +454,7 @@ export const useProjectStore = create<ProjectStore>()(
     (set, get) => ({
       activeProjectId: null,
       activeProject: null,
-      projects: [],
+      projects: [createBootstrapProject()],
       projectsLoaded: false,
 
       setActiveProject: (id) => {
@@ -246,10 +477,11 @@ export const useProjectStore = create<ProjectStore>()(
       loadProjects: async () => {
         try {
           const localProjects = readLocalProjectCaches();
+          const fallbackProjects = localProjects.length > 0 ? localProjects : [createBootstrapProject()];
 
           if (!supabase) {
             // LocalStorage fallback
-            get().setProjects(localProjects);
+            get().setProjects(fallbackProjects);
             return;
           }
 
@@ -277,24 +509,13 @@ export const useProjectStore = create<ProjectStore>()(
             get().setProjects(mergedProjects);
           } else {
             // Cloud empty → use local cache
-            if (localProjects.length > 0) {
-              get().setProjects(localProjects);
-            } else {
-              const bootstrapProject = createBootstrapProject();
-              get().setProjects([bootstrapProject]);
-              get().setActiveProject(bootstrapProject.id);
-            }
+            get().setProjects(fallbackProjects);
           }
         } catch (err) {
           console.error('[ProjectStore] Failed to load projects:', err);
           const localProjects = readLocalProjectCaches();
-          if (localProjects.length > 0) {
-            get().setProjects(localProjects);
-          } else {
-            const bootstrapProject = createBootstrapProject();
-            get().setProjects([bootstrapProject]);
-            get().setActiveProject(bootstrapProject.id);
-          }
+          const fallbackProjects = localProjects.length > 0 ? localProjects : [createBootstrapProject()];
+          get().setProjects(fallbackProjects);
         }
       },
 

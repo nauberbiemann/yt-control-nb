@@ -7,18 +7,18 @@ import ApiKeyManager from '@/components/ApiKeyManager';
 import ProjectWizardModal from '@/components/ProjectWizardModal';
 import DeleteProjectModal from '@/components/DeleteProjectModal';
 import ScriptEngine from '@/components/ScriptEngine';
-import ProductionTracker from '@/components/ProductionTracker';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import NarrativeLibrary from '@/components/NarrativeLibrary';
 import ThemeBank from '@/components/ThemeBank';
 import AuthOverlay from '@/components/auth/AuthOverlay';
 import AwaitingApproval from '@/components/auth/AwaitingApproval';
-import UserManagement from '@/components/admin/UserManagement';
+import UserManagement from '@/components/admin/UserManagementPanel';
 import { supabase } from '@/lib/supabase';
+import { isMasterAccessEmail } from '@/lib/auth-access';
 import { useProjectStore, useActiveProject, useProjects, isBootstrapProject } from '@/lib/store/projectStore';
 
 // 🛠️ MODO DE DESENVOLVIMENTO: Altere para true para reativar a segurança
-const ENFORCE_AUTH = false;
+const ENFORCE_AUTH = true;
 import { AI_MODELS, DEFAULT_CONFIG, AIConfig } from '@/lib/ai-config';
 import { 
   Trash2, 
@@ -39,7 +39,8 @@ import {
   LogOut,
   ShieldAlert,
   Lightbulb,
-  Filter
+  Filter,
+  Clock
 } from 'lucide-react';
 
 export default function Home() {
@@ -80,7 +81,17 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const hasInitialized = useRef(false);
+  const isMasterUser = isMasterAccessEmail(user?.email);
+  const effectiveProfile = isMasterUser
+    ? {
+        ...profile,
+        email: user?.email,
+        role: 'admin',
+        status: 'approved',
+      }
+    : profile;
 
   // ── Zustand Store ────────────────────────────────────────────────────────
   const projectStore = useProjectStore();
@@ -97,6 +108,18 @@ export default function Home() {
       setCurrentView('projects');
     }
   }, [currentView, activeProjectId]);
+
+  useEffect(() => {
+    if (currentView === 'production') {
+      setCurrentView(activeProjectId ? 'scripts' : 'projects');
+    }
+  }, [currentView, activeProjectId]);
+
+  useEffect(() => {
+    if (ENFORCE_AUTH && currentView === 'admin' && !isMasterUser) {
+      setCurrentView('home');
+    }
+  }, [currentView, isMasterUser]);
 
   useEffect(() => {
     let timeoutId: any;
@@ -190,6 +213,11 @@ export default function Home() {
       };
     }
   }, []);
+
+  useEffect(() => {
+    if (loading || projectStore.projectsLoaded || projects.length > 0) return;
+    void projectStore.loadProjects();
+  }, [loading, projectStore.projectsLoaded, projects.length, projectStore]);
 
   const handleUpdateAI = (config: AIConfig) => {
     setActiveAIConfig(config);
@@ -669,7 +697,8 @@ export default function Home() {
         const stats = {
           finished: activeThemes.filter((t: any) => t.status === 'published').length,
           pending: activeThemes.filter((t: any) => ['backlog', 'vetted'].includes(t.status)).length,
-          production: activeThemes.filter((t: any) => t.status === 'scripted').length
+          production: activeThemes.filter((t: any) => t.status === 'scripted').length,
+          scheduled: activeThemes.filter((t: any) => t.status === 'scheduled').length
         };
 
         return (
@@ -688,7 +717,7 @@ export default function Home() {
             </header>
 
             {/* 2. Cards de Resumo */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="glass-card flex items-center gap-4 bg-emerald-500/5 border-emerald-500/20">
                 <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
                   <CheckSquare size={24} />
@@ -714,6 +743,15 @@ export default function Home() {
                 <div>
                   <p className="text-2xl font-black text-white leading-none">{stats.production}</p>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Scripts em Produção</p>
+                </div>
+              </div>
+              <div className="glass-card flex items-center gap-4 bg-orange-500/5 border-orange-500/20">
+                <div className="w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center text-orange-400">
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-white leading-none">{stats.scheduled}</p>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Posts Programados</p>
                 </div>
               </div>
             </div>
@@ -1030,8 +1068,6 @@ export default function Home() {
           />;
         case 'library':
           return <NarrativeLibrary activeProject={activeProject} />;
-      case 'production':
-        return <ProductionTracker activeProject={activeProject} />;
       case 'calendar':
         return (
           <div className="glass-card p-24 text-center border-dashed border-2 border-white/5">
@@ -1096,7 +1132,7 @@ export default function Home() {
       return <AuthOverlay />;
     }
 
-    if (profile && profile.status !== 'approved') {
+    if (!isMasterUser && (!effectiveProfile || effectiveProfile.status !== 'approved')) {
       return <AwaitingApproval email={user.email!} />;
     }
 
@@ -1129,7 +1165,7 @@ export default function Home() {
 
   return (
     <main 
-      className="min-h-screen bg-midnight text-white flex overflow-hidden font-sans"
+      className={`dashboard-container min-h-screen bg-midnight text-white flex overflow-hidden font-sans ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
       style={{ 
         '--accent-color': activeProject?.accent_color || '#9BB0A5',
         '--accent-color-glow': `${activeProject?.accent_color || '#9BB0A5'}15`
@@ -1142,7 +1178,9 @@ export default function Home() {
           setActiveProjectId(null);
           setCurrentView('home');
         }}
-        userRole={!ENFORCE_AUTH ? 'admin' : profile?.role}
+        userRole={!ENFORCE_AUTH ? 'admin' : isMasterUser ? 'admin' : 'user'}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
       />
       
       <main className="main-content">

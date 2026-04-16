@@ -25,9 +25,13 @@ Use one sentence per prompt, usually between 18 and 40 words.
 Rules for asset types:
 - asset == "video":
   - Choose a realistic live-action video prompt by default.
+  - The prompt must specify ambient sound only.
+  - Never include dialogue, voice-over, narration, talking, lip-sync, interview audio, subtitles, captions, logos, watermarks, or on-screen text.
+  - Include the provided recurring character description briefly in every live-action video prompt, so the person remains visually consistent across the sequence.
   - Use 3D technical animation only when the line explains an abstract concept, internal mechanism, hidden process, engineering detail, physics, chemistry, or something invisible that benefits from a technical visualization.
   - If using 3D, the prompt must begin with "3D technical animation of".
   - If not using 3D, the prompt must begin with "Realistic cinematic video of".
+  - If using 3D, still include "ambient sound only, no dialogue, no voice-over" at the end of the prompt.
 - asset == "image":
   - Always create a realistic still image prompt.
   - Emphasize the opening idea of the sentence more than the ending.
@@ -58,6 +62,26 @@ interface PromptResponseShape {
     prompt?: string;
   }>;
 }
+
+interface CharacterProfileInput {
+  mode?: 'male' | 'female' | 'custom';
+  customDescription?: string;
+}
+
+const resolveCharacterProfile = (input?: CharacterProfileInput | null) => {
+  const mode = input?.mode === 'female' || input?.mode === 'custom' ? input.mode : 'male';
+  const customDescription = String(input?.customDescription || '').replace(/\s+/g, ' ').trim();
+
+  if (mode === 'custom' && customDescription) {
+    return customDescription;
+  }
+
+  if (mode === 'female') {
+    return 'same recurring Brazilian female senior software architect in her early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
+  }
+
+  return 'same recurring Brazilian male senior software architect in his early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
+};
 
 const chunk = <T,>(items: T[], size: number) => {
   const batches: T[][] = [];
@@ -117,14 +141,25 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
   return promptMap;
 };
 
+const enforceVideoPromptGuards = (prompt: string, characterDescription: string) => {
+  const normalized = sanitizePrompt(prompt);
+  const hasCharacterCue = /same recurring|senior software architect|character|professional/i.test(normalized);
+  const hasAmbientCue = /ambient sound only|no dialogue|no voice-over|no voiceover/i.test(normalized);
+  const characterClause = hasCharacterCue ? '' : ` Featuring ${characterDescription}.`;
+  const audioClause = hasAmbientCue ? '' : ' Ambient sound only, no dialogue, no voice-over.';
+  return sanitizePrompt(`${normalized}${characterClause}${audioClause}`);
+};
+
 const generateBatchWithOpenAI = async ({
   apiKey,
   model,
   batchItems,
+  characterDescription,
 }: {
   apiKey: string;
   model: string;
   batchItems: PromptBatchItem[];
+  characterDescription: string;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
@@ -135,7 +170,9 @@ const generateBatchWithOpenAI = async ({
         content: [
           'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
           'Include exactly one prompt per row_number.',
-          JSON.stringify({ items: batchItems }, null, 2),
+          `Recurring character for live-action video prompts: ${characterDescription}`,
+          'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
+          JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
         ].join('\n\n'),
       },
     ],
@@ -169,10 +206,12 @@ const generateBatchWithGemini = async ({
   apiKey,
   model,
   batchItems,
+  characterDescription,
 }: {
   apiKey: string;
   model: string;
   batchItems: PromptBatchItem[];
+  characterDescription: string;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -186,7 +225,9 @@ const generateBatchWithGemini = async ({
               SYSTEM_INSTRUCTIONS,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
               'Include exactly one prompt per row_number.',
-              JSON.stringify({ items: batchItems }, null, 2),
+              `Recurring character for live-action video prompts: ${characterDescription}`,
+              'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
+              JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
             ].join('\n\n'),
           }],
         }],
@@ -214,12 +255,14 @@ const generatePromptMap = async ({
   apiKey,
   projectConfig,
   items,
+  characterDescription,
 }: {
   engine: 'openai' | 'gemini';
   model: string;
   apiKey: string;
   projectConfig?: Record<string, string>;
   items: PromptBatchItem[];
+  characterDescription: string;
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -229,8 +272,8 @@ const generatePromptMap = async ({
 
   for (const batch of chunk(items, BATCH_SIZE)) {
     const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch });
+      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription })
+      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription });
 
     const validatedBatch = validatePromptBatch(batch, payload);
     validatedBatch.forEach((prompt, rowNumber) => {
@@ -248,6 +291,7 @@ export async function POST(req: NextRequest) {
     const engine = body?.engine === 'gemini' ? 'gemini' : 'openai';
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
+    const characterDescription = resolveCharacterProfile(body?.characterProfile);
 
     if (!srtText) {
       return NextResponse.json({ error: 'O conteudo do .srt e obrigatorio.' }, { status: 400 });
@@ -282,11 +326,14 @@ export async function POST(req: NextRequest) {
         apiKey,
         projectConfig,
         items: promptItems,
+        characterDescription,
       });
 
       rowsWithPrompts = markedRows.map((row) => ({
         ...row,
-        prompt: promptMap.get(row.rowNumber) || row.prompt,
+        prompt: normalizeAssetType(row.asset) === 'vídeo'
+          ? enforceVideoPromptGuards(promptMap.get(row.rowNumber) || row.prompt, characterDescription)
+          : promptMap.get(row.rowNumber) || row.prompt,
       }));
     }
 

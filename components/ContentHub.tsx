@@ -41,7 +41,7 @@ interface Theme {
   title_structure?: string;
   title_structure_asset_id?: string | null;
   refined_title?: string; 
-  status: 'backlog' | 'vetted' | 'scripted' | 'published' | 'Roteirização' | 'Produção';
+  status: 'backlog' | 'vetted' | 'scripted' | 'scheduled' | 'published' | 'Roteirização' | 'Produção' | 'Programado';
   created_at: string;
   production_assets?: {
     thumb_prompt: string;
@@ -937,12 +937,14 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                         ['backlog', 'Backlog'].includes(theme.status) ? 'bg-white/5 border-white/10 text-white/40' :
                         ['vetted', 'Aprovado'].includes(theme.status) ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
                         ['scripted', 'Roteirização'].includes(theme.status) ? 'bg-sage/10 border-sage/20 text-sage' :
+                        ['scheduled', 'Programado'].includes(theme.status) ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' :
                         'bg-orange-500/10 border-orange-500/20 text-orange-400'
                       }`}>
                         {['backlog', 'Backlog'].includes(theme.status) && <Clock size={10} />}
                         {['vetted', 'Aprovado'].includes(theme.status) && <CheckCircle2 size={10} />}
                         {['scripted', 'Roteirização'].includes(theme.status) && <Zap size={10} />}
-                        {theme.status === 'vetted' ? 'Aprovado' : theme.status === 'backlog' ? 'Backlog' : theme.status === 'scripted' ? 'Roteirizado' : theme.status}
+                        {['scheduled', 'Programado'].includes(theme.status) && <Clock size={10} />}
+                        {theme.status === 'vetted' ? 'Aprovado' : theme.status === 'backlog' ? 'Backlog' : theme.status === 'scripted' ? 'Roteirizado' : theme.status === 'scheduled' ? 'Programado' : theme.status}
                       </div>
                     </td>
                     <td className="px-6 py-5">

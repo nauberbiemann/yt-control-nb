@@ -114,6 +114,44 @@ const cleanMultiline = (value: string) =>
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
+const normalizeSfxEffectName = (value: string) => {
+  const raw = cleanPreview(value);
+  const normalized = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  const mappings: Array<{ regex: RegExp; label: string }> = [
+    { regex: /\b(glitch|bug|erro|falha|digital)\b/, label: 'Digital Glitch' },
+    { regex: /\b(rumble|grave|sub|baixo|tensao profunda)\b/, label: 'Low Rumble' },
+    { regex: /\b(whoosh|swoosh|transicao|passagem|corte)\b/, label: 'Cinematic Whoosh' },
+    { regex: /\b(riser|rise|crescendo|subida|tensao)\b/, label: 'Tension Riser' },
+    { regex: /\b(hit|impact|impacto|metal|metalico|batida)\b/, label: 'Metallic Impact' },
+    { regex: /\b(click|clique|keyboard|teclado|typing|digitacao)\b/, label: 'Keyboard Clicks' },
+    { regex: /\b(notification|notificacao|ping|alert|alerta|beep)\b/, label: 'Notification Ping' },
+    { regex: /\b(ambience|ambiencia|ambiente|room tone|silencio|pad)\b/, label: 'Ambient Room Tone' },
+    { regex: /\b(pulse|pulso|bass|baixo)\b/, label: 'Sub Bass Pulse' },
+    { regex: /\b(reverse|rewind|rollback)\b/, label: 'Reverse Whoosh' },
+  ];
+
+  for (const mapping of mappings) {
+    if (mapping.regex.test(normalized)) return mapping.label;
+  }
+
+  if (/^[a-z0-9 /-]+$/i.test(raw) && raw.length <= 36) return raw;
+  return 'Cinematic Accent Hit';
+};
+
+const normalizeSfxTimelineEffectNames = (value: string) =>
+  cleanMultiline(value)
+    .split('\n')
+    .map((line) => {
+      if (!line.trim().toUpperCase().startsWith('EFEITO:')) return line;
+      const effect = line.split(':').slice(1).join(':').trim();
+      return `EFEITO: ${normalizeSfxEffectName(effect)}`;
+    })
+    .join('\n');
+
 const cleanInlineLabel = (value: string) =>
   cleanPreview(value)
     .replace(/\[[^\]]+\]/g, ' ')
@@ -719,7 +757,7 @@ export const sanitizePostScriptPackage = (
     seoDescription: buildSeoDescriptionFromPackage(String(raw?.seoDescription || ''), Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors),
     sunoPrompt: cleanMultiline(String(raw?.sunoPrompt || '')),
     sunoSuggestedTitle: cleanPreview(String(raw?.sunoSuggestedTitle || '')),
-    sfxTimelineTxt: cleanMultiline(String(raw?.sfxTimelineTxt || '')),
+    sfxTimelineTxt: normalizeSfxTimelineEffectNames(String(raw?.sfxTimelineTxt || '')),
     chapterAnchors: Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors,
     timelineSource,
     generatedAt: String(raw?.generatedAt || new Date().toISOString()),

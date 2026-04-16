@@ -34,7 +34,7 @@ export interface ThemeEntry {
   title: string;
   description?: string;
   editorial_pillar?: string;
-  status: 'backlog' | 'vetted' | 'scripted' | 'published';
+  status: 'backlog' | 'vetted' | 'scripted' | 'scheduled' | 'published';
   title_structure?: string;
   priority: number;
   notes?: string;

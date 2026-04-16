@@ -9,11 +9,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        midnight: '#0a0f1e',
-        sage: '#9bb0a5',
-        primary: '#9bb0a5',
-        'card-bg': 'rgba(255, 255, 255, 0.05)',
-        'card-border': 'rgba(255, 255, 255, 0.1)',
+        midnight: '#050a14',
+        'midnight-light': '#0a0f1e',
+        sage: '#3b82f6', // Remapped to brand blue for backward compatibility with classes
+        primary: '#3b82f6',
+        brand: {
+          DEFAULT: '#3b82f6',
+          dark: '#2563eb',
+        },
+        'card-bg': 'rgba(255, 255, 255, 0.03)',
+        'card-border': 'rgba(255, 255, 255, 0.08)',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

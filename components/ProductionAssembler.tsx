@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useActiveProject } from '@/lib/store/projectStore';
 import { fetchLastCompositions } from '@/lib/supabase-mutations';
+import ScrollToTopButton from './ScrollToTopButton';
 import {
   ShieldCheck,
   Shuffle,
@@ -38,7 +39,7 @@ interface AssemblerBlock {
   id: string;
   name: string;
   missionNarrative: string;
-  voiceStyle: 'Desafio Direto' | 'Vulnerabilidade' | 'DiagnÃ³stico TÃ©cnico';
+  voiceStyle: 'Desafio Direto' | 'Vulnerabilidade' | 'Diagnostico Tecnico';
   assetId?: string;
   type: 'Hook' | 'Metaphor' | 'CTA';
   isNarrativeTwist?: boolean;
@@ -126,24 +127,24 @@ interface ProductionAssemblerProps {
 const VOICE_STYLES: AssemblerBlock['voiceStyle'][] = [
   'Desafio Direto',
   'Vulnerabilidade',
-  'DiagnÃ³stico TÃ©cnico',
+  'Diagnostico Tecnico',
 ];
 
 const VOICE_MISSION_MAP: Record<AssemblerBlock['voiceStyle'], string[]> = {
   'Desafio Direto': [
-    'Provocar aÃ§Ã£o imediata â€” confrontar a crenÃ§a limitante do espectador.',
-    'Challenger Frame â€” expor o que o espectador estÃ¡ fazendo errado.',
-    'Autoridade agressiva â€” posicionar a autoridade do criador com desafio direto.',
+    'Provocar acao imediata - confrontar a crenca limitante do espectador.',
+    'Challenger Frame - expor o que o espectador esta fazendo errado.',
+    'Autoridade agressiva - posicionar a autoridade do criador com desafio direto.',
   ],
   'Vulnerabilidade': [
-    'Storytelling pessoal â€” compartilhar falha ou aprendizado do criador.',
-    'Espelho emocional â€” fazer o espectador se sentir visto e compreendido.',
-    'Jornada de herÃ³i â€” como o criador passou pelo mesmo problema.',
+    'Storytelling pessoal - compartilhar falha ou aprendizado do criador.',
+    'Espelho emocional - fazer o espectador se sentir visto e compreendido.',
+    'Jornada de heroi - como o criador passou pelo mesmo problema.',
   ],
-  'DiagnÃ³stico TÃ©cnico': [
-    'AnÃ¡lise de dados â€” apresentar evidÃªncias e nÃºmeros para validar o ponto.',
-    'Framework sistÃªmico â€” decompor o problema em componentes tÃ©cnicos.',
-    'DiagnÃ³stico de mercado â€” o que a maioria faz errado e por quÃª.',
+  'Diagnostico Tecnico': [
+    'Analise de dados - apresentar evidencias e numeros para validar o ponto.',
+    'Framework sistemico - decompor o problema em componentes tecnicos.',
+    'Diagnostico de mercado - o que a maioria faz errado e por que.',
   ],
 };
 
@@ -185,13 +186,13 @@ const SCORE_COLOR = (score: number) => {
 const VOICE_ICON: Record<string, any> = {
   'Desafio Direto': Zap,
   'Vulnerabilidade': Mic,
-  'DiagnÃ³stico TÃ©cnico': TrendingUp,
+  'Diagnostico Tecnico': TrendingUp,
 };
 
 const VOICE_COLOR: Record<string, string> = {
   'Desafio Direto': 'text-orange-400 border-orange-400/20 bg-orange-400/5',
   'Vulnerabilidade': 'text-purple-400 border-purple-400/20 bg-purple-400/5',
-  'DiagnÃ³stico TÃ©cnico': 'text-blue-400 border-blue-400/20 bg-blue-400/5',
+  'Diagnostico Tecnico': 'text-blue-400 border-blue-400/20 bg-blue-400/5',
 };
 
 const formatVoicePatternLabel = (patternId?: string) => {
@@ -207,12 +208,17 @@ const formatDurationLabel = (minutes?: number) => {
   return `~${minutes} min`;
 };
 
-const getNarrativeTensionMap = (
-  index: number,
-  total: number,
-  voiceStyle: AssemblerBlock['voiceStyle'],
-  isNarrativeTwist?: boolean
-): Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole' | 'transitionMode'> => {
+const getNarrativeTensao = ({
+  index,
+  total,
+  voiceStyle,
+  isNarrativeTwist,
+}: {
+  index: number;
+  total: number;
+  voiceStyle: AssemblerBlock['voiceStyle'];
+  isNarrativeTwist?: boolean;
+}): Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole' | 'transitionMode'> => {
   if (isNarrativeTwist) {
     return {
       tensionLevel: 'Alta',
@@ -253,7 +259,7 @@ const getNarrativeTensionMap = (
     };
   }
 
-  if (voiceStyle === 'DiagnÃ³stico TÃ©cnico') {
+  if (voiceStyle === 'Diagnostico Tecnico') {
     return {
       tensionLevel: 'Media',
       narrativeRole: 'Diagnostico',
@@ -383,10 +389,10 @@ const inferVoiceStyleFromMission = ({
 
   if (explicitFirstPerson && !explicitSecondPerson && !explicitThirdPerson) return 'Vulnerabilidade';
   if (explicitSecondPerson && !explicitFirstPerson && !explicitThirdPerson) return 'Desafio Direto';
-  if (explicitThirdPerson && !explicitFirstPerson && !explicitSecondPerson) return 'DiagnÃ³stico TÃ©cnico';
+  if (explicitThirdPerson && !explicitFirstPerson && !explicitSecondPerson) return 'Diagnostico Tecnico';
 
   const ranked = [
-    { voice: 'DiagnÃ³stico TÃ©cnico' as const, score: diagnosticScore },
+    { voice: 'Diagnostico Tecnico' as const, score: diagnosticScore },
     { voice: 'Vulnerabilidade' as const, score: vulnerabilityScore },
     { voice: 'Desafio Direto' as const, score: challengeScore },
   ].sort((a, b) => b.score - a.score);
@@ -396,7 +402,7 @@ const inferVoiceStyleFromMission = ({
   return ranked[0].voice;
 };
 
-const getAdvancedNarrativeTensionMap = ({
+const getAdvancedNarrativeTensao = ({
   index,
   total,
   voiceStyle,
@@ -415,8 +421,12 @@ const getAdvancedNarrativeTensionMap = ({
   missionNarrative?: string;
   isNarrativeTwist?: boolean;
 }): Pick<AssemblerBlock, 'tensionLevel' | 'narrativeRole' | 'transitionMode'> => {
-  const baseMap = getNarrativeTensionMap(index, total, voiceStyle, isNarrativeTwist);
-  const themeSignal = normalizeSignal(themeText);
+  const baseMap = getNarrativeTensao({
+    index,
+    total,
+    voiceStyle,
+    isNarrativeTwist,
+  });
   const {
     signal: blockSignal,
     explicitFirstPerson,
@@ -430,6 +440,7 @@ const getAdvancedNarrativeTensionMap = ({
     isActionBlock,
     isChallengeDirective,
   } = analyzeNarrativeSignal(`${blockName || ''} ${missionNarrative || ''}`);
+  const themeSignal = normalizeSignal(themeText);
   const patternSignal = normalizeSignal(voicePatternId);
 
   const isChallengeTheme = /(erro|falha|choque|crash|vicio|burnout|vazamento|leak|queda|perda|throttling|divida|ego|panic)/.test(themeSignal);
@@ -483,7 +494,7 @@ const getAdvancedNarrativeTensionMap = ({
     };
   }
 
-  if (preTwistZone && diagnosticScore >= Math.max(vulnerabilityScore, challengeScore) && (diagnosticFirst || isDiagnosticBlock || explicitThirdPerson || voiceStyle === 'DiagnÃ³stico TÃ©cnico')) {
+  if (preTwistZone && diagnosticScore >= Math.max(vulnerabilityScore, challengeScore) && (diagnosticFirst || isDiagnosticBlock || explicitThirdPerson || voiceStyle === 'Diagnostico Tecnico')) {
     return {
       tensionLevel: 'Media',
       narrativeRole: 'Diagnostico',
@@ -515,7 +526,7 @@ const getAdvancedNarrativeTensionMap = ({
     };
   }
 
-  if (diagnosticScore >= Math.max(vulnerabilityScore, challengeScore) && (isDiagnosticBlock || explicitThirdPerson || voiceStyle === 'DiagnÃ³stico TÃ©cnico')) {
+  if (diagnosticScore >= Math.max(vulnerabilityScore, challengeScore) && (isDiagnosticBlock || explicitThirdPerson || voiceStyle === 'Diagnostico Tecnico')) {
     return {
       tensionLevel: 'Media',
       narrativeRole: postTwistZone ? 'Aplicacao' : 'Diagnostico',
@@ -841,7 +852,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       const data = await res.json();
 
       if (!data.blocks || data.blocks.length === 0) {
-        throw new Error('O motor V14 nÃ£o retornou blocos. Verifique se hÃ¡ Hooks e CTAs cadastrados na Biblioteca Narrativa.');
+        throw new Error('O motor V14 nao retornou blocos. Verifique se ha Hooks e CTAs cadastrados na Biblioteca Narrativa.');
       }
 
       // Map API response â†’ ProductionBriefing
@@ -886,7 +897,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       const ctaCharsBudget = Number(data?.ctaChars || 0) || Math.floor(estimatedChars * 0.06);
       const bodyCharsBudget = Math.max(estimatedChars - hookCharsBudget - ctaCharsBudget, minBlocks * 320);
 
-      const VALID_VOICES = ['Desafio Direto', 'Vulnerabilidade', 'DiagnÃ³stico TÃ©cnico'] as const;
+      const VALID_VOICES = ['Desafio Direto', 'Vulnerabilidade', 'Diagnostico Tecnico'] as const;
       let rawBlocks: AssemblerBlock[] = (data.blocks || []).map((b: any, i: number) => {
         const suggestedVoice = (VALID_VOICES.includes(b.voiceStyle) ? b.voiceStyle : VALID_VOICES[i % 3]) as AssemblerBlock['voiceStyle'];
         const voiceStyle = inferVoiceStyleFromMission({
@@ -898,7 +909,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           missionNarrative: b.missionNarrative || '',
           voiceStyle,
         });
-        const narrativeMap = getAdvancedNarrativeTensionMap({
+        const narrativeMap = getAdvancedNarrativeTensao({
           index: i,
           total: Math.max(data.blocks.length, 1),
           voiceStyle,
@@ -939,7 +950,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             missionNarrative,
             voiceStyle,
           });
-          const narrativeMap = getAdvancedNarrativeTensionMap({
+          const narrativeMap = getAdvancedNarrativeTensao({
             index: i,
             total: minBlocks,
             voiceStyle,
@@ -981,7 +992,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         hookChars: hookCharsBudget,
         ctaChars: ctaCharsBudget,
         blockCount,
-        dominantVoice: data.dominantVoice || blocks[0]?.voiceStyle || 'DiagnÃ³stico TÃ©cnico',
+        dominantVoice: data.dominantVoice || blocks[0]?.voiceStyle || 'Diagnostico Tecnico',
         diagnostics: data.diagnostics,
         openingHook: {
           id: selectedHook?.id || '',
@@ -1076,12 +1087,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           </div>
           <div>
             <h2 className="font-black text-white text-sm uppercase tracking-widest italic">Production Assembler V4</h2>
-            <p className="text-[11px] text-white/30 uppercase tracking-[2px] font-black">Gatekeeper Â· Shuffle Engine Â· Briefing</p>
+            <p className="text-[11px] text-white/30 uppercase tracking-[2px] font-black">Gatekeeper · Shuffle Engine · Briefing</p>
           </div>
         </div>
         {phase !== 'input' && (
           <button onClick={reset} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/30 hover:text-white transition-all">
-            <RotateCcw size={13} /> RecomeÃ§ar
+            <RotateCcw size={13} /> Recomecar
           </button>
         )}
       </div>
@@ -1090,7 +1101,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       {phase === 'input' && (
         <div className="glass-card p-8 space-y-6">
           <div>
-            <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Tema do VÃ­deo</label>
+            <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Tema do Video</label>
             <textarea
               value={theme}
               onChange={e => setTheme(e.target.value)}
@@ -1130,7 +1141,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           <button
             onClick={runGatekeeper}
             disabled={!theme.trim() || loading || !narrativeLibraryReady}
-            className="w-full flex items-center justify-center gap-3 py-4 bg-sage text-midnight rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-sage/80 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 py-4 bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-blue-400 shadow-lg shadow-blue-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ShieldCheck size={16} /> Analisar com Gatekeeper
           </button>
@@ -1154,12 +1165,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               <AlertTriangle size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-yellow-400 mb-1">
-                  AnÃ¡lise Simplificada ({gatekeeperResult.fallbackReason === 'parse_error' ? 'Falha no Motor IA' : 'Sem Chave de API'})
+                  Analise Simplificada ({gatekeeperResult.fallbackReason === 'parse_error' ? 'Falha no Motor IA' : 'Sem Chave de API'})
                 </p>
                 <p className="text-xs text-yellow-300/60 leading-relaxed">
                   {gatekeeperResult.fallbackReason === 'parse_error'
-                    ? 'A InteligÃªncia Artificial retornou dados em um formato invÃ¡lido. O Gatekeeper aplicou a anÃ¡lise algorÃ­tmica local como plano de seguranÃ§a.'
-                    : 'Nenhuma chave de API detectada. O Gatekeeper utilizou anÃ¡lise local baseada em palavras-chave. Configure sua chave em ConfiguraÃ§Ãµes para validaÃ§Ã£o com IA.'}
+                    ? 'A Inteligencia Artificial retornou dados em um formato invalido. O Gatekeeper aplicou a analise algoritmica local como plano de seguranca.'
+                    : 'Nenhuma chave de API detectada. O Gatekeeper utilizou analise local baseada em palavras-chave. Configure sua chave em Configuracoes para validacao com IA.'}
                 </p>
               </div>
             </div>
@@ -1183,7 +1194,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Status Badge */}
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest mb-4 ${SCORE_COLOR(gatekeeperResult.matchScore).badge}`}>
               {gatekeeperResult.isValid ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-              {gatekeeperResult.isValid ? 'Tema Aprovado' : 'Tema CrÃ­tico â€” PivÃ´ NecessÃ¡rio'}
+              {gatekeeperResult.isValid ? 'Tema Aprovado' : 'Tema Critico · Pivot Necessario'}
             </div>
 
             {/* Reasoning */}
@@ -1196,7 +1207,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Pivot Suggestion */}
             {gatekeeperResult.pivotSuggestion && (
               <div className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-[3px] text-white/30">SugestÃ£o de Pivot</p>
+                <p className="text-xs font-black uppercase tracking-[3px] text-white/30">Sugestao de Pivot</p>
                 <p className="text-sm text-white/70 leading-relaxed">{gatekeeperResult.pivotSuggestion}</p>
               </div>
             )}
@@ -1225,13 +1236,13 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                       }}
                       className="text-xs font-black uppercase tracking-widest px-2 py-1 rounded-full border border-white/20 text-white/40 hover:border-white/40 hover:text-white transition-all"
                     >
-                      {editingRefactored ? 'âœ“ Salvar' : 'âœŽ Editar'}
+                      {editingRefactored ? 'Salvar' : 'Editar'}
                     </button>
                     <button
                       onClick={() => setUseRefactored(v => !v)}
-                      className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border transition-all ${useRefactored ? 'bg-sage/20 border-sage/40 text-sage' : 'border-white/20 text-white/40 hover:border-white/40'}`}
+                      className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border transition-all ${useRefactored ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' : 'border-white/20 text-white/40 hover:border-white/40'}`}
                     >
-                      {useRefactored ? 'âœ“ Usando' : 'Usar Este'}
+                      {useRefactored ? 'Usando' : 'Usar Este'}
                     </button>
                   </div>
                 </div>
@@ -1255,7 +1266,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             </button>
             <button
               onClick={runShuffle}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-sage text-midnight rounded-xl font-black text-sm uppercase tracking-widest hover:bg-sage/80 transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-blue-400 shadow-lg shadow-blue-500/25 transition-all"
             >
               <Shuffle size={14} /> Gerar Estrutura Modular
             </button>
@@ -1268,7 +1279,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         <div className="glass-card p-12 flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-purple-400/20 border-t-purple-400 rounded-full animate-spin" />
           <p className="text-xs font-black uppercase tracking-widest text-white/40">Shuffle Engine montando blocos...</p>
-          <p className="text-[11px] text-white/20 font-black uppercase tracking-widest">Motor V9 Â· Anti-repetiÃ§Ã£o ativo</p>
+          <p className="text-[11px] text-white/20 font-black uppercase tracking-widest">Motor V9 · Anti-repeticao ativo</p>
         </div>
       )}
 
@@ -1280,7 +1291,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Title Row */}
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[3px] text-sage mb-1">TÃ­tulo Criativo</p>
+                <p className="text-xs font-black uppercase tracking-[3px] text-sage mb-1">Titulo Criativo</p>
                 <h3 className="text-xl font-black text-white italic leading-tight break-words">"{briefing.title}"</h3>
               </div>
               <button
@@ -1294,7 +1305,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[ 
-                { label: 'DuraÃ§Ã£o',    value: briefing.estimatedDuration },
+                { label: 'Duracao',    value: briefing.estimatedDuration },
                 { label: 'Blocos',     value: `${briefing.blockCount} blocos` },
                 { label: 'Voz Dom.',   value: briefing.dominantVoice.split(' ')[0] },
                 { label: 'Caracteres', value: `~${briefing.estimatedChars.toLocaleString('pt-BR')}` },
@@ -1398,7 +1409,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                     { label: 'Curva travada', value: briefing.selectedNarrativeCurve?.name || 'Nao definida' },
                     { label: 'Argumento travado', value: briefing.selectedArgumentMode?.name || 'Nao definido' },
                     { label: 'Padrao de voz', value: formatVoicePatternLabel(briefing.diagnostics.locked.voicePatternId) },
-                    { label: 'Duracao travada', value: formatDurationLabel(briefing.diagnostics.locked.durationMinutes) },
+                    { label: 'Duracao', value: formatDurationLabel(briefing.diagnostics.locked.durationMinutes) },
                     { label: 'Blocos travados', value: `${briefing.diagnostics.locked.blockCount} blocos` },
                   ].map((item) => (
                     <div key={item.label} className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
@@ -1475,12 +1486,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                             <div className="flex flex-wrap items-center gap-1.5 mb-1">
                               {isTwist && (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-400/5 px-1.5 py-0.5 rounded-full">
-                                  â†» Virada Narrativa
+                                  Virada Narrativa
                                 </span>
                               )}
                               {block.communityElement && (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-purple-400 border border-purple-400/30 bg-purple-400/5 px-1.5 py-0.5 rounded-full">
-                                  â—ˆ Comunidade
+                                  Comunidade
                                 </span>
                               )}
                               {block.blockChars && (
@@ -1491,7 +1502,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {block.tensionLevel && (
                                   <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    TensÃ£o: {block.tensionLevel}
+                                    Tensao: {block.tensionLevel}
                                   </span>
                                 )}
                                 {block.narrativeRole && (
@@ -1501,7 +1512,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                                 )}
                                 {block.transitionMode && (
                                   <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    TransiÃ§Ã£o: {block.transitionMode}
+                                    Transicao: {block.transitionMode}
                                   </span>
                                 )}
                               </div>
@@ -1558,14 +1569,14 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <button onClick={runShuffle} className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-white/50 hover:bg-white/10 hover:text-white transition-all">
+            <button onClick={runShuffle} className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs font-black uppercase tracking-widest text-blue-300 hover:bg-blue-500/20 hover:text-white transition-all shadow-lg shadow-blue-500/10">
               <Shuffle size={15} /> Novo Shuffle
             </button>
             <button
               onClick={handleApprove}
-              className="w-full sm:flex-1 flex items-center justify-center gap-3 py-3.5 bg-sage text-midnight rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-sage/80 transition-all shadow-lg shadow-sage/20"
+              className="w-full sm:flex-1 flex items-center justify-center gap-3 py-3.5 bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-blue-400 transition-all shadow-lg shadow-blue-500/25"
             >
-              âœ“ Aprovar e Gerar Roteiro <ArrowRight size={17} />
+              Aprovar e Gerar Roteiro <ArrowRight size={17} />
             </button>
           </div>
         </div>
@@ -1578,8 +1589,10 @@ export default function ProductionAssembler({ components, componentsHydrated = t
           <p className="text-[10px] text-red-300 font-bold">{error}</p>
         </div>
       )}
+      <ScrollToTopButton />
     </div>
   );
 }
+
 
 

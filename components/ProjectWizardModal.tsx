@@ -124,7 +124,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       id: d.id || '',
       name: d.name || d.project_name || '',
       puc: d.puc || d.puc_promise || '',
-      accent_color: d.accent_color || '#9BB0A5',
+      accent_color: d.accent_color || '#3b82f6',
       default_execution_mode: d.default_execution_mode || 'internal',
       
       // Stage 1: Fundação (DNA)
@@ -236,10 +236,10 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
             <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Identificador do Projeto</label>
-                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">Nome de destaque da instância.</span>
+                <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1">Identificador do Projeto</label>
+                <span className="text-[9px] uppercase font-bold text-white/40 -mt-1 mb-1">Nome de destaque da instância.</span>
                 <input 
-                  className={`w-full bg-sage/5 border ${nameError ? 'border-red-500/50 focus:border-red-500' : 'border-sage/30 focus:border-sage'} rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-sage/10 transition-all text-white font-black text-lg placeholder:text-white/10`}
+                  className={`w-full bg-blue-500/5 border ${nameError ? 'border-red-500/50 focus:border-red-500' : 'border-blue-500/10 focus:border-blue-500'} rounded-2xl px-5 py-5 outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-white font-black text-lg placeholder:text-white/10`}
                   placeholder="Nome da instancia"
                   value={formData.name}
                   onChange={(e) => {
@@ -257,7 +257,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1">Proposta Única do Canal (PUC)</label>
                 <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">A promessa central que torna seu canal imbatível.</span>
                 <textarea 
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white font-bold min-h-[90px] resize-none"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white font-bold min-h-[90px] resize-none"
                   placeholder="Qual o diferencial imbatível do canal?"
                   value={formData.puc}
                   onChange={(e) => updateFormData({ puc: e.target.value })}
@@ -322,8 +322,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 </div>
               </div>
             </div>
-            <div className="p-8 rounded-[32px] border border-white/10 bg-white/[0.02] shadow-inner">
-              <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1 block">Rastreabilidade Gerada pela Aplicação</label>
+            <div className="p-8 rounded-[32px] border border-blue-500/5 bg-blue-500/[0.01] shadow-inner">
+              <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1 block">Rastreabilidade Gerada pela Aplicação</label>
               <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Você não precisa preencher isto manualmente. A aplicação monta esse resumo a partir dos campos anteriores e usa isso nas análises futuras.</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {buildTraceabilitySummary().summary.map((item: string) => (
@@ -348,7 +348,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   <div key={i} className="flex flex-col gap-2">
                     <span className="text-[9px] font-black text-white/20 ml-1">PILAR 0{i+1}</span>
                     <input 
-                      className="p-5 bg-white/5 border border-white/10 rounded-2xl text-center text-xs font-bold text-white outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all placeholder:text-white/5"
+                      className="p-5 bg-white/5 border border-white/10 rounded-2xl text-center text-xs font-bold text-white outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:text-white/5"
                       placeholder="Tema..."
                       value={p}
                       onChange={(e) => {
@@ -377,7 +377,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       }}
                       className={`py-3 rounded-xl border text-[9px] font-black transition-all ${
                         formData.narrative_voice.atmosphere.includes(t)
-                        ? 'bg-sage border-sage text-midnight shadow-lg shadow-sage/20'
+                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
                         : 'bg-white/5 border-white/5 text-white/30 hover:border-white/10'
                       }`}
                     >{t}</button>
@@ -425,7 +425,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Engenharia de Metáforas</label>
                 <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-2">Analogias que simplificam o complexo e criam uma marca única.</span>
                 <textarea 
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-6 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-white text-sm min-h-[250px] leading-relaxed resize-none placeholder:text-white/10 shadow-inner"
+                  className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-8 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white text-sm min-h-[250px] leading-relaxed resize-none placeholder:text-white/10 shadow-inner"
                   value={formData.metaphor_library}
                   onChange={(e) => updateFormData({ metaphor_library: e.target.value })}
                   placeholder="Cadastre as analogias e termos técnicos proprietários do canal..."
@@ -433,7 +433,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               </div>
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col">
-                  <label className="text-[10px] uppercase font-black tracking-widest text-[#9BB0A5]">Layout de Thumbnail</label>
+                  <label className="text-[10px] uppercase font-black tracking-widest text-blue-400">Layout de Thumbnail</label>
                   <span className="text-[9px] uppercase font-bold opacity-30 mt-1">A narrativa visual que interrompe o scroll e força o clique.</span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
@@ -449,7 +449,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                         }}
                         className={`p-5 rounded-2xl border text-left flex items-center justify-between transition-all group ${
                           isSelected
-                          ? 'bg-sage border-sage text-midnight shadow-xl'
+                          ? 'bg-blue-600 border-blue-500 text-white shadow-xl'
                           : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/[0.07] hover:border-white/10'
                         }`}
                       >
@@ -536,11 +536,11 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                         onClick={() => updateFormData({ default_execution_mode: option.value })}
                         className={`text-left rounded-2xl border px-4 py-4 transition-all ${
                           isActive
-                            ? 'bg-sage/10 border-sage/40 shadow-lg shadow-sage/10'
+                            ? 'bg-blue-500/10 border-blue-500/40 shadow-lg shadow-blue-500/10'
                             : 'bg-white/5 border-white/10 hover:border-white/20'
                         }`}
                       >
-                        <span className={`block text-[11px] font-black uppercase tracking-[2px] ${isActive ? 'text-sage' : 'text-white/80'}`}>
+                        <span className={`block text-[11px] font-black uppercase tracking-[2px] ${isActive ? 'text-blue-300' : 'text-white/80'}`}>
                           {option.title}
                         </span>
                         <span className="block mt-2 text-[10px] leading-relaxed text-white/45">
@@ -557,7 +557,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
 
               <div className="grid grid-cols-1 gap-6 p-6 bg-white/[0.03] rounded-3xl border border-white/10 shadow-inner">
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black uppercase tracking-[3px] text-sage block mb-2">Controle de Range (Calibragem)</label>
+                  <label className="text-[10px] font-black uppercase tracking-[3px] text-blue-300 block mb-2">Controle de Range (Calibragem)</label>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
@@ -617,7 +617,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                           }}
                           className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${
                             isSelected 
-                            ? 'bg-sage border-sage text-midnight shadow-lg shadow-sage/20' 
+                            ? 'bg-blue-500 border-blue-500 text-white shadow-lg shadow-blue-500/20' 
                             : 'bg-white/5 border-white/10 text-white/30 hover:border-white/30'
                           }`}
                         >
@@ -683,9 +683,9 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         
         {/* Progress Bar & Header */}
         <div className="flex flex-col flex-none">
-          <div className="h-1 bg-white/5 w-full">
-            <div 
-              className="h-full bg-sage transition-all duration-700 ease-out shadow-[0_0_15px_rgba(155,176,165,0.5)]" 
+            <div className="h-1 bg-white/5 w-full">
+              <div 
+              className="h-full bg-blue-500 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
               style={{ width: `${(step / 4) * 100}%` }}
             />
           </div>
@@ -696,7 +696,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 WRITER STUDIO <span className="font-light opacity-30 italic">OS</span>
               </h2>
               <div className="flex items-center gap-3 mt-1">
-                <span className="text-[10px] font-black bg-sage text-midnight px-2 py-0.5 rounded uppercase tracking-wider">Etapa 0{step}</span>
+                <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded uppercase tracking-wider">Etapa 0{step}</span>
                 <span className="text-white/30 text-[10px] font-black uppercase tracking-[3px]">
                   {step === 1 ? 'Fundação DNA' : step === 2 ? 'Crivo Editorial' : step === 3 ? 'Engenharia de Clique' : 'SOP de Produção'}
                 </span>
@@ -723,7 +723,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
           <div className="flex items-center gap-8">
             <div className="flex gap-1.5">
               {[1, 2, 3, 4].map(s => (
-                <div key={s} className={`h-1 rounded-full transition-all duration-500 ${step === s ? 'w-8 bg-sage' : s < step ? 'w-4 bg-sage/30' : 'w-4 bg-white/10'}`} />
+                <div key={s} className={`h-1 rounded-full transition-all duration-500 ${step === s ? 'w-8 bg-blue-500' : s < step ? 'w-4 bg-blue-500/30' : 'w-4 bg-white/10'}`} />
               ))}
             </div>
           </div>
@@ -742,7 +742,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               disabled={!isStepValid() || isSubmitting}
               className={`px-12 py-4 rounded-xl text-[10px] font-black uppercase tracking-[3px] transition-all duration-500 group flex items-center gap-3 ${
                 isStepValid() && !isSubmitting
-                ? 'bg-sage text-midnight shadow-[0_10px_30px_rgba(155,176,165,0.2)] hover:scale-[1.05] active:scale-95' 
+                ? 'bg-blue-600 text-white shadow-[0_10px_30px_rgba(37,99,235,0.2)] hover:scale-[1.05] active:scale-95' 
                 : 'bg-white/5 text-white/10 cursor-not-allowed opacity-30 border border-white/5'
               }`}
             >

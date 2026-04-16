@@ -49,19 +49,19 @@ const SECTION_META = {
   content: {
     label: 'Conteudo',
     description: 'Hooks, CTAs, estruturas de titulo e comunidade.',
-    color: 'text-sage',
+    color: 'text-blue-400',
     icon: BookOpen,
   },
   writing: {
     label: 'Escrita',
     description: 'Curvas narrativas e modos de argumentacao.',
-    color: 'text-fuchsia-300',
+    color: 'text-indigo-400',
     icon: Lightbulb,
   },
   rules: {
     label: 'Regras',
     description: 'Ativos de anti-repeticao e restricoes de escrita.',
-    color: 'text-rose-300',
+    color: 'text-emerald-400',
     icon: Hash,
   },
 } as const;
@@ -454,11 +454,13 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       {/* Header Section */}
       <section className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-3">
-            <BookOpen className="text-sage" size={24} /> 
+          <h2 className="text-2xl font-black text-white italic uppercase tracking-widest flex items-center gap-4">
+            <div className="p-2.5 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+              <BookOpen className="text-blue-400" size={24} /> 
+            </div>
             Biblioteca Narrativa
           </h2>
-          <p className="text-[10px] text-white/50 uppercase tracking-[0.2em] mt-1 font-bold">
+          <p className="text-[10px] text-white/40 uppercase tracking-[0.3em] mt-2 font-black">
             Motor Tático de Conversão • {activeProject.project_name || activeProject.name}
           </p>
         </div>
@@ -501,10 +503,10 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
               setActiveSection(id);
               setActiveTab('All');
             }}
-            className={`glass-card p-5 text-left transition-all ${
+            className={`glass-card p-6 text-left transition-all duration-500 border-white/5 ${
               activeSection === id
-                ? 'border-white/15 bg-white/[0.05] shadow-[0_0_18px_rgba(255,255,255,0.04)]'
-                : 'border-white/5 hover:bg-white/[0.03]'
+                ? 'bg-blue-600/10 border-blue-500/30 shadow-[0_0_30px_rgba(37,99,235,0.1)]'
+                : 'hover:bg-white/[0.03] hover:border-white/10'
             }`}
           >
             <div className="flex items-center gap-2 mb-3">
@@ -528,7 +530,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
               onClick={() => setActiveTab(tab)}
               className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all
                 ${activeTab === tab 
-                  ? 'bg-sage text-midnight shadow-[0_0_15px_rgba(155,176,165,0.4)]' 
+                  ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' 
                   : 'text-white/40 hover:text-white hover:bg-white/5'}`
               }
             >
@@ -547,15 +549,15 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredComponents.map(comp => (
-            <div key={comp.id} className="glass-card p-0 overflow-hidden flex flex-col group border-white/5 hover:border-[var(--accent-color)]/30 transition-all duration-500">
+            <div key={comp.id} className="glass-card p-0 overflow-hidden flex flex-col group border-white/5 hover:border-blue-500/30 transition-all duration-500">
               {/* Header */}
               <div className="p-6 border-b border-white/5 bg-white/[0.01] flex justify-between items-start">
                 <div>
                   <span className={`text-[8px] uppercase tracking-widest font-black px-2 py-1 rounded inline-block mb-3 border
-                    ${comp.type === 'Hook' ? 'bg-sage/10 text-sage border-sage/20' : 
-                      comp.type === 'CTA' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20' :
-                      comp.type === 'Community' ? 'bg-purple-400/10 text-purple-400 border-purple-400/20' :
-                      comp.type === 'Narrative Curve' ? 'bg-fuchsia-400/10 text-fuchsia-300 border-fuchsia-400/20' :
+                    ${comp.type === 'Hook' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20' : 
+                      comp.type === 'CTA' ? 'bg-indigo-400/10 text-indigo-400 border-indigo-400/20' :
+                      comp.type === 'Community' ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' :
+                      comp.type === 'Narrative Curve' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20 shadow-[0_0_10px_rgba(59,130,246,0.1)]' :
                       comp.type === 'Argument Mode' ? 'bg-cyan-400/10 text-cyan-300 border-cyan-400/20' :
                       comp.type === 'Repetition Rule' ? 'bg-rose-400/10 text-rose-300 border-rose-400/20' :
                       'bg-orange-400/10 text-orange-400 border-orange-400/20'
@@ -563,7 +565,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                   >
                     {comp.type === 'Community' ? '◈ Comunidade' : getTypeDisplayName(comp.type)}
                   </span>
-                  <h3 className="font-bold text-white tracking-tight">{comp.name}</h3>
+                  <h3 className="font-bold text-white tracking-tight text-lg">{comp.name}</h3>
                   {usesBehaviorFlag(comp.type) && getBehaviorLabel(comp.category) && (
                     <span className="mt-2 inline-flex text-[8px] uppercase tracking-widest font-black px-2 py-1 rounded-full border border-white/10 bg-white/5 text-white/45">
                       {getBehaviorLabel(comp.category)}
@@ -586,8 +588,8 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                   {comp.description}
                 </p>
                 <div className="bg-midnight/60 p-4 rounded-xl border border-white/5 relative overflow-hidden mt-2">
-                  <Wand2 size={120} className="absolute -bottom-10 -right-10 text-white/[0.02] rotate-12 pointer-events-none" />
-                  <span className="text-[9px] uppercase font-black tracking-widest text-[#9BB0A5]/60 mb-2 block">— CORE PATTERN</span>
+                  <Wand2 size={120} className="absolute -bottom-10 -right-10 text-blue-500/[0.03] rotate-12 pointer-events-none" />
+                  <span className="text-[9px] uppercase font-black tracking-widest text-blue-400/40 mb-2 block tracking-[0.2em]">— CORE PATTERN</span>
                   <p className="text-sm text-white/80 font-medium leading-relaxed">
                     {comp.content_pattern}
                   </p>
@@ -611,7 +613,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
           <div className="bg-[#0A0E17] border border-white/10 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl relative">
             <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
               <h2 className="text-xl font-bold flex items-center gap-3">
-                <Wand2 className="text-[var(--accent-color)]" size={20} />
+                <Wand2 className="text-blue-400" size={20} />
                 {editingItem ? 'Editar Componente' : 'Novo Pattern Estratégico'}
               </h2>
             </div>
@@ -644,7 +646,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                           ? 'Ex: Conceito canônico só 1x'
                           : 'Ex: Paradoxo S1, CTA Nativo Lead'
                   }
-                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[var(--accent-color)] focus:outline-none"
+                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   required
@@ -666,7 +668,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                           ? 'Explique por que essa regra evita repetição e quando ela deve travar o roteiro.'
                           : 'Como e por que este elemento funciona estrategicamente?'
                   }
-                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[var(--accent-color)] focus:outline-none h-20 resize-none"
+                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none h-20 resize-none"
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                 />
@@ -697,7 +699,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                   <input
                     type="text"
                     placeholder="Ex: Fechamento, Conversão, Autoridade..."
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[var(--accent-color)] focus:outline-none"
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none"
                     value={formData.category}
                     onChange={(e) => setFormData({...formData, category: e.target.value})}
                   />
@@ -727,7 +729,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                           ? 'Ex: não repetir nomes canônicos mais de 1 vez no corpo do roteiro; depois usar paráfrases.'
                           : 'Ex: O maior erro ignorado ao tentarem [Atingir Objetivo] é [Prática Comum]. O segredo está na [Solução Incomum].'
                   }
-                  className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white font-medium focus:border-[var(--accent-color)] focus:outline-none h-32 resize-none"
+                  className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white font-medium focus:border-blue-500 focus:outline-none h-32 resize-none"
                   value={formData.content_pattern}
                   onChange={(e) => setFormData({...formData, content_pattern: e.target.value})}
                   required

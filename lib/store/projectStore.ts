@@ -142,6 +142,82 @@ const writeLocalProjectCaches = (projects: Project[]) => {
   }
 };
 
+const BOOTSTRAP_PROJECT_ID = 'demo-devzen-project';
+
+export const isBootstrapProject = (project: Project | null | undefined) =>
+  project?.id === BOOTSTRAP_PROJECT_ID || project?.is_bootstrap_project === true;
+
+const createBootstrapProject = (): Project => ({
+  id: BOOTSTRAP_PROJECT_ID,
+  name: 'DevZen',
+  project_name: 'DevZen',
+  puc: 'O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.',
+  puc_promise: 'O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.',
+  description: 'Projeto exemplo do Content OS para validar a jornada editorial e o fluxo de escrita.',
+  accent_color: '#3b82f6',
+  primary_color: '#3b82f6',
+  status: 'active',
+  visual_style: 'Cinematic',
+  default_execution_mode: 'internal',
+  is_bootstrap_project: true,
+  persona_matrix: {
+    demographics: 'Desenvolvedor Sênior ou Arquiteto de Software',
+    language: 'Técnica, pragmática e cética',
+    pain_alignment: 'Sensação de thermal throttling mental e risco de burnout',
+    desired_outcome: 'Recuperar foco, energia e previsibilidade operacional',
+    proof_points: 'Alta renda, trabalho remoto, setup de alta performance'
+  },
+  target_persona: {
+    audience: 'Desenvolvedor Sênior ou Arquiteto de Software',
+    pain_point: 'Sensação de thermal throttling mental e risco de burnout'
+  },
+  metaphor_library: 'Memory Leak de Atenção, Dívida Técnica Biológica, Thermal Throttling Mental',
+  prohibited_terms: '',
+  ai_engine_rules: {
+    metaphors: ['Memory Leak de Atenção', 'Dívida Técnica Biológica', 'Thermal Throttling Mental'],
+    prohibited: []
+  },
+  playlists: {
+    t1: 'Topo de Funil',
+    t2: 'Meio de Funil',
+    t3: 'Fundo de Funil',
+    tactical_journey: [
+      { id: 't1', label: 'T1', title: 'Topo de Funil', value: 'Atrair atenção com dor clara', isFixed: true },
+      { id: 't2', label: 'T2', title: 'Meio de Funil', value: 'Aprofundar com mecanismo e prova', isFixed: true },
+      { id: 't3', label: 'T3', title: 'Fundo de Funil', value: 'Converter com convite e confiança', isFixed: true },
+    ],
+  },
+  editing_sop: {
+    cut_rhythm: '3s',
+    zoom_style: 'Dynamic',
+    soundtrack: 'Epic',
+    art_direction: 'Dark Navy',
+    overlays: 'Technical text overlays',
+    duration: '18 min',
+    duration_min: 18,
+    duration_max: 20,
+    blocks_variation: '12',
+    blocks_min: 12,
+    blocks_max: 13,
+    asset_types: ['Hook', 'CTA', 'Structure'],
+    measurement_focus: 'Retention, focus time and conversion readiness',
+  },
+  traceability_summary: [],
+  traceability_sources: {},
+});
+
+const normalizeProjectList = (projects: Project[]) => {
+  const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
+  const withoutBootstrap = list.filter((project) => !isBootstrapProject(project));
+
+  if (withoutBootstrap.length > 0) {
+    return withoutBootstrap;
+  }
+
+  const bootstrapProject = list.find((project) => isBootstrapProject(project));
+  return [bootstrapProject || createBootstrapProject()];
+};
+
 export const useProjectStore = create<ProjectStore>()(
   persist(
     (set, get) => ({
@@ -156,14 +232,15 @@ export const useProjectStore = create<ProjectStore>()(
         set({ activeProjectId: id, activeProject: project });
       },
 
-      setProjects: (projects) => {
-        const projectList = projects || [];
-        const activeId = get().activeProjectId;
-        const activeProject = activeId
-          ? (projectList.find((p: any) => p.id === activeId) || null)
-          : null;
+        setProjects: (projects) => {
+          const projectList = normalizeProjectList(projects || []);
+          const activeId = get().activeProjectId;
+          const activeProject = activeId
+            ? (projectList.find((p: any) => p.id === activeId) || projectList[0] || null)
+            : (projectList[0] || null);
+        const activeProjectId = activeProject?.id || null;
         writeLocalProjectCaches(projectList);
-        set({ projects: projectList, activeProject, projectsLoaded: true });
+        set({ projects: projectList, activeProjectId, activeProject, projectsLoaded: true });
       },
 
       loadProjects: async () => {
@@ -195,17 +272,29 @@ export const useProjectStore = create<ProjectStore>()(
             });
 
             const localOnly = localProjects.filter((project) => !remoteIds.has(project.id));
-            const mergedProjects = [...mergedRemote, ...localOnly];
+              const mergedProjects = normalizeProjectList([...mergedRemote, ...localOnly]);
 
             get().setProjects(mergedProjects);
           } else {
             // Cloud empty → use local cache
-            get().setProjects(localProjects);
+            if (localProjects.length > 0) {
+              get().setProjects(localProjects);
+            } else {
+              const bootstrapProject = createBootstrapProject();
+              get().setProjects([bootstrapProject]);
+              get().setActiveProject(bootstrapProject.id);
+            }
           }
         } catch (err) {
           console.error('[ProjectStore] Failed to load projects:', err);
           const localProjects = readLocalProjectCaches();
-          get().setProjects(localProjects);
+          if (localProjects.length > 0) {
+            get().setProjects(localProjects);
+          } else {
+            const bootstrapProject = createBootstrapProject();
+            get().setProjects([bootstrapProject]);
+            get().setActiveProject(bootstrapProject.id);
+          }
         }
       },
 

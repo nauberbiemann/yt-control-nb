@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { 
-  BarChart3, 
+  LayoutDashboard, 
   FolderOpen, 
   CalendarDays, 
   PenTool, 
@@ -13,7 +13,8 @@ import {
   Lightbulb,
   ChevronDown,
   Check,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import { useProjectStore, useActiveProject, useProjects } from '@/lib/store/projectStore';
 
@@ -27,20 +28,18 @@ interface SidebarProps {
 export default function Sidebar({ currentView, onViewChange, onResetProject, userRole }: SidebarProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   
-  // ── Zustand: read directly from store ──────────────────────────────────────
   const activeProject = useActiveProject();
   const projects = useProjects();
   const { setActiveProject, loadProjects } = useProjectStore();
 
   const menuItems = [
-    { id: 'home',        label: 'Dashboard',           icon: BarChart3 },
-    { id: 'projects',    label: 'Projetos',             icon: FolderOpen },
-    { id: 'library',     label: 'Biblioteca Narrativa', icon: BookOpen,    strategic: true },
+    { id: 'home',        label: 'Dashboard',           icon: LayoutDashboard },
+    { id: 'projects',    label: 'Meus Canais',         icon: FolderOpen },
+    { id: 'library',     label: 'Narrative Library',   icon: BookOpen,    strategic: true },
     { id: 'themes',      label: 'Banco de Temas',       icon: Lightbulb,   strategic: true },
     { id: 'scripts',     label: 'Escrita Criativa',     icon: PenTool,     strategic: true },
     { id: 'production',  label: 'Produção & SOP',       icon: CheckSquare, strategic: true },
-    { id: 'calendar',    label: 'Calendário',           icon: CalendarDays },
-    { id: 'analytics',   label: 'Memória Analytics',    icon: History,     strategic: true },
+    { id: 'analytics',   label: 'BI & Analytics',       icon: History,     strategic: true },
   ];
 
   const adminItems = [
@@ -55,164 +54,149 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
   };
 
   return (
-    <aside 
-      className="sidebar transition-all duration-500"
-      style={{ 
-        borderRight: activeProject ? `1px solid ${activeProject.primary_color || activeProject.accent_color}22` : '1px solid var(--card-border)',
-        boxShadow: activeProject ? `inset -20px 0 60px ${activeProject.primary_color || activeProject.accent_color}08` : 'none'
-      }}
-    >
+    <aside className="sidebar flex flex-col">
       {/* Brand */}
-      <div className="px-4 mb-6 mt-2">
-        <h1 className="text-xl font-black tracking-tighter text-white">
-          WRITER STUDIO <span className="text-sage italic font-light opacity-80">CLOUD</span>
-        </h1>
-        <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/20 mt-1">Strategic Engine V3</p>
+      <div className="px-2 mb-8 mt-2 flex items-center gap-3">
+        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <Zap size={18} className="text-white fill-white" />
+        </div>
+        <div>
+          <h1 className="text-lg font-black tracking-tighter text-white leading-none">
+            CONTENT<span className="text-blue-500">OS</span>
+          </h1>
+          <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-slate-500 mt-1">Writer Studio Cloud</p>
+        </div>
       </div>
 
       {/* ── Project Selector ─────────────────────────────────────────────────── */}
-      <div className="px-3 mb-6 relative">
-        <label className="text-[8px] font-black uppercase tracking-[3px] text-white/20 px-1 mb-1.5 block">
-          Canal Ativo
+      <div className="px-1 mb-8 relative">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1 mb-2 block">
+          Canal em Foco
         </label>
         <button
           onClick={() => setSelectorOpen(!selectorOpen)}
-          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-all duration-300 ${
+          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border transition-all duration-300 ${
             activeProject
-              ? 'bg-[var(--accent-color-glow)] border-[var(--accent-color)]/30 text-white'
-              : 'bg-white/5 border-white/10 text-white/40'
+              ? 'bg-slate-800/40 border-slate-700/50 text-white hover:bg-slate-800/60'
+              : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
           }`}
         >
           <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${activeProject ? 'bg-[var(--accent-color)] animate-pulse' : 'bg-white/20'}`} />
-            <span className="text-[11px] font-black uppercase tracking-wider truncate">
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${activeProject ? 'bg-blue-500 shadow-[0_0_8px_rgba(59, 130, 246, 0.5)]' : 'bg-slate-700'}`} />
+            <span className="text-[12px] font-bold truncate">
               {activeProject ? (activeProject.project_name || activeProject.name) : 'Selecionar Canal'}
             </span>
           </div>
-          <ChevronDown size={12} className={`flex-shrink-0 transition-transform ${selectorOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown size={14} className={`flex-shrink-0 text-slate-500 transition-transform ${selectorOpen ? 'rotate-180' : ''}`} />
         </button>
 
         {/* Dropdown */}
         {selectorOpen && (
-          <div className="absolute left-3 right-3 top-full mt-1 z-50 bg-midnight/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
-              <span className="text-[8px] font-black uppercase tracking-[3px] text-white/30">Canais</span>
+          <div className="absolute left-1 right-1 top-full mt-1 z-50 bg-[#0f172a] border border-slate-800 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-900/50">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Instâncias</span>
               <button 
                 onClick={() => { loadProjects(); setSelectorOpen(false); }}
-                className="text-white/20 hover:text-sage transition-colors"
-                title="Recarregar projetos"
+                className="text-slate-500 hover:text-blue-400 transition-colors"
               >
-                <RefreshCw size={10} />
+                <RefreshCw size={12} />
               </button>
             </div>
-            <div className="max-h-56 overflow-y-auto py-1">
+            <div className="max-h-64 overflow-y-auto py-1">
               {projects.length === 0 ? (
-                <p className="text-[10px] text-white/20 text-center py-4 uppercase tracking-widest font-black">
-                  Nenhum canal criado
+                <p className="text-[11px] text-slate-500 text-center py-6">
+                  Nenhuma instância ativa
                 </p>
               ) : (
                 projects.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => handleSelectProject(p.id)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-white/5 transition-all text-left ${
-                      activeProject?.id === p.id ? 'bg-sage/10' : ''
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-800/50 transition-all text-left ${
+                      activeProject?.id === p.id ? 'bg-blue-600/10' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div
                         className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: p.accent_color || p.primary_color || '#9BB0A5' }}
+                        style={{ backgroundColor: p.accent_color || p.primary_color || '#3b82f6' }}
                       />
-                      <span className="text-[11px] font-black text-white truncate">
+                      <span className={`text-[12px] truncate ${activeProject?.id === p.id ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>
                         {p.project_name || p.name}
                       </span>
                     </div>
                     {activeProject?.id === p.id && (
-                      <Check size={10} className="text-sage flex-shrink-0" />
+                      <Check size={12} className="text-blue-400 flex-shrink-0" />
                     )}
                   </button>
                 ))
               )}
-            </div>
-            <div className="border-t border-white/5 px-3 py-2">
-              <button
-                onClick={() => { onViewChange('projects'); setSelectorOpen(false); }}
-                className="w-full text-[9px] font-black uppercase tracking-[2px] text-white/20 hover:text-sage transition-colors py-1"
-              >
-                + Criar Novo Canal
-              </button>
             </div>
           </div>
         )}
       </div>
 
       {/* ── Navigation ────────────────────────────────────────────────────────── */}
-      <nav className="flex flex-col gap-1 px-2 text-white">
+      <nav className="flex flex-col gap-0.5 px-0 text-white">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 mb-2 block">
+          Menu Principal
+        </label>
         {allItems.map((item) => (
           <button
             key={item.id}
             onClick={() => onViewChange(item.id)}
             className={`
-              flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group border
-              ${currentView === item.id 
-                ? 'text-[var(--accent-color)] border-[var(--accent-color-glow)] bg-[var(--accent-color-glow)] shadow-lg shadow-[var(--accent-color-glow)]' 
-                : 'text-white/40 hover:text-white hover:bg-white/5 border-transparent'}
-              ${(item as any).strategic && !activeProject ? 'opacity-20 cursor-not-allowed grayscale' : ''}
+              nav-item w-full
+              ${currentView === item.id ? 'nav-item-active' : ''}
+              ${(item as any).strategic && !activeProject ? 'opacity-30 cursor-not-allowed' : ''}
             `}
             disabled={(item as any).strategic && !activeProject}
           >
-            <item.icon size={18} className={currentView === item.id ? 'text-[var(--accent-color)]' : 'opacity-40 group-hover:opacity-100 transition-opacity'} />
-            <span className="text-sm font-medium tracking-tight">
+            <item.icon size={18} />
+            <span className="text-[13px] font-medium">
               {item.label}
-              {(item as any).strategic && !activeProject && <span className="ml-2 text-[8px] opacity-50">🔒</span>}
+              {(item as any).strategic && !activeProject && <span className="ml-2 text-[9px] opacity-60">🔒</span>}
             </span>
           </button>
         ))}
       </nav>
 
       {/* ── Footer ────────────────────────────────────────────────────────────── */}
-      <div className="mt-auto p-4 flex flex-col gap-3">
+      <div className="mt-auto p-0 flex flex-col gap-3">
         {activeProject ? (
-          <div 
-            className="glass-card p-4 rounded-xl border-white/10 animate-in slide-in-from-bottom-4 relative overflow-hidden"
-            style={{ borderLeft: `3px solid var(--accent-color)` }}
-          >
-            <div className="absolute top-0 right-0 p-2">
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent-color-glow)] border border-[var(--accent-color-glow)]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-color)] animate-pulse" />
-                <span className="text-[7px] font-black uppercase tracking-widest text-[var(--accent-color)]">Scoping Ativo</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow-inner bg-[var(--accent-color-glow)] text-[var(--accent-color)]">
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative overflow-hidden">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-blue-600/10 border border-blue-600/20 flex items-center justify-center text-xl">
                 {activeProject.visual_style === 'Cinematic' ? '🎬' : 
                  activeProject.visual_style === 'Cyberpunk' ? '🤖' : 
                  activeProject.visual_style === 'Minimalista' ? '⚪' : '🎨'}
               </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Instância Ativa</span>
-                <span className="text-sm font-bold text-white truncate max-w-[120px]">{activeProject.project_name || activeProject.name}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Modo Sênior</span>
+                <span className="text-[12px] font-bold text-white truncate">{activeProject.project_name || activeProject.name}</span>
               </div>
             </div>
             <button 
               onClick={onResetProject}
-              className="w-full py-2 bg-white/5 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-red-500 transition-all font-sans"
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-all uppercase tracking-wider"
             >
-              Trocar de Canal
+              Trocar Canal
             </button>
           </div>
         ) : (
-          <div className="glass-card p-4 rounded-xl border-white/5 bg-white/[0.02]">
-            <p className="text-[10px] text-white/30 uppercase tracking-widest font-bold mb-2">Memory Status</p>
-            <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-              <div className="bg-sage h-full w-[65%]" />
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Cloud Sync</p>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
-            <span className="text-[10px] text-sage/80 mt-2 inline-block">Sincronizado Cloud</span>
+            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+              <div className="bg-blue-600 h-full w-[100%]" />
+            </div>
+            <span className="text-[10px] text-slate-500 mt-2 block">Criptografia Ativa</span>
           </div>
         )}
       </div>
     </aside>
   );
 }
+

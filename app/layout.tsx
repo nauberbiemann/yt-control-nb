@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 export const metadata: Metadata = {
   title: "Writer Studio Cloud | Channel OS",
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body suppressHydrationWarning>
         {children}
+        <ScrollToTopButton />
       </body>
     </html>
   );

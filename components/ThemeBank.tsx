@@ -34,10 +34,10 @@ const PIPELINES = [
 ];
 
 const STATUS_META: Record<string, { label: string; color: string; icon: any }> = {
-  backlog:   { label: 'Backlog',    color: 'text-white/30 bg-white/5 border-white/10',  icon: Clock       },
+  backlog:   { label: 'Backlog',    color: 'text-slate-400 bg-slate-400/5 border-slate-400/10',  icon: Clock       },
   vetted:    { label: 'Aprovado',   color: 'text-blue-400 bg-blue-500/10 border-blue-500/20', icon: CheckCircle2 },
-  scripted:  { label: 'Roteirizado', color: 'text-sage bg-sage/10 border-sage/20',       icon: FileText    },
-  published: { label: 'Publicado',  color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20', icon: Star },
+  scripted:  { label: 'Produção', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20', icon: FileText    },
+  published: { label: 'Publicado',  color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', icon: Star },
 };
 
 const PILLAR_OPTIONS = PILLARS.map(p => ({ value: p, label: p }));
@@ -222,10 +222,10 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     }
   };
 
-  const fetchThemes = async () => {
-    if (!activeProject?.id) return;
-    setLoading(true);
-    try {
+    const fetchThemes = async () => {
+      if (!activeProject?.id) return;
+      setLoading(true);
+      try {
       // 1. Carregar local primeiro para UI imediata
       const localData = localStorage.getItem(`themes_${activeProject.id}`);
       if (localData) {
@@ -247,16 +247,16 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       
       // 🛠️ Proteção: Só sobrescreve o local se a nuvem realmente tiver dados.
       // Se a nuvem estiver vazia mas o local tiver dados, mantemos o local.
-      if (data && data.length > 0) {
-        setThemes(data);
-        localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(data));
+        if (data && data.length > 0) {
+          setThemes(data);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn('[ThemeBank] falha ao buscar temas; mantendo dados locais.', err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Erro ao buscar temas:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   const handleSave = async () => {
     if (!form.title.trim()) return;
@@ -501,30 +501,27 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-sage/10 border border-sage/20 rounded-xl flex items-center justify-center">
-              <Lightbulb className="text-sage" size={18} />
+            <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center">
+              <Lightbulb className="text-blue-400" size={18} />
             </div>
             <div>
-              <h2 className="font-black text-white italic text-sm uppercase tracking-widest">Banco de Temas</h2>
-              <p className="text-white/30 text-[10px] uppercase tracking-widest font-black">Montagem de briefing · {activeProject.name}</p>
+              <h2 className="font-black text-white italic text-sm uppercase tracking-widest text-shadow-sm">Banco de Temas</h2>
+              <p className="text-white/30 text-[10px] uppercase tracking-widest font-black">Briefing Estratégico · {activeProject.name}</p>
             </div>
           </div>
           <button
             onClick={() => setWorkspace('fila')}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/60 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 font-black text-[10px] uppercase tracking-widest hover:bg-blue-500/20 hover:text-white transition-all"
           >
             Voltar para fila
           </button>
         </div>
 
         <div className="px-8 pt-4">
-          <div className="rounded-2xl border border-sage/15 bg-sage/5 px-4 py-3">
-            <p className="text-[10px] uppercase tracking-widest font-black text-sage mb-1">O que fazer agora</p>
+          <div className="rounded-2xl border border-blue-500/15 bg-blue-500/5 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-blue-400 mb-1">Diretriz Estratégica</p>
             <p className="text-[10px] text-white/40 leading-relaxed">
-              Escolha um tema com potencial, conecte a estrutura narrativa certa e feche o briefing para seguir ao roteiro.
-            </p>
-            <p className="text-[10px] text-white/25 leading-relaxed mt-2">
-              Saída esperada: tema qualificado, DNA narrativo definido e ponto de partida pronto para a Escrita Criativa.
+              Selecione temas com alta densidade de retenção, conecte o DNA narrativo e prepare a base para a Escrita Criativa.
             </p>
           </div>
         </div>
@@ -565,24 +562,24 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       {/* Header */}
       <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-sage/10 border border-sage/20 rounded-xl flex items-center justify-center">
-            <Lightbulb className="text-sage" size={18} />
+          <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/10">
+            <Lightbulb className="text-blue-400" size={18} />
           </div>
           <div>
-            <h2 className="font-black text-white italic text-sm uppercase tracking-widest">Banco de Temas</h2>
+            <h2 className="font-black text-white italic text-sm uppercase tracking-widest text-shadow-sm">Banco de Temas</h2>
             <p className="text-white/30 text-[10px] uppercase tracking-widest font-black">{activeProject.name} · {themes.length} ideias</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setWorkspace('briefing')}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white/60 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 font-black text-[10px] uppercase tracking-widest hover:bg-blue-500/20 hover:text-white transition-all"
           >
             Criar briefing
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-sage text-midnight rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-sage/80 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-400 shadow-lg shadow-blue-500/25 transition-all"
           >
             <Plus size={12} /> Nova Ideia
           </button>
@@ -747,7 +744,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                 {editingTheme && isScriptEngineTheme(editingTheme) && (
                   <button
                     onClick={() => reopenInWriting(editingTheme)}
-                    className="px-3 py-2 bg-sage/10 border border-sage/20 rounded-xl text-sage text-[10px] font-black uppercase tracking-widest hover:bg-sage/20 transition-all"
+                    className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/20 hover:text-white transition-all"
                   >
                     Voltar para Escrita
                   </button>
@@ -887,7 +884,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim()}
-                className="flex-1 py-3 bg-sage text-midnight rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-sage/80 transition-all disabled:opacity-40"
+                className="flex-1 py-3 bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40"
               >
                 {saving ? 'Salvando...' : editingTheme ? 'Atualizar' : 'Criar Tema'}
               </button>

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
@@ -15,7 +15,7 @@ import AuthOverlay from '@/components/auth/AuthOverlay';
 import AwaitingApproval from '@/components/auth/AwaitingApproval';
 import UserManagement from '@/components/admin/UserManagement';
 import { supabase } from '@/lib/supabase';
-import { useProjectStore, useActiveProject, useProjects } from '@/lib/store/projectStore';
+import { useProjectStore, useActiveProject, useProjects, isBootstrapProject } from '@/lib/store/projectStore';
 
 // 🛠️ MODO DE DESENVOLVIMENTO: Altere para true para reativar a segurança
 const ENFORCE_AUTH = false;
@@ -37,7 +37,9 @@ import {
   Upload,
   CloudSync,
   LogOut,
-  ShieldAlert
+  ShieldAlert,
+  Lightbulb,
+  Filter
 } from 'lucide-react';
 
 export default function Home() {
@@ -356,7 +358,7 @@ export default function Home() {
     console.log("[ContentOS-Sync] Iniciando Sincronização Mestre...");
     
     try {
-      const updatedProjects = [...projects];
+        const updatedProjects = projects.filter((project) => !isBootstrapProject(project));
       let totalSynced = 0;
       
       for (let i = 0; i < updatedProjects.length; i++) {
@@ -663,109 +665,230 @@ export default function Home() {
 
     switch(currentView) {
       case 'home':
+        const activeThemes = localStorage.getItem(`themes_${activeProjectId}`) ? JSON.parse(localStorage.getItem(`themes_${activeProjectId}`)!) : [];
+        const stats = {
+          finished: activeThemes.filter((t: any) => t.status === 'published').length,
+          pending: activeThemes.filter((t: any) => ['backlog', 'vetted'].includes(t.status)).length,
+          production: activeThemes.filter((t: any) => t.status === 'scripted').length
+        };
+
         return (
-          <>
-            <section className="mb-12">
-              <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h3 className="text-[10px] uppercase tracking-[3px] font-black text-white/20 mb-1">Visão Geral</h3>
-                  <h2 className="text-2xl font-bold">Projetos Ativos</h2>
+          <div className="animate-in space-y-12">
+            {/* 1. Header Forte */}
+            <header>
+              <h1 className="text-3xl font-extrabold text-white tracking-tight mb-2">
+                Bem-vindo ao seu <span className="text-blue-500 italic">Content OS</span>
+              </h1>
+              <p className="text-slate-400 text-sm font-medium">
+                {activeProject 
+                  ? `Gerenciando o DNA estratégico de: ${activeProject.project_name || activeProject.name}`
+                  : 'Selecione um canal para começar a produzir conteúdo estratégico.'
+                }
+              </p>
+            </header>
+
+            {/* 2. Cards de Resumo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="glass-card flex items-center gap-4 bg-emerald-500/5 border-emerald-500/20">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
+                  <CheckSquare size={24} />
                 </div>
-                <button className="btn-primary py-3 px-6" onClick={() => { setEditingProject(null); setIsModalOpen(true); }}>
-                  + Novo Projeto
-                </button>
+                <div>
+                  <p className="text-2xl font-black text-white leading-none">{stats.finished}</p>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Fenômenos Publicados</p>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="glass-card flex items-center gap-4 bg-blue-500/5 border-blue-500/20">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-500">
+                  <Lightbulb size={24} />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-white leading-none">{stats.pending}</p>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Temas Qualificados</p>
+                </div>
+              </div>
+              <div className="glass-card flex items-center gap-4 bg-amber-500/5 border-amber-500/20">
+                <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500">
+                  <Cpu size={24} />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-white leading-none">{stats.production}</p>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Scripts em Produção</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Bloco Principal Form + Dicas */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              <div className="lg:col-span-3 space-y-6">
+                <div className="glass-card">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white/80">Sugerir Novo Tema</h3>
+                    {activeProject && (
+                      <span className="text-[10px] px-2 py-1 bg-blue-600/10 text-blue-400 rounded-md border border-blue-600/20 font-bold">
+                        {activeProject.project_name || activeProject.name}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="relative group">
+                      <input 
+                        type="text" 
+                        placeholder="Título provisório do tema..." 
+                        className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 outline-none transition-all group-hover:border-slate-600"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && activeProject) {
+                            // Quick Add logic could go here or redirect to ThemeBank
+                            setCurrentView('themes');
+                          }
+                        }}
+                      />
+                      <button 
+                        onClick={() => activeProject ? setCurrentView('themes') : alert('Selecione um canal primeiro')}
+                        className="absolute right-2 top-1.5 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-lg shadow-blue-600/20"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-700/30">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Prioridade</p>
+                        <p className="text-xs font-semibold text-slate-300">Não definida</p>
+                      </div>
+                      <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-700/30">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Categoria</p>
+                        <p className="text-xs font-semibold text-slate-300">Sem categoria</p>
+                      </div>
+                      <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-700/30">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Data de Vencimento</p>
+                        <p className="text-xs font-semibold text-slate-300">dd/mm/aaaa</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar de Dicas */}
+              <aside className="lg:col-span-1">
+                <div className="glass-card h-full bg-blue-600/[0.03]">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white/80 mb-6 flex items-center gap-2">
+                    <Sparkles size={16} className="text-blue-500" /> Dicas Estratégicas
+                  </h3>
+                  <ul className="space-y-4">
+                    {[
+                      { step: 1, text: "Priorize temas usando a Metaphor Library." },
+                      { step: 2, text: "Mantenha o tom 'Sênior no Café' para maior autoridade." },
+                      { step: 3, text: "Revise os ganchos Narrativos antes de roteirizar." }
+                    ].map(tip => (
+                      <li key={tip.step} className="flex gap-3 items-start">
+                        <span className="flex-shrink-0 w-5 h-5 bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-full flex items-center justify-center text-[10px] font-bold">
+                          {tip.step}
+                        </span>
+                        <p className="text-xs text-slate-400 leading-relaxed">{tip.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </aside>
+            </div>
+
+            {/* 4. Seção Inferior: Projetos */}
+            <section>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-3">
+                    <FolderOpen size={20} className="text-blue-500" /> Meus Canais Ativos
+                  </h2>
+                </div>
+                <div className="flex gap-2">
+                  <button className="p-2 text-slate-500 hover:text-white transition-all"><Filter size={18} /></button>
+                  <button 
+                    className="btn-primary" 
+                    onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
+                  >
+                    + Novo Canal
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {projects.map(project => {
                   const isActive = project.id === activeProjectId;
-                  const brandColor = project.primary_color || '#9bb0a5';
+                  const brandColor = project.accent_color || '#3b82f6';
                   
                   return (
                     <div 
                       key={project.id} 
-                      className={`glass-card group transition-all duration-500 hover:translate-y-[-8px] cursor-pointer ${isActive ? 'ring-2 active-glow shadow-2xl' : 'border-transparent hover:border-white/10'}`} 
+                      className={`glass-card group transition-all duration-300 hover:translate-y-[-4px] cursor-pointer relative overflow-hidden ${
+                        isActive ? 'ring-2 ring-blue-500/50 shadow-2xl shadow-blue-500/10' : 'hover:border-slate-600'
+                      }`} 
                       onClick={() => {
                         setActiveProjectId(project.id);
                         setCurrentView('themes');
                       }}
-                      style={{ 
-                        borderLeft: `5px solid ${brandColor}`,
-                        borderColor: isActive ? brandColor : 'transparent',
-                        boxShadow: isActive ? `0 0 35px ${brandColor}44` : 'none'
-                      }}
                     >
-                      <div className="flex justify-between items-start mb-6">
-                        <span className="status-badge" style={{ background: `${brandColor}15`, color: brandColor, borderColor: `${brandColor}33` }}>
-                          {isActive ? '● SELECIONADO' : 'ATIVO'}
-                        </span>
-                        <span className="text-[10px] font-mono opacity-20 group-hover:opacity-50 transition-opacity">
-                          #{ (project.project_name || project.name)?.replace(/\s/g, '').toUpperCase() }
-                        </span>
-                      </div>
-                      <h4 className="text-xl font-bold mb-3 tracking-tight">{project.project_name || project.name || 'Canal Sem Nome'}</h4>
-                      <p className="text-sm text-white/40 mb-8 line-clamp-2 leading-relaxed italic">
-                        "{project.puc_promise || project.description || 'Defina sua promessa única no wizard.'}"
-                      </p>
-                      <div className="flex gap-3 justify-between items-center mt-auto">
-                        <div className="flex gap-2">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest ${
+                          isActive ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-500'
+                        }`}>
+                          {isActive ? 'Selecionado' : 'Ativo'}
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
-                            className={`py-2.5 px-5 text-[10px] font-black tracking-widest transition-all ${isActive ? 'bg-sage text-midnight' : 'btn-primary'}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveProjectId(project.id);
-                              setCurrentView('themes');
-                            }}
-                          >
-                            {isActive ? 'GESTÃO ATIVA' : 'GERAR CONTEÚDO'}
-                          </button>
-                          <button 
-                            className="bg-white/5 border border-white/5 hover:border-white/20 p-2.5 rounded-xl transition-all text-white/40 hover:text-white"
+                            className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-all"
                             onClick={(e) => { 
                               e.stopPropagation();
                               setEditingProject(project); 
                               setIsModalOpen(true); 
                             }}
-                            title="Configurações Estratégicas"
                           >
-                            <Settings size={16} />
+                            <Settings size={14} />
                           </button>
                         </div>
-                        <button 
-                          className="p-2 text-red-500/20 hover:text-red-500 transition-colors"
-                          onClick={(e) => { 
-                            e.stopPropagation();
-                            setProjectToDelete(project); 
-                            setIsDeleteModalOpen(true); 
-                          }}
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                      </div>
+                      
+                      <h4 className="text-lg font-bold mb-2 text-white group-hover:text-blue-400 transition-colors">
+                        {project.project_name || project.name || 'Canal Sem Nome'}
+                      </h4>
+                      <p className="text-xs text-slate-500 line-clamp-2 mb-6 leading-relaxed">
+                        {project.puc_promise || project.description || 'Nenhuma promessa estratégica definida.'}
+                      </p>
+
+                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800/50">
+                        <div className="flex items-center gap-2">
+                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: brandColor }} />
+                           <span className="text-[10px] uppercase tracking-widest font-black text-slate-500">{project.visual_style || 'Default'}</span>
+                        </div>
+                        <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                       </div>
                     </div>
                   );
                 })}
-                {projects.length === 0 && (
-                  <div className="col-span-full py-32 text-center opacity-20 border-2 border-dashed border-white/5 rounded-[40px] flex flex-col items-center gap-4">
-                    <FolderOpen size={48} />
-                    <p className="font-medium tracking-widest text-sm uppercase">Nenhuma instância configurada no Content OS.</p>
-                  </div>
-                )}
               </div>
-            </section>
-
-            <section className="glass-card p-12 bg-gradient-to-br from-white/[0.02] to-transparent">
-              <div className="flex items-center gap-3 mb-6">
-                <History className="text-sage" size={20} />
-                <h3 className="text-lg font-bold uppercase tracking-tight">Global History Timeline</h3>
-              </div>
-              <p className="text-sm text-white/30 italic">Seu histórico de gerações consolidado de todos os canais aparecerá aqui conforme você produzir novos roteiros.</p>
+              
+              {projects.length === 0 && (
+                <div className="py-24 text-center glass-card border-dashed border-slate-800 bg-transparent flex flex-col items-center gap-4">
+                  <FolderOpen size={48} className="text-slate-800" />
+                  <p className="text-sm font-bold text-slate-600 uppercase tracking-widest">Nenhuma instância configurada</p>
+                  <button 
+                    className="mt-2 text-blue-500 hover:text-blue-400 text-xs font-black uppercase tracking-[0.2em]"
+                    onClick={() => setIsModalOpen(true)}
+                  >
+                    Clique aqui para começar +
+                  </button>
+                </div>
+              )}
             </section>
 
             {showSettings && (
-              <section className="glass-card p-12 mt-10 animate-in slide-in-from-top-4 border-sage/20 bg-sage/[0.02]">
+              <section className="glass-card p-12 mt-10 animate-in slide-in-from-top-4 border-blue-500/10 bg-blue-500/[0.02]">
                 <div className="flex items-center gap-3 mb-10">
-                  <Settings className="text-sage" size={24} />
-                  <h3 className="text-xl font-bold uppercase tracking-tight">Configurações de Engine Global</h3>
+                  <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20">
+                    <Settings className="text-blue-400" size={24} />
+                  </div>
+                  <h3 className="text-xl font-black text-white italic uppercase tracking-widest">Configurações de Engine Global</h3>
                 </div>
                 <div className="flex flex-col gap-12">
                   <EngineSelector />
@@ -776,36 +899,36 @@ export default function Home() {
                   {/* Sync & Cloud Migration Section */}
                   <div>
                     <div className="flex items-center gap-2 mb-4">
-                      <CloudSync className="text-sage" size={18} />
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-white/60">Gestão de Dados & Sync</h4>
+                      <CloudSync className="text-blue-400" size={18} />
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Gestão de Dados & Sync</h4>
                     </div>
                     <div className="flex gap-4">
-                      <button 
-                        onClick={handleExport}
-                        className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/60 hover:text-white group"
-                        title="Exportar Projetos (Backup JSON)"
-                      >
-                        <Download size={20} className="group-hover:text-sage transition-colors" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Exportar Backup</span>
-                      </button>
-                      
-                      <label 
-                        className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/60 hover:text-white group cursor-pointer"
-                        title="Importar Projetos (JSON)"
-                      >
-                        <Upload size={20} className="group-hover:text-sage transition-colors" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Importar JSON</span>
-                        <input type="file" className="hidden" accept=".json" onChange={handleImport} />
-                      </label>
-                      
-                      <button 
-                        onClick={handleSyncToCloud}
-                        className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/60 hover:text-white group"
-                        title="Sincronizar Local com Nuvem"
-                      >
-                        <Database size={20} className="group-hover:text-sage transition-colors" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Sincronizar Nuvem</span>
-                      </button>
+                        <button 
+                          onClick={handleExport}
+                          className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/40 hover:text-white group"
+                          title="Exportar Projetos (Backup JSON)"
+                        >
+                          <Download size={20} className="group-hover:text-blue-400 transition-colors" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Exportar Backup</span>
+                        </button>
+                        
+                        <label 
+                          className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/40 hover:text-white group cursor-pointer"
+                          title="Importar Projetos (JSON)"
+                        >
+                          <Upload size={20} className="group-hover:text-blue-400 transition-colors" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Importar JSON</span>
+                          <input type="file" className="hidden" accept=".json" onChange={handleImport} />
+                        </label>
+                        
+                        <button 
+                          onClick={handleSyncToCloud}
+                          className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/40 hover:text-white group"
+                          title="Sincronizar Local com Nuvem"
+                        >
+                          <Database size={20} className="group-hover:text-blue-400 transition-colors" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Sincronizar Nuvem</span>
+                        </button>
                     </div>
                     <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest leading-relaxed">
                       Use estas ferramentas para migrar dados entre ambiente Local e Produção ou para garantir persistência global no Supabase.
@@ -814,7 +937,7 @@ export default function Home() {
                 </div>
               </section>
             )}
-          </>
+          </div>
         );
       case 'projects':
         return (
@@ -855,7 +978,7 @@ export default function Home() {
                     <div className="flex gap-6 items-center">
                       <button 
                         onClick={(e) => { e.stopPropagation(); setActiveProjectId(p.id); }} 
-                        className={`text-xs font-black uppercase tracking-widest transition-all ${isActive ? 'text-[var(--accent-color)] cursor-default' : 'text-white/20 hover:text-white'}`}
+                        className={`text-xs font-black uppercase tracking-widest transition-all ${isActive ? 'text-blue-400 cursor-default' : 'text-white/20 hover:text-white'}`}
                       >
                         {isActive ? 'Selecionado' : 'Selecionar'}
                       </button>
@@ -866,7 +989,7 @@ export default function Home() {
                           setEditingProject(p); 
                           setIsModalOpen(true); 
                         }} 
-                        className="text-xs font-black uppercase tracking-widest text-sage/60 hover:text-sage"
+                        className="text-xs font-black uppercase tracking-widest text-blue-500/60 hover:text-blue-400"
                       >
                         Configurar
                       </button>
@@ -953,7 +1076,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center">
         <div className="flex flex-col items-center gap-6">
-          <div className="w-12 h-12 border-4 border-[var(--accent-color)]/20 border-t-[var(--accent-color)] animate-spin rounded-full shadow-[0_0_15px_rgba(var(--accent-color-rgb),0.2)]" />
+          <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 animate-spin rounded-full shadow-[0_0_15px_rgba(59,130,246,0.2)]" />
           <div className="text-center space-y-2">
             <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] block">Carregando Channel OS...</span>
             <button 
@@ -1029,9 +1152,9 @@ export default function Home() {
               {currentView === 'home' ? 'Global Command' : activeProject ? `Instância: ${activeProject.project_name || activeProject.name}` : 'Aguardando Seleção'}
             </h2>
             {activeProject && (
-              <div className="flex items-center gap-2.5 px-4 py-1.5 bg-sage/5 rounded-full border border-sage/10 animate-in fade-in slide-in-from-left-4 duration-700">
-                <div className="w-2 h-2 rounded-full bg-sage shadow-[0_0_12px_#9bb0a5]" />
-                <span className="text-[10px] font-black text-sage uppercase tracking-[0.1em] leading-none">Scoping Ativo</span>
+              <div className="flex items-center gap-2.5 px-4 py-1.5 bg-blue-500/5 rounded-full border border-blue-500/10 animate-in fade-in slide-in-from-left-4 duration-700">
+                <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.5)]" />
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.1em] leading-none">Scoping Ativo</span>
               </div>
             )}
           </div>
@@ -1047,12 +1170,12 @@ export default function Home() {
 
             {/* AI Model Selector */}
             <div className="relative group">
-              <div className="flex items-center gap-3 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/5 hover:border-[var(--accent-color)]/30 hover:bg-[var(--accent-color-glow)] transition-all cursor-pointer group">
-                <Sparkles size={16} className="text-[var(--accent-color)]" />
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/5 hover:border-blue-500/30 hover:bg-blue-500/10 transition-all cursor-pointer group">
+                <Sparkles size={16} className="text-blue-400" />
                 <span className="text-[11px] font-black uppercase tracking-widest text-white/80">
                   {activeAIConfig.model}
                 </span>
-                <ChevronRight size={14} className="rotate-90 text-white/20 group-hover:text-[var(--accent-color)] transition-all" />
+                <ChevronRight size={14} className="rotate-90 text-white/20 group-hover:text-blue-400 transition-all" />
               </div>
 
               {/* Dropdown Menu */}
@@ -1066,10 +1189,10 @@ export default function Home() {
                     <button 
                       key={m.id} 
                       onClick={() => handleUpdateAI({ engine: 'openai', model: m.id })}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all text-left ${activeAIConfig.model === m.id ? 'bg-[var(--accent-color-glow)] text-[var(--accent-color)]' : 'text-white/40'}`}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all text-left ${activeAIConfig.model === m.id ? 'bg-blue-500/10 text-blue-400' : 'text-white/40'}`}
                     >
                       <span className="text-[10px] font-bold uppercase">{m.id}</span>
-                      {activeAIConfig.model === m.id && <div className="w-1 h-1 rounded-full bg-[var(--accent-color)]" />}
+                      {activeAIConfig.model === m.id && <div className="w-1 h-1 rounded-full bg-blue-400" />}
                     </button>
                   ))}
                 </div>
@@ -1081,10 +1204,10 @@ export default function Home() {
                     <button 
                       key={m.id} 
                       onClick={() => handleUpdateAI({ engine: 'gemini', model: m.id })}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all text-left ${activeAIConfig.model === m.id ? 'bg-[var(--accent-color-glow)] text-[var(--accent-color)]' : 'text-white/40'}`}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all text-left ${activeAIConfig.model === m.id ? 'bg-blue-500/10 text-blue-400' : 'text-white/40'}`}
                     >
                       <span className="text-[10px] font-bold uppercase">{m.id}</span>
-                      {activeAIConfig.model === m.id && <div className="w-1 h-1 rounded-full bg-[var(--accent-color)]" />}
+                      {activeAIConfig.model === m.id && <div className="w-1 h-1 rounded-full bg-blue-400" />}
                     </button>
                   ))}
                 </div>
@@ -1095,14 +1218,14 @@ export default function Home() {
 
             <button 
               onClick={() => setShowSettings(!showSettings)}
-              className={`p-3 rounded-2xl border transition-all duration-500 ${showSettings ? 'bg-sage/10 border-sage/30 text-sage shadow-[0_0_20px_rgba(155,176,165,0.1)]' : 'bg-white/5 border-white/5 text-white/20 hover:text-white hover:border-white/10'}`}
+              className={`p-3 rounded-2xl border transition-all duration-500 ${showSettings ? 'bg-blue-600/10 border-blue-600/30 text-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-white/5 border-white/5 text-white/20 hover:text-white hover:border-white/10'}`}
               title="Ajustes Globais"
             >
               <Settings size={22} />
             </button>
-            <div className="flex items-center gap-4 bg-white/5 px-5 py-2.5 rounded-2xl border border-white/5 shadow-inner">
-              <div className="w-2 h-2 rounded-full bg-sage animate-pulse shadow-[0_0_8px_#9bb0a5]" />
-              <span className="text-[10px] font-black text-white/30 uppercase tracking-[3px]">Status: • Online</span>
+            <div className="flex items-center gap-4 bg-slate-900/50 px-5 py-2.5 rounded-2xl border border-slate-800/50 shadow-inner">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[3px]">Status: • Online</span>
             </div>
           </div>
         </header>
@@ -1110,7 +1233,7 @@ export default function Home() {
         <div className="p-12 max-w-[1700px] mx-auto min-h-[calc(100vh-100px)]">
           {renderView()}
         </div>
-      </main>
+        </main>
 
       {isModalOpen && (
         <ProjectWizardModal 

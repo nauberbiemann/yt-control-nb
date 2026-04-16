@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { 
-  Users, 
-  ShieldCheck, 
-  UserX, 
-  UserCheck, 
+import {
+  Users,
+  ShieldCheck,
+  UserX,
+  UserCheck,
   ShieldAlert,
   Search,
   Filter,
@@ -48,7 +48,7 @@ export default function UserManagement() {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setProfiles(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
     } catch (err) {
       alert('Erro ao atualizar status.');
@@ -57,7 +57,7 @@ export default function UserManagement() {
 
   const handleUpdateRole = async (id: string, newRole: string) => {
     if (!confirm(`Deseja alterar o cargo deste usuário para ${newRole.toUpperCase()}?`)) return;
-    
+
     try {
       const { error } = await supabase
         .from('profiles')
@@ -65,7 +65,7 @@ export default function UserManagement() {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setProfiles(prev => prev.map(p => p.id === id ? { ...p, role: newRole } : p));
     } catch (err) {
       alert('Erro ao atualizar cargo.');
@@ -98,7 +98,7 @@ export default function UserManagement() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
-            <input 
+            <input
               className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-xs text-white outline-none focus:border-sage/40 transition-all w-[240px]"
               placeholder="Buscar por e-mail..."
               value={search}
@@ -110,7 +110,7 @@ export default function UserManagement() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${filter === f ? 'bg-sage text-midnight' : 'text-white/40 hover:text-white'}`}
+                className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${filter === f ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-white/40 hover:text-white'}`}
               >
                 {f === 'all' ? 'Tudo' : f}
               </button>
@@ -139,18 +139,17 @@ export default function UserManagement() {
                   </div>
                 </td>
                 <td className="px-8 py-6">
-                  <span className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest border rounded-full ${
-                    p.status === 'approved' ? 'bg-sage/10 text-sage border-sage/20' :
-                    p.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                    'bg-red-500/10 text-red-500 border-red-500/20'
-                  }`}>
+                  <span className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest border rounded-full ${p.status === 'approved' ? 'bg-sage/10 text-sage border-sage/20' :
+                      p.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                        'bg-red-500/10 text-red-500 border-red-500/20'
+                    }`}>
                     {p.status}
                   </span>
                 </td>
                 <td className="px-8 py-6">
-                  <button 
+                  <button
                     onClick={() => handleUpdateRole(p.id, p.role === 'admin' ? 'user' : 'admin')}
-                    className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${p.role === 'admin' ? 'text-sage' : 'text-white/20 hover:text-white'}`}
+                    className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${p.role === 'admin' ? 'text-blue-300' : 'text-white/20 hover:text-white'}`}
                   >
                     {p.role === 'admin' ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
                     {p.role}
@@ -159,15 +158,15 @@ export default function UserManagement() {
                 <td className="px-8 py-6 text-right">
                   <div className="flex justify-end gap-3">
                     {p.status !== 'approved' && (
-                      <button 
+                      <button
                         onClick={() => handleUpdateStatus(p.id, 'approved')}
-                        className="btn-primary py-2 px-4 flex items-center gap-2 text-[9px] bg-sage/20 border-sage/30 text-sage hover:bg-sage hover:text-midnight"
+                        className="btn-primary py-2 px-4 flex items-center gap-2 text-[9px] bg-blue-500/10 border-blue-500/20 text-blue-300 hover:bg-blue-500 hover:text-white shadow-lg shadow-blue-500/10"
                       >
                         <UserCheck size={14} /> APROVAR
                       </button>
                     )}
                     {p.status === 'approved' && (
-                      <button 
+                      <button
                         onClick={() => handleUpdateStatus(p.id, 'suspended')}
                         className="flex items-center gap-2 py-2 px-4 border border-red-500/20 bg-red-500/5 text-red-500/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
                       >
@@ -199,7 +198,7 @@ export default function UserManagement() {
             <p className="text-xl font-black text-white">{profiles.length}</p>
           </div>
         </div>
-        <button 
+        <button
           onClick={fetchProfiles}
           className="text-[10px] font-black text-white/20 hover:text-sage uppercase tracking-widest transition-all"
         >

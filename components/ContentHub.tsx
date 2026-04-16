@@ -647,10 +647,10 @@ REGRAS:
     <div className="flex flex-col gap-8 animate-in text-white pb-20">
       {/* Header & Strategic Analysis */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 glass-card p-8 bg-gradient-to-br from-[var(--accent-color-glow)] to-transparent border-[var(--accent-color-glow)] flex flex-col gap-4 relative overflow-hidden">
+        <div className="md:col-span-2 glass-card p-8 bg-gradient-to-br from-blue-500/10 to-transparent border-blue-500/20 flex flex-col gap-4 relative overflow-hidden">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-[var(--accent-color-glow)] rounded-lg">
-              <Zap className="text-[var(--accent-color)]" size={24} />
+            <div className="p-2 bg-blue-500/10 rounded-lg">
+              <Zap className="text-blue-400" size={24} />
             </div>
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Gerador de Títulos S1-S5</h2>
@@ -658,9 +658,9 @@ REGRAS:
             </div>
           </div>
           
-          <div className="flex items-center gap-4 bg-white/5 border border-[var(--accent-color)]/20 p-4 rounded-xl mt-2">
+          <div className="flex items-center gap-4 bg-white/5 border border-blue-500/20 p-4 rounded-xl mt-2">
             <div className="flex-1">
-              <span className="text-[10px] uppercase font-black tracking-widest text-[var(--accent-color)] opacity-80">Diretriz de Síntese Narrativa (Prompt Engine V2)</span>
+              <span className="text-[10px] uppercase font-black tracking-widest text-blue-400 opacity-80">Diretriz de Síntese Narrativa (Prompt Engine V2)</span>
               <p className="text-[11px] text-white/60 mt-2 leading-relaxed">
                 <span className="block mb-2 font-bold opacity-80">Objetivo: Agir como um motor de síntese que processa um Tema Bruto utilizando estritamente as definições de estrutura e contexto do projeto.</span>
                 <span className="block text-[10px] font-mono text-white/40 italic">Lógica V2: Conhecimento como base (não copiar), Moldagem via DB e Filtrações de Ouro (Máx 70 chars).</span>
@@ -699,7 +699,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                 navigator.clipboard.writeText(prompt);
                 alert("Prompt Engine V2 copiado para a área de transferência!");
               }}
-              className="px-4 py-3 bg-[var(--accent-color)]/10 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-midnight transition-all border border-[var(--accent-color)]/20 rounded-lg text-[10px] items-center justify-center font-black tracking-widest uppercase flex flex-col gap-1 whitespace-nowrap"
+              className="px-4 py-3 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-midnight transition-all border border-blue-500/20 rounded-lg text-[10px] items-center justify-center font-black tracking-widest uppercase flex flex-col gap-1 whitespace-nowrap"
             >
               <Copy size={16} />
               Copiar V2
@@ -710,7 +710,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
             <div className="flex gap-4">
               <div className="flex-1 relative group">
                 <input 
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-white font-bold placeholder:text-white/10"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-5 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white font-bold placeholder:text-white/10"
                   placeholder="Insira o tema bruto para análise estratégica..."
                   value={baseTopic}
                   onChange={(e) => setBaseTopic(e.target.value)}
@@ -725,7 +725,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                 onClick={calculateMatchScore}
                 disabled={!baseTopic || isAnalyzing || !activeProject}
                 className={`px-8 rounded-xl font-bold transition-all flex items-center gap-3 shadow-lg ${
-                  isAnalyzing ? 'bg-white/5 text-white/10 cursor-wait opacity-50' : 'bg-[var(--accent-color)] text-midnight hover:scale-105 active:scale-95 shadow-[var(--accent-color-glow)]'
+                  isAnalyzing ? 'bg-white/5 text-white/10 cursor-wait opacity-50' : 'bg-blue-500 text-midnight hover:scale-105 active:scale-95 shadow-[0_0_24px_rgba(59,130,246,0.25)]'
                 }`}
               >
                 {isAnalyzing ? "EQUILIBRANDO ENGINE..." : <>ANALISAR MATCH <ChevronRight size={18} /></>}
@@ -734,15 +734,15 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
 
             {/* --- PROGRESSO MINIMALISTA (ENGINE ANTIGRAVITY) --- */}
             {isAnalyzing && (
-              <div className="bg-midnight/40 backdrop-blur-md border border-[var(--accent-color)]/20 p-8 rounded-2xl animate-in fade-in zoom-in duration-300 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
+              <div className="bg-midnight/40 backdrop-blur-md border border-blue-500/20 p-8 rounded-2xl animate-in fade-in zoom-in duration-300 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
                 {/* Progress Bar (Glow Line) */}
-                <div className="absolute top-0 left-0 h-[2px] bg-[var(--accent-color)] shadow-[0_0_15px_var(--accent-color)] transition-all duration-700 ease-out" 
+                <div className="absolute top-0 left-0 h-[2px] bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)] transition-all duration-700 ease-out" 
                      style={{ width: `${((currentStep + 1) / GENERATION_STEPS.length) * 100}%` }} />
                 
-                <div className="p-4 bg-[var(--accent-color)]/10 rounded-full animate-pulse border border-[var(--accent-color)]/20">
+                <div className="p-4 bg-blue-500/10 rounded-full animate-pulse border border-blue-500/20">
                   {(() => {
                     const Icon = GENERATION_STEPS[currentStep]?.icon || Database;
-                    return <Icon className="text-[var(--accent-color)]" size={32} />;
+                    return <Icon className="text-blue-400" size={32} />;
                   })()}
                 </div>
 
@@ -750,13 +750,13 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                   <h4 className="text-lg font-bold tracking-tight text-white animate-in slide-in-from-bottom-2 duration-500">
                     {GENERATION_STEPS[currentStep]?.label}
                   </h4>
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--accent-color)] animate-pulse">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 animate-pulse">
                     Fase {currentStep + 1} de {GENERATION_STEPS.length}
                   </p>
                 </div>
 
                 {/* Micro-Interaction Background */}
-                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[var(--accent-color)]/5 blur-3xl rounded-full group-hover:bg-[var(--accent-color)]/10 transition-all duration-1000" />
+                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full group-hover:bg-blue-500/10 transition-all duration-1000" />
               </div>
             )}
 
@@ -786,7 +786,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                   <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Volume de audiência real detectado.</span>
                   <input 
                     type="text"
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-bold placeholder:text-white/5"
+                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm text-white font-bold placeholder:text-white/5"
                     placeholder="Ex: 50k"
                     value={newThemeDemand}
                     onChange={(e) => setNewThemeDemand(e.target.value)}
@@ -796,7 +796,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                   <label className="text-[10px] uppercase font-black tracking-widest text-white/60 ml-1">Observação de Conexão (Match Persona)</label>
                   <span className="text-[9px] uppercase font-bold text-white/40 ml-1 -mt-1 mb-1">Como este tema alivia a dor central do seu avatar?</span>
                   <textarea 
-                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-sm text-white font-medium placeholder:text-white/5 min-h-[100px] resize-none"
+                    className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm text-white font-medium placeholder:text-white/5 min-h-[100px] resize-none"
                     placeholder="Injete o motivo estratégico para falar sobre isso agora."
                     value={newThemeNote}
                     onChange={(e) => setNewThemeNote(e.target.value)}
@@ -810,7 +810,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
           {showResults && (
             <div className="grid grid-cols-1 gap-3 mt-8 animate-in slide-in-from-top-4 duration-500">
               <div className="flex justify-between items-center mb-2 px-2">
-                <span className="text-[10px] font-black text-[var(--accent-color)] uppercase tracking-[0.3em]">Clique na Estrutura para Salvar no Banco</span>
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Clique na Estrutura para Salvar no Banco</span>
                 {Object.keys(generatedTitles).length > 0 && (
                   <span className="text-[9px] font-bold text-sage uppercase border border-sage/20 bg-sage/5 px-2 py-1 rounded">Síntese IA Ativa</span>
                 )}
@@ -824,18 +824,18 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                       setSelectedStructureId(s.slotId);
                       handleSaveTheme(finalTitle, s);
                     }}
-                    className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl group hover:border-[var(--accent-color)]/50 hover:bg-[var(--accent-color-glow)] transition-all cursor-pointer"
+                    className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl group hover:border-blue-500/50 hover:bg-blue-500/10 transition-all cursor-pointer"
                   >
                     <div className="flex items-center gap-4 flex-1">
-                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-white/20 group-hover:text-[var(--accent-color)] group-hover:bg-[var(--accent-color-glow)] transition-all border border-white/5 uppercase">
+                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-white/20 group-hover:text-blue-400 group-hover:bg-blue-500/10 transition-all border border-white/5 uppercase">
                         {s.slotId}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[8px] uppercase tracking-widest font-black text-[var(--accent-color)] opacity-60 mb-0.5">{s.name}</span>
+                        <span className="text-[8px] uppercase tracking-widest font-black text-blue-400 opacity-60 mb-0.5">{s.name}</span>
                         <span className="text-sm text-white/90 font-medium">{finalTitle}</span>
                       </div>
                     </div>
-                    <div className="p-2 bg-white/5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-[var(--accent-color)] hover:text-midnight">
+                    <div className="p-2 bg-white/5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-500 hover:text-midnight">
                       <Plus size={16} />
                     </div>
                   </div>
@@ -845,9 +845,9 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
           )}
         </div>
 
-        <div className="glass-card p-8 flex flex-col items-center justify-center text-center gap-4 relative border-[var(--accent-color-glow)]">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-1000 ${currentMatch ? 'bg-[var(--accent-color-glow)]' : 'bg-white/5'}`}>
-            <TrendingUp className={currentMatch ? 'text-[var(--accent-color)]' : 'text-white/10'} size={40} />
+        <div className="glass-card p-8 flex flex-col items-center justify-center text-center gap-4 relative border-blue-500/20">
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-1000 ${currentMatch ? 'bg-blue-500/10' : 'bg-white/5'}`}>
+            <TrendingUp className={currentMatch ? 'text-blue-400' : 'text-white/10'} size={40} />
           </div>
           <div className="flex flex-col gap-1">
             <h3 className="font-black text-white uppercase text-sm">Match de Público</h3>
@@ -896,14 +896,14 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/5 rounded-lg">
-              <Database size={18} className="text-[var(--accent-color)]" />
+              <Database size={18} className="text-blue-400" />
             </div>
             <h3 className="font-bold tracking-tight">Banco de Temas Estratégicos</h3>
           </div>
           <div className="flex gap-3">
             <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-[var(--accent-color)] transition-colors" size={14} />
-              <input className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none focus:border-[var(--accent-color)]/30 transition-all w-64" placeholder="Buscar temas na instância..." />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-blue-400 transition-colors" size={14} />
+              <input className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none focus:border-blue-500/30 transition-all w-64" placeholder="Buscar temas na instância..." />
             </div>
           </div>
         </div>
@@ -1100,7 +1100,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
 
             <button 
               onClick={() => handleUpdateTheme(activeEditTheme.id, { refined_title: activeEditTheme.refined_title || activeEditTheme.title, notes: activeEditTheme.notes || activeEditTheme.connection_note })}
-              className="w-full py-4 bg-sage text-midnight font-black uppercase tracking-[3px] text-xs rounded-xl shadow-lg shadow-sage/20 hover:scale-[1.02] active:scale-95 transition-all mt-4"
+              className="w-full py-4 bg-blue-500 text-white font-black uppercase tracking-[3px] text-xs rounded-xl shadow-lg shadow-blue-500/25 hover:bg-blue-400 hover:scale-[1.02] active:scale-95 transition-all mt-4"
             >
               SALVAR REFINAMENTO
             </button>

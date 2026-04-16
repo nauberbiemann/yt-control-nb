@@ -1,11 +1,25 @@
 ﻿'use client';
 
-import { useState, useEffect, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
 import { immutableInsert } from '@/lib/supabase-mutations';
-import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText } from 'lucide-react';
+import {
+  applyAssetRules,
+  buildAssetStats,
+  parseSrtToRows,
+  sanitizeDownloadFileStem,
+  type SrtAssetPipelineResult,
+} from '@/lib/srt-asset-pipeline';
+import {
+  buildPostScriptTimelineContext,
+  buildSeoChapterPlan,
+  sanitizePostScriptPackage,
+  type PostScriptPackage,
+} from '@/lib/post-script-package';
 import ProductionAssembler from './ProductionAssembler';
+import ScrollToTopButton from './ScrollToTopButton';
 
 interface ScriptBlock {
   id: string;
@@ -16,19 +30,41 @@ interface ScriptBlock {
 }
 
 type ExecutionMode = 'internal' | 'external';
+type ScriptStage = 'blueprint' | 'final';
+type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
+
+interface SrtPipelineObserverStep {
+  key: 'upload' | 'csv' | 'assets' | 'prompts' | 'render' | 'persist';
+  label: string;
+  status: SrtPipelineStepStatus;
+  detail: string;
+}
 
 interface ExecutionSnapshot {
   approvedTheme: string;
   approvedBriefing: any;
   scriptBlocks: ScriptBlock[];
+  scriptStage: ScriptStage;
   assemblerActive: boolean;
-  thumbnailDirective: { description: string; prompt: string } | null;
+  thumbnailDirective: {
+    visualConcept: string;
+    viralTitle: string;
+    thumbnailPromptNoText: string;
+    thumbnailPromptWithPtBrText: string;
+    thumbnailTextPtBr: string;
+    tags: string[];
+  } | null;
   showThumbnailPanel: boolean;
   thumbnailUrl: string;
   executionMode: ExecutionMode;
   externalScriptText: string;
   externalScriptFileName: string;
   externalSourceLabel: string;
+  externalSrtText: string;
+  externalSrtFileName: string;
+  externalSrtPipeline: SrtAssetPipelineResult | null;
+  externalSrtObserver: SrtPipelineObserverStep[];
+  postScriptPackage: PostScriptPackage | null;
 }
 
 interface ScriptEngineProps {
@@ -102,6 +138,34 @@ const describeNarrativeReference = (label: string, text?: string) => {
   return `${label}: use apenas como referencia funcional. Nao repita a formulacao literal do texto-base.`;
 };
 
+const buildInitialSrtObserver = (): SrtPipelineObserverStep[] => [
+  { key: 'upload', label: 'SRT anexado', status: 'pending', detail: 'Aguardando upload do arquivo de legendas.' },
+  { key: 'csv', label: 'CSV base', status: 'pending', detail: 'A timeline CSV ainda nao foi derivada do .srt.' },
+  { key: 'assets', label: 'Marcacao de assets', status: 'pending', detail: 'As linhas ainda nao foram classificadas em texto, avatar, video ou imagem.' },
+  { key: 'prompts', label: 'Prompts visuais', status: 'pending', detail: 'Os prompts para imagem e video ainda nao foram gerados.' },
+  { key: 'render', label: 'Render de texto', status: 'pending', detail: 'A etapa 5 ainda nao renderizou os assets marcados como texto.' },
+  { key: 'persist', label: 'Persistencia', status: 'pending', detail: 'Nada salvo ainda no snapshot desta execucao.' },
+];
+
+const inferScriptStageFromSnapshot = (snapshot: any): ScriptStage => {
+  if (snapshot?.scriptStage === 'final' || snapshot?.scriptStage === 'blueprint') {
+    return snapshot.scriptStage;
+  }
+
+  if (typeof snapshot?.externalScriptText === 'string' && snapshot.externalScriptText.trim()) {
+    return 'final';
+  }
+
+  const joined = Array.isArray(snapshot?.scriptBlocks)
+    ? snapshot.scriptBlocks.map((block: { content?: string }) => String(block?.content || '')).join('\n')
+    : '';
+
+  if (!joined) return 'blueprint';
+
+  const blueprintMarkers = /funcao narrativa|postura obrigatoria|diretriz estrutural|camada de abertura de referencia|transicao obrigatoria/i;
+  return blueprintMarkers.test(joined) ? 'blueprint' : 'final';
+};
+
 export default function ScriptEngine({ activeProject: propProject, pendingData, onClearPending }: ScriptEngineProps) {
   // Zustand store takes priority for data isolation
   const storeProject = useActiveProject();
@@ -110,19 +174,40 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
   const [selectedProject] = useState(activeProject?.name || 'Selecione um Projeto');
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
-  const [assemblerActive, setAssemblerActive] = useState(true);
+  const [scriptStage, setScriptStage] = useState<ScriptStage>('blueprint');
+  const [thumbnailDirective, setThumbnailDirective] = useState<ExecutionSnapshot['thumbnailDirective']>(null);
   const [approvedTheme, setApprovedTheme] = useState('');
   const [approvedBriefing, setApprovedBriefing] = useState<any | null>(null);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{
+    currentIndex: number;
+    completedCount: number;
+    total: number;
+    currentTitle: string;
+    status: string;
+  } | null>(null);
   const [mobileTab, setMobileTab] = useState<'context' | 'main'>('main');
   const [executionHydrated, setExecutionHydrated] = useState(false);
-  const [thumbnailDirective, setThumbnailDirective] = useState<{description: string; prompt: string} | null>(null);
+  const [assemblerActive, setAssemblerActive] = useState(true);
   const [showThumbnailPanel, setShowThumbnailPanel] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [executionMode, setExecutionMode] = useState<ExecutionMode>(activeProject?.default_execution_mode === 'external' ? 'external' : 'internal');
   const [externalScriptText, setExternalScriptText] = useState('');
   const [externalScriptFileName, setExternalScriptFileName] = useState('');
   const [externalSourceLabel, setExternalSourceLabel] = useState('');
+  const [externalSrtText, setExternalSrtText] = useState('');
+  const [externalSrtFileName, setExternalSrtFileName] = useState('');
+  const [externalSrtPipeline, setExternalSrtPipeline] = useState<SrtAssetPipelineResult | null>(null);
+  const [externalSrtObserver, setExternalSrtObserver] = useState<SrtPipelineObserverStep[]>(buildInitialSrtObserver);
+  const [postScriptPackage, setPostScriptPackage] = useState<PostScriptPackage | null>(null);
+  const [isProcessingSrtPipeline, setIsProcessingSrtPipeline] = useState(false);
+  const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
+  const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
+  const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
+  const thumbnailPanelRef = useRef<HTMLDivElement | null>(null);
+  const generationAbortRef = useRef<AbortController | null>(null);
+  const generationStoppedRef = useRef(false);
   
   // BI Traceability States
   const [components, setComponents] = useState<any[]>([]);
@@ -180,10 +265,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       
       if (false) {
         setComponents([
-          { id: 'h_S1', type: 'Hook', name: 'ProvocaÃ§Ã£o S1', description: 'ComeÃ§a com um erro tÃ©cnico.' },
-          { id: 'h_S5', type: 'Hook', name: 'Blueprint S5', description: 'Apresenta o mapa da soluÃ§Ã£o.' },
-          { id: 'h_S3', type: 'Hook', name: 'InterrupÃ§Ã£o S3', description: 'Quebra de padrÃ£o agressiva.' },
-          { id: 'cta_default', type: 'CTA', name: 'ConversÃ£o PUC', description: 'Chamada padrÃ£o alinhada Ã  matriz de conversÃ£o.' }
+          { id: 'h_S1', type: 'Hook', name: 'Provocacao S1', description: 'Comeca com um erro tecnico.' },
+          { id: 'h_S5', type: 'Hook', name: 'Blueprint S5', description: 'Apresenta o mapa da solucao.' },
+          { id: 'h_S3', type: 'Hook', name: 'Interrupcao S3', description: 'Quebra de padrao agressiva.' },
+          { id: 'cta_default', type: 'CTA', name: 'Conversao PUC', description: 'Chamada padrao alinhada a matriz de conversao.' }
         ]);
       }
     } catch (e) {
@@ -196,6 +281,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     approvedTheme,
     approvedBriefing,
     scriptBlocks,
+    scriptStage,
     assemblerActive,
     thumbnailDirective,
     showThumbnailPanel,
@@ -204,6 +290,11 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalScriptText,
     externalScriptFileName,
     externalSourceLabel,
+    externalSrtText,
+    externalSrtFileName,
+    externalSrtPipeline,
+    externalSrtObserver,
+    postScriptPackage,
     ...overrides,
   });
 
@@ -252,6 +343,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         external_script_text: executionSnapshot?.externalScriptText || '',
         external_file_name: executionSnapshot?.externalScriptFileName || '',
         external_source_label: executionSnapshot?.externalSourceLabel || '',
+        external_srt_text: executionSnapshot?.externalSrtText || '',
+        external_srt_file_name: executionSnapshot?.externalSrtFileName || '',
         execution_snapshot: executionSnapshot || null,
       },
       project_id: activeProject.id,
@@ -312,15 +405,11 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       const snapshot = JSON.parse(raw);
       if (snapshot?.approvedTheme) setApprovedTheme(snapshot.approvedTheme);
       if (snapshot?.approvedBriefing) setApprovedBriefing(snapshot.approvedBriefing);
-      const normalizedSnapshotBlocks =
-        snapshot?.approvedBriefing && Number(snapshot?.approvedBriefing?.blockCount || 0) > 0
-          ? buildScriptBlocksFromBriefing(snapshot.approvedBriefing, snapshot?.approvedTheme || '')
-          : Array.isArray(snapshot?.scriptBlocks) && snapshot.scriptBlocks.length > 0
-            ? snapshot.scriptBlocks
-            : [];
+      const normalizedSnapshotBlocks = resolveSnapshotBlocks(snapshot);
       if (normalizedSnapshotBlocks.length > 0) {
         setScriptBlocks(normalizedSnapshotBlocks);
       }
+      setScriptStage(inferScriptStageFromSnapshot(snapshot));
       if (typeof snapshot?.assemblerActive === 'boolean') setAssemblerActive(snapshot.assemblerActive);
       if (snapshot?.thumbnailDirective) setThumbnailDirective(snapshot.thumbnailDirective);
       if (typeof snapshot?.showThumbnailPanel === 'boolean') setShowThumbnailPanel(snapshot.showThumbnailPanel);
@@ -329,6 +418,11 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.externalScriptText === 'string') setExternalScriptText(snapshot.externalScriptText);
       if (typeof snapshot?.externalScriptFileName === 'string') setExternalScriptFileName(snapshot.externalScriptFileName);
       if (typeof snapshot?.externalSourceLabel === 'string') setExternalSourceLabel(snapshot.externalSourceLabel);
+      if (typeof snapshot?.externalSrtText === 'string') setExternalSrtText(snapshot.externalSrtText);
+      if (typeof snapshot?.externalSrtFileName === 'string') setExternalSrtFileName(snapshot.externalSrtFileName);
+      if (snapshot?.externalSrtPipeline) setExternalSrtPipeline(snapshot.externalSrtPipeline);
+      if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
+      if (snapshot?.postScriptPackage) setPostScriptPackage(snapshot.postScriptPackage);
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao salva.', error);
     } finally {
@@ -342,18 +436,14 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const shouldPersist = !!approvedBriefing || !assemblerActive || !!approvedTheme;
     if (!shouldPersist) return;
 
-    const snapshot = {
-      ...buildExecutionSnapshot(),
-      updated_at: new Date().toISOString(),
-    };
-
-    localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
+    persistExecutionSnapshotLocally();
   }, [
     executionStorageKey,
     executionHydrated,
     approvedTheme,
     approvedBriefing,
     scriptBlocks,
+    scriptStage,
     assemblerActive,
     thumbnailDirective,
     showThumbnailPanel,
@@ -362,11 +452,16 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalScriptText,
     externalScriptFileName,
     externalSourceLabel,
+    externalSrtText,
+    externalSrtFileName,
+    externalSrtPipeline,
+    externalSrtObserver,
+    postScriptPackage,
   ]);
 
   useEffect(() => {
     if (!executionHydrated) return;
-    if (approvedBriefing || approvedTheme || externalScriptText || !assemblerActive) return;
+    if (approvedBriefing || approvedTheme || externalScriptText || externalSrtText || !assemblerActive) return;
     setExecutionMode(defaultExecutionMode);
   }, [
     defaultExecutionMode,
@@ -374,6 +469,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     approvedBriefing,
     approvedTheme,
     externalScriptText,
+    externalSrtText,
     assemblerActive,
   ]);
   
@@ -387,23 +483,23 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       const randomM = metaphors[Math.floor(Math.random() * metaphors.length)] || 'Conceito Central';
       
       const sop = activeProject?.editing_sop || { cut_rhythm: '3s', zoom_style: 'Dynamic', soundtrack: 'Reflexive' };
-      const persona = activeProject?.persona_matrix || { demographics: 'PÃºblico', pain_alignment: 'Problema' };
+      const persona = activeProject?.persona_matrix || { demographics: 'Publico', pain_alignment: 'Problema' };
       const tactical_journey = activeProject?.playlists?.tactical_journey || [];
 
       const v4Blocks: ScriptBlock[] = [
         { 
           id: 'h1', 
           type: 'Hook', 
-          title: `Hook EstratÃ©gico [${pendingData.title_structure || pendingData.selected_structure || 'S1'}]`, 
+          title: `Hook Estrategico [${pendingData.title_structure || pendingData.selected_structure || 'S1'}]`, 
           content: pendingData.refined_title || pendingData.title || '',
           sop: `Estilo: ${sop.zoom_style}. Ritmo: ${sop.cut_rhythm}. Impacto visual imediato no gancho.` 
         },
         { 
           id: 'c1', 
           type: 'Context', 
-          title: 'ConexÃ£o com a Persona', 
+          title: 'Conexao com a Persona', 
           content: `Vincular o tema [${pendingData.title || pendingData.raw_theme || ''}] com o perfil [${persona.demographics}] e a dor central: ${persona.pain_alignment}.`,
-          sop: `Trilha: ${sop.soundtrack}. Tom empÃ¡tico. CÃ¢mera focada para gerar conexÃ£o.`
+          sop: `Trilha: ${sop.soundtrack}. Tom empatico. Camera focada para gerar conexao.`
         }
       ];
 
@@ -413,7 +509,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
           id: `module-${idx}`,
           type: 'Development',
           title: `Bloco ${module.label}: ${module.title}`,
-          content: `Injetar metÃ¡fora: ${randomM}. Desenvolver ${module.title}: ${module.value || 'Focar na soluÃ§Ã£o tÃ©cnica'}.`,
+          content: `Injetar metafora: ${randomM}. Desenvolver ${module.title}: ${module.value || 'Focar na solucao tecnica'}.`,
           sop: `Ritmo: ${sop.cut_rhythm}. Use overlays de texto para os termos da Metaphor Library.`
         });
       });
@@ -421,18 +517,20 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       v4Blocks.push({ 
         id: 'cta1', 
         type: 'CTA', 
-        title: 'ConversÃ£o PUC', 
-        content: `CTA EstratÃ©gico: TransiÃ§Ã£o para a Promessa Ãšnica (PUC) - ${activeProject?.puc}. Chamar para a aÃ§Ã£o especÃ­fica do projeto.`,
+        title: 'Conversao PUC', 
+        content: `CTA Estrategico: transicao para a Promessa Unica (PUC) - ${activeProject?.puc}. Chamar para a acao especifica do projeto.`,
         sop: 'Split screen ou CTA visual. Encerramento com a trilha em crescendo.'
       });
 
       setScriptBlocks(v4Blocks);
+      setScriptStage('blueprint');
+      setPostScriptPackage(null);
       onClearPending?.();
       setAssemblerActive(false); // Move to editor once pending data arrives
     } else if (scriptBlocks.length === 0 && !approvedBriefing) {
       setScriptBlocks([
-        { id: 'h0', type: 'Hook', title: 'Gancho EstratÃ©gico', content: 'Inicie com uma promessa tÃ©cnica...', sop: 'Corte seco.' },
-        { id: 'c0', type: 'Context', title: 'ContextualizaÃ§Ã£o', content: 'Conecte com a dor do pÃºblico...', sop: 'B-roll de contexto.' }
+        { id: 'h0', type: 'Hook', title: 'Gancho Estrategico', content: 'Inicie com uma promessa tecnica...', sop: 'Corte seco.' },
+        { id: 'c0', type: 'Context', title: 'Contextualizacao', content: 'Conecte com a dor do publico...', sop: 'B-roll de contexto.' }
       ]);
     }
   }, [pendingData, activeProject?.id, executionHydrated, approvedBriefing, scriptBlocks.length]);
@@ -694,6 +792,21 @@ FORMATO DE SAIDA
 - Nao reduzir a ambicao dos caracteres sem justificativa estrutural.`;
   };
 
+  const buildInternalWritingPrompt = () => {
+    const externalPrompt = buildExternalWritingPrompt();
+    if (!externalPrompt) return '';
+
+    return `${externalPrompt}
+
+MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
+- Retorne o roteiro completo em texto puro.
+- Preserve exatamente a mesma quantidade de blocos do blueprint.
+- Use os cabecalhos BLOCO 1, BLOCO 2, BLOCO 3... ate o ultimo bloco.
+- Em cada bloco, entregue apenas o texto final daquele bloco.
+- Nao adicione comentarios, observacoes, introducao extra, notas ao editor ou explicacoes fora dos blocos.
+- O resultado precisa ser facilmente separavel por bloco dentro do aplicativo.`;
+  };
+
   const getCommandContext = () => {
     const theme = approvedBriefing?.title || approvedTheme || pendingData?.title || pendingData?.raw_theme || '';
     const variation = approvedBriefing?.selectedTitleStructure?.name || pendingData?.title_structure || pendingData?.selected_structure || 'S1';
@@ -711,6 +824,29 @@ FORMATO DE SAIDA
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao atualizar snapshot do tema aprovado.', error);
     }
+  };
+
+  const resolveSnapshotBlocks = (snapshot: any): ScriptBlock[] => {
+    if (Array.isArray(snapshot?.scriptBlocks) && snapshot.scriptBlocks.length > 0) {
+      return snapshot.scriptBlocks;
+    }
+
+    if (snapshot?.approvedBriefing && Number(snapshot?.approvedBriefing?.blockCount || 0) > 0) {
+      return buildScriptBlocksFromBriefing(snapshot.approvedBriefing, snapshot?.approvedTheme || '');
+    }
+
+    return [];
+  };
+
+  const persistExecutionSnapshotLocally = (overrides: Partial<ExecutionSnapshot> = {}) => {
+    if (!executionStorageKey) return;
+
+    const snapshot = {
+      ...buildExecutionSnapshot(overrides),
+      updated_at: new Date().toISOString(),
+    };
+
+    localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
   };
 
   const buildScriptBlocksFromBriefing = (briefing: any, theme: string): ScriptBlock[] => {
@@ -736,7 +872,7 @@ FORMATO DE SAIDA
         type: 'Development' as const,
         title: `${b.name} [${b.voiceStyle}]`,
         content: `${openingLayer}${b.missionNarrative}\n\nDesenvolver: ${b.name}.\n${b.communityElement ? 'Elemento de comunidade: use apenas como gatilho de identificacao coletiva e pertencimento, sem repetir a frase-base cadastrada.\n' : ''}${structureReference}${midCtaLayer}${closingLayer}`,
-        sop: `Voz: ${b.voiceStyle}. Trilha: ${sop.soundtrack}. Use sobreposiÃ§Ã£o de texto tÃ©cnico.`,
+        sop: `Voz: ${b.voiceStyle}. Trilha: ${sop.soundtrack}. Use sobreposicao de texto tecnico.`,
       };
     });
   };
@@ -758,8 +894,36 @@ FORMATO DE SAIDA
       .filter(Boolean);
   };
 
+  const segmentExternalScriptForBlocks = (text: string, targetCount: number) => {
+    const normalized = text.replace(/\r\n/g, '\n').trim();
+    if (!normalized) return [];
+
+    const sections = parseExternalScriptSections(normalized);
+    if (sections.length >= Math.min(2, targetCount) || targetCount <= 1) {
+      return sections;
+    }
+
+    const sentences =
+      normalized
+        .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+        ?.map((sentence) => sentence.trim())
+        .filter(Boolean) || [normalized];
+
+    const desiredCount = Math.min(Math.max(1, targetCount), sentences.length);
+    if (desiredCount <= 1) return [normalized];
+
+    const chunkSize = Math.ceil(sentences.length / desiredCount);
+    return Array.from({ length: desiredCount }, (_, index) =>
+      sentences
+        .slice(index * chunkSize, (index + 1) * chunkSize)
+        .join(' ')
+        .trim()
+    ).filter(Boolean);
+  };
+
   const applyExternalScriptToBlocks = async (text: string, fileName?: string) => {
-    const sections = parseExternalScriptSections(text);
+    const targetCount = Math.max(1, scriptBlocks.length || approvedBriefing?.blocks?.length || 1);
+    const sections = segmentExternalScriptForBlocks(text, targetCount);
     if (sections.length === 0) {
       alert('Nao encontrei blocos ou secoes suficientes no texto externo.');
       return;
@@ -771,14 +935,30 @@ FORMATO DE SAIDA
     }));
 
     setScriptBlocks(nextBlocks);
+    setScriptStage('final');
+    setPostScriptPackage(null);
     setExternalScriptText(text);
     if (fileName) setExternalScriptFileName(fileName);
-
-    await syncApprovedThemeSnapshot({
+    persistExecutionSnapshotLocally({
       scriptBlocks: nextBlocks,
+      scriptStage: 'final',
       externalScriptText: text,
       externalScriptFileName: fileName || externalScriptFileName,
       executionMode: 'external',
+      externalSrtText,
+      externalSrtFileName,
+      postScriptPackage: null,
+    });
+
+    await syncApprovedThemeSnapshot({
+      scriptBlocks: nextBlocks,
+      scriptStage: 'final',
+      externalScriptText: text,
+      externalScriptFileName: fileName || externalScriptFileName,
+      executionMode: 'external',
+      externalSrtText,
+      externalSrtFileName,
+      postScriptPackage: null,
     });
 
     alert('Roteiro externo aplicado aos blocos atuais.');
@@ -793,11 +973,341 @@ FORMATO DE SAIDA
       setExecutionMode('external');
       setExternalScriptFileName(file.name);
       setExternalScriptText(text);
+      persistExecutionSnapshotLocally({
+        executionMode: 'external',
+        externalScriptText: text,
+        externalScriptFileName: file.name,
+        externalSrtText,
+        externalSrtFileName,
+      });
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao ler arquivo externo.', error);
       alert('Nao foi possivel ler o arquivo .txt enviado.');
     } finally {
       event.target.value = '';
+    }
+  };
+
+  const handleExternalSrtUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      setExecutionMode('external');
+      setExternalSrtFileName(file.name);
+      setExternalSrtText(text);
+      setExternalSrtPipeline(null);
+      const nextObserver = buildInitialSrtObserver().map((step) =>
+        step.key === 'upload'
+          ? { ...step, status: 'done' as const, detail: `Arquivo ${file.name} anexado e persistido nesta execucao.` }
+          : step
+      );
+      setExternalSrtObserver(nextObserver);
+      persistExecutionSnapshotLocally({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText: text,
+        externalSrtFileName: file.name,
+        externalSrtPipeline: null,
+        externalSrtObserver: nextObserver,
+      });
+      void syncApprovedThemeSnapshot({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText: text,
+        externalSrtFileName: file.name,
+        externalSrtPipeline: null,
+        externalSrtObserver: nextObserver,
+      }).catch((error) => {
+        console.warn('[ScriptEngine] Falha ao sincronizar SRT externo.', error);
+      });
+    } catch (error) {
+      console.warn('[ScriptEngine] Falha ao ler arquivo .srt.', error);
+      alert('Nao foi possivel ler o arquivo .srt enviado.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const copyTextToClipboard = async (value: string, successMessage: string) => {
+    if (!value.trim()) {
+      alert('Nao ha conteudo disponivel para copiar.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      alert(successMessage);
+    } catch (error) {
+      console.warn('[ScriptEngine] Falha ao copiar conteudo.', error);
+      alert('Nao foi possivel copiar o conteudo.');
+    }
+  };
+
+  const updateSrtObserverStep = (
+    key: SrtPipelineObserverStep['key'],
+    status: SrtPipelineStepStatus,
+    detail: string
+  ) => {
+    setExternalSrtObserver((current) =>
+      current.map((step) => (step.key === key ? { ...step, status, detail } : step))
+    );
+  };
+
+  const downloadTextArtifact = (
+    stem: string,
+    suffix: string,
+    content: string,
+    options?: { extension?: 'txt' | 'csv'; mimeType?: string }
+  ) => {
+    if (!content.trim()) {
+      alert('Nao ha conteudo disponivel para exportar.');
+      return;
+    }
+
+    const safeStem = sanitizeDownloadFileStem(stem);
+    const extension = options?.extension || 'txt';
+    const mimeType = options?.mimeType || 'text/plain;charset=utf-8';
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeStem}_${suffix}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const processAttachedSrtAssets = async () => {
+    if (!externalSrtText.trim()) {
+      alert('Anexe um arquivo .srt antes de processar os assets.');
+      return;
+    }
+
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+
+    setIsProcessingSrtPipeline(true);
+    setSrtPipelineStatus('Lendo o .srt anexado e preparando a timeline base...');
+    updateSrtObserverStep('upload', 'done', externalSrtFileName ? `Arquivo ${externalSrtFileName} pronto para processamento.` : 'Arquivo .srt anexado e pronto para processamento.');
+    updateSrtObserverStep('csv', 'running', 'Convertendo o .srt em linhas estruturadas da timeline CSV...');
+    updateSrtObserverStep('assets', 'pending', 'Aguardando a classificacao heuristica dos assets.');
+    updateSrtObserverStep('prompts', 'pending', 'Aguardando a geracao dos prompts visuais.');
+    updateSrtObserverStep('render', 'pending', 'Aguardando a etapa 5 para renderizar os assets de texto.');
+    updateSrtObserverStep('persist', 'pending', 'Aguardando persistencia local do resultado.');
+
+    try {
+      const parsedRows = parseSrtToRows(externalSrtText);
+      if (!parsedRows.length) {
+        throw new Error('Nao foi possivel extrair blocos validos do .srt enviado.');
+      }
+
+      updateSrtObserverStep('csv', 'done', `${parsedRows.length} linha(s) derivadas do .srt e prontas para o CSV base.`);
+      setSrtPipelineStatus('CSV base derivado. Aplicando a heuristica de marcacao de assets...');
+
+      updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video ou imagem...');
+      const assetRows = applyAssetRules(parsedRows);
+      const assetStats = buildAssetStats(assetRows);
+      updateSrtObserverStep(
+        'assets',
+        'done',
+        `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video e ${assetStats.image} imagem.`
+      );
+      setSrtPipelineStatus('Assets marcados. Enviando as linhas elegiveis para gerar prompts visuais...');
+
+      updateSrtObserverStep('prompts', 'running', 'Gerando prompts para as linhas marcadas como video e imagem...');
+      const res = await fetch('/api/assets/srt-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          srtText: externalSrtText,
+          srtFileName: externalSrtFileName,
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Falha ao processar o SRT anexado.');
+      }
+
+      updateSrtObserverStep(
+        'prompts',
+        'done',
+        `${data?.stats?.video || 0} prompt(s) de video e ${data?.stats?.image || 0} prompt(s) de imagem preparados.`
+      );
+      updateSrtObserverStep('persist', 'running', 'Salvando CSV, prompts e preview dentro do snapshot desta execucao...');
+      const persistedAt = new Date().toISOString();
+      const pipelineResult = {
+        ...data,
+        generatedAt: persistedAt,
+      };
+      setExternalSrtPipeline(pipelineResult);
+      setSrtPipelineStatus('Pipeline concluido. CSV base, marcacao de assets e prompts visuais atualizados.');
+      const finalizedObserver: SrtPipelineObserverStep[] = [
+        {
+          key: 'upload',
+          label: 'SRT anexado',
+          status: 'done',
+          detail: externalSrtFileName ? `Arquivo ${externalSrtFileName} pronto para processamento.` : 'Arquivo .srt anexado e pronto para processamento.',
+        },
+        {
+          key: 'csv',
+          label: 'CSV base',
+          status: 'done',
+          detail: `${parsedRows.length} linha(s) derivadas do .srt e prontas para o CSV base.`,
+        },
+        {
+          key: 'assets',
+          label: 'Marcacao de assets',
+          status: 'done',
+          detail: `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video e ${assetStats.image} imagem.`,
+        },
+        {
+          key: 'prompts',
+          label: 'Prompts visuais',
+          status: 'done',
+          detail: `${data?.stats?.video || 0} prompt(s) de video e ${data?.stats?.image || 0} prompt(s) de imagem preparados.`,
+        },
+        {
+          key: 'render',
+          label: 'Render de texto',
+          status: 'pending',
+          detail: 'Etapa 5 aguardando disparo. Os assets marcados como texto ainda nao foram renderizados em video.',
+        },
+        {
+          key: 'persist',
+          label: 'Persistencia',
+          status: 'done',
+          detail: `Resultado salvo localmente em ${new Date(persistedAt).toLocaleString('pt-BR')}. Use Exportar para baixar arquivos no computador.`,
+        },
+      ];
+      setExternalSrtObserver(finalizedObserver);
+      persistExecutionSnapshotLocally({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText,
+        externalSrtFileName,
+        externalSrtPipeline: pipelineResult,
+        externalSrtObserver: finalizedObserver,
+      });
+      await syncApprovedThemeSnapshot({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText,
+        externalSrtFileName,
+        externalSrtPipeline: pipelineResult,
+        externalSrtObserver: finalizedObserver,
+      });
+    } catch (error) {
+      console.warn('[ScriptEngine] Falha ao processar pipeline do SRT.', error);
+      updateSrtObserverStep('prompts', 'error', 'A geracao dos prompts falhou ou foi interrompida.');
+      updateSrtObserverStep('persist', 'error', 'A execucao falhou antes de salvar o pipeline completo.');
+      setSrtPipelineStatus('');
+      alert(error instanceof Error ? error.message : 'Nao foi possivel processar o SRT anexado.');
+    } finally {
+      setIsProcessingSrtPipeline(false);
+    }
+  };
+
+  const renderTextAssetsFromPipeline = async () => {
+    if (!externalSrtPipeline?.rows?.length) {
+      alert('Processe o SRT nas etapas 2, 3 e 4 antes de disparar a etapa 5.');
+      return;
+    }
+
+    setIsRenderingTextAssets(true);
+    setSrtPipelineStatus('Preparando o CSV persistido e disparando a etapa 5 para os assets de texto...');
+    updateSrtObserverStep('render', 'running', 'Sincronizando o CSV no pipeline externo e renderizando os assets marcados como texto...');
+    updateSrtObserverStep('persist', 'pending', 'Aguardando persistencia do resultado da etapa 5.');
+
+    try {
+      const res = await fetch('/api/assets/srt-render-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pipeline: externalSrtPipeline,
+          themeTitle: approvedTheme,
+          srtFileName: externalSrtFileName,
+          artifactStem: srtArtifactStem,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Falha ao executar a etapa 5 do pipeline SRT.');
+      }
+
+      const persistedAt = new Date().toISOString();
+      const pipelineResult = {
+        ...data,
+        generatedAt: persistedAt,
+      };
+      setExternalSrtPipeline(pipelineResult);
+      setSrtPipelineStatus('Etapa 5 concluida. Os assets marcados como texto foram renderizados e os caminhos ficaram persistidos.');
+
+      const renderInfo = pipelineResult?.textRender;
+      const finalizedObserver = externalSrtObserver.map((step) => {
+        if (step.key === 'render') {
+          return {
+            ...step,
+            status: 'done' as const,
+            detail: renderInfo
+              ? `${renderInfo.renderedCount} render(s) novo(s), ${renderInfo.reusedCount} reutilizado(s). Saida em ${renderInfo.outputDir}.`
+              : 'Etapa 5 concluida e caminhos dos assets de texto atualizados.',
+          };
+        }
+
+        if (step.key === 'persist') {
+          return {
+            ...step,
+            status: 'done' as const,
+            detail: `Resultado da etapa 5 salvo em ${new Date(persistedAt).toLocaleString('pt-BR')} e no snapshot do tema aprovado.`,
+          };
+        }
+
+        return step.status === 'pending'
+          ? { ...step, status: 'done' as const, detail: step.detail }
+          : step;
+      });
+
+      setExternalSrtObserver(finalizedObserver);
+      persistExecutionSnapshotLocally({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText,
+        externalSrtFileName,
+        externalSrtPipeline: pipelineResult,
+        externalSrtObserver: finalizedObserver,
+      });
+      await syncApprovedThemeSnapshot({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText,
+        externalSrtFileName,
+        externalSrtPipeline: pipelineResult,
+        externalSrtObserver: finalizedObserver,
+      });
+    } catch (error) {
+      console.warn('[ScriptEngine] Falha ao executar a etapa 5 do SRT.', error);
+      updateSrtObserverStep('render', 'error', 'A etapa 5 falhou antes de devolver os caminhos dos assets de texto.');
+      updateSrtObserverStep('persist', 'error', 'A execucao falhou antes de persistir o resultado da etapa 5.');
+      setSrtPipelineStatus('');
+      alert(error instanceof Error ? error.message : 'Nao foi possivel renderizar os assets de texto.');
+    } finally {
+      setIsRenderingTextAssets(false);
     }
   };
 
@@ -807,18 +1317,16 @@ FORMATO DE SAIDA
     try {
       const raw = localStorage.getItem(executionStorageKey);
       if (!raw) {
-        alert('Nenhuma execuÃ§Ã£o salva para esta instÃ¢ncia.');
+        alert('Nenhuma execucao salva para esta instancia.');
         return;
       }
 
       const snapshot = JSON.parse(raw);
       setApprovedTheme(snapshot?.approvedTheme || '');
       setApprovedBriefing(snapshot?.approvedBriefing || null);
-      const normalizedSnapshotBlocks =
-        snapshot?.approvedBriefing && Number(snapshot?.approvedBriefing?.blockCount || 0) > 0
-          ? buildScriptBlocksFromBriefing(snapshot.approvedBriefing, snapshot?.approvedTheme || '')
-          : Array.isArray(snapshot?.scriptBlocks) ? snapshot.scriptBlocks : [];
+      const normalizedSnapshotBlocks = resolveSnapshotBlocks(snapshot);
       setScriptBlocks(normalizedSnapshotBlocks);
+      setScriptStage(inferScriptStageFromSnapshot(snapshot));
       setAssemblerActive(typeof snapshot?.assemblerActive === 'boolean' ? snapshot.assemblerActive : false);
       setThumbnailDirective(snapshot?.thumbnailDirective || null);
       setShowThumbnailPanel(!!snapshot?.showThumbnailPanel);
@@ -827,9 +1335,14 @@ FORMATO DE SAIDA
       setExternalScriptText(snapshot?.externalScriptText || '');
       setExternalScriptFileName(snapshot?.externalScriptFileName || '');
       setExternalSourceLabel(snapshot?.externalSourceLabel || '');
+      setExternalSrtText(snapshot?.externalSrtText || '');
+      setExternalSrtFileName(snapshot?.externalSrtFileName || '');
+      setExternalSrtPipeline(snapshot?.externalSrtPipeline || null);
+      setExternalSrtObserver(Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0 ? snapshot.externalSrtObserver : buildInitialSrtObserver());
+      setPostScriptPackage(snapshot?.postScriptPackage || null);
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao manualmente.', error);
-      alert('Nao foi possivel restaurar a execuÃ§Ã£o salva.');
+      alert('Nao foi possivel restaurar a execucao salva.');
     }
   };
 
@@ -837,6 +1350,7 @@ FORMATO DE SAIDA
     if (executionStorageKey) localStorage.removeItem(executionStorageKey);
     setApprovedTheme('');
     setApprovedBriefing(null);
+    setScriptStage('blueprint');
     setThumbnailDirective(null);
     setShowThumbnailPanel(false);
     setThumbnailUrl('');
@@ -844,9 +1358,14 @@ FORMATO DE SAIDA
     setExternalScriptText('');
     setExternalScriptFileName('');
     setExternalSourceLabel('');
+    setExternalSrtText('');
+    setExternalSrtFileName('');
+    setExternalSrtPipeline(null);
+    setExternalSrtObserver(buildInitialSrtObserver());
+    setPostScriptPackage(null);
     setScriptBlocks([
-      { id: 'h0', type: 'Hook', title: 'Gancho EstratÃ©gico', content: 'Inicie com uma promessa tÃ©cnica...', sop: 'Corte seco.' },
-      { id: 'c0', type: 'Context', title: 'ContextualizaÃ§Ã£o', content: 'Conecte com a dor do pÃºblico...', sop: 'B-roll de contexto.' }
+      { id: 'h0', type: 'Hook', title: 'Gancho Estrategico', content: 'Inicie com uma promessa tecnica...', sop: 'Corte seco.' },
+      { id: 'c0', type: 'Context', title: 'Contextualizacao', content: 'Conecte com a dor do publico...', sop: 'B-roll de contexto.' }
     ]);
     setAssemblerActive(true);
   };
@@ -855,13 +1374,225 @@ FORMATO DE SAIDA
     setAssemblerActive(true);
   };
 
+  const stopScriptGeneration = () => {
+    generationStoppedRef.current = true;
+    generationAbortRef.current?.abort();
+    setGenerationProgress((current) =>
+      current
+        ? {
+            ...current,
+            status: 'Interrompendo a geracao e preservando os blocos concluidos...',
+          }
+        : null
+    );
+  };
+
+  const downloadScriptAsTxt = () => {
+    if (!scriptBlocks.length) {
+      alert('Ainda nao ha blocos suficientes para exportar.');
+      return;
+    }
+
+    const themeTitle = approvedBriefing?.title || approvedTheme || 'roteiro-content-os';
+    const safeFileName = themeTitle
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\s/g, '_')
+      .slice(0, 80) || 'roteiro-content-os';
+
+    const txtContent = scriptBlocks
+      .map((block, index) => `BLOCO ${index + 1} - ${block.title}\n\n${block.content.trim()}`)
+      .join('\n\n');
+
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeFileName}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const hasFinalScript = scriptStage === 'final' && scriptBlocks.some((block) => String(block.content || '').trim());
+  const hasExternalScriptSource = !!externalScriptText.trim();
+  const canProcessPostScriptPackage = hasFinalScript || hasExternalScriptSource;
+  const packageArtifactStem = sanitizeDownloadFileStem(approvedBriefing?.title || approvedTheme || externalScriptFileName || 'roteiro-content-os');
+
+  const resolvePostScriptSourceBlocks = (): ScriptBlock[] => {
+    if (hasFinalScript) return scriptBlocks;
+
+    const targetCount = Math.max(1, approvedBriefing?.blocks?.length || scriptBlocks.length || 1);
+    const sections = segmentExternalScriptForBlocks(externalScriptText, targetCount);
+    if (sections.length === 0) return [];
+
+    return sections.map((section, index) => ({
+      id: scriptBlocks[index]?.id || `external_${index + 1}`,
+      type: scriptBlocks[index]?.type || 'Development',
+      title: scriptBlocks[index]?.title || approvedBriefing?.blocks?.[index]?.title || `Bloco ${index + 1}`,
+      content: section.trim(),
+      sop: scriptBlocks[index]?.sop || '',
+    }));
+  };
+
+  const generatePostScriptPackage = async () => {
+    if (!approvedBriefing || !approvedTheme || !canProcessPostScriptPackage) {
+      alert('Finalize o roteiro ou anexe um .txt externo antes de gerar o pacote pos-roteiro.');
+      return;
+    }
+
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+    if (!apiKey) {
+      alert('Configure sua chave de API em Ajustes Globais para gerar o pacote pos-roteiro.');
+      return;
+    }
+
+    const sourceBlocks = resolvePostScriptSourceBlocks();
+    if (!sourceBlocks.length) {
+      alert('Nao encontrei blocos suficientes no roteiro atual para processar o pacote pos-roteiro.');
+      return;
+    }
+
+    const srtRows = externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []);
+    const timelineContext = buildPostScriptTimelineContext({
+      scriptBlocks: sourceBlocks,
+      estimatedDuration: approvedBriefing?.estimatedDuration,
+      srtRows,
+    });
+    const fallbackSeoPlan = buildSeoChapterPlan({
+      scriptBlocks: sourceBlocks,
+      totalDurationSeconds: timelineContext.totalDurationSeconds,
+    });
+
+    setIsGeneratingPostScriptPackage(true);
+    try {
+      const response = await fetch('/api/post-script-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+          approvedTheme,
+          approvedBriefing,
+          scriptBlocks: sourceBlocks,
+          srtRows,
+          projectContext: {
+            projectName: activeProject?.name || activeProject?.project_name || '',
+            puc: activeProject?.puc || activeProject?.puc_promise || '',
+            persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
+            soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao gerar o pacote pos-roteiro.');
+      }
+
+      const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
+      setPostScriptPackage(nextPackage);
+      persistExecutionSnapshotLocally({
+        postScriptPackage: nextPackage,
+        scriptStage,
+      });
+      void syncApprovedThemeSnapshot({
+        postScriptPackage: nextPackage,
+        scriptStage,
+      }).catch((error) => {
+        console.warn('[ScriptEngine] Falha ao sincronizar o pacote pos-roteiro.', error);
+      });
+
+      alert('Pacote pos-roteiro gerado e salvo nesta execucao.');
+    } catch (error: any) {
+      console.warn('[ScriptEngine] Falha ao gerar pacote pos-roteiro.', error);
+      alert(`Erro ao gerar pacote pos-roteiro: ${error?.message || error}`);
+    } finally {
+      setIsGeneratingPostScriptPackage(false);
+    }
+  };
+
+  const parseSfxTimelineEntries = (value: string) => {
+    const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
+    if (!normalized) return [];
+
+    const entries = normalized
+      .split(/\n(?=\[\d{2}:\d{2}(?::\d{2})?\])/)
+      .map((chunk) => chunk.trim())
+      .filter((chunk) => /^\[\d{2}:\d{2}(?::\d{2})?\]/.test(chunk));
+
+    return entries.map((entry, index) => {
+      const lines = entry.split('\n').map((line) => line.trim()).filter(Boolean);
+      const timestamp = lines[0]?.replace(/^\[|\]$/g, '') || '';
+      const effect = lines.find((line) => line.toUpperCase().startsWith('EFEITO:'))?.split(':').slice(1).join(':').trim() || '—';
+      const purpose = lines.find((line) => line.toUpperCase().startsWith('FUNCAO:'))?.split(':').slice(1).join(':').trim() || '—';
+      const excerpt = lines.find((line) => line.toUpperCase().startsWith('TRECHO:'))?.split(':').slice(1).join(':').trim() || '—';
+      const notes = lines.find((line) => line.toUpperCase().startsWith('OBS:'))?.split(':').slice(1).join(':').trim() || '—';
+
+      return {
+        id: `${timestamp}-${index}`,
+        timestamp,
+        effect,
+        purpose,
+        excerpt,
+        notes,
+      };
+    });
+  };
+
+  const parseSeoDescriptionSections = (value: string) => {
+    const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
+    if (!normalized) {
+      return {
+        intro: '',
+        chapters: [] as Array<{ timestamp: string; label: string }>,
+        notice: '',
+      };
+    }
+
+    const lines = normalized.split('\n').map((line) => line.trimEnd());
+    const timestampPattern = /^\d{2}:\d{2}(?::\d{2})?\s*[—-]\s+/;
+    const firstTimestampIndex = lines.findIndex((line) => timestampPattern.test(line.trim()));
+    const noticeIndex = lines.findIndex((line) => line.trim().toUpperCase().startsWith('AVISO DE IA:'));
+
+    const introLines = lines.slice(0, firstTimestampIndex >= 0 ? firstTimestampIndex : noticeIndex >= 0 ? noticeIndex : lines.length);
+    const chapterLines =
+      firstTimestampIndex >= 0
+        ? lines.slice(firstTimestampIndex, noticeIndex >= 0 ? noticeIndex : lines.length).filter((line) => timestampPattern.test(line.trim()))
+        : [];
+    const noticeLines = noticeIndex >= 0 ? lines.slice(noticeIndex) : [];
+
+    return {
+      intro: introLines.join('\n').trim(),
+      chapters: chapterLines.map((line) => {
+        const match = line.trim().match(/^(\d{2}:\d{2}(?::\d{2})?)\s*[—-]\s*(.+)$/);
+        return {
+          timestamp: match?.[1] || '',
+          label: match?.[2] || line.trim(),
+        };
+      }),
+      notice: noticeLines.join('\n').trim(),
+    };
+  };
+
+  const seoDescriptionSections = parseSeoDescriptionSections(postScriptPackage?.seoDescription || '');
+  const sfxTimelinePreview = parseSfxTimelineEntries(postScriptPackage?.sfxTimelineTxt || '');
+
   const projectPillars = activeProject?.playlists?.tactical_journey || [];
   const projectPersona = activeProject?.persona_matrix || {};
   const projectSop = activeProject?.editing_sop || {};
   const projectNarrativeSummary = {
     puC: activeProject?.puc || activeProject?.puc_promise || 'Sem PUC cadastrada',
-    persona: projectPersona.demographics || activeProject?.target_persona?.audience || 'Persona nÃ£o cadastrada',
-    pain: projectPersona.pain_alignment || activeProject?.target_persona?.pain_point || 'Dor central nÃ£o cadastrada',
+    persona: projectPersona.demographics || activeProject?.target_persona?.audience || 'Persona nao cadastrada',
+    pain: projectPersona.pain_alignment || activeProject?.target_persona?.pain_point || 'Dor central nao cadastrada',
     metaphors: (activeProject?.metaphor_library || activeProject?.ai_engine_rules?.metaphors?.join(', ') || '')
       .split(',')
       .map((s: string) => s.trim())
@@ -870,26 +1601,101 @@ FORMATO DE SAIDA
     cutRhythm: projectSop.cut_rhythm || '3s',
     zoomStyle: projectSop.zoom_style || 'Dynamic',
     soundtrack: projectSop.soundtrack || 'Reflexive',
-    thumbStyle: activeProject?.thumb_strategy?.style || activeProject?.thumb_strategy?.layout || 'NÃ£o configurado',
+    thumbStyle: activeProject?.thumb_strategy?.style || activeProject?.thumb_strategy?.layout || 'Nao configurado',
   };
+  const srtArtifactStem =
+    approvedBriefing?.title
+    || approvedTheme
+    || externalSrtFileName.replace(/\.[^.]+$/, '')
+    || 'assets-srt';
 
   const generateThumbnailDirective = () => {
     if (!activeProject) return;
     const { theme, variation } = getCommandContext();
     if (!theme) return alert('Selecione/compile um tema antes de gerar a diretriz.');
 
-    const persona = activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'o pÃºblico-alvo';
-    const puc = activeProject?.puc || activeProject?.puc_promise || 'a transformaÃ§Ã£o central do projeto';
+    const themeLower = String(theme || '').toLowerCase();
+    const persona = activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'o publico-alvo';
+    const puc = activeProject?.puc || activeProject?.puc_promise || 'a transformacao central do projeto';
     const layouts = activeProject?.thumb_strategy?.layouts || (activeProject?.thumb_strategy?.layout ? [activeProject.thumb_strategy.layout] : []);
     const layoutHint = Array.isArray(layouts) && layouts.length > 0 ? layouts.join(' + ') : 'layout de alto contraste';
     const accent = activeProject?.accent_color || '#9BB0A5';
 
+    const viralTitle = (() => {
+      const raw = String(theme || '').replace(/["'“”‘’]/g, '').trim();
+      if (!raw) return 'Estado Zen';
+      const candidate = raw.split(':').pop()?.trim() || raw;
+      return candidate
+        .replace(/^pare de\s+/i, '')
+        .replace(/^como\s+/i, '')
+        .replace(/^o erro de\s+/i, '')
+        .replace(/^por que\s+/i, '')
+        .replace(/^a\s+/i, '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 5)
+        .join(' ');
+    })();
+
+    const thumbnailTextPtBr = viralTitle.toUpperCase();
+    const symbolicElements = [
+      themeLower.includes('divida') || themeLower.includes('debito') ? 'painel financeiro vermelho' : null,
+      themeLower.includes('crash') || themeLower.includes('pane') ? 'tela com alerta critico' : null,
+      themeLower.includes('burnout') || themeLower.includes('sobrecarga') ? 'cpu superaquecida' : null,
+      themeLower.includes('memoria') || themeLower.includes('foco') ? 'abas abertas e notificacoes vazando' : null,
+      themeLower.includes('review') || themeLower.includes('ego') ? 'markup de correcao sobre o rosto' : null,
+      themeLower.includes('kernel') ? 'nucleo luminoso protegido no peito' : null,
+      themeLower.includes('prioridade') || themeLower.includes('sla') ? 'fila visual de tarefas criticas' : null,
+      themeLower.includes('sono') ? 'janela noturna azul profunda' : null,
+      themeLower.includes('rotina') || themeLower.includes('refactor') ? 'blocos modulares reorganizados' : null,
+    ].filter(Boolean) as string[];
+
+    const heroExpression =
+      themeLower.includes('crash') || themeLower.includes('burnout') || themeLower.includes('sobrecarga')
+        ? 'expressao de alerta contido, como quem percebe que chegou ao limite'
+        : themeLower.includes('review') || themeLower.includes('ego')
+          ? 'expressao de confronto lucido, orgulho sendo quebrado por clareza'
+          : 'expressao de descoberta e controle recuperado';
+
+    const environmentCue =
+      themeLower.includes('memoria') || themeLower.includes('foco')
+        ? 'workspace noturno com monitores, tabs e notificacoes pairando ao redor'
+        : themeLower.includes('divida') || themeLower.includes('debito')
+          ? 'ambiente premium de escritorio com overlays de custo, juros e desgaste'
+          : 'set cinematografico escuro com interface tecnologica sutil ao fundo';
+
+    const visualTags = [
+      themeLower.includes('divida') || themeLower.includes('debito') ? 'divida biologica' : null,
+      themeLower.includes('crash') || themeLower.includes('pane') ? 'colapso mental' : null,
+      themeLower.includes('burnout') || themeLower.includes('sobrecarga') ? 'burnout' : null,
+      themeLower.includes('memoria') || themeLower.includes('foco') ? 'foco profundo' : null,
+      themeLower.includes('review') || themeLower.includes('ego') ? 'maturidade senior' : null,
+      themeLower.includes('kernel') ? 'nucleo interno' : null,
+      themeLower.includes('prioridade') || themeLower.includes('sla') ? 'priorizacao' : null,
+      'alta performance',
+      'carreira sustentavel',
+      'arquitetura pessoal',
+      'dev senior',
+    ].filter(Boolean) as string[];
+
+    const tags = Array.from(new Set(visualTags)).slice(0, 8);
+    const symbolicLine = symbolicElements.length > 0
+      ? symbolicElements.join(', ')
+      : 'alertas sutis de sistema, contraste entre controle e desgaste, detalhes tecnicos que traduzem alta pressao';
+
     const directive = {
-      description: `CONCEITO VISUAL: Traduza o tema em tensÃ£o + resoluÃ§Ã£o. Layout: ${layoutHint}. Paleta: fundo escuro com acento ${accent}. ExpressÃ£o: impacto/revelaÃ§Ã£o. Texto curto (mÃ¡x 5 palavras) com promessa ligada Ã  PUC. PÃºblico: ${persona}. Estrutura: ${variation}.`,
-      prompt: `Create a YouTube thumbnail for a video about: "${theme}". Style: dramatic, high contrast, dark background with vivid accent color (${accent}). Layout: ${layoutHint}. Feature: close-up of person with revelatory expression OR a single symbolic object. Bold text overlay (max 5 words) aligned to this promise: "${puc}". Professional studio lighting, 4K quality. No watermarks. Aspect ratio 16:9. Photorealistic.`
+      visualConcept: `Traduzir o tema em uma cena simbolica de tensao contra controle. Layout ${layoutHint}. Fundo escuro premium com acento ${accent}. Persona visual: ${persona}. Elementos-chave: ${symbolicLine}. Estrutura narrativa: ${variation}.`,
+      viralTitle,
+      thumbnailPromptNoText: `Create a cinematic YouTube thumbnail, dark premium background, vivid accent color ${accent}, ${layoutHint}, photorealistic, 16:9. Show a senior tech professional in a ${environmentCue}, with ${heroExpression}. Add symbolic visual cues such as ${symbolicLine}. The image must communicate hidden cost, overload, recovery or regained control through symbolism, expression, lighting and composition, without adding any artificial headline, caption or phrase over the image. Do not render big title text, callout text or promotional wording. Only allow natural text that would already exist inside the scene, such as small interface labels on monitors, subtle dashboard readouts or ambient screen details. Use dramatic studio lighting, strong contrast, clean composition, one dominant focal point, subtle UI overlays, premium tech aesthetic, no watermark, 4K.`,
+      thumbnailPromptWithPtBrText: `Create a cinematic YouTube thumbnail, dark premium background, vivid accent color ${accent}, ${layoutHint}, photorealistic, 16:9. Show a senior tech professional in a ${environmentCue}, with ${heroExpression}. Add symbolic visual cues such as ${symbolicLine}. Include a short, bold headline with a maximum of 5 words, and the headline must be written in Brazilian Portuguese only. Do not use English words in the headline. Make the typography clean, legible, premium and high contrast. Suggested headline direction: "${thumbnailTextPtBr}". The text must feel native for a Brazilian audience and should visually support this promise: "${puc}". Use dramatic studio lighting, strong contrast, clean composition, one dominant focal point, subtle UI overlays, premium tech aesthetic, no watermark, 4K.`,
+      thumbnailTextPtBr,
+      tags,
     };
     setThumbnailDirective(directive);
     setShowThumbnailPanel(true);
+    requestAnimationFrame(() => {
+      thumbnailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const handleDeploy = async () => {
@@ -898,7 +1704,7 @@ FORMATO DE SAIDA
     const { theme, variation } = getCommandContext();
     const editorialPillar = activeProject?.playlists?.tactical_journey?.[0]?.label || 'T1';
 
-    // Collect narrative asset UUIDs â€” filter out mock/non-UUID IDs
+    // Collect narrative asset UUIDs ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â filter out mock/non-UUID IDs
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const assetLogIds = [
       pendingData?.selected_structure,
@@ -920,7 +1726,7 @@ FORMATO DE SAIDA
     const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
     const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
 
-    // â”€â”€ Composition Log DNA (ImutÃ¡vel) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Composition Log DNA (ImutÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡vel) ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
     const compositionLogPayload = {
       llm_model_id: `${engine}:${model}`,
       narrative_asset_ids: narrativeAssetIds,
@@ -962,13 +1768,13 @@ FORMATO DE SAIDA
       });
       localStorage.setItem(`bi_${activeProject.id}`, JSON.stringify(existingBI));
 
-      alert(`âœ… DNA Registrado!\n\nMotor: ${compositionLogPayload.llm_model_id}\nEstrutura: ${variation}\nTokens: ~${promptTokens}\nAssets: ${narrativeAssetIds.length} vinculados\n\nMÃ©tricas de performance podem ser inseridas manualmente no painel de Analytics.`);
+      alert(`DNA registrado.\n\nMotor: ${compositionLogPayload.llm_model_id}\nEstrutura: ${variation}\nTokens: ~${promptTokens}\nAssets: ${narrativeAssetIds.length} vinculados\n\nMetricas de performance podem ser inseridas manualmente no painel de Analytics.`);
     } catch (err) {
       console.error('[handleDeploy]', err);
     }
   };
 
-  // â”€â”€â”€ Assembler Approval Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ Assembler Approval Handler ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
   const handleAssemblerApprove = (briefing: any, theme: string) => {
     setApprovedTheme(theme);
     setApprovedBriefing(briefing);
@@ -978,6 +1784,7 @@ FORMATO DE SAIDA
       approvedTheme: theme,
       approvedBriefing: briefing,
       scriptBlocks: newBlocks,
+      scriptStage: 'blueprint',
       assemblerActive: false,
       thumbnailDirective: null,
       showThumbnailPanel: false,
@@ -986,13 +1793,24 @@ FORMATO DE SAIDA
       externalScriptText: '',
       externalScriptFileName: '',
       externalSourceLabel: '',
+      externalSrtText: '',
+      externalSrtFileName: '',
+      externalSrtPipeline: null,
+      externalSrtObserver: buildInitialSrtObserver(),
+      postScriptPackage: null,
     });
 
     setScriptBlocks(newBlocks);
+    setScriptStage('blueprint');
     setAssemblerActive(false);
     setExternalScriptText('');
     setExternalScriptFileName('');
     setExternalSourceLabel('');
+    setExternalSrtText('');
+    setExternalSrtFileName('');
+    setExternalSrtPipeline(null);
+    setExternalSrtObserver(buildInitialSrtObserver());
+    setPostScriptPackage(null);
   };
 
   const hookTemplates      = components.filter(c => c.type === 'Hook');
@@ -1010,153 +1828,89 @@ FORMATO DE SAIDA
     uniqueTitleStructureTemplates[0],
   ].filter(Boolean);
 
-  // â”€â”€â”€ ASSEMBLER MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  if (assemblerActive && !pendingData) {
-    const MobileTabs = (
-      <div className="flex lg:hidden mb-4 bg-white/5 rounded-xl p-1 border border-white/10">
-        {[{ id: 'context', label: 'Contexto' }, { id: 'main', label: 'Assembler' }].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setMobileTab(tab.id as any)}
-            className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
-              mobileTab === tab.id ? 'bg-sage text-midnight' : 'text-white/40 hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+  const thumbnailDirectivePanel = showThumbnailPanel && thumbnailDirective ? (
+    <div
+      ref={thumbnailPanelRef}
+      className="mx-6 xl:mx-8 mt-4 rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 xl:p-6 space-y-5 shadow-[0_0_30px_rgba(168,85,247,0.08)]"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-purple-300">Diretriz de Thumbnail</p>
+          <p className="mt-1 text-[11px] text-white/50 leading-relaxed">Baseada no tema aprovado e nas camadas narrativas selecionadas.</p>
+        </div>
+        <button onClick={() => setShowThumbnailPanel(false)} className="text-white/20 hover:text-white text-sm">x</button>
       </div>
-    );
 
-    return (
-      <div className="flex flex-col h-[calc(100vh-160px)] overflow-hidden w-full">
-        {MobileTabs}
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden">
-          {/* Left Panel: Context â€” hidden on mobile when main tab active */}
-          <section className={`w-full lg:w-1/3 flex-col gap-6 overflow-y-auto pr-2 pb-6 ${mobileTab === 'context' ? 'flex' : 'hidden lg:flex'}`}>
-          <div className="glass-card p-6 flex flex-col gap-4 border-sage/20 bg-sage/[0.02]">
-            <label className="text-[10px] uppercase tracking-widest font-black text-sage">Instância Ativa</label>
-            <div className="flex items-center justify-between p-4 bg-midnight/40 border border-white/10 rounded-2xl">
-              <div className="flex flex-col gap-1">
-                <span className="font-black text-sm text-white">{selectedProject}</span>
-                <span className="text-[9px] text-sage font-black uppercase tracking-widest">V4 Kernel Operational</span>
-              </div>
-              <div className="p-2 bg-sage/10 rounded-full"><Sparkles size={14} className="text-sage" /></div>
+      <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-4">
+          <div className="space-y-3">
+            <div className="rounded-xl bg-midnight/40 border border-white/5 p-4">
+              <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-1">LEITURA VISUAL</span>
+              <p className="text-sm font-black text-white leading-relaxed break-words">{thumbnailDirective.visualConcept}</p>
+            </div>
+            <div className="rounded-xl bg-midnight/40 border border-white/5 p-4">
+              <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-1">TITULO VIRAL</span>
+              <p className="text-[12px] font-black text-white leading-relaxed whitespace-pre-wrap break-words">{thumbnailDirective.viralTitle}</p>
+            </div>
+            <div className="rounded-xl bg-midnight/40 border border-white/5 p-4">
+              <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-1">TEXTO PARA THUMBNAIL EM PT-BR</span>
+              <p className="text-[12px] font-black tracking-[0.2em] text-blue-300 leading-relaxed whitespace-pre-wrap break-words">{thumbnailDirective.thumbnailTextPtBr}</p>
             </div>
           </div>
 
-          <div className="glass-card p-6 flex flex-col gap-4 border-white/5 bg-white/[0.02]">
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] font-black uppercase tracking-[3px] text-white/30">DNA do projeto</p>
-              <span className="text-[9px] font-black uppercase tracking-widest text-sage">Fonte ativa</span>
-            </div>
-            <div className="space-y-3">
-              <div className="p-3 rounded-xl bg-midnight/40 border border-white/5">
-                <span className="text-[8px] uppercase font-black tracking-[3px] text-white/25 block mb-1">PUC</span>
-                <p className="text-[11px] text-white/80 leading-relaxed">{projectNarrativeSummary.puC}</p>
+          <div className="space-y-3">
+            <div className="rounded-xl bg-midnight/40 border border-white/5 p-4">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30">TAGS</span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(thumbnailDirective.tags.join(', '))}
+                  className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.15em] text-white/55 transition-all hover:border-white/20 hover:text-white"
+                >
+                  <Copy size={10} />
+                  Copiar
+                </button>
               </div>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="p-3 rounded-xl bg-midnight/40 border border-white/5">
-                  <span className="text-[8px] uppercase font-black tracking-[3px] text-white/25 block mb-1">Persona</span>
-                  <p className="text-[11px] text-white/70 leading-relaxed">{projectNarrativeSummary.persona}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-midnight/40 border border-white/5">
-                  <span className="text-[8px] uppercase font-black tracking-[3px] text-white/25 block mb-1">Dor central</span>
-                  <p className="text-[11px] text-white/70 leading-relaxed">{projectNarrativeSummary.pain}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-3 rounded-xl bg-midnight/40 border border-white/5 text-center">
-                  <span className="block text-[8px] uppercase font-black tracking-[3px] text-white/25">Corte</span>
-                  <span className="text-[11px] font-black text-white">{projectNarrativeSummary.cutRhythm}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-midnight/40 border border-white/5 text-center">
-                  <span className="block text-[8px] uppercase font-black tracking-[3px] text-white/25">Zoom</span>
-                  <span className="text-[11px] font-black text-white">{projectNarrativeSummary.zoomStyle}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-midnight/40 border border-white/5 text-center">
-                  <span className="block text-[8px] uppercase font-black tracking-[3px] text-white/25">Trilha</span>
-                  <span className="text-[11px] font-black text-white">{projectNarrativeSummary.soundtrack}</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-midnight/40 border border-white/5">
-                <span className="text-[8px] uppercase font-black tracking-[3px] text-white/25 block mb-2">Pilares da jornada</span>
-                <div className="flex flex-wrap gap-2">
-                  {projectNarrativeSummary.pillars.length > 0 ? (
-                    projectNarrativeSummary.pillars.map((pillar: any, idx: number) => (
-                      <span key={pillar.id || pillar.label || pillar.title || idx} className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-white/60">
-                        {pillar.label || pillar.title || pillar.name}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[10px] text-white/30">Nenhum pilar cadastrado</span>
-                  )}
-                </div>
+              <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3">
+                <p className="text-[11px] text-purple-200/90 leading-relaxed break-words">
+                  {thumbnailDirective.tags.join(', ')}
+                </p>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Library Status Card */}
-          <div className="glass-card p-6 space-y-4">
-            <p className="text-[9px] font-black uppercase tracking-[3px] text-white/30">Biblioteca de Assets</p>
-            <div className="space-y-2">
-              {[ 
-                { label: 'Hooks',      count: uniqueHookTemplates.length,      detail: 'openers disponíveis', color: 'text-sage' },
-                { label: 'CTAs',       count: uniqueCtaTemplates.length,       detail: 'chamadas disponÃ­veis', color: 'text-blue-400' },
-                { label: 'Comunidade', count: uniqueCommunityTemplates.length, detail: 'elementos ativos',      color: 'text-purple-400' },
-                { label: 'Estruturas', count: uniqueTitleStructureTemplates.length, detail: 'títulos rastreáveis', color: 'text-purple-400' },
-                { label: 'Pilares',    count: (activeProject?.playlists?.tactical_journey || []).length, detail: 'na jornada tática', color: 'text-orange-400' },
-              ].map(({ label, count, detail, color }) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>
-                  <div className="text-right">
-                    <span className="text-sm font-black text-white">{componentsHydrated ? count : '...'}</span>
-                    <span className="text-[9px] text-white/30 ml-2 font-black uppercase">
-                      {componentsHydrated ? detail : 'carregando'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+        <div className="rounded-xl bg-midnight/40 border border-white/5 p-4 space-y-4">
+          <div>
+            <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-2">PROMPT 1 · SEM FRASE ARTIFICIAL</span>
+            <div className="relative">
+              <p className="text-[11px] text-white/80 leading-relaxed font-mono pr-10 whitespace-pre-wrap break-words">{thumbnailDirective.thumbnailPromptNoText}</p>
+              <button
+                onClick={() => navigator.clipboard.writeText(thumbnailDirective.thumbnailPromptNoText)}
+                className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-white/30 hover:text-white transition-all"
+              >
+                <Copy size={12} />
+              </button>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-white/5 space-y-2">
-            <p className="text-[8px] font-black uppercase tracking-[3px] text-white/25">Amostra dos ativos</p>
-            {(componentsHydrated && sampleNarrativeAssets.length > 0) ? (
-                <div className="space-y-2">
-                  {sampleNarrativeAssets.map((asset: any) => (
-                    <div key={asset.id} className="p-2 rounded-lg bg-midnight/30 border border-white/5">
-                      <p className="text-[10px] font-black text-white">{asset.name}</p>
-                      <p className="text-[9px] text-white/30 leading-relaxed">{asset.description || asset.content_pattern}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[10px] text-white/30 leading-relaxed">Sem ativos cadastrados ainda. A biblioteca narrativa alimenta esta área.</p>
-            )}
+          <div className="border-t border-white/5 pt-4">
+            <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-2">PROMPT 2 · TEXTO CURTO EM PT-BR</span>
+            <div className="relative">
+              <p className="text-[11px] text-white/80 leading-relaxed font-mono pr-10 whitespace-pre-wrap break-words">{thumbnailDirective.thumbnailPromptWithPtBrText}</p>
+              <button
+                onClick={() => navigator.clipboard.writeText(thumbnailDirective.thumbnailPromptWithPtBrText)}
+                className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-white/30 hover:text-white transition-all"
+              >
+                <Copy size={12} />
+              </button>
+            </div>
           </div>
-
-          <div className="glass-card p-6 border-blue-500/20 bg-blue-500/[0.02] space-y-3">
-            <p className="text-[9px] font-black uppercase tracking-[3px] text-blue-400">PUC do Projeto</p>
-            <p className="text-[11px] text-white/70 italic leading-relaxed">
-              "{activeProject?.puc || 'DNA não definido. Configure o projeto.'}"
-            </p>
-          </div>
-          </section>
-
-          {/* Right Panel: Assembler â€” hidden on mobile when context tab active */}
-          <section className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden pb-6 ${mobileTab === 'main' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}>
-          <ProductionAssembler
-            components={components}
-            componentsHydrated={componentsHydrated}
-            onApprove={handleAssemblerApprove}
-          />
-          </section>
         </div>
       </div>
-    );
-  }
+    </div>
+  ) : null;
 
+  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ ASSEMBLER MODE ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬
   const ScriptMobileTabs = (
     <div className="flex lg:hidden mb-4 bg-white/5 rounded-xl p-1 border border-white/10">
       {[{ id: 'context', label: 'Contexto' }, { id: 'main', label: 'Roteiro' }].map(tab => (
@@ -1164,7 +1918,7 @@ FORMATO DE SAIDA
           key={tab.id}
           onClick={() => setMobileTab(tab.id as any)}
           className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
-            mobileTab === tab.id ? 'bg-sage text-midnight' : 'text-white/40 hover:text-white'
+            mobileTab === tab.id ? 'bg-blue-500 text-white' : 'text-white/40 hover:text-white'
           }`}
         >
           {tab.label}
@@ -1177,17 +1931,17 @@ FORMATO DE SAIDA
     <div className="flex flex-col min-h-[calc(100vh-160px)]">
       {ScriptMobileTabs}
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 animate-in">
-        {/* Left: Building Blocks â€” hidden on mobile when main tab active */}
+        {/* Left: Building Blocks ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â hidden on mobile when main tab active */}
         <section className={`w-full lg:w-[300px] xl:w-[340px] lg:shrink-0 flex-col gap-6 overflow-y-auto pr-2 pb-6 custom-scrollbar ${mobileTab === 'context' ? 'flex' : 'hidden lg:flex'}`}>
-        <div className="glass-card p-6 flex flex-col gap-4 border-sage/20 bg-sage/[0.02] shadow-xl">
-          <label className="text-[10px] uppercase tracking-widest font-black text-sage">Instância Content OS</label>
+        <div className="glass-card p-6 flex flex-col gap-4 border-blue-500/10 bg-blue-500/[0.02] shadow-xl">
+          <label className="text-[10px] uppercase tracking-widest font-black text-blue-400">Instancia Content OS</label>
           <div className="flex items-center justify-between p-4 bg-midnight/40 border border-white/10 rounded-2xl ring-1 ring-white/5">
             <div className="flex flex-col gap-1">
               <span className="font-black text-sm text-white">{selectedProject}</span>
-              <span className="text-[9px] text-sage font-black uppercase tracking-widest">V4 Kernel Operational</span>
+              <span className="text-[9px] text-blue-500/50 font-black uppercase tracking-widest">V4 Kernel Operational</span>
             </div>
-            <div className="p-2 bg-sage/10 rounded-full">
-              <Sparkles size={14} className="text-sage" />
+            <div className="p-2 bg-blue-500/10 rounded-full">
+              <Sparkles size={14} className="text-blue-400" />
             </div>
           </div>
         </div>
@@ -1220,8 +1974,8 @@ FORMATO DE SAIDA
           {/* Hooks Selection */}
           <div className="glass-card p-6 flex flex-col gap-3">
             <div className="flex items-center gap-3 mb-3">
-              <Sparkles className="text-sage" size={18} />
-              <span className="text-xs font-black uppercase tracking-widest text-white">Openers Estratégicos</span>
+              <Sparkles className="text-blue-400" size={18} />
+              <span className="text-xs font-black uppercase tracking-widest text-white">Openers Estrategicos</span>
             </div>
             <div className="flex flex-col gap-2">
               {uniqueHookTemplates.map(h => (
@@ -1230,15 +1984,15 @@ FORMATO DE SAIDA
                   onClick={() => setSelectedHookId(h.id)}
                   className={`w-full p-4 rounded-xl text-left transition-all flex items-center justify-between group border ${
                     selectedHookId === h.id 
-                    ? 'bg-sage/10 border-sage/40 ring-1 ring-sage/20' 
+                    ? 'bg-blue-500/15 border-blue-400/40 ring-1 ring-blue-400/20' 
                     : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
                   }`}
                 >
                   <div className="flex flex-col gap-1">
-                    <span className={`font-black text-xs ${selectedHookId === h.id ? 'text-sage' : 'text-white/80 group-hover:text-white'}`}>{h.name}</span>
+                    <span className={`font-black text-xs ${selectedHookId === h.id ? 'text-blue-300' : 'text-white/80 group-hover:text-white'}`}>{h.name}</span>
                     <span className="text-[9px] uppercase font-bold text-white/30 group-hover:text-white/50">{h.description}</span>
                   </div>
-                  {selectedHookId === h.id ? <Zap size={14} className="text-sage" /> : <ChevronDown size={14} className="text-white/20 group-hover:text-white/40 transition-transform" /> }
+                  {selectedHookId === h.id ? <Zap size={14} className="text-blue-300" /> : <ChevronDown size={14} className="text-white/20 group-hover:text-white/40 transition-transform" /> }
                 </button>
               ))}
             </div>
@@ -1248,7 +2002,7 @@ FORMATO DE SAIDA
           <div className="glass-card p-6 flex flex-col gap-3 border-orange-400/30 bg-orange-400/5">
             <div className="flex items-center gap-3 mb-3">
               <Layout className="text-orange-400" size={18} />
-              <span className="text-xs font-black uppercase tracking-widest text-white">Jornada Tática</span>
+              <span className="text-xs font-black uppercase tracking-widest text-white">Jornada Tatica</span>
             </div>
             <div className="flex flex-col gap-2">
               {(activeProject?.playlists?.tactical_journey || []).map((m: any) => (
@@ -1262,24 +2016,34 @@ FORMATO DE SAIDA
         </div>
         </section>
 
-        {/* Right: Script Workspace â€” hidden on mobile when context tab active */}
+        {/* Right: Script Workspace - hidden on mobile when context tab active */}
         <section className={`flex-1 min-w-0 min-h-0 glass-card flex-col shadow-2xl border-white/10 ring-1 ring-white/5 ${mobileTab === 'main' ? 'flex' : 'hidden lg:flex'}`}>
+        {assemblerActive ? (
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 xl:p-6">
+            <ProductionAssembler
+              components={components}
+              componentsHydrated={componentsHydrated}
+              onApprove={handleAssemblerApprove}
+            />
+          </div>
+        ) : (
+          <>
         <div className="p-6 xl:p-8 border-b border-white/5 flex flex-col gap-6 xl:flex-row xl:justify-between xl:items-start bg-midnight/40 backdrop-blur-md">
           <div className="max-w-3xl">
-            <h3 className="font-bold flex items-center gap-3 text-lg">
-              <Database className="text-sage" size={20} /> Production Assembler
+            <h3 className="font-bold flex items-center gap-3 text-lg text-white">
+              <Database className="text-blue-500" size={20} /> Production Assembler
             </h3>
-            <p className="text-[11px] text-white/60 mt-1 font-bold leading-relaxed max-w-2xl break-words">
-              Validado pela PUC: <span className="font-black text-sage drop-shadow-[0_0_8px_rgba(155,176,165,0.4)]">"{activeProject?.puc || 'DNA não definido'}"</span>
+            <p className="text-[11px] text-white/60 mt-1 font-bold leading-relaxed max-w-2xl break-words uppercase tracking-widest">
+              Validado pela PUC: <span className="font-black text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">"{activeProject?.puc || 'DNA nao definido'}"</span>
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 w-full xl:w-[640px]">
             <button
               onClick={restoreExecutionState}
               className="px-4 py-3 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-white/10"
-              title="Recarregar a última execução salva desta instância"
+              title="Recarregar a ultima execucao salva desta instancia"
             >
-              <RotateCcw size={14} /> RETOMAR EXECUÇÃO
+              <RotateCcw size={14} /> RETOMAR EXECUCAO
             </button>
             <button
               onClick={returnToAssembler}
@@ -1291,9 +2055,9 @@ FORMATO DE SAIDA
             <button
               onClick={clearExecutionState}
               className="px-4 py-3 bg-red-500/10 text-red-300 hover:bg-red-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-red-500/20"
-              title="Limpar a execução atual desta instância e recomeçar"
+              title="Limpar a execucao atual desta instancia e recomecar"
             >
-              <Trash2 size={14} /> LIMPAR EXECUÇÃO
+              <Trash2 size={14} /> LIMPAR EXECUCAO
             </button>
             <button 
               onClick={generateThumbnailDirective}
@@ -1304,8 +2068,8 @@ FORMATO DE SAIDA
             </button>
             <button 
               onClick={handleDeploy}
-              className="px-6 py-3 bg-sage/10 text-sage hover:bg-sage hover:text-midnight rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-sage/20"
-              title="Registrar Log de Composição e Deploy na BI"
+              className="px-6 py-3 bg-blue-500/10 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20 shadow-lg shadow-blue-900/10"
+              title="Registrar log de composicao e deploy na BI"
             >
               <Save size={14} /> REGISTRAR DNA
             </button>
@@ -1314,7 +2078,7 @@ FORMATO DE SAIDA
                 if (!approvedBriefing) return alert('Aprove um assembly antes de copiar o prompt externo.');
                 const externalPrompt = buildExternalWritingPrompt();
                 await navigator.clipboard.writeText(externalPrompt);
-                alert('âœ… Prompt externo copiado com blueprint detalhado do roteiro.');
+                alert('Prompt externo copiado com blueprint detalhado do roteiro.');
               }}
               className="px-6 py-3 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20"
               title="Copiar prompt completo para usar em plataforma externa"
@@ -1323,7 +2087,7 @@ FORMATO DE SAIDA
             </button>
             <button
               onClick={async () => {
-                if (!approvedBriefing) return alert('Aprove um assembly antes de copiar/gerar versÃ£o.');
+                if (!approvedBriefing) return alert('Aprove um assembly antes de copiar ou gerar versao.');
                 const snapshot = {
                   project_id: activeProject?.id,
                   theme: approvedBriefing.title || approvedTheme,
@@ -1337,162 +2101,260 @@ FORMATO DE SAIDA
 
                 const text = JSON.stringify(snapshot, null, 2);
                 await navigator.clipboard.writeText(text);
-                alert('âœ… Briefing copiado + versÃ£o salva localmente.');
+                alert('Briefing copiado e versao salva localmente.');
               }}
               className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
-              title="Copiar briefing (JSON) e salvar versÃ£o local"
+              title="Copiar briefing (JSON) e salvar versao local"
             >
               <Copy size={20} />
+            </button>
+            <button
+              onClick={downloadScriptAsTxt}
+              className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
+              title="Baixar todos os blocos atuais em um unico arquivo .txt"
+            >
+              <FileText size={20} />
             </button>
             <button 
               onClick={async () => {
                 if (!approvedBriefing) return alert('Aprove um assembly antes de gerar o roteiro.');
                 setIsGeneratingScript(true);
+                generationStoppedRef.current = false;
+                setGenerationProgress({
+                  currentIndex: 0,
+                  completedCount: 0,
+                  total: scriptBlocks.length,
+                  currentTitle: 'Preparando blueprint para geracao',
+                  status: 'Inicializando a geracao dos blocos no aplicativo...',
+                });
                 try {
                   const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
                   const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
                   const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
                   if (!apiKey) {
                     setIsGeneratingScript(false);
+                    setGenerationProgress(null);
                     return alert('Configure sua chave de API em Ajustes Globais para gerar o roteiro.');
                   }
 
-                  const minutes = Number((approvedBriefing.estimatedDuration || '').match(/\d+/)?.[0] || 0);
-                  const targetChars = Number(approvedBriefing.estimatedChars || (minutes ? minutes * 1200 : 0)) || 0;
-                  const hookReference = describeNarrativeAssetReference('Camada de abertura de referencia', approvedBriefing?.openingHook);
-                  const ctaReference = describeNarrativeAssetReference('Camada final de conversao de referencia', approvedBriefing?.selectedCta);
-                  const structureReference = describeNarrativeAssetReference('Estrutura de titulo de referencia', approvedBriefing?.selectedTitleStructure);
-                  const curveReference = describeNarrativeAssetReference('Curva narrativa de referencia', approvedBriefing?.selectedNarrativeCurve);
-                  const argumentReference = describeNarrativeAssetReference('Modo de argumentacao de referencia', approvedBriefing?.selectedArgumentMode);
-                  const repetitionRulesReference = (approvedBriefing?.selectedRepetitionRules || [])
-                    .map((rule: any) => `${rule.name}: ${rule.pattern || rule.description || ''}`)
-                    .join(' | ');
-                  const communityReferenceCatalog = buildCommunityReferenceCatalog(uniqueCommunityTemplates);
-
-                  for (let i = 0; i < scriptBlocks.length; i++) {
-                    const block = scriptBlocks[i];
-                    const prompt = `VocÃª Ã© um roteirista tÃ©cnico sÃªnior. Gere o TEXTO FINAL do bloco abaixo.
-
-REGRAS:
-- Linguagem direta, pragmÃ¡tica.
-- Voz coerente com o tipo do bloco.
-- Use metÃ¡foras do projeto quando fizer sentido.
-- Use a camada de abertura, a camada final de conversao, a estrutura e os elementos de comunidade apenas como referencia funcional e semantica.
-- NÃ£o copie literalmente frases, slogans, exemplos ou patterns vindos da biblioteca narrativa.
-- Reescreva com linguagem humana, natural e variada, preservando a funÃ§Ã£o estratÃ©gica do asset.
-- NÃ£o escreva markdown.
-
-CONTEXTO DO PROJETO:
-PUC: ${activeProject?.puc || ''}
-Persona: ${activeProject?.persona_matrix?.demographics || ''}
-Dor Central: ${activeProject?.persona_matrix?.pain_alignment || ''}
-MetÃ¡foras: ${activeProject?.metaphor_library || ''}
-Elementos de Comunidade: ${(uniqueCommunityTemplates || []).map((c: any) => c.content_pattern || c.name).filter(Boolean).join(' | ')}
-Camada de abertura de referÃªncia: ${describeNarrativeReference('Camada de abertura', approvedBriefing?.openingHook?.pattern)}
-Camada final de conversÃ£o de referÃªncia: ${describeNarrativeReference('Camada final de conversao', approvedBriefing?.selectedCta?.pattern)}
-Estrutura de tÃ­tulo de referÃªncia: ${describeNarrativeReference('Estrutura', approvedBriefing?.selectedTitleStructure?.pattern)}
-
-TEMA: ${approvedBriefing.title}
-DURAÃ‡ÃƒO ALVO (min): ${minutes || 'N/A'}
-CHARS ALVO (aprox): ${targetChars || 'N/A'}
-
-BLOCO:
-Tipo: ${block.type}
-TÃ­tulo: ${block.title}
-InstruÃ§Ãµes atuais: ${block.content}
-SOP: ${block.sop || ''}
-
-RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
-
-                    const promptForGeneration = `VocÃƒÂª ÃƒÂ© um roteirista tÃƒÂ©cnico sÃƒÂªnior. Gere o TEXTO FINAL do bloco abaixo.
-
-REGRAS:
-- Linguagem direta, pragmÃƒÂ¡tica.
-- Voz coerente com o tipo do bloco.
-- Use metÃƒÂ¡foras do projeto quando fizer sentido.
-- Use a camada de abertura, a camada final de conversao, a estrutura e os elementos de comunidade apenas como referencia funcional e semantica.
-- NÃƒÂ£o copie literalmente frases, slogans, exemplos, quotes, patterns ou sequencias de palavras vindas da biblioteca narrativa.
-- Reescreva com linguagem humana, natural e variada, preservando a funÃƒÂ§ÃƒÂ£o estratÃƒÂ©gica do asset.
-- Quando receber referencias narrativas, extraia apenas a intencao, o papel do bloco e o efeito desejado.
-- Evite bordÃƒÂµes e formulacoes reconheciveis entre videos do mesmo projeto.
-- NÃƒÂ£o escreva markdown.
-
-CONTEXTO DO PROJETO:
-PUC: ${activeProject?.puc || ''}
-Persona: ${activeProject?.persona_matrix?.demographics || ''}
-Dor Central: ${activeProject?.persona_matrix?.pain_alignment || ''}
-MetÃƒÂ¡foras: ${activeProject?.metaphor_library || ''}
-Elementos de Comunidade de referencia: ${communityReferenceCatalog || 'Nao ha elementos comunitarios cadastrados.'}
-${hookReference}
-${ctaReference}
-${structureReference}
-${curveReference}
-${argumentReference}
-Regras de repeticao ativas: ${repetitionRulesReference || 'Nenhuma'}
-
-TEMA: ${approvedBriefing.title}
-DURAÃƒâ€¡ÃƒÆ’O ALVO (min): ${minutes || 'N/A'}
-CHARS ALVO (aprox): ${targetChars || 'N/A'}
-
-BLOCO:
-Tipo: ${block.type}
-TÃƒÂ­tulo: ${block.title}
-InstruÃƒÂ§ÃƒÂµes atuais: ${block.content}
-SOP: ${block.sop || ''}
-
-RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
-
-                    const res = await fetch('/api/ai/generate', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        engine,
-                        model,
-                        prompt: promptForGeneration,
-                        apiKeyOverwrite: apiKey,
-                        projectConfig: activeProject?.ai_engine_rules,
-                        responseType: 'text'
-                      })
-                    });
-
-                    if (!res.ok) {
-                      const errBody = await res.text();
-                      throw new Error(`Falha IA (${res.status}): ${errBody}`);
-                    }
-
-                    const data = await res.json();
-                    let text = '';
-                    if (engine === 'gemini') {
-                      text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                    } else {
-                      text = data.choices?.[0]?.message?.content || '';
-                    }
-
-                    const nextBlocks = [...scriptBlocks];
-                    nextBlocks[i] = { ...nextBlocks[i], content: (text || nextBlocks[i].content).trim() };
-                    setScriptBlocks(nextBlocks);
+                  const promptForGeneration = buildInternalWritingPrompt();
+                  if (!promptForGeneration) {
+                    setIsGeneratingScript(false);
+                    setGenerationProgress(null);
+                    return alert('Aprove um assembly completo antes de gerar o roteiro.');
                   }
 
-                  alert('âœ… Roteiro IA gerado nos blocos.');
-                } catch (e: any) {
-                  alert(`Erro ao gerar roteiro: ${e.message || e}`);
-                } finally {
+                  const totalBlocks = scriptBlocks.length;
+                  setGenerationProgress({
+                    currentIndex: -1,
+                    completedCount: 0,
+                    total: totalBlocks,
+                    currentTitle: approvedBriefing.title,
+                    status: 'Enviando o blueprint completo para a IA do aplicativo...',
+                  });
+
+                  const controller = new AbortController();
+                  generationAbortRef.current = controller;
+                  const res = await fetch('/api/ai/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                      engine,
+                      model,
+                      prompt: promptForGeneration,
+                      apiKeyOverwrite: apiKey,
+                      projectConfig: activeProject?.ai_engine_rules,
+                      responseType: 'text'
+                    })
+                  });
+
+                  if (!res.ok) {
+                    const errBody = await res.text();
+                    throw new Error(`Falha IA (${res.status}): ${errBody}`);
+                  }
+
+                  const data = await res.json();
+                  let text = '';
+                  if (engine === 'gemini') {
+                    text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                  } else {
+                    text = data.choices?.[0]?.message?.content || '';
+                  }
+
+                  const sections = parseExternalScriptSections(text);
+                  if (sections.length === 0) {
+                    throw new Error('A IA respondeu, mas nao retornou blocos parseaveis.');
+                  }
+                  if (sections.length < totalBlocks) {
+                    throw new Error(`A IA retornou ${sections.length} blocos, mas o blueprint exige ${totalBlocks}.`);
+                  }
+
+                  let workingBlocks = [...scriptBlocks];
+                  setGenerationProgress({
+                    currentIndex: 0,
+                    completedCount: 0,
+                    total: totalBlocks,
+                    currentTitle: 'Distribuindo roteiro nos blocos',
+                    status: 'Resposta recebida. Aplicando o roteiro aos cards STG...',
+                  });
+
+                  for (let i = 0; i < workingBlocks.length; i++) {
+                    if (generationStoppedRef.current) {
+                      throw new Error('__GENERATION_ABORTED__');
+                    }
+
+                    const block = workingBlocks[i];
+                    const nextBlocks = [...workingBlocks];
+                    nextBlocks[i] = { ...nextBlocks[i], content: (sections[i] || nextBlocks[i].content).trim() };
+                    workingBlocks = nextBlocks;
+                    setScriptBlocks(workingBlocks);
+                    setGenerationProgress({
+                      currentIndex: i,
+                      completedCount: i + 1,
+                      total: workingBlocks.length,
+                      currentTitle: block.title,
+                      status: `Bloco ${i + 1} concluido. Preenchendo os cards STG abaixo em tempo real.`,
+                    });
+                    await new Promise((resolve) => setTimeout(resolve, 20));
+                  }
+
+                  setGenerationProgress({
+                    currentIndex: -1,
+                    completedCount: workingBlocks.length,
+                    total: workingBlocks.length,
+                    currentTitle: approvedBriefing.title,
+                    status: 'Roteiro completo. Finalizando e salvando o snapshot desta execucao...',
+                  });
+
                   setIsGeneratingScript(false);
+                  generationAbortRef.current = null;
+                  generationStoppedRef.current = false;
+
+                  void syncApprovedThemeSnapshot({
+                    scriptBlocks: workingBlocks,
+                    scriptStage: 'final',
+                    executionMode: 'internal',
+                    postScriptPackage: null,
+                  }).catch((error) => {
+                    console.warn('[ScriptEngine] Falha ao salvar snapshot final apos geracao.', error);
+                  });
+                  setScriptStage('final');
+                  setPostScriptPackage(null);
+                  persistExecutionSnapshotLocally({
+                    scriptBlocks: workingBlocks,
+                    scriptStage: 'final',
+                    executionMode: 'internal',
+                    postScriptPackage: null,
+                  });
+
+                  alert('Roteiro IA gerado nos blocos.');
+                  setGenerationProgress(null);
+                } catch (e: any) {
+                  if (e?.name === 'AbortError' || e?.message === '__GENERATION_ABORTED__') {
+                    alert('Geracao interrompida. Os blocos ja concluidos foram mantidos.');
+                  } else {
+                  alert(`Erro ao gerar roteiro: ${e.message || e}`);
+                  }
+                } finally {
+                  if (generationAbortRef.current) {
+                    generationAbortRef.current = null;
+                    generationStoppedRef.current = false;
+                    setIsGeneratingScript(false);
+                    setGenerationProgress(null);
+                  }
                 }
               }}
               disabled={isGeneratingScript || executionMode === 'external'}
-              className="px-8 py-3 bg-sage text-midnight rounded-xl font-black text-[10px] uppercase tracking-[2px] shadow-lg shadow-sage/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-8 py-3 bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] shadow-lg shadow-blue-500/25 hover:bg-blue-400 hover:shadow-blue-400/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
               title={executionMode === 'external' ? 'Mude para producao no aplicativo se quiser gerar os blocos por IA aqui.' : 'Gerar texto final para cada bloco via IA'}
             >
               {isGeneratingScript ? 'GERANDO...' : executionMode === 'external' ? 'MODO EXTERNO ATIVO' : 'GERAR ROTEIRO IA'} <Play size={14} fill="currentColor" />
             </button>
+            {isGeneratingScript && (
+              <button
+                onClick={stopScriptGeneration}
+                className="px-6 py-3 bg-red-500/10 text-red-300 hover:bg-red-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-red-500/20"
+                title="Interromper a geracao e manter o que ja foi concluido"
+              >
+                <Octagon size={14} /> PARAR GERACAO
+              </button>
+            )}
           </div>
         </div>
+
+        {generationProgress && (
+          <div className="mx-6 xl:mx-8 mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/[0.05] px-5 py-4 shadow-[0_0_30px_rgba(59,130,246,0.08)]">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-300">Geracao em andamento</p>
+                <p className="text-sm font-black text-white">{generationProgress.status}</p>
+                <p className="text-[11px] text-white/55 leading-relaxed">
+                  Bloco atual: <span className="text-white/80">{generationProgress.currentTitle}</span>. O texto gerado vai sendo inserido logo abaixo, dentro dos cards <span className="text-white/80">STG</span>, e permanece salvo no snapshot desta execucao.
+                </p>
+              </div>
+              <div className="xl:w-[280px] space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-white/45">
+                  <span>Progresso</span>
+                  <span>{generationProgress.completedCount}/{generationProgress.total} blocos</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-300 transition-all duration-300"
+                    style={{
+                      width: `${generationProgress.total > 0 ? (generationProgress.completedCount / generationProgress.total) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {thumbnailDirectivePanel}
+
+        {approvedBriefing && (
+          <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-blue-500/[0.035] border border-blue-500/18 rounded-[28px] shadow-[0_0_40px_rgba(59,130,246,0.08)] space-y-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 space-y-3 max-w-[28rem]">
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-300">Briefing aprovado</p>
+                <h4 className="text-2xl xl:text-[2rem] font-black text-white italic leading-[1.05] break-words max-w-[16ch]">{approvedBriefing.title}</h4>
+                <p className="text-[11px] text-white/45 leading-relaxed">
+                  O roteiro abaixo esta sendo montado com o briefing travado no assembler. O resumo principal fica visivel aqui para voce acompanhar o que esta sendo produzido sem perder o contexto editorial.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 xl:min-w-[560px]">
+                {[
+                  { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
+                  { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
+                  { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
+                  { label: 'Chars', value: approvedBriefing.estimatedChars ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}` : 'N/D' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
+                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
+                    <span className="block text-sm font-black text-white">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className="p-4 rounded-2xl bg-midnight/40 border border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-[3px] text-white/25 block mb-1">Camada de abertura</span>
+                <p className="text-[11px] text-white/70 leading-relaxed break-words">{approvedBriefing.openingHook?.name || 'Nao definida'}</p>
+              </div>
+              <div className="p-4 rounded-2xl bg-midnight/40 border border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-[3px] text-white/25 block mb-1">Camada final de conversao</span>
+                <p className="text-[11px] text-white/70 leading-relaxed break-words">{approvedBriefing.selectedCta?.name || 'Nao definida'}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-sage">Modo de Producao</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
               <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
                 O orquestrador continua montando o blueprint. Aqui voce decide se o texto final sera produzido no app ou em plataforma externa.
               </p>
@@ -1510,11 +2372,11 @@ RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
                     onClick={() => setExecutionMode(option.value as ExecutionMode)}
                     className={`rounded-2xl border px-4 py-4 text-left transition-all ${
                       isActive
-                        ? 'bg-sage/10 border-sage/40 shadow-lg shadow-sage/10'
+                        ? 'bg-blue-500/15 border-blue-400/40 shadow-lg shadow-blue-500/15'
                         : 'bg-white/5 border-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className={`block text-[10px] font-black uppercase tracking-[2px] ${isActive ? 'text-sage' : 'text-white/80'}`}>
+                    <span className={`block text-[10px] font-black uppercase tracking-[2px] ${isActive ? 'text-blue-300' : 'text-white/80'}`}>
                       {option.title}
                     </span>
                     <span className="block mt-2 text-[10px] text-white/40 leading-relaxed">
@@ -1527,111 +2389,652 @@ RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
           </div>
 
           {executionMode === 'external' && (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-              <div className="space-y-3">
-                <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
-                <textarea
-                  value={externalScriptText}
-                  onChange={(e) => setExternalScriptText(e.target.value)}
-                  placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
-                  className="w-full min-h-[220px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
-                />
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
-                  <input
-                    value={externalSourceLabel}
-                    onChange={(e) => setExternalSourceLabel(e.target.value)}
-                    placeholder="Ex: ChatGPT, Claude, Gemini..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
+                  <textarea
+                    value={externalScriptText}
+                    onChange={(e) => setExternalScriptText(e.target.value)}
+                    placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
+                    className="w-full min-h-[220px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Subir .txt</label>
-                  <label className="flex items-center justify-center w-full px-4 py-3 rounded-xl border border-dashed border-white/15 bg-white/[0.03] text-[10px] font-black uppercase tracking-[2px] text-white/70 hover:border-blue-400/30 hover:text-white transition-all cursor-pointer">
-                    Enviar roteiro .txt
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
+                    <input
+                      value={externalSourceLabel}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setExternalSourceLabel(value);
+                        persistExecutionSnapshotLocally({
+                          executionMode: 'external',
+                          externalSourceLabel: value,
+                        });
+                      }}
+                      placeholder="Ex: ChatGPT, Claude, Gemini..."
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
+                    />
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
+                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
+                        Use para aplicar o roteiro final aos blocos atuais. O arquivo fica salvo nesta execucao mesmo se voce sair da pagina.
+                      </p>
+                    </div>
                     <input
                       type="file"
                       accept=".txt,text/plain"
-                      className="hidden"
                       onChange={handleExternalScriptUpload}
+                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
                     />
-                  </label>
-                  <p className="text-[10px] text-white/35 leading-relaxed">
-                    {externalScriptFileName ? `Arquivo carregado: ${externalScriptFileName}` : 'Nenhum arquivo enviado ainda.'}
-                  </p>
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                      {externalScriptFileName ? `Arquivo persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado ainda.'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
+                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
+                        O upload do .srt atende a entrada da etapa 1. Abaixo, o app replica as etapas 2, 3 e 4 do pipeline para gerar CSV base, marcacao de assets e prompts visuais.
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".srt,text/plain"
+                      onChange={handleExternalSrtUpload}
+                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
+                    />
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                      {externalSrtFileName ? `Arquivo persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado ainda.'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={processAttachedSrtAssets}
+                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
+                      className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
+                    </button>
+                    {externalSrtPipeline && (
+                      <button
+                        type="button"
+                        onClick={renderTextAssetsFromPipeline}
+                        disabled={isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline.stats.texto === 0}
+                        className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isRenderingTextAssets ? 'RENDERIZANDO TEXTOS...' : 'ETAPA 5 · RENDERIZAR TEXTOS'}
+                      </button>
+                    )}
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                      {externalSrtPipeline?.generatedAt
+                        ? `Pipeline persistido em ${new Date(externalSrtPipeline.generatedAt).toLocaleString('pt-BR')}.`
+                        : 'Nenhum pipeline de assets processado ainda.'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Pacote pos-roteiro</label>
+                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
+                        Processa titulos virais, descricao SEO com timestamps, prompt Suno e a timeline de SFX a partir do roteiro final que ja esta nos blocos.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={generatePostScriptPackage}
+                      disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
+                      className="w-full rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isGeneratingPostScriptPackage ? 'PROCESSANDO PACOTE...' : postScriptPackage ? 'REPROCESSAR PACOTE POS-ROTEIRO' : 'PROCESSAR PACOTE POS-ROTEIRO'}
+                    </button>
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                      {!canProcessPostScriptPackage
+                        ? 'Finalize o roteiro interno ou anexe um .txt externo para habilitar esta etapa.'
+                        : postScriptPackage
+                          ? `Pacote persistido em ${new Date(postScriptPackage.generatedAt).toLocaleString('pt-BR')}.`
+                          : 'Nenhum pacote pos-roteiro processado ainda.'}
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void applyExternalScriptToBlocks(externalScriptText, externalScriptFileName)}
-                  disabled={!externalScriptText.trim()}
-                  className="w-full px-5 py-3 rounded-xl bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 font-black text-[10px] uppercase tracking-[2px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Aplicar roteiro externo aos blocos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void syncApprovedThemeSnapshot()}
-                  disabled={!approvedBriefing}
-                  className="w-full px-5 py-3 rounded-xl bg-white/5 text-white/70 hover:bg-white/10 border border-white/10 font-black text-[10px] uppercase tracking-[2px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Atualizar snapshot do tema
-                </button>
               </div>
+
+              {(isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline) && (
+                <div className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.04] p-5 space-y-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-200">Pipeline SRT adaptado ao app</p>
+                      <p className="text-sm font-black text-white">
+                        {(isProcessingSrtPipeline || isRenderingTextAssets)
+                          ? srtPipelineStatus || (isRenderingTextAssets ? 'Executando a etapa 5 sobre o CSV persistido...' : 'Executando as etapas 2, 3 e 4 sobre o .srt anexado...')
+                          : srtPipelineStatus || 'CSV base, assets e prompts persistidos nesta execucao.'}
+                      </p>
+                      <p className="text-[11px] text-white/50 leading-relaxed">
+                        Etapa 1 fica coberta pelo upload do arquivo. A partir daqui o app replica a conversao para CSV, a marcacao heuristica de assets, a geracao dos prompts visuais e o render dos assets marcados como texto.
+                      </p>
+                    </div>
+
+                    {externalSrtPipeline && (
+                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 xl:min-w-[620px]">
+                        {[
+                          { label: 'Linhas', value: externalSrtPipeline.stats.total },
+                          { label: 'Texto', value: externalSrtPipeline.stats.texto },
+                          { label: 'Avatar', value: externalSrtPipeline.stats.avatar },
+                          { label: 'Video', value: externalSrtPipeline.stats.video },
+                          { label: 'Imagem', value: externalSrtPipeline.stats.image },
+                          { label: 'Render', value: externalSrtPipeline.rows.filter((row) => row.caminho).length },
+                        ].map((item) => (
+                          <div key={item.label} className="rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3">
+                            <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
+                            <span className="block text-sm font-black text-white">{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                    <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Observador de status</p>
+                        <p className="text-[10px] text-white/40 mt-1">Mostra em qual ponto da adaptacao o app esta e o que ja foi concluido.</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] text-white/55">
+                        {isProcessingSrtPipeline ? 'Processando agora' : isRenderingTextAssets ? 'Renderizando textos' : externalSrtPipeline ? 'Pipeline pronto' : 'Aguardando processamento'}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-6">
+                      {externalSrtObserver.map((step) => (
+                        <div key={step.key} className="rounded-2xl border border-white/8 bg-black/15 px-4 py-4 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                                step.status === 'done'
+                                  ? 'bg-emerald-400'
+                                  : step.status === 'running'
+                                    ? 'bg-blue-400 animate-pulse'
+                                    : step.status === 'error'
+                                      ? 'bg-red-400'
+                                      : 'bg-white/20'
+                              }`}
+                            />
+                            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">{step.label}</span>
+                          </div>
+                          <p
+                            className={`text-[10px] font-black uppercase tracking-[0.16em] ${
+                              step.status === 'done'
+                                ? 'text-emerald-300'
+                                : step.status === 'running'
+                                  ? 'text-blue-300'
+                                  : step.status === 'error'
+                                    ? 'text-red-300'
+                                    : 'text-white/30'
+                            }`}
+                          >
+                            {step.status === 'done' ? 'Concluido' : step.status === 'running' ? 'Em execucao' : step.status === 'error' ? 'Erro' : 'Pendente'}
+                          </p>
+                          <p className="text-[10px] leading-5 text-white/45">{step.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Onde os arquivos ficam</p>
+                    <p className="text-[10px] leading-6 text-white/55">
+                      O CSV base e os arquivos de prompts ficam persistidos dentro do snapshot local desta execucao e no snapshot do tema aprovado. Quando voce usa os botoes de exportacao, eles vao para a pasta de downloads padrao do navegador como `.csv` e `.txt`. Ja a etapa 5 escreve um CSV espelho e os videos de texto diretamente no pipeline externo, preservando os caminhos em `caminho`.
+                    </p>
+                  </div>
+
+                  {externalSrtPipeline && (
+                    <>
+                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de video</p>
+                              <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_video.txt`.</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copyTextToClipboard(externalSrtPipeline.videoPromptsTxt, 'Prompts de video copiados.')}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                              >
+                                <Copy size={12} className="inline mr-2" /> Copiar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_video', externalSrtPipeline.videoPromptsTxt)}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                              >
+                                <FileText size={12} className="inline mr-2" /> TXT
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
+                            readOnly
+                            value={externalSrtPipeline.videoPromptsTxt || 'Nenhum prompt de video foi gerado para este SRT.'}
+                            className="w-full min-h-[180px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem</p>
+                              <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_imagem.txt`.</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copyTextToClipboard(externalSrtPipeline.imagePromptsTxt, 'Prompts de imagem copiados.')}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                              >
+                                <Copy size={12} className="inline mr-2" /> Copiar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_imagem', externalSrtPipeline.imagePromptsTxt)}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                              >
+                                <FileText size={12} className="inline mr-2" /> TXT
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
+                            readOnly
+                            value={externalSrtPipeline.imagePromptsTxt || 'Nenhum prompt de imagem foi gerado para este SRT.'}
+                            className="w-full min-h-[180px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Preview da timeline CSV</p>
+                            <p className="text-[10px] text-white/40 mt-1">A estrutura abaixo replica o CSV base das etapas 2 e 3, ja com a coluna `prompt` preenchida na etapa 4.</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => copyTextToClipboard(externalSrtPipeline.csvContent, 'CSV base copiado.')}
+                              className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                            >
+                              <Copy size={12} className="inline mr-2" /> Copiar CSV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
+                              className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                            >
+                              <FileText size={12} className="inline mr-2" /> Exportar CSV
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/15">
+                          <table className="min-w-full text-left text-[11px] text-white/75">
+                            <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
+                              <tr>
+                                <th className="px-4 py-3">#</th>
+                                <th className="px-4 py-3">Inicio</th>
+                                <th className="px-4 py-3">Fim</th>
+                                <th className="px-4 py-3">Asset</th>
+                                <th className="px-4 py-3">Texto</th>
+                                <th className="px-4 py-3">Prompt</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {externalSrtPipeline.rows.slice(0, 8).map((row) => (
+                                <tr key={row.rowNumber} className="border-t border-white/5 align-top">
+                                  <td className="px-4 py-3 font-black text-white/60">{row.rowNumber}</td>
+                                  <td className="px-4 py-3">{row.startTime}</td>
+                                  <td className="px-4 py-3">{row.endTime}</td>
+                                  <td className="px-4 py-3 font-black text-blue-200">{row.asset || '-'}</td>
+                                  <td className="px-4 py-3 max-w-[260px] leading-5 text-white/70">{row.texto}</td>
+                                  <td className="px-4 py-3 max-w-[320px] leading-5 text-white/55">{row.prompt || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {externalSrtPipeline.rows.length > 8 && (
+                          <p className="text-[10px] text-white/35">
+                            Preview mostrando as primeiras 8 linhas. O CSV completo fica persistido nesta execucao e pode ser exportado.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Etapa 5 · Render de texto</p>
+                            <p className="text-[10px] text-white/40 mt-1">
+                              Usa o `renderizar_textos.py` externo para gerar MP4s apenas para as linhas marcadas como `texto` e atualizar a coluna `caminho`.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {externalSrtPipeline.textRender?.csvPath && (
+                              <button
+                                type="button"
+                                onClick={() => copyTextToClipboard(externalSrtPipeline.textRender?.csvPath || '', 'Caminho do CSV espelho copiado.')}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
+                              >
+                                <Copy size={12} className="inline mr-2" /> Copiar CSV espelho
+                              </button>
+                            )}
+                            {externalSrtPipeline.textRender?.outputDir && (
+                              <button
+                                type="button"
+                                onClick={() => copyTextToClipboard(externalSrtPipeline.textRender?.outputDir || '', 'Pasta de renders copiada.')}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
+                              >
+                                <Copy size={12} className="inline mr-2" /> Copiar pasta de render
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {externalSrtPipeline.textRender ? (
+                          <>
+                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Novos renders</span>
+                                <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.renderedCount}</span>
+                              </div>
+                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Reutilizados</span>
+                                <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.reusedCount}</span>
+                              </div>
+                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 xl:col-span-2">
+                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Ultima renderizacao</span>
+                                <span className="block text-sm font-black text-white">{new Date(externalSrtPipeline.textRender.lastRenderedAt).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">CSV espelho no pipeline externo</p>
+                                <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.csvPath}</p>
+                              </div>
+                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">Pasta de saida dos MP4s</p>
+                                <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.outputDir}</p>
+                              </div>
+                            </div>
+                            <textarea
+                              readOnly
+                              value={externalSrtPipeline.textRender.log || 'Sem log de render disponivel.'}
+                              className="w-full min-h-[180px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                            />
+                          </>
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                            A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · RENDERIZAR TEXTOS</span>, o app vai gerar o CSV espelho no pipeline externo, executar o `renderizar_textos.py` e preencher a coluna `caminho` das linhas marcadas como texto.
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Thumbnail Directive Panel */}
-        {showThumbnailPanel && thumbnailDirective && (
-          <div className="mx-6 xl:mx-8 my-4 p-5 xl:p-6 bg-purple-500/5 border border-purple-500/20 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">ðŸŽ¨ Diretriz de Thumbnail</span>
-              <button onClick={() => setShowThumbnailPanel(false)} className="text-white/20 hover:text-white text-sm">âœ•</button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-1">â€” CONCEITO VISUAL</span>
-                <p className="text-[11px] text-white/70 leading-relaxed bg-midnight/40 p-3 rounded-xl border border-white/5 whitespace-pre-wrap break-words">{thumbnailDirective.description}</p>
+        {(canProcessPostScriptPackage || !!postScriptPackage) && (
+          <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-blue-500/15 bg-blue-500/[0.03] p-6 xl:p-8 shadow-[0_0_40px_rgba(59,130,246,0.06)] space-y-6">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="space-y-2 max-w-3xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.38em] text-blue-300">Pacote pos-roteiro</p>
+                <h4 className="text-xl font-black text-white">Saidas prontas para publicacao, trilha e edicao</h4>
+                <p className="text-[11px] leading-6 text-white/50">
+                  Esta etapa deriva o roteiro final em titulos virais, descricao SEO com timestamps, prompt musical para Suno e uma timeline de SFX pronta para o editor.
+                </p>
               </div>
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-1">â€” PROMPT PARA MIDJOURNEY / DALL-E</span>
-                <div className="relative">
-                  <p className="text-[11px] text-white/80 leading-relaxed bg-midnight/40 p-3 rounded-xl border border-white/5 font-mono pr-10 whitespace-pre-wrap break-words">{thumbnailDirective.prompt}</p>
-                  <button 
-                    onClick={() => navigator.clipboard.writeText(thumbnailDirective.prompt)}
-                    className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-white/30 hover:text-white transition-all"
-                  ><Copy size={12} /></button>
+              <button
+                type="button"
+                onClick={generatePostScriptPackage}
+                disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
+                className="rounded-2xl border border-blue-400/25 bg-blue-500/15 px-5 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-blue-200 transition-all hover:border-blue-300/35 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingPostScriptPackage ? 'GERANDO PACOTE...' : postScriptPackage ? 'REGERAR PACOTE POS-ROTEIRO' : 'GERAR PACOTE POS-ROTEIRO'}
+              </button>
+            </div>
+
+            {!canProcessPostScriptPackage && !postScriptPackage ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                Finalize o roteiro interno ou anexe um <span className="font-black text-blue-200">.txt externo</span> para liberar esta etapa.
+              </div>
+            ) : postScriptPackage ? (
+              <>
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.95fr)]">
+                  <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">5 titulos virais</p>
+                        <p className="mt-1 text-[10px] text-white/40">Opcoes persistidas para teste rapido.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyTextToClipboard(postScriptPackage.titles.map((title, index) => `${index + 1}. ${title}`).join('\n'), 'Titulos virais copiados.')}
+                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                      >
+                        <Copy size={12} className="inline mr-2" /> Copiar
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {postScriptPackage.titles.map((title, index) => (
+                        <div key={`${index}-${title}`} className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
+                          <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">Opcao {index + 1}</span>
+                          <p className="text-[13px] font-bold leading-6 text-white/90">{title}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Descricao SEO</p>
+                        <p className="mt-1 text-[10px] text-white/40">Pronta para colar no YouTube com abertura, capitulos e aviso final.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyTextToClipboard(postScriptPackage.seoDescription, 'Descricao SEO copiada.')}
+                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                      >
+                        <Copy size={12} className="inline mr-2" /> Copiar
+                      </button>
+                    </div>
+                    <div className="min-h-[320px] rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
+                      <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Abertura</p>
+                        <div className="mt-3 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
+                          {seoDescriptionSections.intro || postScriptPackage.seoDescription}
+                        </div>
+                      </div>
+
+                      {seoDescriptionSections.chapters.length > 0 && (
+                        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Capitulos</p>
+                          <div className="mt-3 space-y-1.5">
+                            {seoDescriptionSections.chapters.map((chapter, index) => (
+                              <div key={`${chapter.timestamp}-${index}`} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 px-3 py-2.5">
+                                <span className="shrink-0 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 font-mono text-[10px] font-black text-blue-200">
+                                  {chapter.timestamp}
+                                </span>
+                                <span className="text-[11px] leading-6 text-white/80">{chapter.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {seoDescriptionSections.notice && (
+                        <div className="rounded-2xl border border-amber-400/10 bg-amber-500/[0.04] px-4 py-4">
+                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-200">Aviso final</p>
+                          <div className="mt-3 text-[11px] leading-7 text-white/75 whitespace-pre-wrap">
+                            {seoDescriptionSections.notice}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompt Suno</p>
+                        <p className="mt-1 text-[10px] text-white/40">Prompt musical persistido para gerar a trilha.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyTextToClipboard(
+                            [postScriptPackage.sunoSuggestedTitle, postScriptPackage.sunoPrompt].filter(Boolean).join('\n'),
+                            'Titulo e prompt Suno copiados.'
+                          )
+                        }
+                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                      >
+                        <Copy size={12} className="inline mr-2" /> Copiar
+                      </button>
+                    </div>
+                    {!!postScriptPackage.sunoSuggestedTitle && (
+                      <div className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
+                        <span className="block text-[9px] font-black uppercase tracking-[0.24em] text-white/35 mb-1">Suggested title</span>
+                        <span className="block text-[12px] font-bold text-white/85">{postScriptPackage.sunoSuggestedTitle}</span>
+                      </div>
+                    )}
+                    <div className="min-h-[260px] rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
+                      {postScriptPackage.sunoPrompt}
+                    </div>
+                  </div>
                 </div>
+
+                <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Preview da timeline SFX</p>
+                      <p className="mt-1 text-[10px] text-white/40">Arquivo TXT persistido no snapshot e organizado como guia visual para a edicao.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyTextToClipboard(postScriptPackage.sfxTimelineTxt, 'Timeline de SFX copiada.')}
+                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                      >
+                        <Copy size={12} className="inline mr-2" /> Copiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadTextArtifact(packageArtifactStem, 'sfx_timeline', postScriptPackage.sfxTimelineTxt)}
+                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                      >
+                        <FileText size={12} className="inline mr-2" /> TXT
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/15">
+                    <table className="min-w-full text-left text-[11px] text-white/75">
+                      <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
+                        <tr>
+                          <th className="px-4 py-3">#</th>
+                          <th className="px-4 py-3">Tempo</th>
+                          <th className="px-4 py-3">Efeito</th>
+                          <th className="px-4 py-3">Funcao</th>
+                          <th className="px-4 py-3">Trecho</th>
+                          <th className="px-4 py-3">Obs</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sfxTimelinePreview.length > 0 ? (
+                          sfxTimelinePreview.map((item, index) => (
+                            <tr key={item.id} className="border-t border-white/5 align-top">
+                              <td className="px-4 py-4 font-black text-white/55">{index + 1}</td>
+                              <td className="px-4 py-4 font-mono text-white/80">{item.timestamp}</td>
+                              <td className="px-4 py-4 text-blue-200 font-semibold">{item.effect}</td>
+                              <td className="px-4 py-4 leading-6">{item.purpose}</td>
+                              <td className="px-4 py-4 leading-6 text-white/85">{item.excerpt}</td>
+                              <td className="px-4 py-4 leading-6 text-white/60">{item.notes}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr className="border-t border-white/5">
+                            <td colSpan={6} className="px-4 py-6 text-[11px] text-white/45">
+                              Nenhum item de SFX disponivel ainda. Gere o pacote pos-roteiro para preencher este preview.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                O pacote ainda nao foi processado. Clique em <span className="font-black text-blue-200">GERAR PACOTE POS-ROTEIRO</span> para derivar titulos, descricao SEO, Suno e a timeline de SFX.
               </div>
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-1">â€” LINK DA THUMBNAIL GERADA</span>
-                <input
-                  value={thumbnailUrl}
-                  onChange={e => setThumbnailUrl(e.target.value)}
-                  placeholder="Cole aqui a URL da imagem gerada externamente..."
-                  className="w-full bg-midnight/40 border border-white/10 rounded-xl px-4 py-2 text-[11px] text-white placeholder-white/20 outline-none focus:border-purple-500/40 font-bold"
-                />
-              </div>
-            </div>
+            )}
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 xl:p-8 flex flex-col gap-8 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
-          {scriptBlocks.map((block, index) => (
+        <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 xl:p-8 flex flex-col gap-8 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
+          {scriptBlocks.map((block, index) => {
+            const blockGenerationState =
+              isGeneratingScript && generationProgress
+                ? index < generationProgress.completedCount
+                  ? 'completed'
+                  : index === generationProgress.currentIndex
+                    ? 'generating'
+                    : 'pending'
+                : null;
+
+            return (
             <div key={block.id} className="relative group animate-in slide-in-from-bottom-4" style={{ animationDelay: `${index * 100}ms` }}>
               <div className="flex items-center gap-3 mb-3 pl-1">
                 <div className="text-[11px] font-black text-white/20 tracking-[3px] uppercase">
                   STG_{String(index + 1).padStart(2, '0')}
                 </div>
+                {blockGenerationState && (
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] ${
+                      blockGenerationState === 'generating'
+                        ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
+                        : blockGenerationState === 'completed'
+                          ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                          : 'border-white/10 bg-white/5 text-white/35'
+                    }`}
+                  >
+                    {blockGenerationState === 'generating'
+                      ? 'Gerando agora'
+                      : blockGenerationState === 'completed'
+                        ? 'Concluido'
+                        : 'Pendente'}
+                  </span>
+                )}
                 <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent" />
               </div>
-              <div className="flex flex-col gap-6 bg-white/[0.01] border border-white/[0.05] rounded-[32px] p-6 xl:p-8 hover:border-white/10 hover:bg-white/[0.03] transition-all shadow-inner relative group/block">
+              <div className={`flex flex-col gap-6 rounded-[32px] p-6 xl:p-8 transition-all shadow-inner relative group/block ${
+                blockGenerationState === 'generating'
+                  ? 'bg-blue-500/[0.04] border border-blue-400/20 ring-1 ring-blue-400/15 shadow-[0_0_30px_rgba(59,130,246,0.08)]'
+                  : blockGenerationState === 'completed'
+                    ? 'bg-emerald-500/[0.03] border border-emerald-400/15'
+                    : 'bg-white/[0.01] border border-white/[0.05] hover:border-white/10 hover:bg-white/[0.03]'
+              }`}>
                 
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <span className={`inline-flex w-fit max-w-full flex-wrap text-[10px] font-black uppercase tracking-[3px] px-4 py-2 rounded-full border shadow-sm whitespace-normal break-words ${
-                    block.type === 'Hook' ? 'text-sage border-sage/60 bg-sage/10' : 
+                    block.type === 'Hook' ? 'text-blue-300 border-blue-400/60 bg-blue-500/10' : 
                     block.type === 'Context' ? 'text-blue-400 border-blue-400/60 bg-blue-400/10' : 
                     block.type === 'Development' ? 'text-orange-400 border-orange-400/60 bg-orange-400/10' :
                     'text-white/60 border-white/20 bg-white/5'
@@ -1657,7 +3060,13 @@ RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
                         el.style.height = '0px';
                         el.style.height = `${el.scrollHeight}px`;
                       }}
-                      className="w-full bg-midnight/20 border border-white/5 rounded-2xl px-5 py-4 text-white/90 leading-8 outline-none transition-all resize-none overflow-hidden min-h-[120px] text-[15px] font-medium placeholder:text-white/10"
+                      className={`w-full rounded-2xl px-5 py-4 text-white/90 leading-8 outline-none transition-all resize-none overflow-hidden min-h-[120px] text-[15px] font-medium placeholder:text-white/10 ${
+                        blockGenerationState === 'generating'
+                          ? 'bg-blue-500/[0.04] border border-blue-400/20'
+                          : blockGenerationState === 'completed'
+                            ? 'bg-emerald-500/[0.03] border border-emerald-400/10'
+                            : 'bg-midnight/20 border border-white/5'
+                      }`}
                       value={block.content}
                       onChange={(e) => {
                         const newBlocks = [...scriptBlocks];
@@ -1667,8 +3076,8 @@ RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
                     />
                   </div>
                   <div className="bg-midnight/40 rounded-3xl p-5 xl:p-6 border border-white/5 flex flex-col gap-4 min-w-0">
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-[2px] text-sage">
-                      <PenTool size={14} className="animate-pulse" /> SOP DE EDIÃ‡ÃƒO
+                    <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-[2px] text-blue-300">
+                      <PenTool size={14} className="animate-pulse" /> SOP DE EDICAO
                     </div>
                     <textarea 
                       ref={(el) => {
@@ -1688,15 +3097,15 @@ RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
                         newBlocks[index].sop = e.target.value;
                         setScriptBlocks(newBlocks);
                       }}
-                      placeholder="InstruÃ§Ãµes para o editor..."
+                      placeholder="Instrucoes para o editor..."
                     />
                   </div>
                 </div>
               </div>
             </div>
-          ))}
+          )})}
 
-          <button className="w-full border-2 border-dashed border-white/5 hover:border-sage/20 rounded-[50px] py-16 flex flex-col items-center gap-3 text-white/10 hover:text-sage transition-all group bg-white/[0.01]">
+              <button className="w-full border-2 border-dashed border-white/5 hover:border-blue-400/30 rounded-[50px] py-16 flex flex-col items-center gap-3 text-white/20 hover:text-blue-300 transition-all group bg-white/[0.01]">
             <Plus size={32} className="group-hover:rotate-90 transition-transform duration-500" />
             <div className="text-center">
               <span className="text-[11px] uppercase font-black tracking-[0.4em]">Injetar Bloco Modular</span>
@@ -1704,9 +3113,13 @@ RETORNE APENAS O TEXTO FINAL DO BLOCO.`;
             </div>
           </button>
         </div>
+        <ScrollToTopButton containerRef={mainScrollRef} />
+          </>
+        )}
         </section>
       </div>
     </div>
   );
 }
+
 

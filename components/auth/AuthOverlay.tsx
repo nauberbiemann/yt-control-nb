@@ -35,30 +35,30 @@ export default function AuthOverlay() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-midnight/90 backdrop-blur-xl animate-in fade-in duration-500">
-      <div className="glass-card w-full max-w-md p-10 border-[var(--accent-color)]/20 shadow-[0_0_50px_rgba(var(--accent-color-rgb),0.1)] relative overflow-hidden">
+      <div className="glass-card w-full max-w-md p-10 border-blue-500/20 shadow-[0_0_50px_rgba(59,130,246,0.1)] relative overflow-hidden">
         {/* Decorative Background */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--accent-color)]/10 blur-3xl rounded-full" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full" />
         
         <div className="flex flex-col items-center gap-4 mb-8">
-          <div className="p-3 bg-[var(--accent-color)]/20 rounded-2xl border border-[var(--accent-color)]/30">
-            <Zap className="text-[var(--accent-color)]" size={32} />
+          <div className="p-3 bg-blue-500/20 rounded-2xl border border-blue-500/30">
+            <Zap className="text-blue-400" size={32} />
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-black tracking-tighter text-white">CONTENT OS</h1>
-            <p className="text-[10px] uppercase font-black tracking-[0.3em] text-[var(--accent-color)] opacity-80 mt-1">Writer Studio Cloud</p>
+            <p className="text-[10px] uppercase font-black tracking-[0.3em] text-blue-400 opacity-80 mt-1">Writer Studio Cloud</p>
           </div>
         </div>
 
         <div className="flex bg-white/5 p-1 rounded-xl mb-8">
           <button 
             onClick={() => setIsLogin(true)}
-            className={`flex-1 py-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${isLogin ? 'bg-[var(--accent-color)] text-midnight shadow-lg' : 'text-white/40 hover:text-white'}`}
+            className={`flex-1 py-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${isLogin ? 'bg-blue-500 text-midnight shadow-lg' : 'text-white/40 hover:text-white'}`}
           >
             <LogIn size={14} /> LOGIN
           </button>
           <button 
             onClick={() => setIsLogin(false)}
-            className={`flex-1 py-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${!isLogin ? 'bg-[var(--accent-color)] text-midnight shadow-lg' : 'text-white/40 hover:text-white'}`}
+            className={`flex-1 py-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${!isLogin ? 'bg-blue-500 text-midnight shadow-lg' : 'text-white/40 hover:text-white'}`}
           >
             <UserPlus size={14} /> CADASTRAR
           </button>
@@ -74,7 +74,7 @@ export default function AuthOverlay() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-white font-bold"
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-4 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white font-bold"
                 placeholder="nome@exemplo.com"
               />
             </div>
@@ -89,7 +89,7 @@ export default function AuthOverlay() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-4 outline-none focus:ring-4 focus:ring-[var(--accent-color)]/10 focus:border-[var(--accent-color)] transition-all text-white font-bold"
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-4 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white font-bold"
                 placeholder="••••••••"
               />
             </div>
@@ -103,7 +103,7 @@ export default function AuthOverlay() {
 
           <button 
             disabled={loading}
-            className="w-full bg-[var(--accent-color)] text-midnight py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(var(--accent-color-rgb),0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-wait mt-4"
+            className="w-full bg-blue-500 text-midnight py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-wait mt-4"
           >
             {loading ? "PROCESSANDO..." : isLogin ? "ENTRAR NO SISTEMA" : "CRIAR CONTA PRIVADA"}
           </button>

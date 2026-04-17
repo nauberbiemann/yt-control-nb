@@ -44,6 +44,293 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const isValidUuid = (value?: string | null) => !!value && uuidRegex.test(value);
+
+  const resolveThemeStatusFromPublishDate = (dateValue?: string | null, fallbackStatus = 'scripted') => {
+    if (!dateValue) return fallbackStatus;
+
+    const normalizedDate = dateValue.includes('T') ? dateValue : `${dateValue}T00:00:00`;
+    const selected = new Date(normalizedDate);
+    if (Number.isNaN(selected.getTime())) return fallbackStatus;
+
+    const now = new Date();
+    if (dateValue.includes('T')) {
+      return selected.getTime() <= now.getTime() ? 'published' : 'scheduled';
+    }
+
+    const selectedDay = new Date(selected);
+    selectedDay.setHours(0, 0, 0, 0);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (selectedDay.getTime() < todayStart.getTime()) return 'published';
+    if (selectedDay.getTime() > todayStart.getTime()) return 'scheduled';
+    return 'scripted';
+  };
+
+  const inferThemeTitleFromSnapshot = (snapshot: any) => {
+    const candidates = [
+      snapshot?.approvedTheme,
+      snapshot?.approvedBriefing?.refined_title,
+      snapshot?.approvedBriefing?.title,
+      snapshot?.approvedBriefing?.theme,
+      snapshot?.approvedBriefing?.workingTitle,
+      snapshot?.externalScriptFileName?.replace(/\.(txt|md)$/i, ''),
+    ];
+
+    const found = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+    return typeof found === 'string' ? found.trim() : '';
+  };
+
+  const projectHasCloudPayload = (projectId?: string | null) => {
+    if (!projectId || typeof window === 'undefined') return false;
+
+    const payloadKeys = [
+      `ws_narrative_${projectId}`,
+      `themes_${projectId}`,
+      `ws_script_execution_${projectId}`,
+      `ws_assemblies_${projectId}`,
+      `bi_${projectId}`,
+    ];
+
+    return payloadKeys.some((key) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.length > 0;
+        if (parsed && typeof parsed === 'object') return Object.keys(parsed).length > 0;
+        return typeof parsed === 'string' ? parsed.trim().length > 0 : Boolean(parsed);
+      } catch {
+        return raw.trim().length > 0;
+      }
+    });
+  };
+
+  const sanitizeProjectCloudPayload = (project: Record<string, any>) => {
+    const safeName =
+      project?.project_name ||
+      project?.name ||
+      'Canal sem nome';
+
+    return {
+      id: project?.id,
+      name: safeName,
+      description:
+        project?.description ||
+        project?.puc ||
+        project?.puc_promise ||
+        'Projeto sincronizado a partir do ambiente local.',
+      puc: project?.puc || project?.puc_promise || '',
+      visual_style: project?.visual_style || 'Cinematic',
+      accent_color: project?.accent_color || project?.primary_color || '#3b82f6',
+      target_persona: project?.target_persona || null,
+      ai_engine_rules: project?.ai_engine_rules || null,
+      playlists: project?.playlists || null,
+      persona_matrix: project?.persona_matrix || null,
+      metaphor_library: project?.metaphor_library || '',
+      prohibited_terms: project?.prohibited_terms || '',
+      base_system_instruction: project?.base_system_instruction || '',
+      status: project?.status || 'active',
+      updated_at: new Date().toISOString(),
+    };
+  };
+
+  const sanitizeThemeStatusForCloud = (status?: string | null) => {
+    const normalized = (status || '').toLowerCase().trim();
+    if (['published', 'publicado'].includes(normalized)) return 'published';
+    if (['vetted', 'approved', 'aprovado'].includes(normalized)) return 'vetted';
+    if (
+      [
+        'scripted',
+        'scheduled',
+        'programado',
+        'production',
+        'producao',
+        'produção',
+        'generating',
+        'done',
+      ].includes(normalized)
+    ) return 'scripted';
+    return 'backlog';
+  };
+
+  const sanitizeThemeCloudPayload = (item: Record<string, any>, projectId: string, currentUserId?: string | null) => ({
+    id: isValidUuid(item?.id) ? item.id : crypto.randomUUID(),
+    project_id: projectId,
+    user_id: item?.user_id || currentUserId || null,
+    title: item?.title || item?.refined_title || item?.theme || 'Tema sem título',
+    description: item?.description || '',
+    editorial_pillar: item?.editorial_pillar || item?.pipeline_level || '',
+    status: sanitizeThemeStatusForCloud(item?.status),
+    hook_id: isValidUuid(item?.hook_id) ? item.hook_id : null,
+    title_structure: item?.title_structure || '',
+    priority: Number.isFinite(Number(item?.priority)) ? Number(item.priority) : 0,
+    notes: item?.notes || '',
+    created_at: item?.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  const extractBriefingDurationMinutes = (briefing: any) => {
+    const durationValue =
+      briefing?.estimatedDuration ||
+      briefing?.duration ||
+      briefing?.targetDuration ||
+      briefing?.editingSop?.duration;
+
+    if (typeof durationValue === 'number' && Number.isFinite(durationValue)) {
+      return durationValue;
+    }
+
+    if (typeof durationValue === 'string') {
+      const match = durationValue.match(/\d+/);
+      if (match) return Number(match[0]);
+    }
+
+    return null;
+  };
+
+  const buildThemePayloadFromExecutionSnapshot = (
+    project: any,
+    snapshot: any,
+    existingTheme: any,
+    currentUserId?: string | null
+  ) => {
+    const themeTitle = inferThemeTitleFromSnapshot(snapshot);
+    if (!themeTitle) return null;
+
+    const briefing = snapshot?.approvedBriefing || {};
+    const targetPublishDate =
+      snapshot?.manualPublishDate ||
+      existingTheme?.production_assets?.target_publish_date ||
+      null;
+    const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, existingTheme?.status || 'scripted');
+    const nextThemeId =
+      isValidUuid(existingTheme?.id) ? existingTheme.id : crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    return {
+      ...existingTheme,
+      id: nextThemeId,
+      title: themeTitle,
+      refined_title: themeTitle,
+      description:
+        existingTheme?.description ||
+        `Tema recuperado da execucao local da Escrita Criativa para o projeto ${project?.project_name || project?.name || 'ativo'}.`,
+      editorial_pillar:
+        existingTheme?.editorial_pillar ||
+        project?.playlists?.tactical_journey?.[0]?.label ||
+        '',
+      status: scheduleStatus,
+      title_structure:
+        briefing?.selectedTitleStructure?.name ||
+        existingTheme?.title_structure ||
+        '',
+      selected_structure:
+        briefing?.selectedTitleStructure?.id ||
+        briefing?.assetLog?.titleStructure ||
+        existingTheme?.selected_structure ||
+        '',
+      title_structure_asset_id:
+        briefing?.selectedTitleStructure?.id ||
+        briefing?.assetLog?.titleStructure ||
+        existingTheme?.title_structure_asset_id ||
+        null,
+      pipeline_level:
+        existingTheme?.pipeline_level ||
+        project?.playlists?.tactical_journey?.[0]?.label ||
+        '',
+      is_demand_vetted: existingTheme?.is_demand_vetted ?? true,
+      is_persona_vetted: existingTheme?.is_persona_vetted ?? true,
+      priority: Number(existingTheme?.priority || 0),
+      notes:
+        existingTheme?.notes ||
+        'Origem: snapshot local recuperado e sincronizado com a nuvem.',
+      match_score:
+        Number(existingTheme?.match_score || briefing?.diagnostics?.noveltyScore || 0),
+      demand_views: existingTheme?.demand_views || '',
+      production_assets: {
+        ...(existingTheme?.production_assets || {}),
+        source:
+          existingTheme?.production_assets?.source || 'script_engine_snapshot_recovery',
+        approved_at: existingTheme?.production_assets?.approved_at || nowIso,
+        hook_id:
+          existingTheme?.production_assets?.hook_id ||
+          briefing?.assetLog?.hook ||
+          null,
+        cta_id:
+          existingTheme?.production_assets?.cta_id ||
+          briefing?.assetLog?.ctaFinal ||
+          null,
+        title_structure_id:
+          existingTheme?.production_assets?.title_structure_id ||
+          briefing?.assetLog?.titleStructure ||
+          null,
+        narrative_curve_id:
+          existingTheme?.production_assets?.narrative_curve_id ||
+          briefing?.selectedNarrativeCurve?.id ||
+          briefing?.assetLog?.narrativeCurve ||
+          null,
+        argument_mode_id:
+          existingTheme?.production_assets?.argument_mode_id ||
+          briefing?.selectedArgumentMode?.id ||
+          briefing?.assetLog?.argumentMode ||
+          null,
+        repetition_rule_ids:
+          existingTheme?.production_assets?.repetition_rule_ids ||
+          briefing?.selectedRepetitionRules?.map((rule: any) => rule.id) ||
+          [],
+        block_count:
+          existingTheme?.production_assets?.block_count ||
+          briefing?.blockCount ||
+          briefing?.blocks?.length ||
+          snapshot?.scriptBlocks?.length ||
+          null,
+        duration_minutes:
+          Number(existingTheme?.production_assets?.duration_minutes || 0) ||
+          extractBriefingDurationMinutes(briefing),
+        voice_pattern:
+          existingTheme?.production_assets?.voice_pattern ||
+          briefing?.diagnostics?.locked?.voicePatternId ||
+          null,
+        execution_mode:
+          snapshot?.executionMode ||
+          existingTheme?.production_assets?.execution_mode ||
+          'internal',
+        external_script_text:
+          snapshot?.externalScriptText ||
+          existingTheme?.production_assets?.external_script_text ||
+          '',
+        external_file_name:
+          snapshot?.externalScriptFileName ||
+          existingTheme?.production_assets?.external_file_name ||
+          '',
+        external_source_label:
+          snapshot?.externalSourceLabel ||
+          existingTheme?.production_assets?.external_source_label ||
+          '',
+        external_srt_text:
+          snapshot?.externalSrtText ||
+          existingTheme?.production_assets?.external_srt_text ||
+          '',
+        external_srt_file_name:
+          snapshot?.externalSrtFileName ||
+          existingTheme?.production_assets?.external_srt_file_name ||
+          '',
+        target_publish_date: targetPublishDate,
+        schedule_status: scheduleStatus,
+        execution_snapshot: snapshot,
+      },
+      project_id: project.id,
+      user_id: existingTheme?.user_id || currentUserId || project?.user_id || null,
+      updated_at: nowIso,
+      created_at: existingTheme?.created_at || nowIso,
+    };
+  };
+
   const persistProjectsLocally = (projectList: any[]) => {
     const payload = JSON.stringify(projectList || []);
     localStorage.setItem('writer_studio_projects', payload);
@@ -79,6 +366,7 @@ export default function Home() {
   const [editingProject, setEditingProject] = useState<any>(null);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -262,7 +550,22 @@ export default function Home() {
 
   const handleLogout = async () => {
     if (confirm('Deseja realmente encerrar a sessão?')) {
-      await supabase.auth.signOut();
+      setLoading(true);
+      try {
+        if (supabase) {
+          await supabase.auth.signOut({ scope: 'global' });
+        }
+      } catch (error) {
+        console.warn('[ContentOS] Falha ao encerrar sessão no Supabase:', error);
+      } finally {
+        setLastSessionId(null);
+        setUser(null);
+        setProfile(null);
+        projectStore.clearProject();
+        setCurrentView('home');
+        setShowSettings(false);
+        setLoading(false);
+      }
     }
   };
 
@@ -274,7 +577,10 @@ export default function Home() {
       projects: JSON.parse(projectsData),
       libraries: {},
       themes: {},
-      version: '2.0-universal'
+      executions: {},
+      assemblies: {},
+      analytics: {},
+      version: '2.1-universal'
     };
 
     // Capturar todas as bibliotecas narrativas e temas vinculados
@@ -284,6 +590,15 @@ export default function Home() {
       
       const themeData = localStorage.getItem(`themes_${p.id}`);
       if (themeData) exportBundle.themes[p.id] = JSON.parse(themeData);
+
+      const executionData = localStorage.getItem(`ws_script_execution_${p.id}`);
+      if (executionData) exportBundle.executions[p.id] = JSON.parse(executionData);
+
+      const assemblyData = localStorage.getItem(`ws_assemblies_${p.id}`);
+      if (assemblyData) exportBundle.assemblies[p.id] = JSON.parse(assemblyData);
+
+      const analyticsData = localStorage.getItem(`bi_${p.id}`);
+      if (analyticsData) exportBundle.analytics[p.id] = JSON.parse(analyticsData);
     });
     
     const blob = new Blob([JSON.stringify(exportBundle)], { type: 'application/json' });
@@ -305,13 +620,21 @@ export default function Home() {
         const bundle = JSON.parse(event.target?.result as string);
         let projectsToImport = [];
         let librariesToImport: any = {};
+        let themesToImport: Record<string, any[]> = {};
+        let executionsToImport: Record<string, any> = {};
+        let assembliesToImport: Record<string, any[]> = {};
+        let analyticsToImport: Record<string, any[]> = {};
         
         // Suporte para formato antigo e novo universal
         if (Array.isArray(bundle)) {
           projectsToImport = bundle;
-        } else if (bundle.version === '2.0-universal') {
+        } else if (bundle.version === '2.0-universal' || bundle.version === '2.1-universal') {
           projectsToImport = bundle.projects;
           librariesToImport = bundle.libraries || {};
+          themesToImport = bundle.themes || {};
+          executionsToImport = bundle.executions || {};
+          assembliesToImport = bundle.assemblies || {};
+          analyticsToImport = bundle.analytics || {};
         } else {
           throw new Error('Formato de backup não reconhecido.');
         }
@@ -351,6 +674,55 @@ export default function Home() {
           }
         });
 
+        let importedThemes = 0;
+        Object.keys(themesToImport).forEach((oldProjId) => {
+          const newProjId = idMap[oldProjId];
+          if (!newProjId) return;
+
+          const themes = (Array.isArray(themesToImport[oldProjId]) ? themesToImport[oldProjId] : []).map((theme: any) => ({
+            ...theme,
+            project_id: newProjId,
+            id: uuidRegex.test(theme?.id) ? theme.id : crypto.randomUUID(),
+            updated_at: new Date().toISOString(),
+          }));
+
+          localStorage.setItem(`themes_${newProjId}`, JSON.stringify(themes));
+          importedThemes += themes.length;
+        });
+
+        let importedExecutions = 0;
+        Object.keys(executionsToImport).forEach((oldProjId) => {
+          const newProjId = idMap[oldProjId];
+          const executionSnapshot = executionsToImport[oldProjId];
+          if (!newProjId || !executionSnapshot) return;
+
+          localStorage.setItem(`ws_script_execution_${newProjId}`, JSON.stringify({
+            ...executionSnapshot,
+            updated_at: new Date().toISOString(),
+          }));
+          importedExecutions += 1;
+        });
+
+        let importedAssemblies = 0;
+        Object.keys(assembliesToImport).forEach((oldProjId) => {
+          const newProjId = idMap[oldProjId];
+          if (!newProjId) return;
+
+          const assemblies = Array.isArray(assembliesToImport[oldProjId]) ? assembliesToImport[oldProjId] : [];
+          localStorage.setItem(`ws_assemblies_${newProjId}`, JSON.stringify(assemblies));
+          importedAssemblies += assemblies.length;
+        });
+
+        let importedAnalytics = 0;
+        Object.keys(analyticsToImport).forEach((oldProjId) => {
+          const newProjId = idMap[oldProjId];
+          if (!newProjId) return;
+
+          const analyticsEntries = Array.isArray(analyticsToImport[oldProjId]) ? analyticsToImport[oldProjId] : [];
+          localStorage.setItem(`bi_${newProjId}`, JSON.stringify(analyticsEntries));
+          importedAnalytics += analyticsEntries.length;
+        });
+
         // 4. Manter a Instância Ativa se ela foi remapeada
         if (activeProjectId && idMap[activeProjectId]) {
           setActiveProjectId(idMap[activeProjectId]);
@@ -358,7 +730,7 @@ export default function Home() {
           setActiveProjectId(sanitizedProjects[0].id);
         }
 
-        alert(`Backup Universal importado: ${sanitizedProjects.length} projetos e ${migratedCount} itens de biblioteca. Clique em Sincronizar Nuvem.`);
+        alert(`Backup Universal importado: ${sanitizedProjects.length} projetos, ${migratedCount} itens de biblioteca, ${importedThemes} temas, ${importedExecutions} snapshots da Escrita Criativa, ${importedAssemblies} snapshots do assembler e ${importedAnalytics} registros de BI. Clique em Sincronizar Nuvem.`);
         
         // Autoridade Total: Não chamamos fetchProjects para evitar que a nuvem vazia apague o estado recém-importado.
         // O usuário sincronizará manualmente em seguida.
@@ -382,36 +754,70 @@ export default function Home() {
   const handleSyncToCloud = async () => {
     if (!supabase) return alert('Supabase não configurado.');
     
-    setLoading(true);
+    setIsSyncingCloud(true);
     console.log("[ContentOS-Sync] Iniciando Sincronização Mestre...");
+
+    const withTimeout = async <T,>(promise: Promise<T>, ms = 60000, message = 'Tempo limite excedido durante a sincronização.') => {
+      return await Promise.race<T>([
+        promise,
+        new Promise<T>((_, reject) => {
+          setTimeout(() => reject(new Error(message)), ms);
+        }),
+      ]);
+    };
     
     try {
-        const updatedProjects = projects.filter((project) => !isBootstrapProject(project));
+      const syncCandidate = activeProject && projectHasCloudPayload(activeProject.id)
+        ? activeProject
+        : null;
+
+      const updatedProjects = syncCandidate
+        ? [{ ...syncCandidate }]
+        : projects.filter((project) =>
+            !project?.is_recovered_project &&
+            (!isBootstrapProject(project) || projectHasCloudPayload(project.id))
+          );
+
+      if (updatedProjects.length === 0) {
+        alert('Nenhum projeto com dados locais elegíveis para sincronizar. Se o DevZen for o seu projeto-base, eu já posso liberar esse bootstrap para a nuvem também.');
+        return;
+      }
       let totalSynced = 0;
+      const nextProjects = [...projects];
       
       for (let i = 0; i < updatedProjects.length; i++) {
         const project = { ...updatedProjects[i] };
         const originalId = project.id; 
         
         console.log(`[ContentOS-Sync] Sincronizando Projeto: ${project.project_name || project.name}`);
+        console.time(`sync-project-${project.id}`);
 
         // 🛡️ Sanitize ID: Se não for um UUID válido, gere um novo
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(project.id)) {
           project.id = crypto.randomUUID();
           updatedProjects[i] = project;
         }
 
-        // 1. Upsert Projeto
-        const { error: projError } = await supabase
-          .from('projects')
-          .upsert({ ...project, user_id: user?.id });
+        const projectPayload = sanitizeProjectCloudPayload(project);
+        console.log(`[ContentOS-Sync]   - Payload do Projeto: ${Math.round(JSON.stringify(projectPayload).length / 1024)} KB`);
+
+        const { error: projError }: any = await withTimeout(
+          supabase
+            .from('projects')
+            .upsert(projectPayload),
+          120000,
+          `Tempo limite ao sincronizar o projeto ${project.project_name || project.name}.`
+        );
           
         if (projError) throw projError;
         totalSynced++;
 
-        // Helper para sincronização EM LOTE (Muito mais rápido e confiável)
-        const batchSync = async (localKey: string, tableName: string, foreignKey: string) => {
+        // Helper para sincronização EM LOTE
+        const batchSync = async (
+          localKey: string,
+          tableName: string,
+          sanitizer: (item: any) => any | null
+        ) => {
           const rawData = localStorage.getItem(localKey);
           if (!rawData) return;
           
@@ -422,17 +828,20 @@ export default function Home() {
             console.log(`[ContentOS-Sync]   - Efetuando batch upload em ${tableName} (${items.length} itens)...`);
 
             // Sanitizar IDs dos itens no lote
-            const sanitizedItems = items.map(item => ({
-              ...item,
-              [foreignKey]: project.id,
-              id: uuidRegex.test(item.id) ? item.id : crypto.randomUUID(),
-              updated_at: new Date().toISOString()
-            }));
+            const sanitizedItems = items
+              .map((item) => sanitizer(item))
+              .filter(Boolean);
+
+            if (sanitizedItems.length === 0) return;
 
             // Upsert do lote inteiro
-            const { error } = await supabase
-              .from(tableName)
-              .upsert(sanitizedItems);
+            const { error }: any = await withTimeout(
+              supabase
+                .from(tableName)
+                .upsert(sanitizedItems),
+              60000,
+              `Tempo limite ao sincronizar ${tableName}.`
+            );
             
             if (error) {
               console.error(`[ContentOS-Sync] ❌ Erro no lote de ${tableName}:`, error.message);
@@ -444,22 +853,36 @@ export default function Home() {
           }
         };
 
-        // 2, 3, 4 - Sincronização em Lote
-        await batchSync(`ws_narrative_${originalId}`, 'narrative_components', 'project_id');
-        await batchSync(`themes_${originalId}`, 'themes', 'project_id');
-        await batchSync(`bi_${originalId}`, 'composition_log', 'project_id');
+        // 2 - Sincronização do Banco de Temas
+        await batchSync(
+          `themes_${originalId}`,
+          'themes',
+          (item) => sanitizeThemeCloudPayload(item, project.id, user?.id)
+        );
 
         // Auto-reparo das chaves locais se o ID mudou
         if (originalId !== project.id) {
-          ['ws_narrative_', 'themes_', 'bi_'].forEach(p => {
+          ['themes_'].forEach(p => {
             const d = localStorage.getItem(`${p}${originalId}`);
             if (d) localStorage.setItem(`${p}${project.id}`, d);
           });
         }
+
+        const projectIndex = nextProjects.findIndex((candidate) => candidate.id === originalId);
+        if (projectIndex >= 0) {
+          nextProjects[projectIndex] = project;
+        } else {
+          nextProjects.push(project);
+        }
+
+        console.timeEnd(`sync-project-${project.id}`);
       }
       
-      setProjects(updatedProjects);
-      persistProjectsLocally(updatedProjects);
+      setProjects(nextProjects);
+      persistProjectsLocally(nextProjects);
+      if (syncCandidate && syncCandidate.id !== updatedProjects[0]?.id && updatedProjects[0]?.id) {
+        setActiveProjectId(updatedProjects[0].id);
+      }
       
       console.log("[ContentOS-Sync] Sincronização Concluída!");
       alert(`Sincronização mestre concluída!\n${updatedProjects.length} canais e ${totalSynced} itens migrados com sucesso.`);
@@ -467,8 +890,8 @@ export default function Home() {
       console.error("[ContentOS-Sync] ❌ Falha Crítica na Sincronização:", err);
       alert('Erro na sincronização: ' + err.message);
     } finally {
-      setLoading(false);
-      await projectStore.loadProjects();
+      setIsSyncingCloud(false);
+      void projectStore.loadProjects();
     }
   };
 
@@ -610,7 +1033,7 @@ export default function Home() {
 
       if (supabase) {
         console.log("[ContentOS] Sincronizando com Supabase em background...");
-        supabase.from('projects').upsert(projectData).then(({ error }: { error: any }) => {
+        supabase.from('projects').upsert(sanitizeProjectCloudPayload(projectData)).then(({ error }: { error: any }) => {
           if (error) console.warn('⚠️ Supabase Sync Error:', error.message);
           else {
             console.log("[ContentOS] Sincronização concluída. Recarregando projetos...");
@@ -961,11 +1384,14 @@ export default function Home() {
                         
                         <button 
                           onClick={handleSyncToCloud}
-                          className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/40 hover:text-white group"
+                          disabled={isSyncingCloud}
+                          className="flex-1 flex items-center justify-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-white/40 hover:text-white group disabled:opacity-50 disabled:cursor-wait"
                           title="Sincronizar Local com Nuvem"
                         >
                           <Database size={20} className="group-hover:text-blue-400 transition-colors" />
-                          <span className="text-[10px] font-black uppercase tracking-widest">Sincronizar Nuvem</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest">
+                            {isSyncingCloud ? 'Sincronizando...' : 'Sincronizar Nuvem'}
+                          </span>
                         </button>
                     </div>
                     <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest leading-relaxed">

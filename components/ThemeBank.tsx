@@ -291,7 +291,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     }
   };
 
-    const fetchThemes = async () => {
+  const fetchThemes = async () => {
       if (!activeProject?.id) return;
       setLoading(true);
       try {
@@ -307,6 +307,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       }
 
       if (!supabase) return;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeProject.id)) {
+        return;
+      }
 
       // 2. Buscar na nuvem
       const { data, error } = await supabase

@@ -225,8 +225,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       );
     };
 
-    remoteItems.forEach(upsert);
     localItems.forEach(upsert);
+    remoteItems.forEach(upsert);
 
     return Array.from(merged.values()).sort((a, b) => {
       const priorityDelta = (Number(b.priority) || 0) - (Number(a.priority) || 0);
@@ -262,9 +262,30 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const sanitizeProjectForCloud = () => ({
     id: activeProject.id,
     name: activeProject.name || activeProject.project_name || 'Canal Recuperado',
+    project_name: activeProject.project_name || activeProject.name || 'Canal Recuperado',
     description: activeProject.description || activeProject.puc || activeProject.puc_promise || 'Projeto sincronizado do Banco de Temas.',
     puc: activeProject.puc || activeProject.puc_promise || '',
+    puc_promise: activeProject.puc_promise || activeProject.puc || '',
     status: 'active',
+    visual_style: activeProject.visual_style || null,
+    accent_color: activeProject.accent_color || '#9BB0A5',
+    target_persona: activeProject.target_persona || null,
+    ai_engine_rules: activeProject.ai_engine_rules || null,
+    playlists: activeProject.playlists || null,
+    phd_strategy: activeProject.phd_strategy || null,
+    persona_matrix: activeProject.persona_matrix || null,
+    editorial_line: activeProject.editorial_line || null,
+    narrative_voice: activeProject.narrative_voice || null,
+    detailed_sop: activeProject.detailed_sop || activeProject.editing_sop || null,
+    editing_sop: activeProject.editing_sop || activeProject.detailed_sop || null,
+    thumb_strategy: activeProject.thumb_strategy || null,
+    metaphor_library: activeProject.metaphor_library || null,
+    prohibited_terms: activeProject.prohibited_terms || null,
+    base_system_instruction: activeProject.base_system_instruction || null,
+    default_execution_mode: activeProject.default_execution_mode || 'internal',
+    traceability_summary: activeProject.traceability_summary || [],
+    traceability_sources: activeProject.traceability_sources || {},
+    user_id: activeProject.user_id || null,
     created_at: activeProject.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });

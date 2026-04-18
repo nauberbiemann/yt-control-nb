@@ -500,7 +500,13 @@ export const useProjectStore = create<ProjectStore>()(
             const mergedRemote = remoteProjects.map((project: Project) => {
               remoteIds.add(project.id);
               const localProject = localById.get(project.id);
-              return localProject ? mergeProjectRecords(localProject, project) : project;
+              if (!localProject) return project;
+              // Compare updated_at: whoever has the more recent timestamp is the overlay (authority)
+              const localTime = new Date(localProject.updated_at || 0).getTime();
+              const remoteTime = new Date(project.updated_at || 0).getTime();
+              return remoteTime >= localTime
+                ? mergeProjectRecords(localProject, project)   // remote wins (remote overlays local)
+                : mergeProjectRecords(project, localProject);  // local wins (local overlays remote)
             });
 
             const localOnly = localProjects.filter((project) => !remoteIds.has(project.id));

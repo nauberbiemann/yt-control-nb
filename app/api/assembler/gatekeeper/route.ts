@@ -61,13 +61,14 @@ export async function POST(req: NextRequest) {
     if (engine === 'openai') {
       resolvedKey = apiKey || process.env.OPENAI_API_KEY || '';
     } else if (engine === 'gemini') {
-      resolvedKey = apiKey || process.env.GEMINI_API_KEY || '';
+      resolvedKey = apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || '';
     }
 
     // If no API key, return local fallback with a warning
     if (!resolvedKey || resolvedKey === 'sua_chave_aqui') {
+      console.warn(`[Gatekeeper] No valid API key for engine "${engine}". Falling back to local analysis.`);
       const fallback = localGatekeeperFallback(theme, projectDNA);
-      return NextResponse.json({ ...fallback, isFallback: true }, { status: 200 });
+      return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'no_key' }, { status: 200 });
     }
 
     // --- AI-Powered Gatekeeper ---
@@ -111,7 +112,12 @@ Respond ONLY with raw JSON (no markdown, no explanation), using this exact struc
         }
       );
       const raw = await response.json();
-      if (!response.ok) return NextResponse.json(raw, { status: response.status });
+      if (!response.ok) {
+        console.warn('[Gatekeeper Gemini] API returned error:', response.status, JSON.stringify(raw).slice(0, 300));
+        const reason = response.status === 401 || response.status === 403 ? 'no_key' : 'parse_error';
+        const fallback = localGatekeeperFallback(theme, projectDNA);
+        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: reason }, { status: 200 });
+      }
       const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
       const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
       try {
@@ -119,7 +125,7 @@ Respond ONLY with raw JSON (no markdown, no explanation), using this exact struc
       } catch (e) {
         console.warn('[Gatekeeper Gemini] Invalid JSON returned. Using fallback.', { cleanText });
         const fallback = localGatekeeperFallback(theme, projectDNA);
-        return NextResponse.json({ ...fallback, fallbackReason: 'parse_error' }, { status: 200 });
+        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'parse_error' }, { status: 200 });
       }
     } else {
       const supportsTemp = !isReasoningModel(model || '');
@@ -139,14 +145,19 @@ Respond ONLY with raw JSON (no markdown, no explanation), using this exact struc
         body: JSON.stringify(requestBody),
       });
       const raw = await response.json();
-      if (!response.ok) return NextResponse.json(raw, { status: response.status });
+      if (!response.ok) {
+        console.warn('[Gatekeeper OpenAI] API returned error:', response.status, JSON.stringify(raw).slice(0, 300));
+        const reason = response.status === 401 || response.status === 403 ? 'no_key' : 'parse_error';
+        const fallback = localGatekeeperFallback(theme, projectDNA);
+        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: reason }, { status: 200 });
+      }
       const text = raw?.choices?.[0]?.message?.content || '{}';
       try {
         responseData = JSON.parse(text);
       } catch (e) {
         console.warn('[Gatekeeper OpenAI] Invalid JSON returned. Using fallback.', { text });
         const fallback = localGatekeeperFallback(theme, projectDNA);
-        return NextResponse.json({ ...fallback, fallbackReason: 'parse_error' }, { status: 200 });
+        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'parse_error' }, { status: 200 });
       }
     }
 

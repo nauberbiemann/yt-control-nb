@@ -119,22 +119,35 @@ export default function Home() {
     return {
       id: project?.id,
       name: safeName,
+      project_name: project?.project_name || safeName,
       description:
         project?.description ||
         project?.puc ||
         project?.puc_promise ||
         'Projeto sincronizado a partir do ambiente local.',
       puc: project?.puc || project?.puc_promise || '',
-      visual_style: project?.visual_style || 'Cinematic',
-      accent_color: project?.accent_color || project?.primary_color || '#3b82f6',
+      puc_promise: project?.puc_promise || project?.puc || '',
+      status: project?.status || 'active',
+      visual_style: project?.visual_style || null,
+      accent_color: project?.accent_color || '#9BB0A5',
       target_persona: project?.target_persona || null,
       ai_engine_rules: project?.ai_engine_rules || null,
       playlists: project?.playlists || null,
+      phd_strategy: project?.phd_strategy || null,
       persona_matrix: project?.persona_matrix || null,
-      metaphor_library: project?.metaphor_library || '',
-      prohibited_terms: project?.prohibited_terms || '',
-      base_system_instruction: project?.base_system_instruction || '',
-      status: project?.status || 'active',
+      editorial_line: project?.editorial_line || null,
+      narrative_voice: project?.narrative_voice || null,
+      detailed_sop: project?.detailed_sop || project?.editing_sop || null,
+      editing_sop: project?.editing_sop || project?.detailed_sop || null,
+      thumb_strategy: project?.thumb_strategy || null,
+      metaphor_library: project?.metaphor_library || null,
+      prohibited_terms: project?.prohibited_terms || null,
+      base_system_instruction: project?.base_system_instruction || null,
+      default_execution_mode: project?.default_execution_mode || 'internal',
+      traceability_summary: project?.traceability_summary || [],
+      traceability_sources: project?.traceability_sources || {},
+      user_id: project?.user_id || null,
+      created_at: project?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
   };
@@ -767,16 +780,11 @@ export default function Home() {
     };
     
     try {
-      const syncCandidate = activeProject && projectHasCloudPayload(activeProject.id)
-        ? activeProject
-        : null;
+      const syncCandidate = activeProject ? activeProject : null;
 
       const updatedProjects = syncCandidate
         ? [{ ...syncCandidate }]
-        : projects.filter((project) =>
-            !project?.is_recovered_project &&
-            (!isBootstrapProject(project) || projectHasCloudPayload(project.id))
-          );
+        : [];
 
       if (updatedProjects.length === 0) {
         alert('Nenhum projeto com dados locais elegíveis para sincronizar. Se o DevZen for o seu projeto-base, eu já posso liberar esse bootstrap para a nuvem também.');
@@ -891,7 +899,6 @@ export default function Home() {
       alert('Erro na sincronização: ' + err.message);
     } finally {
       setIsSyncingCloud(false);
-      void projectStore.loadProjects();
     }
   };
 

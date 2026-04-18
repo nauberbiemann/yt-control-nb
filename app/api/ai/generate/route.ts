@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     if (engine === 'openai') {
       apiKey = apiKeyOverwrite || process.env.OPENAI_API_KEY || '';
     } else if (engine === 'gemini') {
-      apiKey = apiKeyOverwrite || process.env.GEMINI_API_KEY || '';
+      apiKey = apiKeyOverwrite || process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY || '';
     }
 
     if (!apiKey || apiKey === 'sua_chave_aqui') {

@@ -108,8 +108,8 @@ const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
     );
   };
 
-  remoteItems.forEach(upsert);
   localItems.forEach(upsert);
+  remoteItems.forEach(upsert);
 
   return Array.from(merged.values()).sort(
     (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
@@ -180,9 +180,30 @@ function sanitizeProjectForCloud(project: any) {
   return {
     id: project.id,
     name: project.name || project.project_name || 'Canal Recuperado',
+    project_name: project.project_name || project.name || 'Canal Recuperado',
     description: project.description || project.puc || project.puc_promise || 'Projeto sincronizado do Banco de Temas.',
     puc: project.puc || project.puc_promise || '',
+    puc_promise: project.puc_promise || project.puc || '',
     status: project.status || 'active',
+    visual_style: project.visual_style || null,
+    accent_color: project.accent_color || '#9BB0A5',
+    target_persona: project.target_persona || null,
+    ai_engine_rules: project.ai_engine_rules || null,
+    playlists: project.playlists || null,
+    phd_strategy: project.phd_strategy || null,
+    persona_matrix: project.persona_matrix || null,
+    editorial_line: project.editorial_line || null,
+    narrative_voice: project.narrative_voice || null,
+    detailed_sop: project.detailed_sop || project.editing_sop || null,
+    editing_sop: project.editing_sop || project.detailed_sop || null,
+    thumb_strategy: project.thumb_strategy || null,
+    metaphor_library: project.metaphor_library || null,
+    prohibited_terms: project.prohibited_terms || null,
+    base_system_instruction: project.base_system_instruction || null,
+    default_execution_mode: project.default_execution_mode || 'internal',
+    traceability_summary: project.traceability_summary || [],
+    traceability_sources: project.traceability_sources || {},
+    user_id: project.user_id || null,
     created_at: project.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

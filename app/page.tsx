@@ -1488,8 +1488,8 @@ export default function Home() {
             userId={user?.id} 
             selectedAIConfig={activeAIConfig}
             onGerarRoteiro={handleGerarRoteiro}
-            onOpenInWriting={() => {
-              setPendingScript(null);
+            onOpenInWriting={(theme) => {
+              setPendingScript(theme ?? null);
               setCurrentView('scripts');
             }}
           />;

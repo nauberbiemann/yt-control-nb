@@ -272,73 +272,70 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       return;
     }
 
+    let localItems: NarrativeComponent[] = [];
+    let hasLocalData = false;
+
+    // 1. INSTANT LOCAL CACHE LOAD (SWR Pattern)
+    const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+    if (localData) {
+      try {
+        const parsed = JSON.parse(localData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localItems = parsed;
+          setComponents(parsed);
+          hasLocalData = true;
+          setIsLoading(false); // ⚡ UNBLOCK UI IMMEDIATELY
+        }
+      } catch {}
+    }
+
+    if (!hasLocalData) {
+      setIsLoading(true); // Only block UI if we absolutely have nothing to show
+    }
+
+    // 2. BACKGROUND SYNC
+    if (!supabase) {
+      if (!hasLocalData) setIsLoading(false);
+      return;
+    }
+
     try {
-      setIsLoading(true);
+      const fetchPromise = supabase
+        .from('narrative_components')
+        .select('*')
+        .eq('project_id', activeProject.id)
+        .order('created_at', { ascending: false });
 
-      // ☁️ CLOUD-WINS: Always fetch from Supabase first.
-      // Local cache is shown below only as instant placeholder while network loads.
-      if (supabase) {
-        let localItems: NarrativeComponent[] = [];
-        // Show local cache immediately so UI isn't blank (will be replaced by cloud)
-        const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
-        if (localData) {
-          try {
-            const parsed = JSON.parse(localData);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              localItems = parsed;
-              setComponents(parsed); // Temporary — cloud will overwrite this
-            }
-          } catch {}
-        }
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Supabase Timeout')), 8000)
+      );
 
-        const fetchPromise = supabase
-          .from('narrative_components')
-          .select('*')
-          .eq('project_id', activeProject.id)
-          .order('created_at', { ascending: false });
+      let data: any = null;
+      let error: any = null;
 
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Supabase Timeout')), 8000)
-        );
+      try {
+        const response: any = await Promise.race([fetchPromise, timeoutPromise]);
+        data = response.data;
+        error = response.error;
+      } catch (err) {
+        error = err;
+      }
 
-        let data: any = null;
-        let error: any = null;
-
-        try {
-          const response: any = await Promise.race([fetchPromise, timeoutPromise]);
-          data = response.data;
-          error = response.error;
-        } catch (err) {
-          error = err;
-        }
-
-        if (error) {
-          console.warn('⚠️ Supabase Fetch Error (Timeout or Network):', error.message);
-          // Keep local cache on error (best effort)
-        } else {
-          // Merge safely so we don't wipe local-only items if cloud is suspiciously empty
-          const cloudItems = (data ?? []) as NarrativeComponent[];
-          // remoteItems overwrite local matches in mergeNarrativeComponents, preserving local-only unsynced ones
-          const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudItems));
-          setComponents(merged);
-          // Persist merged data locally so next load has a warm cache
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
-          console.log(`[ContentOS] ☁️ NarrativeLibrary: ${cloudItems.length} items from cloud, ${merged.length} merged`);
-        }
+      if (error) {
+        console.warn('⚠️ Supabase Background Fetch Error:', error.message);
       } else {
-        // No Supabase — use local cache only
-        const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
-        if (localData) {
-          try {
-            const parsed = JSON.parse(localData);
-            if (Array.isArray(parsed)) {
-              setComponents(dedupeNarrativeComponents(parsed));
-            }
-          } catch {}
+        const cloudItems = (data ?? []) as NarrativeComponent[];
+        const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudItems));
+        
+        const mergedStr = JSON.stringify(merged);
+        if (mergedStr !== JSON.stringify(localItems)) {
+          setComponents(merged);
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, mergedStr);
+          console.log(`[ContentOS] ☁️ Background Sync applied: ${cloudItems.length} cloud, ${merged.length} merged`);
         }
       }
     } catch (e) {
-      console.error('❌ Erro crítico ao buscar componentes:', e);
+      console.error('❌ Erro crítico ao buscar componentes background:', e);
     } finally {
       setIsLoading(false);
     }

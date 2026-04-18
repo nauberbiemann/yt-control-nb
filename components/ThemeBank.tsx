@@ -405,25 +405,35 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
   const fetchThemes = async () => {
     if (!activeProject?.id) return;
-    setLoading(true);
+
+    let localThemes: Theme[] = [];
+    let hasLocalData = false;
+
+    // 1. INSTANT LOCAL CACHE LOAD (SWR Pattern)
+    const localData = localStorage.getItem(`themes_${activeProject.id}`);
+    if (localData) {
+      try {
+        const parsed = JSON.parse(localData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localThemes = parsed.map((t: Theme) => normalizeThemeScheduleStatus(t));
+          setThemes(localThemes);
+          hasLocalData = true;
+          setLoading(false); // ⚡ UNBLOCK UI IMMEDIATELY
+        }
+      } catch {}
+    }
+
+    if (!hasLocalData) {
+      setLoading(true); // Only block UI if we absolutely have nothing to show
+    }
+
+    // 2. BACKGROUND SYNC
+    if (!supabase || !THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
+      if (!hasLocalData) setLoading(false);
+      return;
+    }
+
     try {
-      let localThemes: Theme[] = [];
-      // ☁️ CLOUD-WINS: Show local as instant placeholder, cloud is final truth
-      const localData = localStorage.getItem(`themes_${activeProject.id}`);
-      if (localData) {
-        try {
-          const parsed = JSON.parse(localData);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            localThemes = parsed.map((t: Theme) => normalizeThemeScheduleStatus(t));
-            setThemes(localThemes);
-          }
-        } catch {}
-      }
-
-      if (!supabase || !THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
-        return;
-      }
-
       const fetchPromise = supabase
         .from('themes')
         .select('*')
@@ -449,15 +459,18 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       if (error) {
          console.warn('[ThemeBank] Falha ao buscar nuvem (Timeout/Network); mantendo cache local.', error.message);
       } else {
-         // Cloud data overrides local matches, but keeps local-only unsynced alive
          const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
          const mergedThemes = mergeThemes(localThemes, cloudThemes);
-         setThemes(mergedThemes);
-         localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
-         console.log(`[ThemeBank] ☁️ ${cloudThemes.length} themes from cloud, ${mergedThemes.length} merged`);
+         
+         const mergedStr = JSON.stringify(mergedThemes);
+         if (mergedStr !== JSON.stringify(localThemes)) {
+           setThemes(mergedThemes);
+           localStorage.setItem(`themes_${activeProject.id}`, mergedStr);
+           console.log(`[ThemeBank] ☁️ Background Sync applied: ${cloudThemes.length} cloud, ${mergedThemes.length} merged`);
+         }
       }
     } catch (err) {
-      console.warn('[ThemeBank] Erro inesperado capturado.', err);
+      console.warn('[ThemeBank] Erro inesperado SWR capturado.', err);
     } finally {
       setLoading(false);
     }

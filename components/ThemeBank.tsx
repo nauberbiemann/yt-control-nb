@@ -463,7 +463,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          const mergedThemes = mergeThemes(localThemes, cloudThemes);
          
          // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
-         const cloudIds = new Set(cloudThemes.map(c => c.id));
+         const cloudIds = new Set(cloudThemes.map((c: any) => c.id));
          const unsyncedItems = localThemes.filter(l => l.id && !cloudIds.has(l.id));
          
          if (unsyncedItems.length > 0) {
@@ -474,7 +474,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                project_id: activeProject.id,
                status: sanitizeThemeStatusForCloud(item.status)
              }))
-           ).then(({ error: upsertError }) => {
+           ).then(({ error: upsertError }: { error: any }) => {
              if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
              else console.log('✅ Auto-sync concluído.');
            });

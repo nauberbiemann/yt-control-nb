@@ -335,7 +335,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
           console.log(`[ContentOS] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
           supabase.from('narrative_components').upsert(
             unsyncedItems.map(item => ({ ...item, project_id: activeProject.id }))
-          ).then(({ error: upsertError }) => {
+          ).then(({ error: upsertError }: { error: any }) => {
             if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
             else console.log('✅ Auto-sync concluído.');
           });

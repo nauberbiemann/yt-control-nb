@@ -278,34 +278,52 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       // ☁️ CLOUD-WINS: Always fetch from Supabase first.
       // Local cache is shown below only as instant placeholder while network loads.
       if (supabase) {
+        let localItems: NarrativeComponent[] = [];
         // Show local cache immediately so UI isn't blank (will be replaced by cloud)
         const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
         if (localData) {
           try {
             const parsed = JSON.parse(localData);
             if (Array.isArray(parsed) && parsed.length > 0) {
+              localItems = parsed;
               setComponents(parsed); // Temporary — cloud will overwrite this
             }
           } catch {}
         }
 
-        const { data, error } = await supabase
+        const fetchPromise = supabase
           .from('narrative_components')
           .select('*')
           .eq('project_id', activeProject.id)
           .order('created_at', { ascending: false });
 
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Supabase Timeout')), 8000)
+        );
+
+        let data: any = null;
+        let error: any = null;
+
+        try {
+          const response: any = await Promise.race([fetchPromise, timeoutPromise]);
+          data = response.data;
+          error = response.error;
+        } catch (err) {
+          error = err;
+        }
+
         if (error) {
-          console.warn('⚠️ Supabase Fetch Error:', error.message);
+          console.warn('⚠️ Supabase Fetch Error (Timeout or Network):', error.message);
           // Keep local cache on error (best effort)
         } else {
-          // ☁️ Cloud data is the final truth — always replace local
+          // Merge safely so we don't wipe local-only items if cloud is suspiciously empty
           const cloudItems = (data ?? []) as NarrativeComponent[];
-          const deduped = dedupeNarrativeComponents(cloudItems);
-          setComponents(deduped);
-          // Persist cloud data locally so next load has a warm cache
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(deduped));
-          console.log(`[ContentOS] ☁️ NarrativeLibrary: ${deduped.length} items from cloud`);
+          // remoteItems overwrite local matches in mergeNarrativeComponents, preserving local-only unsynced ones
+          const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudItems));
+          setComponents(merged);
+          // Persist merged data locally so next load has a warm cache
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
+          console.log(`[ContentOS] ☁️ NarrativeLibrary: ${cloudItems.length} items from cloud, ${merged.length} merged`);
         }
       } else {
         // No Supabase — use local cache only

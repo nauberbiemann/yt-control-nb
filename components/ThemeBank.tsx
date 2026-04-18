@@ -407,13 +407,15 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     if (!activeProject?.id) return;
     setLoading(true);
     try {
+      let localThemes: Theme[] = [];
       // ☁️ CLOUD-WINS: Show local as instant placeholder, cloud is final truth
       const localData = localStorage.getItem(`themes_${activeProject.id}`);
       if (localData) {
         try {
           const parsed = JSON.parse(localData);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setThemes(parsed.map((t: Theme) => normalizeThemeScheduleStatus(t)));
+            localThemes = parsed.map((t: Theme) => normalizeThemeScheduleStatus(t));
+            setThemes(localThemes);
           }
         } catch {}
       }
@@ -422,23 +424,40 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         return;
       }
 
-      // Fetch from cloud — this is the final authority
-      const { data, error } = await supabase
+      const fetchPromise = supabase
         .from('themes')
         .select('*')
         .eq('project_id', activeProject.id)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Supabase Timeout')), 8000)
+      );
 
-      // Cloud data completely replaces local — no merge
-      const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
-      setThemes(cloudThemes);
-      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(cloudThemes));
-      console.log(`[ThemeBank] ☁️ ${cloudThemes.length} themes from cloud`);
+      let data: any = null;
+      let error: any = null;
+
+      try {
+        const response: any = await Promise.race([fetchPromise, timeoutPromise]);
+        data = response.data;
+        error = response.error;
+      } catch (err) {
+        error = err;
+      }
+
+      if (error) {
+         console.warn('[ThemeBank] Falha ao buscar nuvem (Timeout/Network); mantendo cache local.', error.message);
+      } else {
+         // Cloud data overrides local matches, but keeps local-only unsynced alive
+         const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
+         const mergedThemes = mergeThemes(localThemes, cloudThemes);
+         setThemes(mergedThemes);
+         localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
+         console.log(`[ThemeBank] ☁️ ${cloudThemes.length} themes from cloud, ${mergedThemes.length} merged`);
+      }
     } catch (err) {
-      console.warn('[ThemeBank] Falha ao buscar nuvem; mantendo cache local.', err);
+      console.warn('[ThemeBank] Erro inesperado capturado.', err);
     } finally {
       setLoading(false);
     }

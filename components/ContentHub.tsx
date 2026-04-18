@@ -301,17 +301,37 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       }
 
       if (supabase) {
-        const { data, error } = await supabase
-          .from('narrative_components')
-          .select('*')
-          .eq('project_id', activeProject.id)
-          .order('created_at', { ascending: false });
+        const fetchPromise = supabase.from('narrative_components').select('*').eq('project_id', activeProject.id);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 8000));
+        
+        const response: any = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (response.error) throw response.error;
+        
+        const cloudData = response.data || [];
+        const titleOnly = cloudData.filter((component: any) => component.type === 'Title Structure');
+        const merged = mergeNarrativeComponents(localItems, cloudData); // merge with full cloud data to save safely
+        
+        // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
+        const cloudIds = new Set(cloudData.map((c: any) => c.id));
+        const unsyncedItems = localItems.filter(l => l.id && !cloudIds.has(l.id));
+        
+        if (unsyncedItems.length > 0) {
+          console.log(`[ContentHub] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
+          supabase.from('narrative_components').upsert(
+            unsyncedItems.map(item => ({ ...item, project_id: activeProject.id }))
+          ).then(({ error: upsertError }: { error: any }) => {
+            if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
+            else console.log('✅ Auto-sync concluído.');
+          });
+        }
 
-        if (!error && data) {
-          const titleOnly = (data as any[]).filter((component) => component.type === 'Title Structure');
-          const merged = mergeNarrativeComponents(localItems, titleOnly);
-          setProjectTitleStructures(normalizeTitleStructures(merged));
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
+        setProjectTitleStructures(normalizeTitleStructures(merged.filter((c: any) => c.type === 'Title Structure' || typeof c.type === 'undefined')));
+        
+        const mergedStr = JSON.stringify(merged);
+        if (mergedStr !== JSON.stringify(localItems)) {
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, mergedStr);
+          console.log(`[ContentHub] ☁️ Background Sync applied: ${cloudData.length} cloud, ${merged.length} merged`);
         }
       }
     } catch (err) {

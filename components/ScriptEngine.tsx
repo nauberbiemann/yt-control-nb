@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -333,6 +333,17 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       const parsed = JSON.parse(localData);
       return dedupeNarrativeComponents(Array.isArray(parsed) ? parsed : []);
     } catch (parseErr) {
+
+  const readLocalNarrativeCache = (projectId?: string) => {
+    if (!projectId) return [];
+
+    const localData = localStorage.getItem(`ws_narrative_${projectId}`);
+    if (!localData) return [];
+
+    try {
+      const parsed = JSON.parse(localData);
+      return dedupeNarrativeComponents(Array.isArray(parsed) ? parsed : []);
+    } catch (parseErr) {
       console.warn('[ScriptEngine] Local narrative cache invalid, ignoring cache.', parseErr);
       return [];
     }
@@ -353,29 +364,40 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
     try {
       if (supabase) {
-        const { data, error } = await supabase.from('narrative_components').select('*').eq('project_id', projectId);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, data));
+        const fetchPromise = supabase.from('narrative_components').select('*').eq('project_id', projectId);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 8000));
+        
+        const response: any = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (response.error) throw response.error;
+        
+        const cloudData = response.data || [];
+        const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudData));
+        
+        // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
+        const cloudIds = new Set(cloudData.map((c: any) => c.id));
+        const unsyncedItems = localItems.filter(l => l.id && !cloudIds.has(l.id));
+        
+        if (unsyncedItems.length > 0) {
+          console.log(`[ScriptEngine] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
+          supabase.from('narrative_components').upsert(
+            unsyncedItems.map(item => ({ ...item, project_id: projectId }))
+          ).then(({ error: upsertError }: { error: any }) => {
+            if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
+            else console.log('✅ Auto-sync concluído.');
+          });
+        }
+
+        const mergedStr = JSON.stringify(merged);
+        if (mergedStr !== JSON.stringify(localItems)) {
           setComponents(merged);
-          localStorage.setItem(`ws_narrative_${projectId}`, JSON.stringify(merged));
-          return;
+          localStorage.setItem(`ws_narrative_${projectId}`, mergedStr);
+          console.log(`[ScriptEngine] ☁️ Background Sync applied: ${cloudData.length} cloud, ${merged.length} merged`);
         }
       }
-
-      return;
-      
-      if (false) {
-        setComponents([
-          { id: 'h_S1', type: 'Hook', name: 'Provocacao S1', description: 'Comeca com um erro tecnico.' },
-          { id: 'h_S5', type: 'Hook', name: 'Blueprint S5', description: 'Apresenta o mapa da solucao.' },
-          { id: 'h_S3', type: 'Hook', name: 'Interrupcao S3', description: 'Quebra de padrao agressiva.' },
-          { id: 'cta_default', type: 'CTA', name: 'Conversao PUC', description: 'Chamada padrao alinhada a matriz de conversao.' }
-        ]);
-      }
-    } catch (e) {
-      console.error(e);
-      setComponents(localItems);
+    } catch (e: any) {
+      console.warn('[ScriptEngine] Erro ao buscar/sincronizar componentes:', e.message);
+      // keeps using localItems without resetting them
     }
   };
 

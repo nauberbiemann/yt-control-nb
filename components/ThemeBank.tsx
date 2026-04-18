@@ -92,6 +92,16 @@ interface ThemeBankProps {
   onOpenInWriting?: (theme: any) => void;
 }
 
+const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const getThemeMergeKey = (theme: Partial<Theme>) => {
+  if (theme.id) return `id:${theme.id}`;
+  const semanticTitle = (theme.refined_title || theme.title || '').trim().toLowerCase();
+  const semanticStructure = (theme.title_structure || '').trim().toLowerCase();
+  if (!semanticTitle) return '';
+  return `semantic:${semanticTitle}:${semanticStructure}`;
+};
+
 const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   title: '',
   description: '',
@@ -198,6 +208,67 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     };
   };
 
+  const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
+    const merged = new Map<string, Theme>();
+
+    const upsert = (theme: Theme) => {
+      const key = getThemeMergeKey(theme);
+      if (!key) return;
+      const current = merged.get(key);
+      merged.set(
+        key,
+        normalizeThemeScheduleStatus({
+          ...(current || {}),
+          ...theme,
+          production_assets: theme.production_assets ?? current?.production_assets,
+        } as Theme)
+      );
+    };
+
+    remoteItems.forEach(upsert);
+    localItems.forEach(upsert);
+
+    return Array.from(merged.values()).sort((a, b) => {
+      const priorityDelta = (Number(b.priority) || 0) - (Number(a.priority) || 0);
+      if (priorityDelta !== 0) return priorityDelta;
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+  };
+
+  const sanitizeThemeStatusForCloud = (status?: string | null) => {
+    const normalized = (status || '').toLowerCase().trim();
+    if (['published', 'publicado'].includes(normalized)) return 'published';
+    if (['vetted', 'approved', 'aprovado'].includes(normalized)) return 'vetted';
+    if (['scripted', 'scheduled', 'programado', 'production', 'producao', 'produção'].includes(normalized)) return 'scripted';
+    return 'backlog';
+  };
+
+  const sanitizeThemeForCloud = (payload: any) => ({
+    id: editingTheme?.id || payload.id || crypto.randomUUID(),
+    project_id: activeProject.id,
+    user_id: userId || null,
+    title: payload.title || payload.refined_title || 'Tema sem título',
+    description: payload.description || '',
+    editorial_pillar: payload.editorial_pillar || payload.pipeline_level || '',
+    status: sanitizeThemeStatusForCloud(payload.status),
+    hook_id: payload.hook_id || null,
+    title_structure: payload.title_structure || '',
+    priority: Number(payload.priority) || 0,
+    notes: payload.notes || '',
+    created_at: editingTheme?.created_at || payload.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  const sanitizeProjectForCloud = () => ({
+    id: activeProject.id,
+    name: activeProject.name || activeProject.project_name || 'Canal Recuperado',
+    description: activeProject.description || activeProject.puc || activeProject.puc_promise || 'Projeto sincronizado do Banco de Temas.',
+    puc: activeProject.puc || activeProject.puc_promise || '',
+    status: 'active',
+    created_at: activeProject.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
   useEffect(() => {
     if (activeProject?.id) {
       fetchThemes();
@@ -295,19 +366,20 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       if (!activeProject?.id) return;
       setLoading(true);
       try {
+      let localThemes: Theme[] = [];
       // 1. Carregar local primeiro para UI imediata
       const localData = localStorage.getItem(`themes_${activeProject.id}`);
       if (localData) {
         const parsed = JSON.parse(localData);
         if (parsed.length > 0) {
-          const normalizedLocal = parsed.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
-          setThemes(normalizedLocal);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedLocal));
+          localThemes = parsed.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
+          setThemes(localThemes);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(localThemes));
         }
       }
 
       if (!supabase) return;
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeProject.id)) {
+      if (!THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         return;
       }
 
@@ -323,10 +395,11 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       
       // 🛠️ Proteção: Só sobrescreve o local se a nuvem realmente tiver dados.
       // Se a nuvem estiver vazia mas o local tiver dados, mantemos o local.
-        if (data && data.length > 0) {
+        if (data) {
           const normalizedRemote = data.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
-          setThemes(normalizedRemote);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedRemote));
+          const mergedThemes = mergeThemes(localThemes, normalizedRemote);
+          setThemes(mergedThemes);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
         }
       } catch (err) {
         console.warn('[ThemeBank] falha ao buscar temas; mantendo dados locais.', err);
@@ -395,29 +468,20 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
   const syncWithCloud = async (payload: any) => {
     try {
+      const cloudTheme = sanitizeThemeForCloud(payload);
       let { error } = editingTheme 
-        ? await supabase.from('themes').update(payload).eq('id', editingTheme.id)
-        : await supabase.from('themes').insert(payload);
+        ? await supabase.from('themes').update(cloudTheme).eq('id', editingTheme.id)
+        : await supabase.from('themes').insert(cloudTheme);
       
       if (error && error.code === '23503') {
         console.warn('⚠️ Reparando vínculo de projeto em background...');
-        const projectToSync = {
-          id: activeProject.id,
-          name: activeProject.name || activeProject.project_name || 'Canal Recuperado',
-          project_name: activeProject.name || activeProject.project_name || 'Canal Recuperado',
-          puc: activeProject.puc || activeProject.puc_promise || '',
-          target_persona: activeProject.target_persona || {},
-          editorial_line: activeProject.editorial_line || {},
-          editing_sop: activeProject.editing_sop || activeProject.detailed_sop || {},
-          status: 'active',
-          updated_at: new Date().toISOString()
-        };
+        const projectToSync = sanitizeProjectForCloud();
 
         const { error: projectError } = await supabase.from('projects').upsert(projectToSync);
         if (!projectError) {
           const retry = editingTheme 
-            ? await supabase.from('themes').update(payload).eq('id', editingTheme.id)
-            : await supabase.from('themes').insert(payload);
+            ? await supabase.from('themes').update(cloudTheme).eq('id', editingTheme.id)
+            : await supabase.from('themes').insert(cloudTheme);
           error = retry.error;
         }
       }
@@ -436,9 +500,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const saveLocally = (payload: any) => {
     let newComponents = [...themes];
     if (editingTheme) {
-      newComponents = themes.map(t => t.id === editingTheme.id ? { ...t, ...payload, id: t.id, created_at: t.created_at } : t);
+      newComponents = themes.map(t => t.id === editingTheme.id ? normalizeThemeScheduleStatus({ ...t, ...payload, id: t.id, created_at: t.created_at }) : t);
     } else {
-      newComponents = [{ ...payload, id: crypto.randomUUID(), created_at: new Date().toISOString() }, ...themes];
+      newComponents = [normalizeThemeScheduleStatus({ ...payload, id: crypto.randomUUID(), created_at: new Date().toISOString() }), ...themes];
     }
     setThemes(newComponents as Theme[]);
     localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(newComponents));

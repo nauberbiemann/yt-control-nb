@@ -31,6 +31,8 @@ interface Theme {
   id: string;
   project_id: string;
   title: string; // Raw theme
+  description?: string;
+  editorial_pillar?: string;
   category?: string;
   pipeline_level?: string;
   demand_views?: string;
@@ -43,12 +45,18 @@ interface Theme {
   refined_title?: string; 
   status: 'backlog' | 'vetted' | 'scripted' | 'scheduled' | 'published' | 'Roteirização' | 'Produção' | 'Programado';
   created_at: string;
+  priority?: number;
+  is_demand_vetted?: boolean;
+  is_persona_vetted?: boolean;
+  target_publish_date?: string;
   production_assets?: {
     thumb_prompt: string;
     thumb_text: string[];
     tags: string[];
   };
 }
+
+const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface ContentHubProps {
   activeProject?: any;
@@ -67,7 +75,46 @@ interface TitleStructureAsset {
 const normalizeTheme = (theme: Theme): Theme => ({
   ...theme,
   selected_structure: theme.selected_structure ?? theme.title_structure_asset_id ?? undefined,
+  description: theme.description || '',
+  editorial_pillar: theme.editorial_pillar || '',
+  priority: Number(theme.priority) || 0,
+  is_demand_vetted: !!theme.is_demand_vetted,
+  is_persona_vetted: !!theme.is_persona_vetted,
+  target_publish_date: theme.target_publish_date || '',
 });
+
+const getThemeMergeKey = (theme: Partial<Theme>) => {
+  if (theme.id) return `id:${theme.id}`;
+  const semanticTitle = (theme.refined_title || theme.title || '').trim().toLowerCase();
+  const semanticStructure = (theme.title_structure || '').trim().toLowerCase();
+  if (!semanticTitle) return '';
+  return `semantic:${semanticTitle}:${semanticStructure}`;
+};
+
+const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
+  const merged = new Map<string, Theme>();
+
+  const upsert = (theme: Theme) => {
+    const key = getThemeMergeKey(theme);
+    if (!key) return;
+    const current = merged.get(key);
+    merged.set(
+      key,
+      normalizeTheme({
+        ...(current || {}),
+        ...theme,
+        production_assets: theme.production_assets ?? current?.production_assets,
+      } as Theme)
+    );
+  };
+
+  remoteItems.forEach(upsert);
+  localItems.forEach(upsert);
+
+  return Array.from(merged.values()).sort(
+    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
+};
 
 const mergeNarrativeComponents = (localItems: any[], remoteItems: any[]) => {
   const merged = new Map<string, any>();
@@ -119,6 +166,43 @@ function normalizeTitleStructures(components: any[]): TitleStructureAsset[] {
   titleAssets.forEach((asset) => mergedBySlot.set(asset.slotId, asset));
 
   return ['S1', 'S2', 'S3', 'S4', 'S5'].map((slotId) => mergedBySlot.get(slotId) as TitleStructureAsset);
+}
+
+function sanitizeThemeStatusForCloud(status?: string | null) {
+  const normalized = (status || '').toLowerCase().trim();
+  if (['published', 'publicado'].includes(normalized)) return 'published';
+  if (['vetted', 'approved', 'aprovado'].includes(normalized)) return 'vetted';
+  if (['scripted', 'scheduled', 'programado', 'production', 'producao', 'produção'].includes(normalized)) return 'scripted';
+  return 'backlog';
+}
+
+function sanitizeProjectForCloud(project: any) {
+  return {
+    id: project.id,
+    name: project.name || project.project_name || 'Canal Recuperado',
+    description: project.description || project.puc || project.puc_promise || 'Projeto sincronizado do Banco de Temas.',
+    puc: project.puc || project.puc_promise || '',
+    status: project.status || 'active',
+    created_at: project.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function sanitizeThemeForCloud(theme: Theme) {
+  return {
+    id: theme.id,
+    project_id: theme.project_id,
+    title: theme.title || theme.refined_title || 'Tema sem título',
+    description: theme.notes || '',
+    editorial_pillar: theme.pipeline_level || '',
+    status: sanitizeThemeStatusForCloud(theme.status),
+    hook_id: null,
+    title_structure: theme.title_structure || '',
+    priority: 0,
+    notes: theme.notes || '',
+    created_at: theme.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 }
 
 export default function ContentHub({ activeProject: propProject, selectedAIConfig, onGerarRoteiro }: ContentHubProps) {
@@ -213,18 +297,20 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     if (!activeProject?.id) return;
     
     try {
+      let localThemes: Theme[] = [];
       // 1. Carregar local primeiro para UI imediata
       const local = localStorage.getItem(`themes_${activeProject.id}`);
       if (local) {
         try {
           const parsed = JSON.parse(local);
           if (Array.isArray(parsed)) {
-            setThemes(parsed.map((theme: Theme) => normalizeTheme(theme)));
+            localThemes = parsed.map((theme: Theme) => normalizeTheme(theme));
+            setThemes(localThemes);
           }
         } catch (e) {}
       }
 
-      if (supabase) {
+      if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const { data, error } = await supabase
           .from('themes')
           .select('*')
@@ -232,10 +318,11 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
           .order('created_at', { ascending: false });
         
         if (error) throw error;
-        if (data && data.length > 0) {
+        if (data) {
           const normalizedThemes = data.map((theme: Theme) => normalizeTheme(theme));
-          setThemes(normalizedThemes);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(normalizedThemes));
+          const mergedThemes = mergeThemes(localThemes, normalizedThemes);
+          setThemes(mergedThemes);
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
           return;
         }
       }
@@ -247,10 +334,12 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
   const handleSaveTheme = async (generatedTitle: string, structure: TitleStructureAsset) => {
     if (!baseTopic || !activeProject) return;
 
-    const newTheme: Theme = {
-      id: Date.now().toString(),
+    const newTheme: Theme = normalizeTheme({
+      id: crypto.randomUUID(),
       project_id: activeProject.id,
       title: baseTopic, // Mapeia Raw Theme para Title
+      description: '',
+      editorial_pillar: '',
       pipeline_level: newThemeCategory,
       demand_views: newThemeDemand,
       notes: newThemeNote,
@@ -260,18 +349,28 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       title_structure_asset_id: structure.source === 'library' ? structure.id : null,
       refined_title: generatedTitle,
       status: 'vetted', // Quando gerado no Content Hub, já entra como Vetted/Aprovado
-      created_at: new Date().toISOString()
-    };
+      created_at: new Date().toISOString(),
+      priority: 0,
+      is_demand_vetted: false,
+      is_persona_vetted: false,
+      target_publish_date: '',
+    });
 
     try {
       const updatedThemes = [newTheme, ...themes];
       setThemes(updatedThemes);
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
-      if (supabase) {
-        const { selected_structure, ...cloudTheme } = newTheme;
-        const { error } = await supabase.from('themes').upsert(cloudTheme);
-        if (error) console.error('Supabase save error:', error);
+      if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
+        const projectToSync = sanitizeProjectForCloud(activeProject);
+        const { error: projectError } = await supabase.from('projects').upsert(projectToSync);
+        if (projectError) {
+          console.error('Supabase project sync error:', projectError);
+        } else {
+          const cloudTheme = sanitizeThemeForCloud(newTheme);
+          const { error } = await supabase.from('themes').upsert(cloudTheme);
+          if (error) console.error('Supabase save error:', error);
+        }
       }
       
       // Reset Form (Optional: Keep some data for batch entry)
@@ -291,7 +390,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       setThemes(filtered);
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(filtered));
 
-      if (supabase) {
+      if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const { error } = await supabase.from('themes').delete().eq('id', id);
         if (error) console.error('Supabase delete error:', error);
       }
@@ -590,8 +689,8 @@ REGRAS:
       setThemes(updatedThemes);
       localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
-      if (supabase) {
-        const { selected_structure, ...cloudTheme } = updatedTheme;
+      if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
+        const cloudTheme = sanitizeThemeForCloud(updatedTheme);
         await supabase.from('themes').upsert(cloudTheme);
       }
       setActiveEditTheme(null);

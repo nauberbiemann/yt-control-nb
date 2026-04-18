@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   FolderOpen, 
@@ -30,6 +30,14 @@ interface SidebarProps {
 
 export default function Sidebar({ currentView, onViewChange, onResetProject, userRole, collapsed = false, onToggleCollapsed }: SidebarProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/version')
+      .then((r) => r.json())
+      .then((d) => setAppVersion(d.version))
+      .catch(() => setAppVersion(null));
+  }, []);
   
   const activeProject = useActiveProject();
   const projects = useProjects();
@@ -67,9 +75,13 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
             CONTENT<span className="text-blue-500">OS</span>
           </h1>
           <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-slate-500 mt-1">Writer Studio Cloud</p>
-          <div className="mt-2">
-            <span className="text-red-500 text-[14px] font-black tracking-tighter">v-1-18/04</span>
-          </div>
+          {appVersion && (
+            <div className="mt-1.5 flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-[9px] font-mono text-blue-400/80 tracking-tight">
+                {appVersion}
+              </span>
+            </div>
+          )}
         </div>
         <button
           type="button"

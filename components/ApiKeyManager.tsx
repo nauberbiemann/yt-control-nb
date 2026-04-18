@@ -6,17 +6,13 @@ import { supabase } from '@/lib/supabase';
 export default function ApiKeyManager({ onSave }: { onSave?: () => void }) {
   const [openaiKey, setOpenaiKey] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
-  const [saveStatus, setSaveStatus] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'ok' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
   const [serverStatus, setServerStatus] = useState({ hasOpenAI: false, hasGemini: false });
 
   useEffect(() => {
     fetchServerStatus();
-    if (supabase) {
-      fetchKeys();
-    } else {
-      setOpenaiKey(localStorage.getItem('yt_openai_key') || '');
-      setGeminiKey(localStorage.getItem('yt_gemini_key') || '');
-    }
+    loadKeys();
   }, []);
 
   async function fetchServerStatus() {
@@ -27,51 +23,86 @@ export default function ApiKeyManager({ onSave }: { onSave?: () => void }) {
         setServerStatus(data);
       }
     } catch (e) {
-      console.error("Erro ao checar status do servidor de IA", e);
+      console.warn('Erro ao checar status do servidor de IA', e);
     }
   }
 
-
-  async function fetchKeys() {
-    if (supabase) {
-      const { data } = await supabase.from('user_configs').select('openai_key, gemini_key').single();
-      if (data) {
-        setOpenaiKey(data.openai_key || '');
-        setGeminiKey(data.gemini_key || '');
-        return;
-      }
-    }
-    
-    // Fallback LocalStorage
+  async function loadKeys() {
+    // Always load from localStorage first for instant display
     setOpenaiKey(localStorage.getItem('yt_openai_key') || '');
     setGeminiKey(localStorage.getItem('yt_gemini_key') || '');
+
+    // Then try to load from Supabase
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from('user_configs')
+          .select('openai_key, gemini_key')
+          .limit(1)
+          .maybeSingle();
+
+        if (data) {
+          if (data.openai_key) setOpenaiKey(data.openai_key);
+          if (data.gemini_key) setGeminiKey(data.gemini_key);
+        }
+      } catch (e) {
+        console.warn('Não foi possível carregar chaves do Supabase, usando locais', e);
+      }
+    }
   }
 
   async function saveKeys() {
-    setSaveStatus('Salvando...');
-    
-    // Salva no LocalStorage
+    setSaveStatus('saving');
+    setSaveMessage('Salvando...');
+
+    // Always save to localStorage first (instant, no failure)
     localStorage.setItem('yt_openai_key', openaiKey);
     localStorage.setItem('yt_gemini_key', geminiKey);
 
     if (supabase) {
-      const { error } = await supabase
-        .from('user_configs')
-        .update({ openai_key: openaiKey, gemini_key: geminiKey })
-        .eq('id', (await supabase.from('user_configs').select('id').single()).data?.id);
-        
-      if (error) {
-        setSaveStatus('Erro Supabase, salvo localmente');
-      } else {
-        setSaveStatus('Salvo globalmente!');
+      try {
+        // 1. Check if a row already exists
+        const { data: existing } = await supabase
+          .from('user_configs')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+
+        if (existing?.id) {
+          // Row exists → update it
+          const { error } = await supabase
+            .from('user_configs')
+            .update({ openai_key: openaiKey, gemini_key: geminiKey })
+            .eq('id', existing.id);
+
+          if (error) throw error;
+        } else {
+          // No row → insert a new one
+          const { error } = await supabase
+            .from('user_configs')
+            .insert({ openai_key: openaiKey, gemini_key: geminiKey });
+
+          if (error) throw error;
+        }
+
+        setSaveStatus('ok');
+        setSaveMessage('✓ Salvo globalmente!');
         if (onSave) setTimeout(onSave, 1500);
+      } catch (err: any) {
+        console.error('Erro ao salvar no Supabase:', err);
+        setSaveStatus('error');
+        setSaveMessage('Erro na nuvem · Salvo localmente');
       }
     } else {
-      setSaveStatus('Salvo localmente no Browser!');
+      setSaveStatus('ok');
+      setSaveMessage('✓ Salvo localmente no browser');
       if (onSave) setTimeout(onSave, 1500);
     }
-    
-    setTimeout(() => setSaveStatus(''), 3000);
+
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
   }
 
   return (
@@ -91,11 +122,11 @@ export default function ApiKeyManager({ onSave }: { onSave?: () => void }) {
             <span style={{ opacity: 0.6 }}>Chave OpenAI (Override)</span>
             {serverStatus.hasOpenAI && <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 'bold' }}>✓ INFRA ATIVA</span>}
           </label>
-          <input 
+          <input
             type="password"
             value={openaiKey}
             onChange={(e) => setOpenaiKey(e.target.value)}
-            placeholder={serverStatus.hasOpenAI ? "Usando Padrão do Sistema (Opcional)" : "sk-..."}
+            placeholder={serverStatus.hasOpenAI ? 'Usando Padrão do Sistema (Opcional)' : 'sk-...'}
             style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#111', color: '#fff', border: '1px solid var(--card-border)' }}
           />
         </div>
@@ -104,18 +135,34 @@ export default function ApiKeyManager({ onSave }: { onSave?: () => void }) {
             <span style={{ opacity: 0.6 }}>Chave Google Gemini (Override)</span>
             {serverStatus.hasGemini && <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 'bold' }}>✓ INFRA ATIVA</span>}
           </label>
-          <input 
+          <input
             type="password"
             value={geminiKey}
             onChange={(e) => setGeminiKey(e.target.value)}
-            placeholder={serverStatus.hasGemini ? "Usando Padrão do Sistema (Opcional)" : "AIza..."}
+            placeholder={serverStatus.hasGemini ? 'Usando Padrão do Sistema (Opcional)' : 'AIza...'}
             style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#111', color: '#fff', border: '1px solid var(--card-border)' }}
           />
         </div>
       </div>
+
       <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button className="btn-primary" onClick={saveKeys}>Salvar Overrides</button>
-        {saveStatus && <span style={{ fontSize: '0.9rem', color: 'var(--primary)' }}>{saveStatus}</span>}
+        <button
+          className="btn-primary"
+          onClick={saveKeys}
+          disabled={saveStatus === 'saving'}
+          style={{ opacity: saveStatus === 'saving' ? 0.7 : 1 }}
+        >
+          {saveStatus === 'saving' ? 'Salvando...' : 'Salvar Overrides'}
+        </button>
+        {saveMessage && (
+          <span style={{
+            fontSize: '0.9rem',
+            color: saveStatus === 'error' ? '#f87171' : 'var(--primary)',
+            transition: 'opacity 0.3s',
+          }}>
+            {saveMessage}
+          </span>
+        )}
       </div>
 
       <div className="alert info" style={{ marginTop: '2rem', background: 'rgba(52, 152, 219, 0.05)', border: '1px solid rgba(52, 152, 219, 0.2)', padding: '1rem', borderRadius: '8px' }}>
@@ -126,4 +173,3 @@ export default function ApiKeyManager({ onSave }: { onSave?: () => void }) {
     </section>
   );
 }
-

@@ -333,17 +333,6 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       const parsed = JSON.parse(localData);
       return dedupeNarrativeComponents(Array.isArray(parsed) ? parsed : []);
     } catch (parseErr) {
-
-  const readLocalNarrativeCache = (projectId?: string) => {
-    if (!projectId) return [];
-
-    const localData = localStorage.getItem(`ws_narrative_${projectId}`);
-    if (!localData) return [];
-
-    try {
-      const parsed = JSON.parse(localData);
-      return dedupeNarrativeComponents(Array.isArray(parsed) ? parsed : []);
-    } catch (parseErr) {
       console.warn('[ScriptEngine] Local narrative cache invalid, ignoring cache.', parseErr);
       return [];
     }

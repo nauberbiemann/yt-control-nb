@@ -67,6 +67,9 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
             CONTENT<span className="text-blue-500">OS</span>
           </h1>
           <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-slate-500 mt-1">Writer Studio Cloud</p>
+          <div className="mt-2">
+            <span className="text-red-500 text-[14px] font-black tracking-tighter">v-1-18/04</span>
+          </div>
         </div>
         <button
           type="button"

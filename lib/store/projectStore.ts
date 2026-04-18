@@ -480,7 +480,7 @@ export const useProjectStore = create<ProjectStore>()(
           const fallbackProjects = localProjects.length > 0 ? localProjects : [createBootstrapProject()];
 
           if (!supabase) {
-            // LocalStorage fallback
+            // LocalStorage fallback (no internet / no Supabase configured)
             get().setProjects(fallbackProjects);
             return;
           }
@@ -493,27 +493,21 @@ export const useProjectStore = create<ProjectStore>()(
           if (error) throw error;
 
           if (data && data.length > 0) {
-            const localById = new Map(localProjects.map((project) => [project.id, project]));
-            const remoteIds = new Set<string>();
-            const remoteProjects = data as Project[];
+            // ☁️ CLOUD-WINS (DEFINITIVE): use cloud records completely as-is.
+            // NO merge with local — local state is irrelevant when cloud has data.
+            const remoteIds = new Set(data.map((p: Project) => p.id));
 
-            // ☁️ CLOUD-WINS: When cloud has data, it is always the authority.
-            // Remote overlays local unconditionally (cloud enriched by any local-only fields).
-            const mergedRemote = remoteProjects.map((project: Project) => {
-              remoteIds.add(project.id);
-              const localProject = localById.get(project.id);
-              if (!localProject) return project;
-              // Cloud wins: remote is the overlay (second arg), local is the base only for missing fields
-              return mergeProjectRecords(localProject, project);
-            });
+            // Only include local projects that are NOT in the cloud
+            const localOnly = localProjects.filter((p) => !remoteIds.has(p.id));
 
-            // Local-only projects (not yet in cloud) are included as-is
-            const localOnly = localProjects.filter((project) => !remoteIds.has(project.id));
-            const mergedProjects = normalizeProjectList([...mergedRemote, ...localOnly]);
+            // Cloud projects first (authoritative), local-only after (not yet synced)
+            const finalProjects = normalizeProjectList([...(data as Project[]), ...localOnly]);
 
-            get().setProjects(mergedProjects);
+            console.log(`[ProjectStore] ☁️ Cloud-wins: ${data.length} from cloud, ${localOnly.length} local-only`);
+            get().setProjects(finalProjects);
           } else {
-            // Cloud empty → use local cache
+            // Cloud empty → use local cache as fallback
+            console.log('[ProjectStore] Cloud empty, using local cache');
             get().setProjects(fallbackProjects);
           }
         } catch (err) {

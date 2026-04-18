@@ -209,24 +209,34 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   };
 
   const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
+    // ☁️ CLOUD-WINS: Start with local as base, then remote fully overwrites.
+    // This means cloud data is always authoritative.
     const merged = new Map<string, Theme>();
 
-    const upsert = (theme: Theme) => {
+    // 1. Insert local first (lowest priority)
+    localItems.forEach((theme) => {
       const key = getThemeMergeKey(theme);
       if (!key) return;
-      const current = merged.get(key);
+      merged.set(key, normalizeThemeScheduleStatus(theme));
+    });
+
+    // 2. Remote overwrites unconditionally (cloud is authority)
+    remoteItems.forEach((theme) => {
+      const key = getThemeMergeKey(theme);
+      if (!key) return;
+      const local = merged.get(key);
       merged.set(
         key,
         normalizeThemeScheduleStatus({
-          ...(current || {}),
+          // Local provides only fields missing from remote
+          ...(local || {}),
+          // Remote fully overlays
           ...theme,
-          production_assets: theme.production_assets ?? current?.production_assets,
+          // production_assets: prefer remote if it has data, else keep local
+          production_assets: theme.production_assets ?? local?.production_assets,
         } as Theme)
       );
-    };
-
-    localItems.forEach(upsert);
-    remoteItems.forEach(upsert);
+    });
 
     return Array.from(merged.values()).sort((a, b) => {
       const priorityDelta = (Number(b.priority) || 0) - (Number(a.priority) || 0);

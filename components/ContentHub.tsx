@@ -92,24 +92,30 @@ const getThemeMergeKey = (theme: Partial<Theme>) => {
 };
 
 const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
+  // ☁️ CLOUD-WINS: Remote is always authoritative.
   const merged = new Map<string, Theme>();
 
-  const upsert = (theme: Theme) => {
+  // 1. Local first (base)
+  localItems.forEach((theme) => {
     const key = getThemeMergeKey(theme);
     if (!key) return;
-    const current = merged.get(key);
+    merged.set(key, normalizeTheme(theme));
+  });
+
+  // 2. Remote overwrites unconditionally
+  remoteItems.forEach((theme) => {
+    const key = getThemeMergeKey(theme);
+    if (!key) return;
+    const local = merged.get(key);
     merged.set(
       key,
       normalizeTheme({
-        ...(current || {}),
+        ...(local || {}),
         ...theme,
-        production_assets: theme.production_assets ?? current?.production_assets,
+        production_assets: theme.production_assets ?? local?.production_assets,
       } as Theme)
     );
-  };
-
-  localItems.forEach(upsert);
-  remoteItems.forEach(upsert);
+  });
 
   return Array.from(merged.values()).sort(
     (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()

@@ -497,20 +497,19 @@ export const useProjectStore = create<ProjectStore>()(
             const remoteIds = new Set<string>();
             const remoteProjects = data as Project[];
 
+            // ☁️ CLOUD-WINS: When cloud has data, it is always the authority.
+            // Remote overlays local unconditionally (cloud enriched by any local-only fields).
             const mergedRemote = remoteProjects.map((project: Project) => {
               remoteIds.add(project.id);
               const localProject = localById.get(project.id);
               if (!localProject) return project;
-              // Compare updated_at: whoever has the more recent timestamp is the overlay (authority)
-              const localTime = new Date(localProject.updated_at || 0).getTime();
-              const remoteTime = new Date(project.updated_at || 0).getTime();
-              return remoteTime >= localTime
-                ? mergeProjectRecords(localProject, project)   // remote wins (remote overlays local)
-                : mergeProjectRecords(project, localProject);  // local wins (local overlays remote)
+              // Cloud wins: remote is the overlay (second arg), local is the base only for missing fields
+              return mergeProjectRecords(localProject, project);
             });
 
+            // Local-only projects (not yet in cloud) are included as-is
             const localOnly = localProjects.filter((project) => !remoteIds.has(project.id));
-              const mergedProjects = normalizeProjectList([...mergedRemote, ...localOnly]);
+            const mergedProjects = normalizeProjectList([...mergedRemote, ...localOnly]);
 
             get().setProjects(mergedProjects);
           } else {

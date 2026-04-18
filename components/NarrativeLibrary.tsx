@@ -274,54 +274,55 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
 
     try {
       setIsLoading(true);
-      console.log("[ContentOS] Buscando componentes para o projeto:", activeProject.id);
-      
-      let localItems: NarrativeComponent[] = [];
 
-      // 1. Tentar LocalStorage primeiro para velocidade (UI Unblock)
-      const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
-      if (localData) {
-        try {
-          const parsed = JSON.parse(localData);
-          if (Array.isArray(parsed)) {
-            localItems = parsed;
-            setComponents(parsed);
-            // Não paramos o loading aqui se quisermos sincronizar com a nuvem, 
-            // mas vamos parar para garantir que o usuário veja algo.
-            setIsLoading(false);
-          }
-        } catch (parseErr) {
-          console.warn('[ContentOS] LocalStorage narrativa inválido, ignorando cache local.', parseErr);
-        }
-      }
-
-      // 2. Sincronizar com Supabase em background
+      // ☁️ CLOUD-WINS: Always fetch from Supabase first.
+      // Local cache is shown below only as instant placeholder while network loads.
       if (supabase) {
+        // Show local cache immediately so UI isn't blank (will be replaced by cloud)
+        const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+        if (localData) {
+          try {
+            const parsed = JSON.parse(localData);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setComponents(parsed); // Temporary — cloud will overwrite this
+            }
+          } catch {}
+        }
+
         const { data, error } = await supabase
           .from('narrative_components')
           .select('*')
           .eq('project_id', activeProject.id)
           .order('created_at', { ascending: false });
-          
+
         if (error) {
           console.warn('⚠️ Supabase Fetch Error:', error.message);
-        } else if (data && data.length > 0) {
-          const remoteItems = data as NarrativeComponent[];
-          const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, remoteItems));
-          setComponents(merged);
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
-        } else if (localItems.length > 0) {
-          // Mantém o cache local quando a nuvem não tiver o conjunto completo ainda.
-          const dedupedLocal = dedupeNarrativeComponents(localItems);
-          setComponents(dedupedLocal);
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
+          // Keep local cache on error (best effort)
+        } else {
+          // ☁️ Cloud data is the final truth — always replace local
+          const cloudItems = (data ?? []) as NarrativeComponent[];
+          const deduped = dedupeNarrativeComponents(cloudItems);
+          setComponents(deduped);
+          // Persist cloud data locally so next load has a warm cache
+          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(deduped));
+          console.log(`[ContentOS] ☁️ NarrativeLibrary: ${deduped.length} items from cloud`);
+        }
+      } else {
+        // No Supabase — use local cache only
+        const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+        if (localData) {
+          try {
+            const parsed = JSON.parse(localData);
+            if (Array.isArray(parsed)) {
+              setComponents(dedupeNarrativeComponents(parsed));
+            }
+          } catch {}
         }
       }
     } catch (e) {
       console.error('❌ Erro crítico ao buscar componentes:', e);
     } finally {
       setIsLoading(false);
-      console.log("[ContentOS] Carregamento da Biblioteca concluído.");
     }
   };
 

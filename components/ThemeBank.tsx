@@ -404,50 +404,45 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   };
 
   const fetchThemes = async () => {
-      if (!activeProject?.id) return;
-      setLoading(true);
-      try {
-      let localThemes: Theme[] = [];
-      // 1. Carregar local primeiro para UI imediata
+    if (!activeProject?.id) return;
+    setLoading(true);
+    try {
+      // ☁️ CLOUD-WINS: Show local as instant placeholder, cloud is final truth
       const localData = localStorage.getItem(`themes_${activeProject.id}`);
       if (localData) {
-        const parsed = JSON.parse(localData);
-        if (parsed.length > 0) {
-          localThemes = parsed.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
-          setThemes(localThemes);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(localThemes));
-        }
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setThemes(parsed.map((t: Theme) => normalizeThemeScheduleStatus(t)));
+          }
+        } catch {}
       }
 
-      if (!supabase) return;
-      if (!THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
+      if (!supabase || !THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         return;
       }
 
-      // 2. Buscar na nuvem
+      // Fetch from cloud — this is the final authority
       const { data, error } = await supabase
         .from('themes')
         .select('*')
         .eq('project_id', activeProject.id)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
-      
-      // 🛠️ Proteção: Só sobrescreve o local se a nuvem realmente tiver dados.
-      // Se a nuvem estiver vazia mas o local tiver dados, mantemos o local.
-        if (data) {
-          const normalizedRemote = data.map((theme: Theme) => normalizeThemeScheduleStatus(theme));
-          const mergedThemes = mergeThemes(localThemes, normalizedRemote);
-          setThemes(mergedThemes);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
-        }
-      } catch (err) {
-        console.warn('[ThemeBank] falha ao buscar temas; mantendo dados locais.', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+
+      // Cloud data completely replaces local — no merge
+      const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
+      setThemes(cloudThemes);
+      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(cloudThemes));
+      console.log(`[ThemeBank] ☁️ ${cloudThemes.length} themes from cloud`);
+    } catch (err) {
+      console.warn('[ThemeBank] Falha ao buscar nuvem; mantendo cache local.', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!form.title.trim()) return;

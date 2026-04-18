@@ -462,6 +462,24 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
          const mergedThemes = mergeThemes(localThemes, cloudThemes);
          
+         // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
+         const cloudIds = new Set(cloudThemes.map(c => c.id));
+         const unsyncedItems = localThemes.filter(l => l.id && !cloudIds.has(l.id));
+         
+         if (unsyncedItems.length > 0) {
+           console.log(`[ThemeBank] ⬆️ Auto-syncing ${unsyncedItems.length} pending local themes to cloud...`);
+           supabase.from('themes').upsert(
+             unsyncedItems.map(item => ({
+               ...item,
+               project_id: activeProject.id,
+               status: sanitizeThemeStatusForCloud(item.status)
+             }))
+           ).then(({ error: upsertError }) => {
+             if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
+             else console.log('✅ Auto-sync concluído.');
+           });
+         }
+
          const mergedStr = JSON.stringify(mergedThemes);
          if (mergedStr !== JSON.stringify(localThemes)) {
            setThemes(mergedThemes);

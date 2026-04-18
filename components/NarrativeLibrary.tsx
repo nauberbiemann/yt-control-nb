@@ -327,6 +327,20 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
         const cloudItems = (data ?? []) as NarrativeComponent[];
         const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudItems));
         
+        // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
+        const cloudIds = new Set(cloudItems.map(c => c.id));
+        const unsyncedItems = localItems.filter(l => l.id && !cloudIds.has(l.id));
+        
+        if (unsyncedItems.length > 0) {
+          console.log(`[ContentOS] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
+          supabase.from('narrative_components').upsert(
+            unsyncedItems.map(item => ({ ...item, project_id: activeProject.id }))
+          ).then(({ error: upsertError }) => {
+            if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
+            else console.log('✅ Auto-sync concluído.');
+          });
+        }
+
         const mergedStr = JSON.stringify(merged);
         if (mergedStr !== JSON.stringify(localItems)) {
           setComponents(merged);

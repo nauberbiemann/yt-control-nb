@@ -1,75 +1,52 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { AI_MODELS } from '@/lib/ai-config';
 import CustomSelect from './ui/CustomSelect';
 import { Cpu, Zap } from 'lucide-react';
 
+// Storage keys
+const KEY_ENGINE = 'yt_active_engine';
+const KEY_MODEL = 'yt_selected_model';
+
 export default function EngineSelector() {
   const [activeEngine, setActiveEngine] = useState<'openai' | 'gemini'>('openai');
   const [selectedModel, setSelectedModel] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [hasKeys, setHasKeys] = useState(false);
 
   useEffect(() => {
-    if (supabase) {
-      fetchConfig();
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  async function fetchConfig() {
-    // Tenta carregar do Supabase ou do LocalStorage (Fallback)
-    if (supabase) {
-      try {
-        const { data } = await supabase.from('user_configs').select('*').single();
-        if (data) {
-          setActiveEngine(data.active_engine);
-          setSelectedModel(data.selected_model);
-          return;
-        }
-      } catch (err) { console.warn('Supabase fetch failed, using local storage.'); }
-    }
-    
-    const localEngine = localStorage.getItem('yt_active_engine') as 'openai' | 'gemini';
-    const localModel = localStorage.getItem('yt_selected_model');
-    if (localEngine) setActiveEngine(localEngine);
-    if (localModel) setSelectedModel(localModel);
-  }
-
-  async function updateConfig(engine: 'openai' | 'gemini', model: string) {
+    const engine = (localStorage.getItem(KEY_ENGINE) as 'openai' | 'gemini') || 'openai';
+    const model = localStorage.getItem(KEY_MODEL) || '';
+    const openaiKey = localStorage.getItem('yt_openai_key') || '';
+    const geminiKey = localStorage.getItem('yt_gemini_key') || '';
     setActiveEngine(engine);
     setSelectedModel(model);
-    
-    localStorage.setItem('yt_active_engine', engine);
-    localStorage.setItem('yt_selected_model', model);
+    setHasKeys(!!(openaiKey || geminiKey));
+  }, []);
 
-    if (supabase) {
-      await supabase.from('user_configs').update({ active_engine: engine, selected_model: model }).eq('id', (await supabase.from('user_configs').select('id').single()).data?.id);
-    }
+  function updateConfig(engine: 'openai' | 'gemini', model: string) {
+    setActiveEngine(engine);
+    setSelectedModel(model);
+    localStorage.setItem(KEY_ENGINE, engine);
+    localStorage.setItem(KEY_MODEL, model);
   }
-
-  if (loading) return <div>Carregando Motores...</div>;
 
   return (
     <section className="model-selector" style={{ flexDirection: 'column', gap: '1rem' }}>
-      {!supabase && (
-        <div style={{ 
-          border: localStorage.getItem('yt_openai_key') || localStorage.getItem('yt_gemini_key') ? '1px solid var(--primary)' : '1px solid #f87171', 
-          padding: '1rem', 
-          borderRadius: '12px', 
-          background: localStorage.getItem('yt_openai_key') || localStorage.getItem('yt_gemini_key') ? 'rgba(155, 176, 165, 0.1)' : 'rgba(248, 113, 113, 0.1)', 
-          marginBottom: '1rem' 
-        }}>
-          {localStorage.getItem('yt_openai_key') || localStorage.getItem('yt_gemini_key') ? (
-            <p style={{ color: 'var(--primary)', fontSize: '0.9rem' }}>✅ Operando em Modo Local. Suas chaves estão salvas neste navegador.</p>
-          ) : (
-            <p style={{ color: '#f87171', fontSize: '0.9rem' }}>⚠️ Modo Preview: Supabase não configurado. Suas alterações serão salvas apenas localmente.</p>
-          )}
-        </div>
-      )}
-      
+      <div style={{
+        border: hasKeys ? '1px solid var(--primary)' : '1px solid #f87171',
+        padding: '1rem',
+        borderRadius: '12px',
+        background: hasKeys ? 'rgba(155, 176, 165, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+        marginBottom: '1rem'
+      }}>
+        {hasKeys ? (
+          <p style={{ color: 'var(--primary)', fontSize: '0.9rem' }}>✅ Chaves de API configuradas. Motor de IA operacional.</p>
+        ) : (
+          <p style={{ color: '#f87171', fontSize: '0.9rem' }}>⚠️ Nenhuma chave de API configurada. Vá em <strong>Gestão Master</strong> para adicionar suas chaves OpenAI ou Gemini.</p>
+        )}
+      </div>
+
       <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
         <div className={`glass-card ${activeEngine === 'openai' ? 'active-engine' : ''}`} style={{ flex: 1, border: activeEngine === 'openai' ? '1px solid var(--primary)' : '1px solid var(--card-border)' }}>
           <h3 style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
@@ -83,9 +60,9 @@ export default function EngineSelector() {
             icon={<Zap size={14} />}
             placeholder="Modelo OpenAI"
           />
-          <button 
+          <button
             onClick={() => updateConfig('openai', AI_MODELS.openai[0].id)}
-            className="btn-primary" 
+            className="btn-primary"
             style={{ marginTop: '1rem', width: '100%', display: activeEngine === 'openai' ? 'none' : 'block' }}
           >
             Ativar OpenAI
@@ -104,9 +81,9 @@ export default function EngineSelector() {
             icon={<Cpu size={14} />}
             placeholder="Modelo Gemini"
           />
-          <button 
+          <button
             onClick={() => updateConfig('gemini', AI_MODELS.gemini[0].id)}
-            className="btn-primary" 
+            className="btn-primary"
             style={{ marginTop: '1rem', width: '100%', display: activeEngine === 'gemini' ? 'none' : 'block' }}
           >
             Ativar Gemini

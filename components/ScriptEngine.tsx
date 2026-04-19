@@ -1414,7 +1414,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           key: 'prompts',
           label: 'Prompts visuais',
           status: 'done',
-          detail: `${data?.stats?.video || 0} prompt(s) de video e ${data?.stats?.image || 0} prompt(s) de imagem preparados.`,
+          detail: `${generatedData?.stats?.video || 0} prompt(s) de video e ${generatedData?.stats?.image || 0} prompt(s) de imagem preparados.`,
         },
         {
           key: 'render',

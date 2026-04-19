@@ -53,23 +53,27 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
     }));
   };
 
-  const normalizeEditingSop = (source: any = {}) => ({
-    cut_rhythm: source.cut_rhythm || '',
-    zoom_style: source.zoom_style || '',
-    soundtrack: source.soundtrack || '',
-    art_direction: source.art_direction || '',
-    overlays: source.overlays || '',
-    duration: source.duration || '',
-    duration_min: toNumberOrEmpty(source.duration_min ?? source.duration),
-    duration_max: toNumberOrEmpty(source.duration_max),
-    blocks_variation: source.blocks_variation || '',
-    blocks_min: toNumberOrEmpty(source.blocks_min),
-    blocks_max: toNumberOrEmpty(source.blocks_max),
-    asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
-    measurement_focus: source.measurement_focus || '',
-  });
+  const normalizeEditingSop = (s: any) => {
+    const source = s || {};
+    return {
+      cut_rhythm: source.cut_rhythm || '',
+      zoom_style: source.zoom_style || '',
+      soundtrack: source.soundtrack || '',
+      art_direction: source.art_direction || '',
+      overlays: source.overlays || '',
+      duration: source.duration || '',
+      duration_min: toNumberOrEmpty(source.duration_min ?? source.duration),
+      duration_max: toNumberOrEmpty(source.duration_max),
+      blocks_variation: source.blocks_variation || '',
+      blocks_min: toNumberOrEmpty(source.blocks_min),
+      blocks_max: toNumberOrEmpty(source.blocks_max),
+      asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
+      measurement_focus: source.measurement_focus || '',
+    };
+  };
 
-  const normalizeThumbStrategy = (source: any = {}) => {
+  const normalizeThumbStrategy = (s: any) => {
+    const source = s || {};
     const layouts = Array.isArray(source.layouts) && source.layouts.length > 0
       ? source.layouts
       : source.layout
@@ -84,30 +88,42 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
     };
   };
 
-  const normalizePhdStrategy = (source: any = {}) => ({
-    passion: source.passion || '',
-    skill: source.skill || '',
-    demand: source.demand || '',
-  });
+  const normalizePhdStrategy = (s: any) => {
+    const source = s || {};
+    return {
+      passion: source.passion || '',
+      skill: source.skill || '',
+      demand: source.demand || '',
+    };
+  };
 
-  const normalizePersonaMatrix = (source: any = {}, targetPersona: any = {}) => ({
-    demographics: source.demographics || targetPersona.audience || '',
-    language: source.language || '',
-    pain_alignment: source.pain_alignment || targetPersona.pain_point || '',
-    desired_outcome: source.desired_outcome || '',
-    proof_points: source.proof_points || '',
-  });
+  const normalizePersonaMatrix = (s: any, targetPersona: any = {}) => {
+    const source = s || {};
+    return {
+      demographics: source.demographics || targetPersona.audience || '',
+      language: source.language || '',
+      pain_alignment: source.pain_alignment || targetPersona.pain_point || '',
+      desired_outcome: source.desired_outcome || '',
+      proof_points: source.proof_points || '',
+    };
+  };
 
-  const normalizeEditorialLine = (source: any = {}) => ({
-    pillars: normalizePillarList(source.pillars),
-    positioning_angle: source.positioning_angle || '',
-    content_boundaries: source.content_boundaries || '',
-  });
+  const normalizeEditorialLine = (s: any) => {
+    const source = s || {};
+    return {
+      pillars: normalizePillarList(source.pillars),
+      positioning_angle: source.positioning_angle || '',
+      content_boundaries: source.content_boundaries || '',
+    };
+  };
 
-  const normalizeNarrativeVoice = (source: any = {}) => ({
-    atmosphere: Array.isArray(source.atmosphere) ? source.atmosphere : (source.atmosphere ? [source.atmosphere] : []),
-    positioning: source.positioning || '',
-  });
+  const normalizeNarrativeVoice = (s: any) => {
+    const source = s || {};
+    return {
+      atmosphere: Array.isArray(source.atmosphere) ? source.atmosphere : (source.atmosphere ? [source.atmosphere] : []),
+      positioning: source.positioning || '',
+    };
+  };
 
   const normalizePillarList = (pillars: any) => {
     const list = Array.isArray(pillars) ? pillars : [];
@@ -128,12 +144,12 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       default_execution_mode: d.default_execution_mode || 'internal',
       
       // Stage 1: Fundação (DNA)
-      phd_strategy: normalizePhdStrategy(d.phd_strategy),
-      persona_matrix: normalizePersonaMatrix(d.persona_matrix, d.target_persona),
+      phd_strategy: normalizePhdStrategy(d.phd_strategy || {}),
+      persona_matrix: normalizePersonaMatrix(d.persona_matrix || {}, d.target_persona || {}),
       
       // Stage 2: Inteligência (Editorial)
-      editorial_line: normalizeEditorialLine(d.editorial_line),
-      narrative_voice: normalizeNarrativeVoice(d.narrative_voice),
+      editorial_line: normalizeEditorialLine(d.editorial_line || {}),
+      narrative_voice: normalizeNarrativeVoice(d.narrative_voice || {}),
       
       // Stage 3: Engenharia (Packaging)
       metaphor_library: d.metaphor_library || d.ai_engine_rules?.metaphors?.join(', ') || '',

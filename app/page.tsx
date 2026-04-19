@@ -503,7 +503,11 @@ export default function Home() {
     initApp();
 
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+      // ⚠️ IMPORTANT: onAuthStateChange callback MUST be synchronous.
+      // Calling async operations inside it holds the Supabase internal lock
+      // and causes 'Lock was not released within 5000ms' → page crash.
+      // Fix: defer all async work outside the lock with setTimeout(0).
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
         console.log('--- Auth Event ---', event, session?.user?.id);
         const currentId = session?.user?.id || null;
 
@@ -511,8 +515,15 @@ export default function Home() {
           if (currentId && currentId !== lastSessionId) {
             setLastSessionId(currentId);
             setUser(session.user);
-            await fetchProfile(session.user.id);
-            await projectStore.loadProjects();
+            // Defer heavy async work to avoid holding the Supabase auth lock
+            setTimeout(() => {
+              fetchProfile(session.user.id).catch((e: any) =>
+                console.warn('[ContentOS] fetchProfile falhou:', e?.message)
+              );
+              projectStore.loadProjects().catch((e: any) =>
+                console.warn('[ContentOS] loadProjects falhou:', e?.message)
+              );
+            }, 0);
           }
         } else if (event === 'SIGNED_OUT') {
           setLastSessionId(null);

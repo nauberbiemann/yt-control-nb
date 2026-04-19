@@ -110,6 +110,10 @@ export default function Home() {
     });
   };
 
+  // Strict sanitization: only columns that exist in the `projects` Postgres table.
+  // Keys NOT in the schema (e.g. phd_strategy, persona_matrix, editorial_line,
+  // narrative_voice, thumb_strategy) would cause a 400 PostgrestError that was
+  // previously swallowed silently.
   const sanitizeProjectCloudPayload = (project: Record<string, any>) => {
     const safeName =
       project?.project_name ||
@@ -130,25 +134,26 @@ export default function Home() {
       status: project?.status || 'active',
       visual_style: project?.visual_style || null,
       accent_color: project?.accent_color || '#9BB0A5',
+      // JSONB columns accepted by the DB schema (CUMULATIVE_MIGRATION.sql)
       target_persona: project?.target_persona || null,
       ai_engine_rules: project?.ai_engine_rules || null,
       playlists: project?.playlists || null,
-      phd_strategy: project?.phd_strategy || null,
-      persona_matrix: project?.persona_matrix || null,
-      editorial_line: project?.editorial_line || null,
-      narrative_voice: project?.narrative_voice || null,
       detailed_sop: project?.detailed_sop || project?.editing_sop || null,
       editing_sop: project?.editing_sop || project?.detailed_sop || null,
-      thumb_strategy: project?.thumb_strategy || null,
+      traceability_summary: project?.traceability_summary || [],
+      traceability_sources: project?.traceability_sources || {},
+      // TEXT columns
       metaphor_library: project?.metaphor_library || null,
       prohibited_terms: project?.prohibited_terms || null,
       base_system_instruction: project?.base_system_instruction || null,
       default_execution_mode: project?.default_execution_mode || 'internal',
-      traceability_summary: project?.traceability_summary || [],
-      traceability_sources: project?.traceability_sources || {},
       user_id: project?.user_id || null,
       created_at: project?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // NOTE: phd_strategy, persona_matrix, editorial_line, narrative_voice,
+      // thumb_strategy are intentionally excluded — they are local-only fields
+      // stored in localStorage. Add matching ALTER TABLE migrations if cloud
+      // persistence of these fields is required.
     };
   };
 
@@ -383,6 +388,7 @@ export default function Home() {
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [projectSyncStatus, setProjectSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
   const hasInitialized = useRef(false);
   const isMasterUser = isMasterAccessEmail(user?.email);
   const effectiveProfile = isMasterUser
@@ -519,6 +525,59 @@ export default function Home() {
     if (loading || projectStore.projectsLoaded || projects.length > 0) return;
     void projectStore.loadProjects();
   }, [loading, projectStore.projectsLoaded, projects.length, projectStore]);
+
+  // 🔄 Background Project Auto-Uploader
+  // Every 90s, retry any projects that failed their cloud sync.
+  useEffect(() => {
+    if (!supabase) return;
+    const interval = setInterval(async () => {
+      try {
+        const raw = localStorage.getItem('_pending_project_sync');
+        if (!raw) return;
+        const pending: string[] = JSON.parse(raw);
+        if (!pending.length) return;
+
+        const allProjects: any[] = JSON.parse(localStorage.getItem('writer_studio_projects') || '[]');
+        const toSync = allProjects.filter((p: any) => pending.includes(p.id));
+        if (!toSync.length) {
+          localStorage.removeItem('_pending_project_sync');
+          return;
+        }
+
+        console.log(`[AutoUploader] Tentando sincronizar ${toSync.length} projeto(s) pendente(s)...`);
+        const results = await Promise.all(
+          toSync.map((p: any) =>
+            supabase!.from('projects').upsert(sanitizeProjectCloudPayload(p)).then(({ error }: { error: any }) => ({
+              id: p.id,
+              ok: !error,
+              error,
+            }))
+          )
+        );
+
+        const stillPending = results.filter((r) => !r.ok).map((r) => r.id);
+        const synced = results.filter((r) => r.ok).map((r) => r.id);
+
+        if (synced.length) {
+          console.log(`[AutoUploader] ✅ ${synced.length} projeto(s) sincronizado(s).`);
+          setProjectSyncStatus('idle');
+        }
+
+        if (stillPending.length) {
+          console.warn(`[AutoUploader] ⚠️ ${stillPending.length} projeto(s) ainda pendente(s).`);
+          setProjectSyncStatus('error');
+          localStorage.setItem('_pending_project_sync', JSON.stringify(stillPending));
+        } else {
+          localStorage.removeItem('_pending_project_sync');
+        }
+      } catch (err) {
+        console.warn('[AutoUploader] Falha no ciclo de sync de projetos:', err);
+      }
+    }, 90_000);
+
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
   const handleUpdateAI = (config: AIConfig) => {
     setActiveAIConfig(config);
@@ -1040,10 +1099,27 @@ export default function Home() {
 
       if (supabase) {
         console.log("[ContentOS] Sincronizando com Supabase em background...");
+        setProjectSyncStatus('syncing');
         supabase.from('projects').upsert(sanitizeProjectCloudPayload(projectData)).then(({ error }: { error: any }) => {
-          if (error) console.warn('⚠️ Supabase Sync Error:', error.message);
-          else {
-            console.log("[ContentOS] Sincronização concluída. Recarregando projetos...");
+          if (error) {
+            console.warn('⚠️ Supabase Sync Error:', error.message);
+            setProjectSyncStatus('error');
+            // Mark project as pending sync so the auto-uploader picks it up
+            try {
+              const pending: string[] = JSON.parse(localStorage.getItem('_pending_project_sync') || '[]');
+              if (!pending.includes(projectData.id)) {
+                pending.push(projectData.id);
+                localStorage.setItem('_pending_project_sync', JSON.stringify(pending));
+              }
+            } catch {}
+          } else {
+            console.log("[ContentOS] Sincronização concluída.");
+            setProjectSyncStatus('idle');
+            // Remove from pending list
+            try {
+              const pending: string[] = JSON.parse(localStorage.getItem('_pending_project_sync') || '[]');
+              localStorage.setItem('_pending_project_sync', JSON.stringify(pending.filter((id) => id !== projectData.id)));
+            } catch {}
             projectStore.loadProjects();
           }
         });
@@ -1694,9 +1770,25 @@ export default function Home() {
             >
               <Settings size={22} />
             </button>
-            <div className="flex items-center gap-4 bg-slate-900/50 px-5 py-2.5 rounded-2xl border border-slate-800/50 shadow-inner">
-              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[3px]">Status: • Online</span>
+            <div className={`flex items-center gap-4 px-5 py-2.5 rounded-2xl border shadow-inner transition-all duration-500 ${
+              projectSyncStatus === 'error'
+                ? 'bg-red-950/50 border-red-800/50'
+                : projectSyncStatus === 'syncing'
+                  ? 'bg-yellow-950/50 border-yellow-800/50'
+                  : 'bg-slate-900/50 border-slate-800/50'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                projectSyncStatus === 'error'
+                  ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                  : projectSyncStatus === 'syncing'
+                    ? 'bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]'
+                    : 'bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+              }`} />
+              <span className={`text-[10px] font-black uppercase tracking-[3px] ${
+                projectSyncStatus === 'error' ? 'text-red-400' : projectSyncStatus === 'syncing' ? 'text-yellow-400' : 'text-slate-500'
+              }`}>
+                {projectSyncStatus === 'error' ? 'Sync Pendente' : projectSyncStatus === 'syncing' ? 'Sincronizando...' : 'Status: • Online'}
+              </span>
             </div>
           </div>
         </header>

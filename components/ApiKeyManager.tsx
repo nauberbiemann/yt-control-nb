@@ -27,76 +27,25 @@ export default function ApiKeyManager({ onSave }: { onSave?: () => void }) {
     }
   }
 
-  async function loadKeys() {
-    // Always load from localStorage first for instant display
+  function loadKeys() {
     setOpenaiKey(localStorage.getItem('yt_openai_key') || '');
     setGeminiKey(localStorage.getItem('yt_gemini_key') || '');
-
-    // Then try to load from Supabase
-    if (supabase) {
-      try {
-        const { data } = await supabase
-          .from('user_configs')
-          .select('openai_key, gemini_key')
-          .limit(1)
-          .maybeSingle();
-
-        if (data) {
-          if (data.openai_key) setOpenaiKey(data.openai_key);
-          if (data.gemini_key) setGeminiKey(data.gemini_key);
-        }
-      } catch (e) {
-        console.warn('Não foi possível carregar chaves do Supabase, usando locais', e);
-      }
-    }
   }
 
   async function saveKeys() {
     setSaveStatus('saving');
     setSaveMessage('Salvando...');
 
-    // Always save to localStorage first (instant, no failure)
-    localStorage.setItem('yt_openai_key', openaiKey);
-    localStorage.setItem('yt_gemini_key', geminiKey);
+    try {
+      localStorage.setItem('yt_openai_key', openaiKey.trim());
+      localStorage.setItem('yt_gemini_key', geminiKey.trim());
 
-    if (supabase) {
-      try {
-        // 1. Check if a row already exists
-        const { data: existing } = await supabase
-          .from('user_configs')
-          .select('id')
-          .limit(1)
-          .maybeSingle();
-
-        if (existing?.id) {
-          // Row exists → update it
-          const { error } = await supabase
-            .from('user_configs')
-            .update({ openai_key: openaiKey, gemini_key: geminiKey })
-            .eq('id', existing.id);
-
-          if (error) throw error;
-        } else {
-          // No row → insert a new one
-          const { error } = await supabase
-            .from('user_configs')
-            .insert({ openai_key: openaiKey, gemini_key: geminiKey });
-
-          if (error) throw error;
-        }
-
-        setSaveStatus('ok');
-        setSaveMessage('✓ Salvo globalmente!');
-        if (onSave) setTimeout(onSave, 1500);
-      } catch (err: any) {
-        console.error('Erro ao salvar no Supabase:', err);
-        setSaveStatus('error');
-        setSaveMessage('Erro na nuvem · Salvo localmente');
-      }
-    } else {
       setSaveStatus('ok');
-      setSaveMessage('✓ Salvo localmente no browser');
-      if (onSave) setTimeout(onSave, 1500);
+      setSaveMessage('Chaves salvas! Motor de IA pronto.');
+      if (onSave) setTimeout(onSave, 1200);
+    } catch (err: any) {
+      setSaveStatus('error');
+      setSaveMessage('Erro ao salvar: ' + (err.message || 'Tente novamente'));
     }
 
     setTimeout(() => {

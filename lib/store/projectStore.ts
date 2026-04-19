@@ -493,17 +493,50 @@ export const useProjectStore = create<ProjectStore>()(
           if (error) throw error;
 
           if (data && data.length > 0) {
-            // ☁️ CLOUD-WINS (DEFINITIVE): use cloud records completely as-is.
-            // NO merge with local — local state is irrelevant when cloud has data.
+            // ☁️ CLOUD-WINS with local strategic field merge.
+            // Supabase is authoritative for its own columns, but fields like
+            // phd_strategy, persona_matrix, editorial_line, narrative_voice and
+            // thumb_strategy are NOT in the DB schema (no ALTER TABLE migration).
+            // We must rescue those fields from the local cache so the user
+            // never loses strategic DNA data after a page reload.
+            const LOCAL_ONLY_FIELDS = [
+              'phd_strategy',
+              'persona_matrix',
+              'editorial_line',
+              'narrative_voice',
+              'thumb_strategy',
+            ] as const;
+
+            const localById = new Map(localProjects.map((p) => [p.id, p]));
+
+            const mergedCloudProjects = (data as Project[]).map((cloudProject) => {
+              const localProject = localById.get(cloudProject.id);
+              if (!localProject) return cloudProject;
+
+              // For each local-only field, use the local value if the cloud
+              // record doesn't have a meaningful value for it.
+              const rescued: Partial<Project> = {};
+              for (const field of LOCAL_ONLY_FIELDS) {
+                const cloudVal = (cloudProject as any)[field];
+                const localVal = (localProject as any)[field];
+                const cloudEmpty =
+                  cloudVal === null ||
+                  cloudVal === undefined ||
+                  (typeof cloudVal === 'object' && Object.keys(cloudVal || {}).length === 0);
+                if (cloudEmpty && localVal && Object.keys(localVal).length > 0) {
+                  (rescued as any)[field] = localVal;
+                }
+              }
+              return Object.keys(rescued).length > 0
+                ? { ...cloudProject, ...rescued }
+                : cloudProject;
+            });
+
             const remoteIds = new Set(data.map((p: Project) => p.id));
-
-            // Only include local projects that are NOT in the cloud
             const localOnly = localProjects.filter((p) => !remoteIds.has(p.id));
+            const finalProjects = normalizeProjectList([...mergedCloudProjects, ...localOnly]);
 
-            // Cloud projects first (authoritative), local-only after (not yet synced)
-            const finalProjects = normalizeProjectList([...(data as Project[]), ...localOnly]);
-
-            console.log(`[ProjectStore] ☁️ Cloud-wins: ${data.length} from cloud, ${localOnly.length} local-only`);
+            console.log(`[ProjectStore] ☁️ Cloud-wins+local-rescue: ${data.length} from cloud, ${localOnly.length} local-only`);
             get().setProjects(finalProjects);
           } else {
             // Cloud empty → use local cache as fallback

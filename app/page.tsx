@@ -111,9 +111,8 @@ export default function Home() {
   };
 
   // Strict sanitization: only columns that exist in the `projects` Postgres table.
-  // Keys NOT in the schema (e.g. phd_strategy, persona_matrix, editorial_line,
-  // narrative_voice, thumb_strategy) would cause a 400 PostgrestError that was
-  // previously swallowed silently.
+  // After running migration_strategic_fields.sql, the schema now includes
+  // phd_strategy, persona_matrix, editorial_line, narrative_voice, thumb_strategy.
   const sanitizeProjectCloudPayload = (project: Record<string, any>) => {
     const safeName =
       project?.project_name ||
@@ -134,7 +133,7 @@ export default function Home() {
       status: project?.status || 'active',
       visual_style: project?.visual_style || null,
       accent_color: project?.accent_color || '#9BB0A5',
-      // JSONB columns accepted by the DB schema (CUMULATIVE_MIGRATION.sql)
+      // JSONB columns — base schema
       target_persona: project?.target_persona || null,
       ai_engine_rules: project?.ai_engine_rules || null,
       playlists: project?.playlists || null,
@@ -142,6 +141,12 @@ export default function Home() {
       editing_sop: project?.editing_sop || project?.detailed_sop || null,
       traceability_summary: project?.traceability_summary || [],
       traceability_sources: project?.traceability_sources || {},
+      // JSONB columns — added by migration_strategic_fields.sql
+      phd_strategy: project?.phd_strategy || null,
+      persona_matrix: project?.persona_matrix || null,
+      editorial_line: project?.editorial_line || null,
+      narrative_voice: project?.narrative_voice || null,
+      thumb_strategy: project?.thumb_strategy || null,
       // TEXT columns
       metaphor_library: project?.metaphor_library || null,
       prohibited_terms: project?.prohibited_terms || null,
@@ -150,10 +155,6 @@ export default function Home() {
       user_id: project?.user_id || null,
       created_at: project?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      // NOTE: phd_strategy, persona_matrix, editorial_line, narrative_voice,
-      // thumb_strategy are intentionally excluded — they are local-only fields
-      // stored in localStorage. Add matching ALTER TABLE migrations if cloud
-      // persistence of these fields is required.
     };
   };
 

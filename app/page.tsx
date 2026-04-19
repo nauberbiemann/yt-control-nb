@@ -1099,12 +1099,19 @@ export default function Home() {
 
       if (supabase) {
         console.log("[ContentOS] Sincronizando com Supabase em background...");
-        setProjectSyncStatus('syncing');
-        supabase.from('projects').upsert(sanitizeProjectCloudPayload(projectData)).then(({ error }: { error: any }) => {
+        // Timeout guard: if Supabase hangs (no resolve/reject in 8s), treat as
+        // a transient failure and queue for the background auto-uploader.
+        const upsertWithTimeout = Promise.race([
+          supabase.from('projects').upsert(sanitizeProjectCloudPayload(projectData)),
+          new Promise<{ error: any }>((resolve) =>
+            setTimeout(() => resolve({ error: { message: 'Timeout: Supabase não respondeu em 8s.' } }), 8000)
+          ),
+        ]);
+
+        upsertWithTimeout.then(({ error }: { error: any }) => {
           if (error) {
             console.warn('⚠️ Supabase Sync Error:', error.message);
             setProjectSyncStatus('error');
-            // Mark project as pending sync so the auto-uploader picks it up
             try {
               const pending: string[] = JSON.parse(localStorage.getItem('_pending_project_sync') || '[]');
               if (!pending.includes(projectData.id)) {
@@ -1115,7 +1122,6 @@ export default function Home() {
           } else {
             console.log("[ContentOS] Sincronização concluída.");
             setProjectSyncStatus('idle');
-            // Remove from pending list
             try {
               const pending: string[] = JSON.parse(localStorage.getItem('_pending_project_sync') || '[]');
               localStorage.setItem('_pending_project_sync', JSON.stringify(pending.filter((id) => id !== projectData.id)));
@@ -1773,21 +1779,17 @@ export default function Home() {
             <div className={`flex items-center gap-4 px-5 py-2.5 rounded-2xl border shadow-inner transition-all duration-500 ${
               projectSyncStatus === 'error'
                 ? 'bg-red-950/50 border-red-800/50'
-                : projectSyncStatus === 'syncing'
-                  ? 'bg-yellow-950/50 border-yellow-800/50'
-                  : 'bg-slate-900/50 border-slate-800/50'
+                : 'bg-slate-900/50 border-slate-800/50'
             }`}>
               <div className={`w-2 h-2 rounded-full ${
                 projectSyncStatus === 'error'
                   ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-                  : projectSyncStatus === 'syncing'
-                    ? 'bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]'
-                    : 'bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+                  : 'bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]'
               }`} />
               <span className={`text-[10px] font-black uppercase tracking-[3px] ${
-                projectSyncStatus === 'error' ? 'text-red-400' : projectSyncStatus === 'syncing' ? 'text-yellow-400' : 'text-slate-500'
+                projectSyncStatus === 'error' ? 'text-red-400' : 'text-slate-500'
               }`}>
-                {projectSyncStatus === 'error' ? 'Sync Pendente' : projectSyncStatus === 'syncing' ? 'Sincronizando...' : 'Status: • Online'}
+                {projectSyncStatus === 'error' ? 'Sync Pendente' : 'Status: • Online'}
               </span>
             </div>
           </div>

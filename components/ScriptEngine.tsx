@@ -10,6 +10,9 @@ import {
   buildAssetStats,
   parseSrtToRows,
   sanitizeDownloadFileStem,
+  buildPipelineResult,
+  normalizeAssetType,
+  parseSrtTimeToMs,
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
 import {
@@ -515,6 +518,20 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     if (!supabase) return;
 
     try {
+      const cloudThemePayload = {
+        project_id: themePayload.project_id,
+        user_id: themePayload.user_id,
+        title: themePayload.title,
+        description: themePayload.description,
+        editorial_pillar: themePayload.editorial_pillar,
+        status: themePayload.status,
+        hook_id: null,
+        title_structure: themePayload.title_structure,
+        priority: themePayload.priority,
+        notes: themePayload.notes,
+        updated_at: themePayload.updated_at,
+      };
+
       const existingRemote = await supabase
         .from('themes')
         .select('id')
@@ -523,9 +540,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         .limit(1);
 
       if (existingRemote.data && existingRemote.data[0]?.id) {
-        await supabase.from('themes').update(themePayload).eq('id', existingRemote.data[0].id);
+        await supabase.from('themes').update(cloudThemePayload).eq('id', existingRemote.data[0].id);
       } else {
-        await supabase.from('themes').insert(themePayload);
+        await supabase.from('themes').insert({
+          ...cloudThemePayload,
+          created_at: new Date().toISOString(),
+        });
       }
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao sincronizar tema manual com o Banco de Temas.', error);
@@ -1283,38 +1303,90 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       );
       setSrtPipelineStatus('Assets marcados. Enviando as linhas elegiveis para gerar prompts visuais...');
 
-      updateSrtObserverStep('prompts', 'running', 'Gerando prompts para as linhas marcadas como video e imagem...');
-      const res = await fetch('/api/assets/srt-pipeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          srtText: externalSrtText,
-          srtFileName: externalSrtFileName,
-          engine,
-          model,
-          apiKeyOverwrite: apiKey,
-          projectConfig: activeProject?.ai_engine_rules,
-          characterProfile: {
-            mode: videoCharacterMode,
-            customDescription: videoCharacterCustom,
-          },
-        }),
+      updateSrtObserverStep('prompts', 'running', 'Aguardando o envio do primeiro lote...');
+
+      const promptItems = assetRows.flatMap((row, index) => {
+        if (!['vídeo', 'imagem'].includes(normalizeAssetType(row.asset))) return [];
+        const previousText = assetRows[index - 1]?.texto?.trim() || '';
+        const nextText = assetRows[index + 1]?.texto?.trim() || '';
+        const startMs = parseSrtTimeToMs(row.startTime);
+        const endMs = parseSrtTimeToMs(row.endTime);
+        const durationSeconds = Number(((endMs - startMs) / 1000).toFixed(3));
+  
+        return [{
+          row_number: row.rowNumber,
+          asset: row.asset === 'vídeo' ? 'video' : 'image',
+          text: row.texto.trim(),
+          start_time: row.startTime,
+          end_time: row.endTime,
+          duration_seconds: durationSeconds,
+          previous_text: previousText,
+          next_text: nextText,
+        }];
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Falha ao processar o SRT anexado.');
+      const promptMap = new Map<number, string>();
+      const chunkSize = 15;
+      const chunks = [];
+      for (let i = 0; i < promptItems.length; i += chunkSize) {
+        chunks.push(promptItems.slice(i, i + chunkSize));
       }
+
+      for (let i = 0; i < chunks.length; i++) {
+        const batch = chunks[i];
+        updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote ${i + 1} de ${chunks.length}...`);
+        const res = await fetch('/api/assets/srt-pipeline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            batchItems: batch,
+            engine,
+            model,
+            apiKeyOverwrite: apiKey,
+            projectConfig: activeProject?.ai_engine_rules,
+            characterProfile: {
+              mode: videoCharacterMode,
+              customDescription: videoCharacterCustom,
+            },
+          }),
+        });
+
+        const responseText = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          if (res.status === 504) {
+            throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação no lote ${i + 1} de ${chunks.length} por exceder o tempo limite. Tente gerar com um modelo mais rápido.`);
+          }
+          throw new Error(`Erro inesperado (${res.status}) no lote ${i + 1}: A Vercel não retornou um JSON válido. Resposta: ${responseText.slice(0, 80)}...`);
+        }
+
+        if (!res.ok || data?.error) {
+          throw new Error(data?.error || `Falha ao processar lote ${i + 1} do SRT.`);
+        }
+
+        (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string }) => {
+          if (p.rowNumber && p.prompt) promptMap.set(p.rowNumber, p.prompt);
+        });
+      }
+
+      const rowsWithPrompts = assetRows.map((row) => ({
+        ...row,
+        prompt: promptMap.get(row.rowNumber) || row.prompt,
+      }));
+
+      const generatedData = buildPipelineResult(rowsWithPrompts);
 
       updateSrtObserverStep(
         'prompts',
         'done',
-        `${data?.stats?.video || 0} prompt(s) de video e ${data?.stats?.image || 0} prompt(s) de imagem preparados.`
+        `${generatedData.stats?.video || 0} prompt(s) de video e ${generatedData.stats?.image || 0} prompt(s) de imagem preparados.`
       );
       updateSrtObserverStep('persist', 'running', 'Salvando CSV, prompts e preview dentro do snapshot desta execucao...');
       const persistedAt = new Date().toISOString();
       const pipelineResult = {
-        ...data,
+        ...generatedData,
         generatedAt: persistedAt,
       };
       setExternalSrtPipeline(pipelineResult);
@@ -1410,7 +1482,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        if (res.status === 504) {
+          throw new Error('Timeout (Erro 504): O servidor levou muito tempo para renderizar os assets de texto. Reduza o volume ou rode localmente.');
+        }
+        throw new Error(`Erro inesperado (${res.status}): A Vercel não retornou um JSON válido. Resposta: ${responseText.slice(0, 80)}...`);
+      }
+
       if (!res.ok) {
         throw new Error(data?.error || 'Falha ao executar a etapa 5 do pipeline SRT.');
       }

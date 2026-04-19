@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 import {
   applyAssetRules,
@@ -12,6 +12,8 @@ import {
 
 const BATCH_SIZE = 12;
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem']);
+
+export const maxDuration = 60;
 
 const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
@@ -287,14 +289,45 @@ const generatePromptMap = async ({
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const srtText = String(body?.srtText || '').trim();
     const engine = body?.engine === 'gemini' ? 'gemini' : 'openai';
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
     const characterDescription = resolveCharacterProfile(body?.characterProfile);
+    
+    // Batch Mode Branch
+    if (Array.isArray(body?.batchItems) && body.batchItems.length > 0) {
+      const apiKey = String(
+        body?.apiKeyOverwrite || (engine === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY) || ''
+      ).trim();
 
+      if (!apiKey) {
+        return NextResponse.json({ error: `API Key para ${engine} nao configurada.` }, { status: 401 });
+      }
+
+      const promptItems = body.batchItems as PromptBatchItem[];
+      const promptMap = await generatePromptMap({
+        engine,
+        model,
+        apiKey,
+        projectConfig,
+        items: promptItems,
+        characterDescription,
+      });
+
+      const prompts = promptItems.map((item) => ({
+        rowNumber: item.row_number,
+        prompt: item.asset === 'video'
+          ? enforceVideoPromptGuards(promptMap.get(item.row_number) || '', characterDescription)
+          : promptMap.get(item.row_number) || '',
+      }));
+
+      return NextResponse.json({ prompts });
+    }
+
+    // Legacy / Full-File Mode Branch
+    const srtText = String(body?.srtText || '').trim();
     if (!srtText) {
-      return NextResponse.json({ error: 'O conteudo do .srt e obrigatorio.' }, { status: 400 });
+      return NextResponse.json({ error: 'O conteudo do .srt ou o array batchItems e obrigatorio.' }, { status: 400 });
     }
 
     const parsedRows = parseSrtToRows(srtText);

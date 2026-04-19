@@ -248,11 +248,6 @@ export default function Home() {
         briefing?.selectedTitleStructure?.name ||
         existingTheme?.title_structure ||
         '',
-      selected_structure:
-        briefing?.selectedTitleStructure?.id ||
-        briefing?.assetLog?.titleStructure ||
-        existingTheme?.selected_structure ||
-        '',
       title_structure_asset_id:
         briefing?.selectedTitleStructure?.id ||
         briefing?.assetLog?.titleStructure ||

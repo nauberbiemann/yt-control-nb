@@ -264,7 +264,6 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     status: sanitizeThemeStatusForCloud(payload.status),
     hook_id: payload.hook_id || null,
     title_structure: payload.title_structure || '',
-    selected_structure: payload.selected_structure || payload.title_structure_asset_id || null,
     title_structure_asset_id: payload.title_structure_asset_id || null,
     refined_title: payload.refined_title || '',
     match_score: Number(payload.match_score) || 0,

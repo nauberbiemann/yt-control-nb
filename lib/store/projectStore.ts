@@ -475,31 +475,39 @@ export const useProjectStore = create<ProjectStore>()(
       },
 
       loadProjects: async () => {
-        try {
-          const localProjects = readLocalProjectCaches();
-          const fallbackProjects = localProjects.length > 0 ? localProjects : [createBootstrapProject()];
+        const localProjects = readLocalProjectCaches();
+        const fallbackProjects = localProjects.length > 0 ? localProjects : [createBootstrapProject()];
 
+        // Always render local data immediately so the UI is never blank
+        if (!get().projectsLoaded) {
+          get().setProjects(fallbackProjects);
+        }
+
+        try {
           if (!supabase) {
-            // LocalStorage fallback (no internet / no Supabase configured)
-            get().setProjects(fallbackProjects);
+            console.log('[ProjectStore] Supabase not configured. Using local cache only.');
             return;
           }
 
-          const { data, error } = await supabase
-            .from('projects')
-            .select('*')
-            .order('created_at', { ascending: false });
+          // Guard: if Supabase hangs (free-tier pause, network issue), fall back
+          // to the already-rendered local data instead of blocking forever.
+          const fetchWithTimeout = Promise.race([
+            supabase.from('projects').select('*').order('created_at', { ascending: false }),
+            new Promise<{ data: null; error: Error }>((resolve) =>
+              setTimeout(() => resolve({ data: null, error: new Error('Supabase Timeout: sem resposta em 10s') }), 10_000)
+            ),
+          ]);
+
+          const { data, error } = await fetchWithTimeout;
 
           if (error) throw error;
 
           if (data && data.length > 0) {
-            // ☁️ CLOUD-WINS with local strategic field merge.
-            // Supabase is authoritative for its own columns, but fields like
-            // phd_strategy, persona_matrix, editorial_line, narrative_voice and
-            // thumb_strategy are NOT in the DB schema (no ALTER TABLE migration).
-            // We must rescue those fields from the local cache so the user
-            // never loses strategic DNA data after a page reload.
-            const LOCAL_ONLY_FIELDS = [
+            // ☁️ CLOUD-WINS with local strategic field rescue.
+            // After running migration_strategic_fields.sql these strategic fields
+            // ARE in the cloud. But for safety, we still rescue from local if the
+            // cloud record has empty values (e.g. migration not run yet).
+            const STRATEGIC_FIELDS = [
               'phd_strategy',
               'persona_matrix',
               'editorial_line',
@@ -513,10 +521,8 @@ export const useProjectStore = create<ProjectStore>()(
               const localProject = localById.get(cloudProject.id);
               if (!localProject) return cloudProject;
 
-              // For each local-only field, use the local value if the cloud
-              // record doesn't have a meaningful value for it.
               const rescued: Partial<Project> = {};
-              for (const field of LOCAL_ONLY_FIELDS) {
+              for (const field of STRATEGIC_FIELDS) {
                 const cloudVal = (cloudProject as any)[field];
                 const localVal = (localProject as any)[field];
                 const cloudEmpty =
@@ -536,18 +542,19 @@ export const useProjectStore = create<ProjectStore>()(
             const localOnly = localProjects.filter((p) => !remoteIds.has(p.id));
             const finalProjects = normalizeProjectList([...mergedCloudProjects, ...localOnly]);
 
-            console.log(`[ProjectStore] ☁️ Cloud-wins+local-rescue: ${data.length} from cloud, ${localOnly.length} local-only`);
+            console.log(`[ProjectStore] ☁️ Cloud-wins+rescue: ${data.length} cloud, ${localOnly.length} local-only`);
             get().setProjects(finalProjects);
           } else {
-            // Cloud empty → use local cache as fallback
-            console.log('[ProjectStore] Cloud empty, using local cache');
-            get().setProjects(fallbackProjects);
+            // Cloud empty → local cache already rendered above, nothing to do
+            console.log('[ProjectStore] Cloud empty, keeping local cache');
           }
         } catch (err) {
-          console.error('[ProjectStore] Failed to load projects:', err);
-          const localProjects = readLocalProjectCaches();
-          const fallbackProjects = localProjects.length > 0 ? localProjects : [createBootstrapProject()];
-          get().setProjects(fallbackProjects);
+          console.error('[ProjectStore] Failed to load projects (using local cache):', err);
+          // Local data is already rendered from the pre-fetch block above
+          // Only re-set if nothing was loaded yet
+          if (!get().projectsLoaded) {
+            get().setProjects(fallbackProjects);
+          }
         }
       },
 

@@ -1037,7 +1037,25 @@ export default function Home() {
         positioning: source.positioning || '',
       });
 
-      const projectId = formData.id || (editingProject ? editingProject.id : crypto.randomUUID());
+      // If the project has a non-UUID id (e.g. the bootstrap 'demo-devzen-project'),
+      // generate a proper UUID so Supabase can accept the upsert.
+      const rawId = formData.id || (editingProject ? editingProject.id : null);
+      const projectId = (rawId && uuidRegex.test(rawId)) ? rawId : crypto.randomUUID();
+
+      // Migrate auxiliary localStorage caches from old non-UUID id to new UUID
+      if (rawId && rawId !== projectId) {
+        console.log(`[ContentOS] Migrando ID de projeto: ${rawId} → ${projectId}`);
+        const prefixes = ['themes_', 'ws_script_execution_', 'ws_narrative_', 'bi_', 'ws_assemblies_'];
+        prefixes.forEach((prefix) => {
+          const oldKey = `${prefix}${rawId}`;
+          const newKey = `${prefix}${projectId}`;
+          const data = localStorage.getItem(oldKey);
+          if (data) {
+            localStorage.setItem(newKey, data);
+            localStorage.removeItem(oldKey);
+          }
+        });
+      }
       const normalizedPlaylists = formData.playlists || {
         t1: formData.tactical_journey?.[0]?.value || '',
         t2: formData.tactical_journey?.[1]?.value || '',

@@ -1326,7 +1326,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       });
 
       const promptMap = new Map<number, string>();
-      const chunkSize = 15;
+      const chunkSize = 5;
       const chunks = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));
@@ -1357,7 +1357,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           data = JSON.parse(responseText);
         } catch (parseError) {
           if (res.status === 504) {
-            throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação no lote ${i + 1} de ${chunks.length} por exceder o tempo limite. Tente gerar com um modelo mais rápido.`);
+             throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação no Lote ${i + 1}. A inteligência demorou demais para responder. Modelos avançados ("Reasoning" ou OpenAI gpt-4o) podem causar isso no plano gratuito da host. Tente usar gemini-2.5-flash.`);
           }
           throw new Error(`Erro inesperado (${res.status}) no lote ${i + 1}: A Vercel não retornou um JSON válido. Resposta: ${responseText.slice(0, 80)}...`);
         }

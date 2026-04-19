@@ -464,18 +464,24 @@ export default function Home() {
           return;
         }
 
-        // 2. Session
+        // 2. Session — treat Supabase errors as non-fatal (paused free tier, network issues)
         console.log("[ContentOS] 3. Buscando sessão Supabase...");
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        if (session?.user) {
-          console.log("[ContentOS] Sessão detectada:", session.user.id);
-          setLastSessionId(session.user.id);
-          setUser(session.user);
-          await fetchProfile(session.user.id);
-        } else {
-          console.log("[ContentOS] Nenhuma sessão ativa.");
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.warn("[ContentOS] ⚠️ Falha ao buscar sessão (Supabase indisponível):", sessionError.message);
+          } else if (session?.user) {
+            console.log("[ContentOS] Sessão detectada:", session.user.id);
+            setLastSessionId(session.user.id);
+            setUser(session.user);
+            try { await fetchProfile(session.user.id); } catch (profileErr: any) {
+              console.warn("[ContentOS] ⚠️ Falha ao buscar perfil:", profileErr?.message);
+            }
+          } else {
+            console.log("[ContentOS] Nenhuma sessão ativa.");
+          }
+        } catch (authErr: any) {
+          console.warn("[ContentOS] ⚠️ Auth indisponível (Supabase pausado?):", authErr?.message);
         }
 
         // 4. Session management handled

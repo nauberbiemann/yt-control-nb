@@ -1773,18 +1773,27 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
     if (!normalized) return [];
 
-    const entries = normalized
-      .split(/\n(?=\[\d{2}:\d{2}(?::\d{2})?\])/)
-      .map((chunk) => chunk.trim())
-      .filter((chunk) => /^\[\d{2}:\d{2}(?::\d{2})?\]/.test(chunk));
+    const blockRegex = /(?:^|\n)\s*(?:\*\*)?\[?(\d{2}:\d{2}(?::\d{2})?)\]?(?:\*\*)?[\s\S]*?(?=(?:\n\s*(?:\*\*)?\[?\d{2}:\d{2}(?::\d{2})?\]?(?:\*\*)?)|$)/g;
+    const matches = normalized.match(blockRegex);
+    if (!matches) return [];
+
+    const entries = matches.map((match) => match.trim()).filter(Boolean);
 
     return entries.map((entry, index) => {
+      const tsMatch = entry.match(/(?:\*\*)?\[?(\d{2}:\d{2}(?::\d{2})?)\]?(?:\*\*)?/);
+      const timestamp = tsMatch ? tsMatch[1] : '';
+
       const lines = entry.split('\n').map((line) => line.trim()).filter(Boolean);
-      const timestamp = lines[0]?.replace(/^\[|\]$/g, '') || '';
-      const effect = lines.find((line) => line.toUpperCase().startsWith('EFEITO:'))?.split(':').slice(1).join(':').trim() || '—';
-      const purpose = lines.find((line) => line.toUpperCase().startsWith('FUNCAO:'))?.split(':').slice(1).join(':').trim() || '—';
-      const excerpt = lines.find((line) => line.toUpperCase().startsWith('TRECHO:'))?.split(':').slice(1).join(':').trim() || '—';
-      const notes = lines.find((line) => line.toUpperCase().startsWith('OBS:'))?.split(':').slice(1).join(':').trim() || '—';
+      
+      const effectMatch = entry.match(/EFEITO:\s*([^\n]+)/i);
+      const purposeMatch = entry.match(/FUNC(?:A|Ã)O:\s*([^\n]+)/i);
+      const excerptMatch = entry.match(/TRECHO:\s*([^\n]+)/i);
+      const notesMatch = entry.match(/OBS:\s*([^\n]+)/i);
+
+      const effect = effectMatch ? effectMatch[1].trim().replace(/\*\*|["']/g, '') : '—';
+      const purpose = purposeMatch ? purposeMatch[1].trim().replace(/\*\*|["']/g, '') : '—';
+      const excerpt = excerptMatch ? excerptMatch[1].trim().replace(/\*\*|["']/g, '') : '—';
+      const notes = notesMatch ? notesMatch[1].trim().replace(/\*\*|["']/g, '') : '—';
 
       return {
         id: `${timestamp}-${index}`,

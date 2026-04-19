@@ -988,21 +988,30 @@ export default function Home() {
         }));
       };
 
-      const normalizeEditingSop = (source: any = {}) => ({
-        cut_rhythm: source.cut_rhythm || '',
-        zoom_style: source.zoom_style || '',
-        soundtrack: source.soundtrack || '',
-        art_direction: source.art_direction || '',
-        overlays: source.overlays || '',
-        duration: source.duration || '',
-        duration_min: Number(source.duration_min || source.duration || 0) || '',
-        duration_max: Number(source.duration_max || 0) || '',
-        blocks_variation: source.blocks_variation || '',
-        blocks_min: Number(source.blocks_min || 0) || '',
-        blocks_max: Number(source.blocks_max || 0) || '',
-        asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
-        measurement_focus: source.measurement_focus || '',
-      });
+      const normalizeEditingSop = (source: any = {}) => {
+        // IMPORTANT: do NOT use `Number(x || 0) || ''` — it converts valid
+        // user-entered 0 or early values to '' and causes the field to reset.
+        // Use explicit null/undefined checks instead.
+        const toNum = (v: any) => {
+          const n = Number(v);
+          return Number.isFinite(n) && v !== '' && v !== null && v !== undefined ? n : '';
+        };
+        return {
+          cut_rhythm: source.cut_rhythm || '',
+          zoom_style: source.zoom_style || '',
+          soundtrack: source.soundtrack || '',
+          art_direction: source.art_direction || '',
+          overlays: source.overlays || '',
+          duration: source.duration || '',
+          duration_min: toNum(source.duration_min ?? source.duration),
+          duration_max: toNum(source.duration_max),
+          blocks_variation: source.blocks_variation || '',
+          blocks_min: toNum(source.blocks_min),
+          blocks_max: toNum(source.blocks_max),
+          asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
+          measurement_focus: source.measurement_focus || '',
+        };
+      };
 
       const normalizeThumbStrategy = (source: any = {}) => {
         const layouts = Array.isArray(source.layouts) && source.layouts.length > 0

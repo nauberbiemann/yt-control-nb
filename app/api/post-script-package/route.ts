@@ -151,7 +151,7 @@ const buildUserPrompt = ({
     '- In every TRECHO line, you MUST copy the exact text snippet provided in the "excerpt" field of the SFX plan. DO NOT summarize, paraphrase, or invent new text.',
     '- Use the three decision layers: structural anchors, semantic anchors and rhythmic anchors.',
     '- Do not create SFX events closer than 25 seconds from each other.',
-    '- Avoid sounding automated: prefer fewer, better-placed events over mechanically filling every anchor.',
+    '- IMPORTANT: You MUST generate SFX events spanning the ENTIRE video duration, from the first anchor to the very last anchor. Do not stop early. Process all proposed anchors.',
   ].join('\n');
 };
 

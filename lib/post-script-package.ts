@@ -100,6 +100,12 @@ const cleanPreview = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const extractSfxExcerpt = (value: string) => {
+  const clean = cleanPreview(value);
+  const words = clean.split(/\s+/).slice(0, 12).join(' ').trim();
+  return words.length < clean.length ? `${words}...` : words;
+};
+
 const cleanInlineLabelHuman = (value: string) =>
   cleanPreview(value)
     .replace(/\[[^\]]+\]/g, ' ')
@@ -680,7 +686,7 @@ export const buildSfxAnchorPlan = ({
       seconds: item.seconds,
       layer: 'structural',
       rationale,
-      excerpt: item.preview,
+      excerpt: extractSfxExcerpt(item.block?.content || ''),
     });
   });
 
@@ -703,7 +709,7 @@ export const buildSfxAnchorPlan = ({
       seconds: item.seconds,
       layer: 'semantic',
       rationale: item.rationale,
-      excerpt: item.preview,
+      excerpt: extractSfxExcerpt(item.block?.content || ''),
     });
   }
 
@@ -727,7 +733,7 @@ export const buildSfxAnchorPlan = ({
         seconds,
         layer: 'rhythmic',
         rationale: 'espacamento ritmico para evitar longos trechos sem acento sonoro',
-        excerpt: closestItem?.preview || '',
+        excerpt: extractSfxExcerpt(closestItem?.block?.content || ''),
       });
     }
   }

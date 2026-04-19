@@ -148,6 +148,7 @@ const buildUserPrompt = ({
     '- Write the Suno prompt as a single practical line, not as a long production brief.',
     '- SFX timeline should feel editorially useful for a human video editor.',
     '- In every EFEITO line, write only an English SFX name that is easy to search in CapCut PC.',
+    '- In every TRECHO line, you MUST copy the exact text snippet provided in the "excerpt" field of the SFX plan. DO NOT summarize, paraphrase, or invent new text.',
     '- Use the three decision layers: structural anchors, semantic anchors and rhythmic anchors.',
     '- Do not create SFX events closer than 25 seconds from each other.',
     '- Avoid sounding automated: prefer fewer, better-placed events over mechanically filling every anchor.',

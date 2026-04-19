@@ -500,7 +500,16 @@ export const useProjectStore = create<ProjectStore>()(
 
           const { data, error } = await fetchWithTimeout;
 
-          if (error) throw error;
+          if (error) {
+            // Timeout or Supabase error — local cache is already rendered, just log and bail out gracefully.
+            const isTimeout = error.message?.includes('Timeout');
+            if (isTimeout) {
+              console.warn('[ProjectStore] ⏱ Supabase não respondeu a tempo. Mantendo cache local.');
+            } else {
+              console.warn('[ProjectStore] ⚠️ Erro ao buscar projetos na nuvem:', error.message);
+            }
+            return;
+          }
 
           if (data && data.length > 0) {
             // ☁️ CLOUD-WINS with local strategic field rescue.

@@ -36,8 +36,8 @@ export const DEFAULT_CONFIG: AIConfig = {
  */
 export const MODEL_ALIAS_MAP: Record<string, string> = {
   // OpenAI
-  'gpt-5.1':     'gpt-5',
-  'gpt-5-mini':  'gpt-5-mini',
+  'gpt-5.1':     'gpt-4o',
+  'gpt-5-mini':  'gpt-4o-mini',
   'gpt-4o':      'gpt-4o',
   'gpt-4o-mini': 'gpt-4o-mini',
 

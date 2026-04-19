@@ -1326,7 +1326,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       });
 
       const promptMap = new Map<number, string>();
-      const chunkSize = 5;
+      const chunkSize = 2;
       const chunks = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));

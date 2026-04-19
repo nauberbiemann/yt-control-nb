@@ -319,10 +319,27 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
         if (unsyncedItems.length > 0) {
           console.log(`[ContentHub] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
           supabase.from('narrative_components').upsert(
-            unsyncedItems.map(item => ({ ...item, project_id: activeProject.id }))
+            unsyncedItems.map(item => ({
+              id: item.id || crypto.randomUUID(),
+              project_id: activeProject.id,
+              type: item.type,
+              name: item.name,
+              description: item.description,
+              content_pattern: item.content_pattern,
+              category: item.category || item.type,
+              behavior_flag: item.behavior_flag || 'rotative',
+              usage_mode: item.usage_mode || 'when_compatible',
+              is_active: item.is_active !== false,
+              tags: item.tags || [],
+              compatibility_notes: item.compatibility_notes || ''
+            }))
           ).then(({ error: upsertError }: { error: any }) => {
-            if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
-            else console.log('✅ Auto-sync concluído.');
+            if (upsertError) {
+              console.error('❌ Falha no auto-sync ContentHub (Supabase Error):', upsertError);
+              alert(`Auto-Sync falhou. Estruturas não salvas. Erro: ${upsertError.message}`);
+            } else {
+               console.log('✅ Auto-sync concluído.');
+            }
           });
         }
 

@@ -353,6 +353,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
     try {
       if (supabase) {
+        const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!THEME_CLOUD_ID_PATTERN.test(projectId)) {
+             console.warn('⚠️ O ID deste projeto não é compatível com a Nuvem (não é um UUID). O Sincronizador Backend está desativado para esta instância.', projectId);
+             return;
+        }
+
         const fetchPromise = supabase.from('narrative_components').select('*').eq('project_id', projectId);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 8000));
         
@@ -370,10 +376,27 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         if (unsyncedItems.length > 0) {
           console.log(`[ScriptEngine] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
           supabase.from('narrative_components').upsert(
-            unsyncedItems.map(item => ({ ...item, project_id: projectId }))
+            unsyncedItems.map(item => ({
+              id: item.id || crypto.randomUUID(),
+              project_id: projectId,
+              type: item.type,
+              name: item.name,
+              description: item.description,
+              content_pattern: item.content_pattern,
+              category: item.category || item.type,
+              behavior_flag: item.behavior_flag || 'rotative',
+              usage_mode: item.usage_mode || 'when_compatible',
+              is_active: item.is_active !== false,
+              tags: item.tags || [],
+              compatibility_notes: item.compatibility_notes || ''
+            }))
           ).then(({ error: upsertError }: { error: any }) => {
-            if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
-            else console.log('✅ Auto-sync concluído.');
+            if (upsertError) {
+              console.error('❌ Falha no auto-sync ScriptEngine:', upsertError);
+              alert(upsertError.message);
+            } else {
+              console.log('✅ Auto-sync concluído.');
+            }
           });
         }
 

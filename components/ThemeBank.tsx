@@ -468,15 +468,16 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          
          if (unsyncedItems.length > 0) {
            console.log(`[ThemeBank] ⬆️ Auto-syncing ${unsyncedItems.length} pending local themes to cloud...`);
-           supabase.from('themes').upsert(
-             unsyncedItems.map(item => ({
-               ...item,
-               project_id: activeProject.id,
-               status: sanitizeThemeStatusForCloud(item.status)
-             }))
-           ).then(({ error: upsertError }: { error: any }) => {
-             if (upsertError) console.error('❌ Falha no auto-sync:', upsertError.message);
-             else console.log('✅ Auto-sync concluído.');
+           
+           const sanitizedForCloud = unsyncedItems.map(item => sanitizeThemeForCloud(item));
+           
+           supabase.from('themes').upsert(sanitizedForCloud).then(({ error: upsertError }: { error: any }) => {
+             if (upsertError) {
+               console.error('❌ Falha no auto-sync (Supabase Error):', upsertError);
+               alert(`Auto-Sync falhou. Temas não salvos na nuvem. Erro: ${upsertError.message}`);
+             } else {
+               console.log('✅ Auto-sync concluído.');
+             }
            });
          }
 

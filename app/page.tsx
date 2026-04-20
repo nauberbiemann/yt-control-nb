@@ -1022,6 +1022,8 @@ export default function Home() {
           blocks_max: toNum(source.blocks_max),
           asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
           measurement_focus: source.measurement_focus || '',
+          text_styles: source.text_styles || '',
+          visual_identity: source.visual_identity || '',
         };
       };
 

@@ -669,16 +669,6 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 </div>
               </div>
             </div>
-                <div className="flex flex-col gap-2 mt-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-amber-400">Identidade Visual do Canal (Geração de Prompts)</label>
-                  <span className="text-[8px] uppercase font-bold text-white/40 -mt-1 mb-1">Descreva o estilo visual, ambientes, tom e tipos de shot preferidos. A IA usa isso para gerar prompts de vídeo e imagem alinhados ao canal.</span>
-                  <textarea
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-[11px] outline-none focus:border-amber-400/40 transition-all placeholder:text-white/20 min-h-[96px] resize-none"
-                    placeholder="Ex: Home office escuro, iluminação cinematográfica séria. Para conceitos técnicos, prefira animações 3D abstratas. Para momentos pessoais, use o personagem recorrente. Evite ambientes genéricos de escritório."
-                    value={formData.editing_sop.visual_identity || ''}
-                    onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, visual_identity: e.target.value } })}
-                  />
-                </div>
             <div className="space-y-4">
               <div className="flex flex-col">
                 <h3 className="text-[12px] font-black text-white/70 uppercase tracking-[4px]">Jornada TÃ¡tica (Pipeline de Deploy)</h3>

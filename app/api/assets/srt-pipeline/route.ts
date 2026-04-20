@@ -11,7 +11,7 @@ import {
 } from '@/lib/srt-asset-pipeline';
 
 const BATCH_SIZE = 12;
-const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem']);
+const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto']);
 
 export const maxDuration = 60;
 
@@ -19,7 +19,7 @@ const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
-Write every prompt in English.
+Write every prompt in English (except for text styles which should match the provided list).
 Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI overlays.
 Keep prompts concise, vivid, and generator-friendly.
 Use one sentence per prompt, usually between 18 and 40 words.
@@ -39,6 +39,12 @@ Rules for asset types:
   - Emphasize the opening idea of the sentence more than the ending.
   - Illustrate the line in a slightly indirect, non-obvious way while staying relevant.
   - The prompt must begin with "Photorealistic still image of".
+- asset == "text":
+  - Read the current subtitle text provided as context.
+  - Determine the emotion, urgency, and tone of what is being said.
+  - Based on your analysis, choose exactly ONE visual style from the 'Available Text Styles' list provided below that best matches the tone.
+  - Your prompt MUST ONLY be the EXACT name of the chosen style as written in the list. Do not add any other words.
+  - If no 'Available Text Styles' are provided, just return "Default".
 
 Context rules:
 - Use the current subtitle text as the main source of meaning.
@@ -49,7 +55,7 @@ Context rules:
 
 interface PromptBatchItem {
   row_number: number;
-  asset: 'video' | 'image';
+  asset: 'video' | 'image' | 'text';
   text: string;
   start_time: string;
   end_time: string;
@@ -103,7 +109,7 @@ const buildPromptItems = (rows: SrtAssetRow[]) =>
 
     return [{
       row_number: row.rowNumber,
-      asset: normalizeAssetType(row.asset) === 'vídeo' ? 'video' as const : 'image' as const,
+      asset: normalizeAssetType(row.asset) === 'texto' ? ('text' as const) : (normalizeAssetType(row.asset) === 'vídeo' ? ('video' as const) : ('image' as const)),
       text: row.texto.trim(),
       start_time: row.startTime,
       end_time: row.endTime,
@@ -157,11 +163,13 @@ const generateBatchWithOpenAI = async ({
   model,
   batchItems,
   characterDescription,
+  textStyles,
 }: {
   apiKey: string;
   model: string;
   batchItems: PromptBatchItem[];
   characterDescription: string;
+  textStyles: string;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
@@ -173,6 +181,7 @@ const generateBatchWithOpenAI = async ({
           'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
           'Include exactly one prompt per row_number.',
           `Recurring character for live-action video prompts: ${characterDescription}`,
+          `Available Text Styles: ${textStyles}`,
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
         ].join('\n\n'),
@@ -209,11 +218,13 @@ const generateBatchWithGemini = async ({
   model,
   batchItems,
   characterDescription,
+  textStyles,
 }: {
   apiKey: string;
   model: string;
   batchItems: PromptBatchItem[];
   characterDescription: string;
+  textStyles: string;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -228,6 +239,7 @@ const generateBatchWithGemini = async ({
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
               'Include exactly one prompt per row_number.',
               `Recurring character for live-action video prompts: ${characterDescription}`,
+              `Available Text Styles: ${textStyles}`,
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
             ].join('\n\n'),
@@ -262,7 +274,7 @@ const generatePromptMap = async ({
   engine: 'openai' | 'gemini';
   model: string;
   apiKey: string;
-  projectConfig?: Record<string, string>;
+  projectConfig?: Record<string, any>;
   items: PromptBatchItem[];
   characterDescription: string;
 }) => {
@@ -270,12 +282,13 @@ const generatePromptMap = async ({
     ? projectConfig?.gemini_api_model || resolveModel(model)
     : projectConfig?.openai_api_model || resolveModel(model);
 
+  const textStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || 'Default';
   const promptMap = new Map<number, string>();
 
   for (const batch of chunk(items, BATCH_SIZE)) {
     const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription });
+      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles })
+      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles });
 
     const validatedBatch = validatePromptBatch(batch, payload);
     validatedBatch.forEach((prompt, rowNumber) => {

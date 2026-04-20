@@ -69,6 +69,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       blocks_max: toNumberOrEmpty(source.blocks_max),
       asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
       measurement_focus: source.measurement_focus || '',
+      text_styles: source.text_styles || '',
     };
   };
 
@@ -642,6 +643,17 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       );
                     })}
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-2 mt-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-sage">Estilos Disponiveis de Texto (Render)</label>
+                  <span className="text-[8px] uppercase font-bold text-white/40 -mt-1 mb-1">Separados por virgula. Usados pela IA ou no dropdown de Escrita Criativa.</span>
+                  <input 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-[11px] font-black outline-none focus:border-sage transition-all placeholder:text-white/20"
+                    placeholder="Ex: Tech Neon, Vintage VHS, Clean White..."
+                    value={formData.editing_sop.text_styles || ''}
+                    onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, text_styles: e.target.value } })}
+                  />
                 </div>
               </div>
             </div>

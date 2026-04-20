@@ -206,6 +206,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [externalSrtFileName, setExternalSrtFileName] = useState('');
   const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('male');
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
+  const [textStyleMode, setTextStyleMode] = useState('auto');
+  const [customTextStyle, setCustomTextStyle] = useState('');
   const [manualPublishDate, setManualPublishDate] = useState('');
   const [manualPublishDraftDate, setManualPublishDraftDate] = useState('');
   const [manualPublishDraftTime, setManualPublishDraftTime] = useState('');
@@ -1240,7 +1242,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     stem: string,
     suffix: string,
     content: string,
-    options?: { extension?: 'txt' | 'csv'; mimeType?: string }
+    options?: { extension?: 'txt' | 'csv' | 'bat'; mimeType?: string }
   ) => {
     if (!content.trim()) {
       alert('Nao ha conteudo disponivel para exportar.');
@@ -1307,7 +1309,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       updateSrtObserverStep('prompts', 'running', 'Aguardando o envio do primeiro lote...');
 
       const promptItems = assetRows.flatMap((row, index) => {
-        if (!['vídeo', 'imagem'].includes(normalizeAssetType(row.asset))) return [];
+        const type = normalizeAssetType(row.asset);
+        const isEligible = type === 'vídeo' || type === 'imagem' || (type === 'texto' && textStyleMode === 'auto');
+        if (!isEligible) return [];
+
         const previousText = assetRows[index - 1]?.texto?.trim() || '';
         const nextText = assetRows[index + 1]?.texto?.trim() || '';
         const startMs = parseSrtTimeToMs(row.startTime);
@@ -1316,7 +1321,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   
         return [{
           row_number: row.rowNumber,
-          asset: row.asset === 'vídeo' ? 'video' : 'image',
+          asset: type === 'texto' ? 'text' : (type === 'vídeo' ? 'video' : 'image'),
           text: row.texto.trim(),
           start_time: row.startTime,
           end_time: row.endTime,
@@ -1344,7 +1349,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             engine,
             model,
             apiKeyOverwrite: apiKey,
-            projectConfig: activeProject?.ai_engine_rules,
+            projectConfig: activeProject,
+            textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
             characterProfile: {
               mode: videoCharacterMode,
               customDescription: videoCharacterCustom,
@@ -1372,10 +1378,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         });
       }
 
-      const rowsWithPrompts = assetRows.map((row) => ({
-        ...row,
-        prompt: promptMap.get(row.rowNumber) || row.prompt,
-      }));
+      const rowsWithPrompts = assetRows.map((row) => {
+        let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;
+        if (normalizeAssetType(row.asset) === 'texto' && textStyleMode !== 'auto') {
+          finalPrompt = textStyleMode === 'custom' ? customTextStyle : textStyleMode;
+        }
+        return {
+          ...row,
+          prompt: finalPrompt,
+        };
+      });
 
       const generatedData = buildPipelineResult(rowsWithPrompts);
 
@@ -1463,6 +1475,46 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   const renderTextAssetsFromPipeline = async () => {
     if (!externalSrtPipeline?.rows?.length) {
       alert('Processe o SRT nas etapas 2, 3 e 4 antes de disparar a etapa 5.');
+      return;
+    }
+
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (!isLocalhost) {
+      const batContent = `@echo off\r\nchcp 65001 >nul\r\necho Iniciando render de textos localmente...\r\npython renderizar_textos.py --file "${srtArtifactStem}.csv"\r\necho.\r\necho Processo finalizado! O CSV nao sera atualizado, pois a marcacao de caminho nao e necessaria para a nuvem.\r\npause`;
+      
+      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
+      
+      setTimeout(() => {
+        downloadTextArtifact(srtArtifactStem, 'renderizar', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
+      }, 500);
+
+      const persistedAt = new Date().toISOString();
+      const pipelineResult = { ...externalSrtPipeline, generatedAt: persistedAt };
+      setExternalSrtPipeline(pipelineResult);
+      setSrtPipelineStatus('Etapa 5 (Nuvem) concluída. Os arquivos .bat e .csv foram baixados para execução manual.');
+      
+      const finalizedObserver = externalSrtObserver.map((step) => {
+        if (step.key === 'render') {
+          return { ...step, status: 'done' as const, detail: 'Download do script .bat e do CSV realizado para execução offline.' };
+        }
+        if (step.key === 'persist') {
+          return { ...step, status: 'done' as const, detail: `Exportação gerada em ${new Date(persistedAt).toLocaleString('pt-BR')}.` };
+        }
+        return step.status === 'pending' ? { ...step, status: 'done' as const, detail: step.detail } : step;
+      });
+
+      setExternalSrtObserver(finalizedObserver);
+      
+      persistExecutionSnapshotLocally({
+        executionMode: 'external',
+        externalScriptText,
+        externalScriptFileName,
+        externalSrtText,
+        externalSrtFileName,
+        externalSrtPipeline: pipelineResult,
+        externalSrtObserver: finalizedObserver,
+      });
       return;
     }
 
@@ -2841,6 +2893,33 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           onChange={(e) => setVideoCharacterCustom(e.target.value)}
                           placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
                           className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
+                        />
+                      )}
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
+                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+                          Delegue para a IA decidir o estilo cena a cena, ou force um estilo global para tudo.
+                        </p>
+                      </div>
+                      <select 
+                        value={textStyleMode}
+                        onChange={(e) => setTextStyleMode(e.target.value)}
+                        className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
+                      >
+                        <option value="auto">Automático (IA, Variável cena a cena)</option>
+                        {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                        <option value="custom">Personalizado...</option>
+                      </select>
+                      {textStyleMode === 'custom' && (
+                        <input
+                           value={customTextStyle}
+                           onChange={(e) => setCustomTextStyle(e.target.value)}
+                           placeholder="Ex: Neon, Vintage VHS, Clean White..."
+                           className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
                         />
                       )}
                     </div>

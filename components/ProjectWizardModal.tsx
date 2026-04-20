@@ -39,7 +39,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
   const normalizeJourney = (journey: any[] = []) => {
     const fallback = [
       { id: 't1', label: 'T1', title: 'Topo de Funil (Viral)', value: '', isFixed: true },
-      { id: 't2', label: 'T2', title: 'Meio de Funil (Retenção)', value: '', isFixed: true },
+      { id: 't2', label: 'T2', title: 'Meio de Funil (RetenÃ§Ã£o)', value: '', isFixed: true },
       { id: 't3', label: 'T3', title: 'Fundo de Funil (Comunidade)', value: '', isFixed: true }
     ];
     return [0, 1, 2].map((index) => ({
@@ -70,6 +70,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       asset_types: Array.isArray(source.asset_types) ? source.asset_types : [],
       measurement_focus: source.measurement_focus || '',
       text_styles: source.text_styles || '',
+      visual_identity: source.visual_identity || '',
     };
   };
 
@@ -144,11 +145,11 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       accent_color: d.accent_color || '#3b82f6',
       default_execution_mode: d.default_execution_mode || 'internal',
       
-      // Stage 1: Fundação (DNA)
+      // Stage 1: FundaÃ§Ã£o (DNA)
       phd_strategy: normalizePhdStrategy(d.phd_strategy || {}),
       persona_matrix: normalizePersonaMatrix(d.persona_matrix || {}, d.target_persona || {}),
       
-      // Stage 2: Inteligência (Editorial)
+      // Stage 2: InteligÃªncia (Editorial)
       editorial_line: normalizeEditorialLine(d.editorial_line || {}),
       narrative_voice: normalizeNarrativeVoice(d.narrative_voice || {}),
       
@@ -157,7 +158,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       prohibited_terms: d.prohibited_terms || d.ai_engine_rules?.prohibited?.join(', ') || '',
       thumb_strategy: thumbStrategy,
       
-      // Stage 4: Produção (SOP)
+      // Stage 4: ProduÃ§Ã£o (SOP)
       editing_sop: editingSop,
       tactical_journey: journey
     };
@@ -175,11 +176,11 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         `PUC: ${formData.puc}`,
         `Persona: ${formData.persona_matrix.demographics}${formData.persona_matrix.language ? ` | Linguagem: ${formData.persona_matrix.language}` : ''}`,
         `Dor central: ${formData.persona_matrix.pain_alignment}`,
-        `Transformação desejada: ${formData.persona_matrix.desired_outcome || 'Não definida'}`,
-        `Pilares: ${pillars.join(', ') || 'Não definidos'}`,
-        `Metáforas: ${formData.metaphor_library || 'Não definidas'}`,
-        `Thumb: ${layouts.join(' + ') || 'Não definida'}`,
-        `SOP foco: ${formData.editing_sop.measurement_focus || 'Não definido'}`
+        `TransformaÃ§Ã£o desejada: ${formData.persona_matrix.desired_outcome || 'NÃ£o definida'}`,
+        `Pilares: ${pillars.join(', ') || 'NÃ£o definidos'}`,
+        `MetÃ¡foras: ${formData.metaphor_library || 'NÃ£o definidas'}`,
+        `Thumb: ${layouts.join(' + ') || 'NÃ£o definida'}`,
+        `SOP foco: ${formData.editing_sop.measurement_focus || 'NÃ£o definido'}`
       ],
       sources: {
         puc: formData.puc,
@@ -254,7 +255,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1">Identificador do Projeto</label>
-                <span className="text-[9px] uppercase font-bold text-white/40 -mt-1 mb-1">Nome de destaque da instância.</span>
+                <span className="text-[9px] uppercase font-bold text-white/40 -mt-1 mb-1">Nome de destaque da instÃ¢ncia.</span>
                 <input 
                   className={`w-full bg-blue-500/5 border ${nameError ? 'border-red-500/50 focus:border-red-500' : 'border-blue-500/10 focus:border-blue-500'} rounded-2xl px-5 py-5 outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-white font-black text-lg placeholder:text-white/10`}
                   placeholder="Nome da instancia"
@@ -265,17 +266,17 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     const isTaken = existingProjects.some(p => 
                       p.name?.toLowerCase() === newName.trim().toLowerCase() && p.id !== formData.id
                     );
-                    setNameError(isTaken ? 'Este nome já está sendo usado por outra instância.' : '');
+                    setNameError(isTaken ? 'Este nome jÃ¡ estÃ¡ sendo usado por outra instÃ¢ncia.' : '');
                   }}
                 />
                 {nameError && <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider ml-1">{nameError}</span>}
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1">Proposta Única do Canal (PUC)</label>
-                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">A promessa central que torna seu canal imbatível.</span>
+                <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1">Proposta Ãšnica do Canal (PUC)</label>
+                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-1">A promessa central que torna seu canal imbatÃ­vel.</span>
                 <textarea 
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white font-bold min-h-[90px] resize-none"
-                  placeholder="Qual o diferencial imbatível do canal?"
+                  placeholder="Qual o diferencial imbatÃ­vel do canal?"
                   value={formData.puc}
                   onChange={(e) => updateFormData({ puc: e.target.value })}
                 />
@@ -286,7 +287,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <div key={f} className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
                   <label className="text-[9px] font-black uppercase text-white/60 tracking-widest">{f}</label>
                   <p className="text-[8px] uppercase font-bold text-white/40 leading-tight mt-0.5 mb-3">
-                    {f === 'passion' ? 'O que te move por anos' : f === 'skill' ? 'Sua autoridade técnica' : 'Volume de audiência real'}
+                    {f === 'passion' ? 'O que te move por anos' : f === 'skill' ? 'Sua autoridade tÃ©cnica' : 'Volume de audiÃªncia real'}
                   </p>
                   <textarea 
                     className="w-full bg-transparent border-none text-white text-xs outline-none h-24 resize-none leading-relaxed placeholder:text-white/5"
@@ -299,13 +300,13 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             </div>
             <div className="p-8 rounded-[32px] border border-white/10 bg-white/[0.03] shadow-inner">
               <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1 block">Matriz de Persona (Target)</label>
-              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Desenhe o avatar que você deseja dominar e ajudar.</span>
+              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Desenhe o avatar que vocÃª deseja dominar e ajudar.</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2">
                   <span className="text-[9px] uppercase font-black text-white/40 ml-1">Lifestyle / Demografia</span>
                   <input 
                     className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
-                    placeholder="Defina o perfil do público"
+                    placeholder="Defina o perfil do pÃºblico"
                     value={formData.persona_matrix.demographics}
                     onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, demographics: e.target.value } })}
                   />
@@ -314,7 +315,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   <span className="text-[9px] uppercase font-black text-white/40 ml-1">Ponto de Dor Central</span>
                   <input 
                     className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10"
-                    placeholder="Defina o problema principal que o conteúdo resolve"
+                    placeholder="Defina o problema principal que o conteÃºdo resolve"
                     value={formData.persona_matrix.pain_alignment}
                     onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, pain_alignment: e.target.value } })}
                   />
@@ -340,8 +341,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               </div>
             </div>
             <div className="p-8 rounded-[32px] border border-blue-500/5 bg-blue-500/[0.01] shadow-inner">
-              <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1 block">Rastreabilidade Gerada pela Aplicação</label>
-              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Você não precisa preencher isto manualmente. A aplicação monta esse resumo a partir dos campos anteriores e usa isso nas análises futuras.</span>
+              <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1 block">Rastreabilidade Gerada pela AplicaÃ§Ã£o</label>
+              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">VocÃª nÃ£o precisa preencher isto manualmente. A aplicaÃ§Ã£o monta esse resumo a partir dos campos anteriores e usa isso nas anÃ¡lises futuras.</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {buildTraceabilitySummary().summary.map((item: string) => (
                   <div key={item} className="p-4 rounded-2xl border border-white/10 bg-white/[0.03]">
@@ -358,7 +359,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             <div className="flex flex-col gap-6">
               <div className="flex flex-col">
                 <h3 className="text-[12px] font-black text-white/70 uppercase tracking-[4px]">Linha Editorial (Os 5 Pilares)</h3>
-                <span className="text-[10px] uppercase font-bold text-white/40 mt-1">Os sub-tópicos que delimitam seu território estratégico.</span>
+                <span className="text-[10px] uppercase font-bold text-white/40 mt-1">Os sub-tÃ³picos que delimitam seu territÃ³rio estratÃ©gico.</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 {formData.editorial_line.pillars.map((p: string, i: number) => (
@@ -381,9 +382,9 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             <div className="grid grid-cols-2 gap-6">
               <div className="p-6 rounded-2xl border border-white/5 bg-midnight/40 shadow-inner">
                 <label className="text-[9px] font-black uppercase tracking-widest text-sage mb-1 block">Atmosfera Narrativa</label>
-                <span className="text-[8px] uppercase font-bold opacity-30 block mb-4">O clima emocional e o posicionamento do seu conteúdo.</span>
+                <span className="text-[8px] uppercase font-bold opacity-30 block mb-4">O clima emocional e o posicionamento do seu conteÃºdo.</span>
                 <div className="grid grid-cols-2 gap-2">
-                  {['Técnico', 'Reflexivo', 'Cético', 'Storyteller'].map((t: string) => (
+                  {['TÃ©cnico', 'Reflexivo', 'CÃ©tico', 'Storyteller'].map((t: string) => (
                     <button
                       key={t}
                       onClick={() => {
@@ -405,7 +406,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <span className="text-[9px] uppercase font-bold text-white/20 ml-2">Posicionamento do Narrador</span>
                 <textarea 
                   className="p-6 bg-white/5 border border-white/10 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none h-full"
-                  placeholder="Quem é você para o seu público? O Mentor, o Cético ou o Oráculo?"
+                  placeholder="Quem Ã© vocÃª para o seu pÃºblico? O Mentor, o CÃ©tico ou o OrÃ¡culo?"
                   value={formData.narrative_voice.positioning}
                   onChange={(e) => updateFormData({ narrative_voice: { ...formData.narrative_voice, positioning: e.target.value } })}
                 />
@@ -439,19 +440,19 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
             <div className="grid grid-cols-2 gap-6">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Engenharia de Metáforas</label>
-                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-2">Analogias que simplificam o complexo e criam uma marca única.</span>
+                <label className="text-[10px] uppercase font-black tracking-widest text-sage mb-1">Engenharia de MetÃ¡foras</label>
+                <span className="text-[9px] uppercase font-bold text-white/50 -mt-1 mb-2">Analogias que simplificam o complexo e criam uma marca Ãºnica.</span>
                 <textarea 
                   className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-8 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-white text-sm min-h-[250px] leading-relaxed resize-none placeholder:text-white/10 shadow-inner"
                   value={formData.metaphor_library}
                   onChange={(e) => updateFormData({ metaphor_library: e.target.value })}
-                  placeholder="Cadastre as analogias e termos técnicos proprietários do canal..."
+                  placeholder="Cadastre as analogias e termos tÃ©cnicos proprietÃ¡rios do canal..."
                 />
               </div>
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col">
                   <label className="text-[10px] uppercase font-black tracking-widest text-blue-400">Layout de Thumbnail</label>
-                  <span className="text-[9px] uppercase font-bold opacity-30 mt-1">A narrativa visual que interrompe o scroll e força o clique.</span>
+                  <span className="text-[9px] uppercase font-bold opacity-30 mt-1">A narrativa visual que interrompe o scroll e forÃ§a o clique.</span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   {['Rosto+Texto', 'Objeto+Fundo', 'Contraste Emocional'].map((l: string) => {
@@ -500,10 +501,10 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 </div>
                 <div className="flex flex-col gap-2 mt-2">
                   <label className="text-[10px] uppercase font-black tracking-widest text-red-100/30">Termos Proibidos</label>
-                  <span className="text-[8px] uppercase font-bold opacity-10 -mt-1">Palavras genéricas que destroem sua autoridade.</span>
+                  <span className="text-[8px] uppercase font-bold opacity-10 -mt-1">Palavras genÃ©ricas que destroem sua autoridade.</span>
                   <input 
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none text-xs text-white"
-                    placeholder="Ex: Incrível, Segredo, Chocado..."
+                    placeholder="Ex: IncrÃ­vel, Segredo, Chocado..."
                     value={formData.prohibited_terms}
                     onChange={(e) => updateFormData({ prohibited_terms: e.target.value })}
                   />
@@ -516,7 +517,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         return (
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Configurações de Estilo */}
+              {/* ConfiguraÃ§Ãµes de Estilo */}
               <div className="grid grid-cols-2 gap-4">
                 {[
                   { label: 'Ritmo de Corte', field: 'cut_rhythm', options: ['1s', '2-3s', '3s', '5s'] },
@@ -537,7 +538,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 ))}
               </div>
 
-              {/* Configurações de Range (Duração e Blocos) */}
+              {/* ConfiguraÃ§Ãµes de Range (DuraÃ§Ã£o e Blocos) */}
               <div className="flex flex-col gap-2">
                 <label className="text-[9px] font-black uppercase tracking-widest text-sage">Modo Padrao de Producao</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -578,7 +579,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
-                      <span className="text-[9px] uppercase font-bold text-white/40">Duração Mín (min)</span>
+                      <span className="text-[9px] uppercase font-bold text-white/40">DuraÃ§Ã£o MÃ­n (min)</span>
                       <input 
                         type="number"
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
@@ -587,7 +588,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <span className="text-[9px] uppercase font-bold text-white/40">Duração Máx (min)</span>
+                      <span className="text-[9px] uppercase font-bold text-white/40">DuraÃ§Ã£o MÃ¡x (min)</span>
                       <input 
                         type="number"
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
@@ -599,7 +600,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
-                      <span className="text-[9px] uppercase font-bold text-white/40">Mínimo de Blocos</span>
+                      <span className="text-[9px] uppercase font-bold text-white/40">MÃ­nimo de Blocos</span>
                       <input 
                         type="number"
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
@@ -608,7 +609,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <span className="text-[9px] uppercase font-bold text-white/40">Máximo de Blocos</span>
+                      <span className="text-[9px] uppercase font-bold text-white/40">MÃ¡ximo de Blocos</span>
                       <input 
                         type="number"
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-sage transition-all"
@@ -655,12 +656,33 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, text_styles: e.target.value } })}
                   />
                 </div>
+
+                <div className="flex flex-col gap-2 mt-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-amber-400">Identidade Visual do Canal (Geracao de Prompts)</label>
+                  <span className="text-[8px] uppercase font-bold text-white/40 -mt-1 mb-1">Descreva o estilo visual, ambientes, tom e tipos de shot preferidos. A IA usa isso para gerar prompts de video e imagem alinhados ao canal.</span>
+                  <textarea
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-[11px] outline-none focus:border-amber-400/40 transition-all placeholder:text-white/20 min-h-[96px] resize-none"
+                    placeholder="Ex: Home office escuro, iluminacao cinematografica seria. Para conceitos tecnicos, prefira animacoes 3D abstratas. Para momentos pessoais, use o personagem recorrente."
+                    value={formData.editing_sop.visual_identity || ''}
+                    onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, visual_identity: e.target.value } })}
+                  />
+                </div>
               </div>
             </div>
+                <div className="flex flex-col gap-2 mt-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-amber-400">Identidade Visual do Canal (Geração de Prompts)</label>
+                  <span className="text-[8px] uppercase font-bold text-white/40 -mt-1 mb-1">Descreva o estilo visual, ambientes, tom e tipos de shot preferidos. A IA usa isso para gerar prompts de vídeo e imagem alinhados ao canal.</span>
+                  <textarea
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-[11px] outline-none focus:border-amber-400/40 transition-all placeholder:text-white/20 min-h-[96px] resize-none"
+                    placeholder="Ex: Home office escuro, iluminação cinematográfica séria. Para conceitos técnicos, prefira animações 3D abstratas. Para momentos pessoais, use o personagem recorrente. Evite ambientes genéricos de escritório."
+                    value={formData.editing_sop.visual_identity || ''}
+                    onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, visual_identity: e.target.value } })}
+                  />
+                </div>
             <div className="space-y-4">
               <div className="flex flex-col">
-                <h3 className="text-[12px] font-black text-white/70 uppercase tracking-[4px]">Jornada Tática (Pipeline de Deploy)</h3>
-                <span className="text-[10px] uppercase font-bold text-white/40 mt-1">Sua estratégia de progressão de conteúdo do diagnóstico ao lifestyle.</span>
+                <h3 className="text-[12px] font-black text-white/70 uppercase tracking-[4px]">Jornada TÃ¡tica (Pipeline de Deploy)</h3>
+                <span className="text-[10px] uppercase font-bold text-white/40 mt-1">Sua estratÃ©gia de progressÃ£o de conteÃºdo do diagnÃ³stico ao lifestyle.</span>
               </div>
               {formData.tactical_journey.map((m: any, i: number) => (
                 <div key={m.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6 p-6 border border-white/10 rounded-3xl bg-white/[0.02] hover:bg-white/[0.05] transition-all group shadow-sm">
@@ -668,7 +690,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center text-[11px] font-black text-sage border border-sage/20 shrink-0 shadow-lg shadow-sage/5">{m.label}</div>
                     <input 
                       className="bg-transparent text-white font-black text-base outline-none w-full group-hover:text-sage transition-colors placeholder:text-white/5"
-                      placeholder="Módulo..."
+                      placeholder="MÃ³dulo..."
                       value={m.title}
                       onChange={(e) => {
                         const next = [...formData.tactical_journey];
@@ -679,7 +701,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   </div>
                   <input 
                     className="bg-white/5 border border-white/5 rounded-xl px-5 py-3 text-white/80 text-[12px] outline-none focus:border-sage/40 transition-all italic font-medium placeholder:text-white/10"
-                    placeholder="Objetivo estratégico deste módulo..."
+                    placeholder="Objetivo estratÃ©gico deste mÃ³dulo..."
                     value={m.value}
                     onChange={(e) => {
                       const next = [...formData.tactical_journey];
@@ -726,7 +748,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               <div className="flex items-center gap-3 mt-1">
                 <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded uppercase tracking-wider">Etapa 0{step}</span>
                 <span className="text-white/30 text-[10px] font-black uppercase tracking-[3px]">
-                  {step === 1 ? 'Fundação DNA' : step === 2 ? 'Crivo Editorial' : step === 3 ? 'Engenharia de Clique' : 'SOP de Produção'}
+                  {step === 1 ? 'FundaÃ§Ã£o DNA' : step === 2 ? 'Crivo Editorial' : step === 3 ? 'Engenharia de Clique' : 'SOP de ProduÃ§Ã£o'}
                 </span>
               </div>
             </div>
@@ -734,7 +756,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               onClick={onClose} 
               className="w-10 h-10 flex items-center justify-center hover:bg-red-500/10 border border-white/10 rounded-full transition-all text-white/20 hover:text-red-500 group"
             >
-              <span className="group-hover:rotate-90 transition-transform">✕</span>
+              <span className="group-hover:rotate-90 transition-transform">âœ•</span>
             </button>
           </div>
         </div>
@@ -775,9 +797,9 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               }`}
             >
               {step === 4 ? (
-                isSubmitting ? 'SALVANDO...' : <>DEPLOY ESTRATÉGICO <Rocket size={16} className="group-hover:animate-bounce" /></>
+                isSubmitting ? 'SALVANDO...' : <>DEPLOY ESTRATÃ‰GICO <Rocket size={16} className="group-hover:animate-bounce" /></>
               ) : (
-                <>PRÓXIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
+                <>PRÃ“XIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
               )}
             </button>
           </div>

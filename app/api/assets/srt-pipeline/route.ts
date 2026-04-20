@@ -10,7 +10,7 @@ import {
   type SrtAssetRow,
 } from '@/lib/srt-asset-pipeline';
 
-const BATCH_SIZE = 12;
+const BATCH_SIZE = 4;
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto']);
 
 export const maxDuration = 60;
@@ -24,20 +24,22 @@ Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI ove
 Keep prompts concise, vivid, and generator-friendly.
 Use one sentence per prompt, usually between 18 and 40 words.
 
+CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
+
 Rules for asset types:
 - asset == "video":
-  - Choose a realistic live-action video prompt by default.
-  - The prompt must specify ambient sound only.
-  - Never include dialogue, voice-over, narration, talking, lip-sync, interview audio, subtitles, captions, logos, watermarks, or on-screen text.
-  - Include the provided recurring character description briefly in every live-action video prompt, so the person remains visually consistent across the sequence.
-  - Use 3D technical animation only when the line explains an abstract concept, internal mechanism, hidden process, engineering detail, physics, chemistry, or something invisible that benefits from a technical visualization.
-  - If using 3D, the prompt must begin with "3D technical animation of".
-  - If not using 3D, the prompt must begin with "Realistic cinematic video of".
-  - If using 3D, still include "ambient sound only, no dialogue, no voice-over" at the end of the prompt.
+  - First, identify what is being described in the subtitle text: a concept, feeling, process, place, or personal moment.
+  - If the text describes a PERSONAL or SUBJECTIVE experience (memory, personal decision, emotional moment, first-person narrative): use a live-action scene featuring the provided recurring character description briefly.
+  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (brain chemistry, code architecture, attention mechanisms, cognitive load, data structures, invisible processes): always use 3D technical animation. The prompt must begin with "3D technical animation of".
+  - If the text describes an ENVIRONMENT or SITUATION (workplace, meeting, nature, specific place): visualize that specific environment, not the character.
+  - For live-action prompts: begin with "Realistic cinematic video of" and include the recurring character briefly. Always add ambient sound only, no dialogue, no voice-over.
+  - For 3D prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
+  - NEVER default to a generic scene of "person at desk" when the content is conceptual.
 - asset == "image":
   - Always create a realistic still image prompt.
-  - Emphasize the opening idea of the sentence more than the ending.
-  - Illustrate the line in a slightly indirect, non-obvious way while staying relevant.
+  - The image must directly illustrate the SPECIFIC concept, object, emotion, or situation described in the subtitle text.
+  - Choose a concrete, specific angle: if the text mentions cortisol, show cortisol effects; if it mentions notification overload, show a phone screen with hundreds of alerts; if it mentions deep focus, show a single desk lamp in a dark room with one focused person.
+  - Be indirect and metaphorical when helpful, but always grounded in the specific content.
   - The prompt must begin with "Photorealistic still image of".
 - asset == "text":
   - Read the current subtitle text provided as context.
@@ -52,6 +54,8 @@ Context rules:
 - Use previous and next subtitle lines only to disambiguate.
 - Avoid repeating the line literally.
 - Prefer concrete subjects, environments, actions, materials, and mood.
+- If 'Channel Visual Identity' is provided, align the visual style, atmosphere, and shot types with it.
+- If 'Video Context' is provided, use it to inform the specific theme and visual direction of ALL prompts in this batch.
 `.trim();
 
 interface PromptBatchItem {
@@ -165,12 +169,16 @@ const generateBatchWithOpenAI = async ({
   batchItems,
   characterDescription,
   textStyles,
+  visualIdentity,
+  videoContext,
 }: {
   apiKey: string;
   model: string;
   batchItems: PromptBatchItem[];
   characterDescription: string;
   textStyles: string;
+  visualIdentity: string;
+  videoContext: string;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
@@ -183,9 +191,11 @@ const generateBatchWithOpenAI = async ({
           'Include exactly one prompt per row_number.',
           `Recurring character for live-action video prompts: ${characterDescription}`,
           `Available Text Styles: ${textStyles}`,
+          visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
+          videoContext ? `Video Context for this batch: ${videoContext}` : '',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
-        ].join('\n\n'),
+        ].filter(Boolean).join('\n\n'),
       },
     ],
     response_format: { type: 'json_object' },
@@ -220,12 +230,16 @@ const generateBatchWithGemini = async ({
   batchItems,
   characterDescription,
   textStyles,
+  visualIdentity,
+  videoContext,
 }: {
   apiKey: string;
   model: string;
   batchItems: PromptBatchItem[];
   characterDescription: string;
   textStyles: string;
+  visualIdentity: string;
+  videoContext: string;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -241,9 +255,11 @@ const generateBatchWithGemini = async ({
               'Include exactly one prompt per row_number.',
               `Recurring character for live-action video prompts: ${characterDescription}`,
               `Available Text Styles: ${textStyles}`,
+              visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
+              videoContext ? `Video Context for this batch: ${videoContext}` : '',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
-            ].join('\n\n'),
+            ].filter(Boolean).join('\n\n'),
           }],
         }],
         generationConfig: {
@@ -271,6 +287,7 @@ const generatePromptMap = async ({
   projectConfig,
   items,
   characterDescription,
+  videoContext,
 }: {
   engine: 'openai' | 'gemini';
   model: string;
@@ -278,6 +295,7 @@ const generatePromptMap = async ({
   projectConfig?: Record<string, any>;
   items: PromptBatchItem[];
   characterDescription: string;
+  videoContext?: string;
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -286,12 +304,14 @@ const generatePromptMap = async ({
   const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
   const projectStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || '';
   const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
+
+  const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
   const promptMap = new Map<number, string>();
 
   for (const batch of chunk(items, BATCH_SIZE)) {
     const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles });
+      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '' })
+      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '' });
 
     const validatedBatch = validatePromptBatch(batch, payload);
     validatedBatch.forEach((prompt, rowNumber) => {
@@ -309,6 +329,7 @@ export async function POST(req: NextRequest) {
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
     const characterDescription = resolveCharacterProfile(body?.characterProfile);
+    const videoContext = String(body?.videoContext || '').trim();
     
     // Batch Mode Branch
     if (Array.isArray(body?.batchItems) && body.batchItems.length > 0) {
@@ -328,6 +349,7 @@ export async function POST(req: NextRequest) {
         projectConfig,
         items: promptItems,
         characterDescription,
+        videoContext,
       });
 
       const prompts = promptItems.map((item) => ({
@@ -376,6 +398,7 @@ export async function POST(req: NextRequest) {
         projectConfig,
         items: promptItems,
         characterDescription,
+        videoContext,
       });
 
       rowsWithPrompts = markedRows.map((row) => ({

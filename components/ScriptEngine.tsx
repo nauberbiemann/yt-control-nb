@@ -208,7 +208,6 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
   const [textStyleMode, setTextStyleMode] = useState('auto');
   const [customTextStyle, setCustomTextStyle] = useState('');
-  const [videoContext, setVideoContext] = useState('');
   const [manualPublishDate, setManualPublishDate] = useState('');
   const [manualPublishDraftDate, setManualPublishDraftDate] = useState('');
   const [manualPublishDraftTime, setManualPublishDraftTime] = useState('');
@@ -1357,7 +1356,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             model,
             apiKeyOverwrite: apiKey,
             projectConfig: activeProject,
-            videoContext: videoContext.trim(),
+            videoContext: [
+              approvedTheme ? `Video title: ${approvedTheme}` : '',
+              approvedBriefing?.theme_title ? `Theme: ${approvedBriefing.theme_title}` : '',
+              approvedBriefing?.pain_point ? `Pain point: ${approvedBriefing.pain_point}` : '',
+            ].filter(Boolean).join(' | '),
             textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
             characterProfile: {
               mode: videoCharacterMode,
@@ -2990,28 +2993,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         />
                       )}
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400/80">Contexto Visual deste Vídeo <span className="text-white/20 font-normal normal-case">(opcional)</span></p>
-                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
-                          Descreva o tema, emoção ou elementos visuais específicos deste vídeo para a IA gerar prompts mais precisos.
-                        </p>
-                      </div>
-                      <textarea
-                        value={videoContext}
-                        onChange={(e) => setVideoContext(e.target.value)}
-                        placeholder="Ex: Episódio sobre burnout e foco perdido. Prefira visuals de exaustão, relógio, atenção fragmentada. Evite ambientes de escritório padrão."
-                        className="w-full min-h-[80px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-blue-400/40"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={processAttachedSrtAssets}
-                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
-                      className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
-                    </button>
+                     <button
+                       type="button"
+                       onClick={processAttachedSrtAssets}
+                       disabled={isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
+                       className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                     >
+                       {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
+                     </button>
                     {externalSrtPipeline && (
                       <button
                         type="button"

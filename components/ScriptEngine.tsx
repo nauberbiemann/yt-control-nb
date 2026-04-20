@@ -3764,14 +3764,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             backdropFilter: 'blur(12px)',
             boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
             pointerEvents: 'none',
-            animation: 'fadeInUp 0.2s ease',
           }}
         >
           ✓ {toastMessage}
         </div>
       )}
+      </div>
     </div>
   );
 }
-
-

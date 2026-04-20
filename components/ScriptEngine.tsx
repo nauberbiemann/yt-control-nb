@@ -218,6 +218,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 2000);
+  };
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
   const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
   const [isPostPackageExpanded, setIsPostPackageExpanded] = useState(false);
@@ -1215,16 +1221,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const copyTextToClipboard = async (value: string, successMessage: string) => {
     if (!value.trim()) {
-      alert('Nao ha conteudo disponivel para copiar.');
+      showToast('Nenhum conteudo disponivel para copiar.');
       return;
     }
 
     try {
       await navigator.clipboard.writeText(value);
-      alert(successMessage);
+      showToast(successMessage);
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao copiar conteudo.', error);
-      alert('Nao foi possivel copiar o conteudo.');
+      showToast('Nao foi possivel copiar o conteudo.');
     }
   };
 
@@ -2462,10 +2468,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             </button>
             <button
               onClick={async () => {
-                if (!approvedBriefing) return alert('Aprove um assembly antes de copiar o prompt externo.');
+                if (!approvedBriefing) { showToast('Aprove um assembly antes de copiar o prompt externo.'); return; }
                 const externalPrompt = buildExternalWritingPrompt();
                 await navigator.clipboard.writeText(externalPrompt);
-                alert('Prompt externo copiado com blueprint detalhado do roteiro.');
+                showToast('Prompt externo copiado com blueprint detalhado do roteiro.');
               }}
               className="px-6 py-3 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20"
               title="Copiar prompt completo para usar em plataforma externa"
@@ -2488,7 +2494,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
                 const text = JSON.stringify(snapshot, null, 2);
                 await navigator.clipboard.writeText(text);
-                alert('Briefing copiado e versao salva localmente.');
+                showToast('Briefing copiado e versao salva localmente.');
               }}
               className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
               title="Copiar briefing (JSON) e salvar versao local"
@@ -3740,7 +3746,30 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           </>
         )}
         </section>
-      </div>
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '28px',
+            right: '28px',
+            zIndex: 9999,
+            background: 'rgba(20,20,30,0.92)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '12px',
+            padding: '10px 18px',
+            color: '#e0e0ff',
+            fontSize: '12px',
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            backdropFilter: 'blur(12px)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+            pointerEvents: 'none',
+            animation: 'fadeInUp 0.2s ease',
+          }}
+        >
+          ✓ {toastMessage}
+        </div>
+      )}
     </div>
   );
 }

@@ -554,9 +554,9 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
 const missingGemini = engine === 'gemini' && !geminiKey;
 
       if (missingOpenAI) {
-        alert("⚠️ Chave API da OpenAI ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
+        console.warn('API Key OpenAI ausente, usando fallback local.');
       } else if (missingGemini) {
-        alert("⚠️ Chave API do Google Gemini ausente!\nA IA não fará a síntese dos Títulos, fallback Javascript ativo.\nAcesse a Engrenagem no menu lateral para registrar.");
+        console.warn('API Key Gemini ausente, usando fallback local.');
       }
 
       const prompt = `PROMPT ANTIGRAVITY: ENGINE DE COMPOSIÇÃO DINÂMICA (DB-DRIVEN)
@@ -624,8 +624,7 @@ REGRAS:
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        alert(`Erro ${response.status} na Geração de IA: ${errorBody}`);
+        console.error(`Erro ${response.status} na Geração de IA`);
         return;
       }
 
@@ -694,11 +693,7 @@ REGRAS:
           const validation = AIResponseSchema.safeParse(parsed);
           
           if (!validation.success) {
-            const errorDetails = validation.error.issues
-              .map(issue => `- ${issue.path.join('.')}: ${issue.message}`)
-              .join('\n');
-            
-            alert(`⚠️ FALHA DE CONTRATO (SCHEMA ERROR):\nA IA retornou um JSON incompleto ou inválido.\n\nErros detectados:\n${errorDetails}\n\nResposta Raw:\n${cleanText.substring(0, 100)}...`);
+            console.warn('[ContentHub] Schema inválido na resposta da IA.');
             setIsAnalyzing(false);
             return;
           }
@@ -726,7 +721,7 @@ REGRAS:
           await delay(800);
         }
       } else {
-        alert("A IA retornou uma resposta vazia.");
+        console.warn('[ContentHub] IA retornou resposta vazia.');
       }
     } catch(err) {
       console.error("AI Title Generator Error:", err);
@@ -859,7 +854,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
 ` + projectTitleStructures.map(s => `${s.slotId} (${s.name}): ${s.pattern}`).join('\n');
                 
                 navigator.clipboard.writeText(prompt);
-                alert("Prompt Engine V2 copiado para a área de transferência!");
+                // silent copy - no alert needed
               }}
               className="px-4 py-3 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-midnight transition-all border border-blue-500/20 rounded-lg text-[10px] items-center justify-center font-black tracking-widest uppercase flex flex-col gap-1 whitespace-nowrap"
             >
@@ -1242,7 +1237,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(activeEditTheme.production_assets?.thumb_prompt || "");
-                        alert("Prompt copiado!");
+                        // silent copy
                       }}
                       className="p-1 hover:text-sage transition-colors"
                     ><Copy size={12} /></button>

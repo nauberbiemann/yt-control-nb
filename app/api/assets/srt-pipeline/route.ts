@@ -44,7 +44,8 @@ Rules for asset types:
   - Determine the emotion, urgency, and tone of what is being said.
   - Based on your analysis, choose exactly ONE visual style from the 'Available Text Styles' list provided below that best matches the tone.
   - Your prompt MUST ONLY be the EXACT name of the chosen style as written in the list. Do not add any other words.
-  - If no 'Available Text Styles' are provided, just return "Default".
+  - Vary your choices across the sequence to create visual diversity. Do not use the same style for every text entry.
+  - Style guidance: Neon = tech/hacker/matrix energy. Clean = calm/reflective/minimal. Impact = urgency/alarm/strong statements. Frost = futuristic/analytical/cool. Gold = elegant/important/prestigious.
 
 Context rules:
 - Use the current subtitle text as the main source of meaning.
@@ -282,7 +283,9 @@ const generatePromptMap = async ({
     ? projectConfig?.gemini_api_model || resolveModel(model)
     : projectConfig?.openai_api_model || resolveModel(model);
 
-  const textStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || 'Default';
+  const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
+  const projectStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || '';
+  const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
   const promptMap = new Map<number, string>();
 
   for (const batch of chunk(items, BATCH_SIZE)) {

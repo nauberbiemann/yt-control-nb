@@ -1481,7 +1481,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     if (!isLocalhost) {
-      const batContent = `@echo off\r\nchcp 65001 >nul\r\necho Iniciando render de textos localmente...\r\npython renderizar_textos.py --file "${srtArtifactStem}.csv"\r\necho.\r\necho Processo finalizado! O CSV nao sera atualizado, pois a marcacao de caminho nao e necessaria para a nuvem.\r\npause`;
+      const pythonDir = "D:\\onedrive\\Downloads\\Produção em Massa\\1-ContentFlow\\assets\\ferramenta-legendas";
+      const csvName = `${sanitizeDownloadFileStem(srtArtifactStem)}_pipeline_assets.csv`;
+      const batContent = `@echo off\r\nchcp 65001 >nul\r\nset "CSV_PATH=%~dp0${csvName}"\r\necho Iniciando render de textos localmente...\r\ncd /d "${pythonDir}"\r\npython renderizar_textos.py --file "%CSV_PATH%"\r\necho.\r\necho Processo finalizado!\r\npause`;
       
       downloadTextArtifact(srtArtifactStem, 'pipeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       

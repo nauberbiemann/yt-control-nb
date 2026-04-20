@@ -1520,7 +1520,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         ')',
         '',
         'cd /d "%PYTHON_DIR%"',
-        'echo >>> PROCESSO DE RENDERIZACAO DE TEXTOS (PYTHON + LOCALHOST)',
+        'echo --- PROCESSO DE RENDERIZACAO DE TEXTOS (PYTHON + LOCALHOST)',
         'echo CSV Alvo: %CSV_PATH%',
         'echo.',
         'python renderizar_textos.py --file "%CSV_PATH%"',
@@ -1537,7 +1537,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         '',
         'color 0A',
         'echo.',
-        'echo >>> TUDO PRONTO! Renderizacao em lote de legenda e timeline de edicao completa.',
+        'echo --- TUDO PRONTO! Renderizacao em lote de legenda e timeline de edicao completa.',
         'pause'
       ].join('\\r\\n');
       

@@ -1483,7 +1483,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     if (!isLocalhost) {
       const pythonDir = "D:\\onedrive\\Downloads\\Produção em Massa\\1-ContentFlow\\assets\\ferramenta-legendas";
       const csvName = `${sanitizeDownloadFileStem(srtArtifactStem)}_pipeline_assets.csv`;
-      const batContent = [
+      const batLines = [
         '@echo off',
         'chcp 65001 >nul',
         'color 0A',
@@ -1499,7 +1499,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         ')',
         '',
         ':: 2. Validando a presenca do arquivo CSV Base',
-        'set "CSV_PATH=%~dp0' + csvName + '"',
+        `set "CSV_PATH=%~dp0${csvName}"`,
         'if not exist "%CSV_PATH%" (',
         '    color 0C',
         '    echo ERRO CRITICO: Arquivo CSV base nao encontrado!',
@@ -1510,17 +1510,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         ')',
         '',
         ':: 3. Mudando de diretorio e apontando pro pipeline local',
-        'set "PYTHON_DIR=' + pythonDir + '"',
+        `set "PYTHON_DIR=${pythonDir}"`,
         'if not exist "%PYTHON_DIR%\\renderizar_textos.py" (',
         '    color 0C',
-        '    echo ERRO CRITICO: Conector principal /renderizar_textos.py nao mapeado!',
+        '    echo ERRO CRITICO: Conector principal renderizar_textos.py nao mapeado!',
         '    echo Local esperado: "%PYTHON_DIR%"',
         '    pause',
         '    exit /b 1',
         ')',
         '',
         'cd /d "%PYTHON_DIR%"',
-        'echo --- PROCESSO DE RENDERIZACAO DE TEXTOS (PYTHON + LOCALHOST)',
+        'echo --- PROCESSO DE RENDERIZACAO DE TEXTOS ---',
         'echo CSV Alvo: %CSV_PATH%',
         'echo.',
         'python renderizar_textos.py --file "%CSV_PATH%"',
@@ -1529,7 +1529,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         'if %errorlevel% neq 0 (',
         '    color 0C',
         '    echo.',
-        '    echo ALERTA: A renderizacao retornou falhas (codigo %errorlevel%).',
+        '    echo ALERTA: A renderizacao retornou falhas.',
         '    echo Avalie o log do terminal acima para correcoes.',
         '    pause',
         '    exit /b %errorlevel%',
@@ -1537,9 +1537,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         '',
         'color 0A',
         'echo.',
-        'echo --- TUDO PRONTO! Renderizacao em lote de legenda e timeline de edicao completa.',
-        'pause'
-      ].join('\\r\\n');
+        'echo --- TUDO PRONTO! Renderizacao em lote completa.',
+        'pause',
+      ];
+      const batContent = batLines.join('\r\n');
       
       downloadTextArtifact(srtArtifactStem, 'pipeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       

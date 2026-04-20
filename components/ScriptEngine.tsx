@@ -217,6 +217,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
+  const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+  const [isPostPackageExpanded, setIsPostPackageExpanded] = useState(false);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
   const thumbnailPanelRef = useRef<HTMLDivElement | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
@@ -395,8 +397,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
             }))
           ).then(({ error: upsertError }: { error: any }) => {
             if (upsertError) {
-              console.error('❌ Falha no auto-sync ScriptEngine:', upsertError);
-              alert(upsertError.message);
+              console.warn('⚠️ Falha no auto-sync ScriptEngine (em background):', upsertError.message || upsertError);
             } else {
               console.log('✅ Auto-sync concluído.');
             }
@@ -3051,61 +3052,84 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                          <div>
-                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Preview da timeline CSV</p>
-                            <p className="text-[10px] text-white/40 mt-1">A estrutura abaixo replica o CSV base das etapas 2 e 3, ja com a coluna `prompt` preenchida na etapa 4.</p>
+                      <div className="rounded-2xl border border-white/10 bg-midnight/40 overflow-hidden">
+                        <div 
+                          onClick={() => setIsTimelineExpanded(!isTimelineExpanded)}
+                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-colors select-none group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                              <Database size={16} className="text-blue-400" />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black uppercase tracking-[2px] text-white/60 group-hover:text-white transition-colors block">Preview da timeline CSV</p>
+                              <p className="text-[9px] text-white/30 tracking-widest">{externalSrtPipeline.rows.length} assets rastreados</p>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => copyTextToClipboard(externalSrtPipeline.csvContent, 'CSV base copiado.')}
-                              className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                            >
-                              <Copy size={12} className="inline mr-2" /> Copiar CSV
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
-                              className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                            >
-                              <FileText size={12} className="inline mr-2" /> Exportar CSV
-                            </button>
+                          <div className="flex items-center gap-4">
+                            <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isTimelineExpanded ? 'rotate-180' : ''}`}>
+                              <ChevronDown size={14} />
+                            </div>
                           </div>
                         </div>
 
-                        <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/15">
-                          <table className="min-w-full text-left text-[11px] text-white/75">
-                            <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
-                              <tr>
-                                <th className="px-4 py-3">#</th>
-                                <th className="px-4 py-3">Inicio</th>
-                                <th className="px-4 py-3">Fim</th>
-                                <th className="px-4 py-3">Asset</th>
-                                <th className="px-4 py-3">Texto</th>
-                                <th className="px-4 py-3">Prompt</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {externalSrtPipeline.rows.slice(0, 8).map((row) => (
-                                <tr key={row.rowNumber} className="border-t border-white/5 align-top">
-                                  <td className="px-4 py-3 font-black text-white/60">{row.rowNumber}</td>
-                                  <td className="px-4 py-3">{row.startTime}</td>
-                                  <td className="px-4 py-3">{row.endTime}</td>
-                                  <td className="px-4 py-3 font-black text-blue-200">{row.asset || '-'}</td>
-                                  <td className="px-4 py-3 max-w-[260px] leading-5 text-white/70">{row.texto}</td>
-                                  <td className="px-4 py-3 max-w-[320px] leading-5 text-white/55">{row.prompt || '—'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isTimelineExpanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                          <div className="min-h-0 space-y-3 pt-3">
+                            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                              <div>
+                                <p className="text-[10px] text-white/40 mt-1">A estrutura abaixo replica o CSV base das etapas 2 e 3, ja com a coluna `prompt` preenchida na etapa 4.</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextToClipboard(externalSrtPipeline.csvContent, 'CSV base copiado.')}
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                >
+                                  <Copy size={12} className="inline mr-2" /> Copiar CSV
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                >
+                                  <FileText size={12} className="inline mr-2" /> Exportar CSV
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/15">
+                              <table className="min-w-full text-left text-[11px] text-white/75">
+                                <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
+                                  <tr>
+                                    <th className="px-4 py-3">#</th>
+                                    <th className="px-4 py-3">Inicio</th>
+                                    <th className="px-4 py-3">Fim</th>
+                                    <th className="px-4 py-3">Asset</th>
+                                    <th className="px-4 py-3">Texto</th>
+                                    <th className="px-4 py-3">Prompt</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {externalSrtPipeline.rows.slice(0, 8).map((row) => (
+                                    <tr key={row.rowNumber} className="border-t border-white/5 align-top">
+                                      <td className="px-4 py-3 font-black text-white/60">{row.rowNumber}</td>
+                                      <td className="px-4 py-3">{row.startTime}</td>
+                                      <td className="px-4 py-3">{row.endTime}</td>
+                                      <td className="px-4 py-3 font-black text-blue-200">{row.asset || '-'}</td>
+                                      <td className="px-4 py-3 max-w-[260px] leading-5 text-white/70">{row.texto}</td>
+                                      <td className="px-4 py-3 max-w-[320px] leading-5 text-white/55">{row.prompt || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            {externalSrtPipeline.rows.length > 8 && (
+                              <p className="text-[10px] text-white/35">
+                                Preview mostrando as primeiras 8 linhas. O CSV completo fica persistido nesta execucao e pode ser exportado.
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        {externalSrtPipeline.rows.length > 8 && (
-                          <p className="text-[10px] text-white/35">
-                            Preview mostrando as primeiras 8 linhas. O CSV completo fica persistido nesta execucao e pode ser exportado.
-                          </p>
-                        )}
                       </div>
 
                       <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
@@ -3185,26 +3209,41 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         </div>
 
         {(canProcessPostScriptPackage || !!postScriptPackage) && (
-          <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-blue-500/15 bg-blue-500/[0.03] p-6 xl:p-8 shadow-[0_0_40px_rgba(59,130,246,0.06)] space-y-6">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-2 max-w-3xl">
-                <p className="text-[10px] font-black uppercase tracking-[0.38em] text-blue-300">Pacote pos-roteiro</p>
-                <h4 className="text-xl font-black text-white">Saidas prontas para publicacao, trilha e edicao</h4>
-                <p className="text-[11px] leading-6 text-white/50">
-                  Esta etapa deriva o roteiro final em titulos virais, descricao SEO com timestamps, prompt musical para Suno e uma timeline de SFX pronta para o editor.
-                </p>
+          <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-blue-500/15 bg-blue-500/[0.03] overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.06)]">
+            <div 
+              onClick={() => setIsPostPackageExpanded(!isPostPackageExpanded)}
+              className="flex items-center justify-between p-6 xl:p-8 cursor-pointer hover:bg-blue-500/5 transition-colors select-none group"
+            >
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors mt-1">
+                  <Sparkles size={24} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.38em] text-blue-300">Pacote pos-roteiro</p>
+                  <h4 className="text-xl font-black text-white mt-1 group-hover:text-blue-100 transition-colors">Saidas prontas para publicacao</h4>
+                  <p className="text-[11px] leading-6 text-white/50 mt-1 max-w-2xl">
+                    Esta etapa deriva o roteiro final em titulos virais, descricao SEO com timestamps, prompt musical para Suno e uma timeline de SFX pronta para o editor.
+                  </p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={generatePostScriptPackage}
-                disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
-                className="rounded-2xl border border-blue-400/25 bg-blue-500/15 px-5 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-blue-200 transition-all hover:border-blue-300/35 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGeneratingPostScriptPackage ? 'GERANDO PACOTE...' : postScriptPackage ? 'REGERAR PACOTE POS-ROTEIRO' : 'GERAR PACOTE POS-ROTEIRO'}
-              </button>
+              <div className="hidden xl:flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); generatePostScriptPackage(); }}
+                  disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
+                  className="rounded-2xl border border-blue-400/25 bg-blue-500/15 px-5 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-blue-200 transition-all hover:border-blue-300/35 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGeneratingPostScriptPackage ? 'GERANDO...' : postScriptPackage ? 'REGERAR PACOTE' : 'GERAR PACOTE'}
+                </button>
+                <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isPostPackageExpanded ? 'rotate-180' : ''}`}>
+                  <ChevronDown size={20} />
+                </div>
+              </div>
             </div>
 
-            {!canProcessPostScriptPackage && !postScriptPackage ? (
+            <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isPostPackageExpanded ? 'grid-rows-[1fr] opacity-100 px-6 pb-6 xl:px-8 xl:pb-8 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+              <div className="min-h-0 space-y-6 pt-6">
+                {!canProcessPostScriptPackage && !postScriptPackage ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
                 Finalize o roteiro interno ou anexe um <span className="font-black text-blue-200">.txt externo</span> para liberar esta etapa.
               </div>
@@ -3380,6 +3419,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                 O pacote ainda nao foi processado. Clique em <span className="font-black text-blue-200">GERAR PACOTE POS-ROTEIRO</span> para derivar titulos, descricao SEO, Suno e a timeline de SFX.
               </div>
             )}
+              </div>
+            </div>
           </div>
         )}
 

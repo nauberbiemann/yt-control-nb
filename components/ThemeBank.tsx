@@ -136,6 +136,16 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const [workspace, setWorkspace] = useState<'fila' | 'briefing'>('fila');
   const [projectTitleStructures, setProjectTitleStructures] = useState<TitleStructureAsset[]>(DEFAULT_TITLE_STRUCTURES);
 
+  // Accordion & Sorting states
+  const [expandedStatuses, setExpandedStatuses] = useState<string[]>([]);
+  const [sortConfigs, setSortConfigs] = useState<Record<string, 'priority' | 'date_desc' | 'date_asc'>>({});
+
+  const toggleStatus = (status: string) => {
+    setExpandedStatuses(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
+
   // 🛠️ Agnosticismo de Dados: Puxa os pilares configurados no Projeto
   const projectPillars = activeProject?.editorial_line?.pillars?.filter((p: string) => p.trim() !== '') || [];
   const currentPillarOptions = projectPillars.length > 0 
@@ -463,8 +473,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
            
            supabase.from('themes').upsert(sanitizedForCloud).then(({ error: upsertError }: { error: any }) => {
              if (upsertError) {
-               console.error('❌ Falha no auto-sync (Supabase Error):', upsertError);
-               alert(`Auto-Sync falhou. Temas não salvos na nuvem. Erro: ${upsertError.message}`);
+               console.warn('⚠️ Falha no auto-sync (Supabase Error):', upsertError.message || upsertError);
              } else {
                console.log('✅ Auto-sync concluído.');
              }
@@ -874,102 +883,157 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         />
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex gap-4 p-6 h-full min-w-max">
-          {STATUSES.map(status => {
-            const meta = STATUS_META[status];
-            const Icon = meta.icon;
-            const items = byStatus[status] || [];
-            return (
-              <div key={status} className="w-72 flex flex-col gap-3 flex-shrink-0">
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${meta.color}`}>
-                  <Icon size={12} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">{meta.label}</span>
-                  <span className="ml-auto text-[9px] opacity-60">{items.length}</span>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                  {items.map(theme => {
-                    const targetPublishDate = getThemePublishDate(theme);
+      {/* Collapsible Accordion Board */}
+      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
+        {STATUSES.map(status => {
+          const meta = STATUS_META[status];
+          const Icon = meta.icon;
+          const items = byStatus[status] || [];
+          const isExpanded = expandedStatuses.includes(status);
+          const currentSort = sortConfigs[status] || 'priority';
 
-                    return (
-                    <div key={theme.id} className="glass-card p-4 space-y-2 group cursor-pointer hover:border-sage/20 transition-all">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-black text-white text-[11px] leading-tight">{theme.title}</p>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
-                          {isScriptEngineTheme(theme) && (
-                            <button
-                              onClick={() => reopenInWriting(theme)}
-                              className="p-1 rounded hover:bg-sage/20 text-white/40 hover:text-sage transition-all"
-                              title="Retomar na Escrita Criativa"
-                            >
-                              <FileText size={10} />
-                            </button>
-                          )}
-                          <button onClick={() => openEdit(theme)} className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-white transition-all">
-                            <Edit3 size={10} />
-                          </button>
-                          <button onClick={() => handleDelete(theme.id)} className="p-1 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all">
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
+          const sortedItems = [...items].sort((a, b) => {
+            if (currentSort === 'priority') {
+              return (b.priority || 0) - (a.priority || 0);
+            }
+            if (currentSort === 'date_asc') {
+               const getD = (t: any) => new Date(t.created_at || 0).getTime();
+               return getD(a) - getD(b);
+            }
+            if (currentSort === 'date_desc') {
+               const getD = (t: any) => new Date(t.created_at || 0).getTime();
+               return getD(b) - getD(a);
+            }
+            return 0;
+          });
+
+          return (
+            <div key={status} className="flex flex-col gap-3">
+              {/* Accordion Header */}
+              <div 
+                onClick={() => toggleStatus(status)}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl border cursor-pointer hover:brightness-110 transition-all ${meta.color} bg-opacity-50 select-none`}
+              >
+                <Icon size={14} />
+                <span className="text-[11px] font-black uppercase tracking-widest">{meta.label}</span>
+                <span className="ml-auto text-[11px] font-bold opacity-80">{items.length}</span>
+                
+                {/* Expand Icon */}
+                <div className="ml-4 pl-4 border-l border-white/10 text-white/50 flex items-center justify-center">
+                  <ChevronRight size={16} className={`transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
+                </div>
+              </div>
+
+              {/* Accordion Content */}
+              {isExpanded && (
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                  {/* Sorting Controls */}
+                  {items.length > 0 && (
+                    <div className="flex justify-end mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Ordenar por:</span>
+                        <CustomSelect
+                          value={currentSort}
+                          onChange={(val) => setSortConfigs(prev => ({...prev, [status]: val as any}))}
+                          options={[
+                            { value: 'priority', label: 'Prioridade' },
+                            { value: 'date_desc', label: 'Mais Recentes' },
+                            { value: 'date_asc', label: 'Mais Antigos' },
+                          ]}
+                          className="min-w-[140px]"
+                        />
                       </div>
-                      {theme.description && (
-                        <p className="text-white/40 text-[10px] leading-relaxed">{theme.description}</p>
-                      )}
-                      <div className="flex flex-wrap gap-1">
-                        {theme.editorial_pillar && (
-                          <span className="px-2 py-0.5 bg-sage/10 border border-sage/20 rounded text-sage text-[9px] font-black uppercase tracking-widest">
-                            {theme.editorial_pillar}
-                          </span>
-                        )}
-                        {theme.pipeline_level && (
-                          <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-400 text-[9px] font-black uppercase tracking-widest">
-                            {theme.pipeline_level.split(' ')[0]}
-                          </span>
-                        )}
-                        {theme.title_structure && (
-                          <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-white/30 text-[9px] font-black uppercase tracking-widest">
-                            {theme.title_structure.split(' ')[0]}
-                          </span>
-                        )}
-                        {targetPublishDate && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-200 text-[9px] font-black uppercase tracking-widest">
-                            <Clock size={9} /> {formatPublishDate(targetPublishDate)}
-                          </span>
-                        )}
-                        {isScriptEngineTheme(theme) && (
-                          <span className="px-2 py-0.5 bg-sage/10 border border-sage/20 rounded text-sage text-[9px] font-black uppercase tracking-widest">
-                            Retomavel
-                          </span>
-                        )}
-                        {(theme.is_demand_vetted && theme.is_persona_vetted) && (
-                          <span className="ml-auto text-blue-400">
-                            <CheckCircle2 size={10} />
-                          </span>
-                        )}
-                      </div>
-                      {isScriptEngineTheme(theme) && (
-                        <div className="flex items-center gap-2 pt-1">
-                          <FileText size={10} className="text-sage/70" />
-                          <p className="text-[10px] text-sage/70 font-black uppercase tracking-widest">
-                            Retome este tema na Escrita Criativa
-                          </p>
-                        </div>
-                      )}
                     </div>
-                    );
-                  })}
+                  )}
+
+                  {/* Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                    {sortedItems.map(theme => {
+                      const targetPublishDate = getThemePublishDate(theme);
+
+                      return (
+                        <div key={theme.id} onClick={(e) => { e.stopPropagation(); openEdit(theme); }} className="glass-card p-4 space-y-3 flex flex-col group cursor-pointer hover:border-sage/40 transition-all">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-black text-white text-[12px] leading-tight group-hover:text-amber-100 transition-colors">{theme.title}</p>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                              {isScriptEngineTheme(theme) && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); reopenInWriting(theme); }}
+                                  className="p-1.5 rounded-lg hover:bg-sage/20 text-white/40 hover:text-sage transition-all"
+                                  title="Retomar na Escrita Criativa"
+                                >
+                                  <FileText size={12} />
+                                </button>
+                              )}
+                              <button onClick={(e) => { e.stopPropagation(); openEdit(theme); }} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all">
+                                <Edit3 size={12} />
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDelete(theme.id); }} className="p-1.5 rounded-lg hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all">
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {theme.description && (
+                            <p className="text-white/40 text-[11px] leading-relaxed line-clamp-3 group-hover:text-white/60 transition-colors">{theme.description}</p>
+                          )}
+                          
+                          <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-2">
+                            {theme.editorial_pillar && (
+                              <span className="px-2 py-0.5 bg-sage/10 border border-sage/20 rounded text-sage text-[9px] font-black uppercase tracking-widest">
+                                {theme.editorial_pillar}
+                              </span>
+                            )}
+                            {theme.pipeline_level && (
+                              <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-400 text-[9px] font-black uppercase tracking-widest">
+                                {theme.pipeline_level.split(' ')[0]}
+                              </span>
+                            )}
+                            {theme.title_structure && (
+                              <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-white/30 text-[9px] font-black uppercase tracking-widest">
+                                {theme.title_structure.split(' ')[0]}
+                              </span>
+                            )}
+                            {targetPublishDate && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-200 text-[9px] font-black uppercase tracking-widest">
+                                <Clock size={9} /> {formatPublishDate(targetPublishDate)}
+                              </span>
+                            )}
+                            {isScriptEngineTheme(theme) && (
+                              <span className="px-2 py-0.5 bg-sage/10 border border-sage/20 rounded text-sage text-[9px] font-black uppercase tracking-widest">
+                                Retomável
+                              </span>
+                            )}
+                            {(theme.is_demand_vetted && theme.is_persona_vetted) && (
+                              <span className="ml-auto text-blue-400" title="Validação Estratégica Completa">
+                                <CheckCircle2 size={12} />
+                              </span>
+                            )}
+                          </div>
+                          {isScriptEngineTheme(theme) && (
+                            <div className="flex items-center gap-2 pt-2 mt-2 border-t border-white/5">
+                              <FileText size={10} className="text-sage/70" />
+                              <p className="text-[9px] text-sage/70 font-black uppercase tracking-widest">
+                                Retomar na Escrita Criativa
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
                   {items.length === 0 && (
-                    <div className="flex items-center justify-center h-20 opacity-20">
-                      <p className="text-[10px] font-black uppercase tracking-widest">Nenhum tema</p>
+                    <div className="flex flex-col items-center justify-center p-8 opacity-40">
+                      <Icon size={24} className="mb-3 text-white/30" />
+                      <p className="text-[11px] font-black uppercase tracking-widest text-white/50">Nenhum tema nesta etapa</p>
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Form Modal */}

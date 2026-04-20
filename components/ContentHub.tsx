@@ -335,8 +335,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
             }))
           ).then(({ error: upsertError }: { error: any }) => {
             if (upsertError) {
-              console.error('❌ Falha no auto-sync ContentHub (Supabase Error):', upsertError);
-              alert(`Auto-Sync falhou. Estruturas não salvas. Erro: ${upsertError.message}`);
+              console.warn('⚠️ Falha no auto-sync ContentHub (Supabase Error):', upsertError.message || upsertError);
             } else {
                console.log('✅ Auto-sync concluído.');
             }

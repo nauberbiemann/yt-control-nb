@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useActiveProject } from '@/lib/store/projectStore';
@@ -21,6 +21,7 @@ import {
   BookOpen,
   Mic,
   TrendingUp,
+  ChevronDown
 } from 'lucide-react';
 
 // â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -643,6 +644,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
   const [briefing, setBriefing] = useState<ProductionBriefing | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isLegoExpanded, setIsLegoExpanded] = useState(false);
 
   const uniqueComponents = dedupeNarrativeComponents(components);
   const hooks = uniqueComponents.filter(c => c.type === 'Hook');
@@ -1459,95 +1461,112 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             )}
 
             {/* Modular Structure */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <BookOpen size={16} className="text-white/40" />
-                <span className="text-xs font-black uppercase tracking-[3px] text-white/40">Estrutura Modular (O Lego)</span>
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden mt-4">
+              <div 
+                onClick={() => setIsLegoExpanded(!isLegoExpanded)}
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-colors select-none group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                    <BookOpen size={16} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-[2px] text-white/60 group-hover:text-white transition-colors block">Estrutura Modular (O Lego)</span>
+                    <span className="text-[9px] text-white/30 uppercase tracking-widest">{briefing.blocks.length} blocos mapeados</span>
+                  </div>
+                </div>
+                <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isLegoExpanded ? 'rotate-180' : ''}`}>
+                  <ChevronDown size={14} />
+                </div>
               </div>
-              <div className="space-y-2">
-                {briefing.blocks.map((block, i) => {
-                    const VoiceIcon = VOICE_ICON[block.voiceStyle] || Zap;
-                    const isTwist = block.isNarrativeTwist;
+              
+              <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isLegoExpanded ? 'grid-rows-[1fr] opacity-100 p-4 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                <div className="min-h-0">
+                  <div className="space-y-2">
+                    {briefing.blocks.map((block, i) => {
+                      const VoiceIcon = VOICE_ICON[block.voiceStyle] || Zap;
+                      const isTwist = block.isNarrativeTwist;
 
-                    // Mid-CTA slot: insert AFTER this block if position matches
-                    const showMidCta = briefing.midCta && briefing.midCta.position === i;
+                      // Mid-CTA slot: insert AFTER this block if position matches
+                      const showMidCta = briefing.midCta && briefing.midCta.position === i;
 
-                    return (
-                      <div key={block.id}>
-                        <div
-                          className={`flex items-start gap-3 p-3.5 border rounded-xl group transition-all ${
-                            isTwist
-                              ? 'bg-amber-500/5 border-amber-500/30 ring-1 ring-amber-500/20'
-                              : 'bg-white/[0.02] border-white/5 hover:border-white/10'
-                          }`}
-                        >
-                          <span className={`text-xs font-black w-5 shrink-0 pt-0.5 ${isTwist ? 'text-amber-400/60' : 'text-white/30'}`}>{String(i + 1).padStart(2, '0')}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                              {isTwist && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-400/5 px-1.5 py-0.5 rounded-full">
-                                  Virada Narrativa
-                                </span>
+                      return (
+                        <div key={block.id}>
+                          <div
+                            className={`flex items-start gap-3 p-3.5 border rounded-xl group transition-all ${
+                              isTwist
+                                ? 'bg-amber-500/5 border-amber-500/30 ring-1 ring-amber-500/20'
+                                : 'bg-white/[0.02] border-white/5 hover:border-white/10'
+                            }`}
+                          >
+                            <span className={`text-xs font-black w-5 shrink-0 pt-0.5 ${isTwist ? 'text-amber-400/60' : 'text-white/30'}`}>{String(i + 1).padStart(2, '0')}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                {isTwist && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-400/5 px-1.5 py-0.5 rounded-full">
+                                    Virada Narrativa
+                                  </span>
+                                )}
+                                {block.communityElement && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-purple-400 border border-purple-400/30 bg-purple-400/5 px-1.5 py-0.5 rounded-full">
+                                    Comunidade
+                                  </span>
+                                )}
+                                {block.blockChars && (
+                                  <span className="text-[9px] font-black text-white/20 ml-auto">~{block.blockChars.toLocaleString('pt-BR')} chars</span>
+                                )}
+                              </div>
+                              {(block.tensionLevel || block.narrativeRole || block.transitionMode) && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {block.tensionLevel && (
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
+                                      Tensao: {block.tensionLevel}
+                                    </span>
+                                  )}
+                                  {block.narrativeRole && (
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
+                                      Papel: {block.narrativeRole}
+                                    </span>
+                                  )}
+                                  {block.transitionMode && (
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
+                                      Transicao: {block.transitionMode}
+                                    </span>
+                                  )}
+                                </div>
                               )}
+                              <p className={`text-sm font-black leading-snug ${isTwist ? 'text-amber-50' : 'text-white'}`}>{block.name}</p>
+                              <p className="text-xs text-white/40 italic mt-1 leading-relaxed">{block.missionNarrative}</p>
                               {block.communityElement && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-purple-400 border border-purple-400/30 bg-purple-400/5 px-1.5 py-0.5 rounded-full">
-                                  Comunidade
-                                </span>
+                                <p className="text-[10px] text-purple-400/70 italic mt-1.5 pl-2 border-l border-purple-400/20 leading-snug line-clamp-2">"{block.communityElement}"</p>
                               )}
-                              {block.blockChars && (
-                                <span className="text-[9px] font-black text-white/20 ml-auto">~{block.blockChars.toLocaleString('pt-BR')} chars</span>
+                              {block.bridgeInstruction && (
+                                <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-white/5">
+                                  <ChevronRight size={10} className="text-sage/50 shrink-0 mt-0.5" />
+                                  <p className="text-[10px] text-sage/50 italic leading-relaxed">{block.bridgeInstruction}</p>
+                                </div>
                               )}
                             </div>
-                            {(block.tensionLevel || block.narrativeRole || block.transitionMode) && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {block.tensionLevel && (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    Tensao: {block.tensionLevel}
-                                  </span>
-                                )}
-                                {block.narrativeRole && (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    Papel: {block.narrativeRole}
-                                  </span>
-                                )}
-                                {block.transitionMode && (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/45 border border-white/10 bg-white/[0.03] px-2 py-1 rounded-full">
-                                    Transicao: {block.transitionMode}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            <p className={`text-sm font-black leading-snug ${isTwist ? 'text-amber-50' : 'text-white'}`}>{block.name}</p>
-                            <p className="text-xs text-white/40 italic mt-1 leading-relaxed">{block.missionNarrative}</p>
-                            {block.communityElement && (
-                              <p className="text-[10px] text-purple-400/70 italic mt-1.5 pl-2 border-l border-purple-400/20 leading-snug line-clamp-2">"{block.communityElement}"</p>
-                            )}
-                            {block.bridgeInstruction && (
-                              <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-white/5">
-                                <ChevronRight size={10} className="text-sage/50 shrink-0 mt-0.5" />
-                                <p className="text-[10px] text-sage/50 italic leading-relaxed">{block.bridgeInstruction}</p>
-                              </div>
-                            )}
+                            <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest shrink-0 ${VOICE_COLOR[block.voiceStyle]}`}>
+                              <VoiceIcon size={10} /> {block.voiceStyle.split(' ')[0]}
+                            </span>
                           </div>
-                          <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest shrink-0 ${VOICE_COLOR[block.voiceStyle]}`}>
-                            <VoiceIcon size={10} /> {block.voiceStyle.split(' ')[0]}
-                          </span>
+
+                          {/* Mid-CTA Slot */}
+                          {showMidCta && briefing.midCta && (
+                            <div className="my-2 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl flex items-start gap-3">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-cyan-400 border border-cyan-400/30 bg-cyan-400/5 px-1.5 py-1 rounded-full shrink-0 whitespace-nowrap">CTA Mid</span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-white">{briefing.midCta.name}</p>
+                                <p className="text-[10px] text-white/40 italic line-clamp-2 mt-0.5">{briefing.midCta.pattern}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-
-                        {/* Mid-CTA Slot */}
-                        {showMidCta && briefing.midCta && (
-                          <div className="my-2 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl flex items-start gap-3">
-                            <span className="text-[9px] font-black uppercase tracking-widest text-cyan-400 border border-cyan-400/30 bg-cyan-400/5 px-1.5 py-1 rounded-full shrink-0 whitespace-nowrap">CTA Mid</span>
-                            <div className="min-w-0">
-                              <p className="text-xs font-black text-white">{briefing.midCta.name}</p>
-                              <p className="text-[10px] text-white/40 italic line-clamp-2 mt-0.5">{briefing.midCta.pattern}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 

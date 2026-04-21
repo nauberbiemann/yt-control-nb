@@ -24,17 +24,19 @@ Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI ove
 Keep prompts concise, vivid, and generator-friendly.
 Use one sentence per prompt, usually between 18 and 40 words.
 
-CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
+` + `CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
 
 Rules for asset types:
 - asset == "video":
   - First, identify what is being described in the subtitle text: a concept, feeling, process, place, or personal moment.
-  - If the text describes a PERSONAL or SUBJECTIVE experience (memory, personal decision, emotional moment, first-person narrative): use a live-action scene featuring the provided recurring character description briefly.
-  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (brain chemistry, code architecture, attention mechanisms, cognitive load, data structures, invisible processes): always use 3D technical animation. The prompt must begin with "3D technical animation of".
-  - If the text describes an ENVIRONMENT or SITUATION (workplace, meeting, nature, specific place): visualize that specific environment, not the character.
-  - For live-action prompts: begin with "Realistic cinematic video of" and include the recurring character briefly. Always add ambient sound only, no dialogue, no voice-over.
-  - For 3D prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
-  - NEVER default to a generic scene of "person at desk" when the content is conceptual.
+  - CRITICAL: The recurring character is OPTIONAL. Only include the character if the subtitle text explicitly references a PERSONAL, SUBJECTIVE, or FIRST-PERSON experience (memory, personal decision, emotional moment, first-person narrative using "I", "my", "me", or clearly describing the narrator's own experience).
+  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (brain chemistry, code architecture, attention mechanisms, cognitive load, data structures, invisible processes, team dynamics as metaphor): ALWAYS use 3D technical animation WITHOUT the character. The prompt must begin with "3D technical animation of".
+  - If the text describes an ENVIRONMENT or SITUATION (workplace, meeting, nature, specific place) WITHOUT personal reference: visualize that specific environment WITHOUT the character.
+  - If the text is narrative/conceptual ("the team starts to...", "when a system...", "engineers know..."): do NOT include the character — use abstract or environmental visuals instead.
+  - Only use the character for clear first-person moments ("I believed...", "I had a process...", "When I collapsed...", "I arrived home...").
+  - For live-action prompts WITH character: begin with "Realistic cinematic video of" and include the recurring character. Always add ambient sound only, no dialogue, no voice-over.
+  - For 3D/abstract prompts WITHOUT character: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
+  - NEVER force the character into a technical or conceptual scene. NEVER default to a generic scene of "person at desk" when the content is conceptual.
 - asset == "image":
   - Always create a realistic still image prompt.
   - The image must directly illustrate the SPECIFIC concept, object, emotion, or situation described in the subtitle text.
@@ -154,13 +156,14 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
   return promptMap;
 };
 
-const enforceVideoPromptGuards = (prompt: string, characterDescription: string) => {
+const enforceVideoPromptGuards = (prompt: string, _characterDescription: string) => {
+  // The character is NEVER force-injected here.
+  // The AI decides contextually whether the character belongs in the scene.
+  // This function only ensures the mandatory audio cue is present.
   const normalized = sanitizePrompt(prompt);
-  const hasCharacterCue = /same recurring|senior software architect|character|professional/i.test(normalized);
   const hasAmbientCue = /ambient sound only|no dialogue|no voice-over|no voiceover/i.test(normalized);
-  const characterClause = hasCharacterCue ? '' : ` Featuring ${characterDescription}.`;
   const audioClause = hasAmbientCue ? '' : ' Ambient sound only, no dialogue, no voice-over.';
-  return sanitizePrompt(`${normalized}${characterClause}${audioClause}`);
+  return sanitizePrompt(`${normalized}${audioClause}`);
 };
 
 const generateBatchWithOpenAI = async ({
@@ -189,12 +192,13 @@ const generateBatchWithOpenAI = async ({
         content: [
           'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
           'Include exactly one prompt per row_number.',
-          `Recurring character for live-action video prompts: ${characterDescription}`,
+          `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
+          'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
-          JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
+          JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
         ].filter(Boolean).join('\n\n'),
       },
     ],
@@ -253,12 +257,13 @@ const generateBatchWithGemini = async ({
               SYSTEM_INSTRUCTIONS,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
               'Include exactly one prompt per row_number.',
-              `Recurring character for live-action video prompts: ${characterDescription}`,
+              `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
+              'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
-              JSON.stringify({ character_profile: characterDescription, items: batchItems }, null, 2),
+              JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
             ].filter(Boolean).join('\n\n'),
           }],
         }],
@@ -418,4 +423,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

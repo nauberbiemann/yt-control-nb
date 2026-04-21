@@ -464,22 +464,56 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const targetPublishDate = executionSnapshot?.manualPublishDate || manualPublishDate;
     const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
 
+    const existingTheme = themeIndex >= 0 ? existingThemes[themeIndex] : null;
+
+    // Resolve pipeline_level: preserva o valor existente do tema no banco;
+    // fallback para o nível do briefing (quando disponível no futuro) e depois para
+    // o primeiro item da jornada tática — evitando que todos fiquem fixos em T1.
+    const resolvedPipelineLevel =
+      existingTheme?.pipeline_level ||
+      briefing?.pipelineLevel ||
+      activeProject?.playlists?.tactical_journey?.[0]?.label ||
+      '';
+
+    // Resolve editorial_pillar com a mesma lógica de precedência.
+    const resolvedEditorialPillar =
+      existingTheme?.editorial_pillar ||
+      briefing?.editorialPillar ||
+      activeProject?.playlists?.tactical_journey?.[0]?.label ||
+      '';
+
+    // Resolve title_structure: prefere o nome da estrutura selecionada no briefing;
+    // cai para o valor que já estava gravado no tema, nunca sobrescreve com vazio.
+    const resolvedTitleStructure =
+      briefing?.selectedTitleStructure?.name ||
+      existingTheme?.title_structure ||
+      '';
+
+    // Description rastreável: inclui estrutura e pilar para diferenciar cada tema.
+    const structureLabel = briefing?.selectedTitleStructure?.name
+      ? ` · Estrutura: ${briefing.selectedTitleStructure.name}`
+      : '';
+    const pillarLabel = resolvedEditorialPillar ? ` · Pilar: ${resolvedEditorialPillar}` : '';
+    const resolvedDescription =
+      existingTheme?.description ||
+      `Tema aprovado manualmente na Escrita Criativa para o projeto ${activeProject?.name || activeProject?.project_name || 'ativo'}${structureLabel}${pillarLabel}.`;
+
     const themePayload = {
       title: themeTitle,
-      description: `Tema aprovado manualmente na Escrita Criativa para o projeto ${activeProject?.name || activeProject?.project_name || 'ativo'}.`,
-      editorial_pillar: activeProject?.playlists?.tactical_journey?.[0]?.label || '',
+      description: resolvedDescription,
+      editorial_pillar: resolvedEditorialPillar,
       status: scheduleStatus,
-      title_structure: briefing?.selectedTitleStructure?.name || '',
-      selected_structure: briefing?.selectedTitleStructure?.id || briefing?.assetLog?.titleStructure || '',
-      title_structure_asset_id: briefing?.selectedTitleStructure?.id || briefing?.assetLog?.titleStructure || null,
-      pipeline_level: activeProject?.playlists?.tactical_journey?.[0]?.label || '',
+      title_structure: resolvedTitleStructure,
+      selected_structure: briefing?.selectedTitleStructure?.id || briefing?.assetLog?.titleStructure || existingTheme?.selected_structure || '',
+      title_structure_asset_id: briefing?.selectedTitleStructure?.id || briefing?.assetLog?.titleStructure || existingTheme?.title_structure_asset_id || null,
+      pipeline_level: resolvedPipelineLevel,
       is_demand_vetted: true,
       is_persona_vetted: true,
       refined_title: themeTitle,
-      priority: Number(existingThemes[themeIndex]?.priority || 0),
-      notes: existingThemes[themeIndex]?.notes || 'Origem: tema manual aprovado na Escrita Criativa.',
+      priority: Number(existingTheme?.priority || 0),
+      notes: existingTheme?.notes || 'Origem: tema manual aprovado na Escrita Criativa.',
       match_score: Number(briefing?.diagnostics?.noveltyScore || 0),
-      demand_views: existingThemes[themeIndex]?.demand_views || '',
+      demand_views: existingTheme?.demand_views || '',
       production_assets: {
         source: 'script_engine_manual_approval',
         approved_at: new Date().toISOString(),

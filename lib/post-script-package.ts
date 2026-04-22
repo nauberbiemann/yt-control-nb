@@ -40,6 +40,8 @@ const BLOCK_PREVIEW_LIMIT = 220;
 const FIXED_AI_NOTICE =
   'AVISO DE IA: Este conteúdo foi estrategicamente desenvolvido com apoio de inteligência artificial, com supervisão humana para garantir clareza, coerência e integridade editorial.';
 
+const SUNO_PROMPT_MAX_CHARS = 800;
+
 const toSeconds = (value: string) => {
   const trimmed = String(value || '').trim();
   if (!trimmed) return 0;
@@ -119,6 +121,12 @@ const cleanMultiline = (value: string) =>
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+const truncateSunoPrompt = (value: string): string => {
+  if (value.length <= SUNO_PROMPT_MAX_CHARS) return value;
+  const cut = value.lastIndexOf(' ', SUNO_PROMPT_MAX_CHARS);
+  return value.slice(0, cut > 0 ? cut : SUNO_PROMPT_MAX_CHARS).trim();
+};
 
 const normalizeSfxEffectName = (value: string) => {
   const raw = cleanPreview(value);
@@ -310,7 +318,7 @@ const extractSeoIntro = (value: string) => {
 
 const humanizeSeoIntro = (value: string) => {
   const intro = extractSeoIntro(value)
-    .replace(/\s*["“”][^"“”]+["“”]/g, (match) => match.replace(/["“”]/g, ''))
+    .replace(/\s*[“”"][^“”"]+[“”"]/g, (match) => match.replace(/[“”"]/g, ''))
     .replace(/\b(Neste video eu mostro como|Neste video voce vai ver como)\b/i, 'Neste video eu mostro')
     .replace(/\s+/g, ' ')
     .trim();
@@ -379,7 +387,7 @@ const humanizeSeoIntroClean = (value: string) => {
   const intro = extractSeoIntroClean(value)
     .replace(/\[[^\]]+\]/g, ' ')
     .replace(/^No (capitulo|bloco)\s+[^,]+,\s*/i, '')
-    .replace(/\s*["“”][^"“”]+["“”]/g, (match) => match.replace(/["“”]/g, ''))
+    .replace(/\s*[“”"][^“”"]+[“”"]/g, (match) => match.replace(/[“”"]/g, ''))
     .replace(/\b(Neste video eu mostro como|Neste video voce vai ver como)\b/i, 'Neste video eu mostro')
     .replace(/\s+/g, ' ')
     .trim();
@@ -436,7 +444,7 @@ const humanizeSeoIntroPtBr = (value: string) => {
   const intro = extractSeoIntroClean(value)
     .replace(/\[[^\]]+\]/g, ' ')
     .replace(/^No (capitulo|bloco)\s+[^,]+,\s*/i, '')
-    .replace(/\s*["“”][^"“”]+["“”]/g, (match) => match.replace(/["“”]/g, ''))
+    .replace(/\s*[“”"][^“”"]+[“”"]/g, (match) => match.replace(/[“”"]/g, ''))
     .replace(/\b(Neste video eu mostro como|Neste video voce vai ver como)\b/i, 'Neste vídeo eu mostro')
     .replace(/\s+/g, ' ')
     .trim();
@@ -761,7 +769,7 @@ export const sanitizePostScriptPackage = (
   return {
     titles,
     seoDescription: buildSeoDescriptionFromPackage(String(raw?.seoDescription || ''), Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors),
-    sunoPrompt: cleanMultiline(String(raw?.sunoPrompt || '')),
+    sunoPrompt: truncateSunoPrompt(cleanMultiline(String(raw?.sunoPrompt || ''))),
     sunoSuggestedTitle: cleanPreview(String(raw?.sunoSuggestedTitle || '')),
     sfxTimelineTxt: normalizeSfxTimelineEffectNames(String(raw?.sfxTimelineTxt || '')),
     chapterAnchors: Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors,

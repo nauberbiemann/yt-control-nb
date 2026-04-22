@@ -1587,7 +1587,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       ];
       const batContent = batLines.join('\r\n');
       
-      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
+      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       
       setTimeout(() => {
         downloadTextArtifact(srtArtifactStem, 'renderizar', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
@@ -1924,6 +1924,41 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     } finally {
       setIsGeneratingPostScriptPackage(false);
     }
+  };
+
+  const buildSfxEnrichedCsvContent = (baseCsvContent: string, sfxTimelineTxt?: string | null): string => {
+    if (!sfxTimelineTxt?.trim()) return baseCsvContent;
+
+    const sfxEntries = parseSfxTimelineEntries(sfxTimelineTxt);
+    if (!sfxEntries.length) return baseCsvContent;
+
+    // Convert MM:SS or HH:MM:SS timestamp to SRT format 00:MM:SS,000
+    const toSrtTime = (ts: string) => {
+      const parts = ts.split(':').map((p) => p.padStart(2, '0'));
+      const formatted = parts.length === 2 ? `00:${parts[0]}:${parts[1]}` : `${parts[0]}:${parts[1]}:${parts[2] || '00'}`;
+      return `${formatted},000`;
+    };
+
+    const csvEsc = (v: string) => {
+      const s = String(v ?? '');
+      return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const sfxLines = sfxEntries.map((entry) => {
+      const srtTs = toSrtTime(entry.timestamp);
+      const promptSummary = [entry.effect, entry.purpose, entry.notes].filter((x) => x && x !== '—').join(' | ');
+      return [
+        csvEsc(srtTs),
+        csvEsc(srtTs),
+        csvEsc(entry.excerpt !== '—' ? entry.excerpt : ''),
+        'sfx',
+        csvEsc(promptSummary),
+        '',
+      ].join(',');
+    });
+
+    const base = baseCsvContent.trimEnd();
+    return `${base}\n${sfxLines.join('\n')}`;
   };
 
   const parseSfxTimelineEntries = (value: string) => {
@@ -3265,14 +3300,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               <div className="flex gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => copyTextToClipboard(externalSrtPipeline.csvContent, 'CSV base copiado.')}
+                                  onClick={() => copyTextToClipboard(buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), 'CSV base copiado.')}
                                   className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                                 >
                                   <Copy size={12} className="inline mr-2" /> Copiar CSV
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', externalSrtPipeline.csvContent, { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
+                                  onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
                                   className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                                 >
                                   <FileText size={12} className="inline mr-2" /> Exportar CSV

@@ -38,10 +38,13 @@ Rules:
 - The app will normalize timestamps and the AI notice after your response.
 - Keep the opening paragraph natural, human and useful, not robotic.
 - Avoid quotation marks around technical metaphors unless absolutely necessary.
-- "sunoPrompt" must be written in English and should describe a Suno-ready music direction in one compact sentence.
-- The Suno prompt should be simple, direct, and usable as-is, similar to: "Dark cinematic industrial synthwave with deep rhythmic bass pulses..."
-- Prefer comma-separated descriptors over long technical explanations.
-- Avoid BPM, key, stems, section-by-section arrangements, or production notes unless absolutely necessary.
+- "sunoPrompt" must be written in English and must be rich, thematic, and detailed — reflecting the specific emotional arc, subject matter, and atmosphere of this video.
+- The Suno prompt MUST reference the theme of the video (e.g. if the video is about developer burnout, the prompt should evoke that feeling through musical language).
+- Structure the prompt as a layered description covering: genre/subgenre, mood and atmosphere, key instruments, dynamic evolution (how the music builds or shifts), and any thematic or textural references.
+- Use comma-separated descriptors, but write multiple layers — not just one line. Think of it as a production brief that a composer would use to score a short film.
+- Maximum length: 800 characters. Stay under this limit but use as much of it as needed to be specific and evocative.
+- Do NOT use generic phrases like "epic cinematic orchestral" without grounding them in the specific theme.
+- Avoid BPM numbers, key signatures, stem breakdowns, or technical production jargon.
 - "sunoSuggestedTitle" should be short and in English.
 - "sfxTimelineTxt" must be in PT-BR and formatted as a clean plain-text timeline, not JSON.
 - In "sfxTimelineTxt", keep labels EFEITO/FUNCAO/TRECHO/OBS in PT-BR, but the value after EFEITO must be an English searchable sound effect name for CapCut PC.
@@ -144,8 +147,10 @@ const buildUserPrompt = ({
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',
     '- Do not output timestamps or the AI notice; the app will add them after generation.',
     '- Make the opening paragraph sound like a real YouTube description, not like a system summary.',
-    '- Suno prompt should match the emotional journey of the script, but stay concise and direct.',
-    '- Write the Suno prompt as a single practical line, not as a long production brief.',
+    '- Suno prompt MUST be rich, specific, and thematic — directly referencing the emotional journey, subject matter, and atmosphere of this video.',
+    '- Describe genre, mood, instruments, dynamics/evolution, and thematic references. Write multiple layers of description, not just one phrase.',
+    '- The Suno prompt must not exceed 800 characters. Use as much of that space as needed to be evocative and specific.',
+    '- AVOID generic openers like "Epic cinematic orchestral" unless grounded in the specific theme of this video.',
     '- SFX timeline should feel editorially useful for a human video editor.',
     '- In every EFEITO line, write only an English SFX name that is easy to search in CapCut PC.',
     '- In every TRECHO line, you MUST copy the exact text snippet provided in the "excerpt" field of the SFX plan. DO NOT summarize, paraphrase, or invent new text.',

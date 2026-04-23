@@ -24,7 +24,8 @@ import {
   Activity,
   PlayCircle,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Heart
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════
@@ -341,7 +342,7 @@ export default function TTSApp() {
     if (isNaN(time)) return "0:00";
     const m = Math.floor(time / 60);
     const s = Math.floor(time % 60);
-    return \`\${m}:\${s < 10 ? "0" : ""}\${s}\`;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
   // ═══════════════════════════════════════════════════
@@ -363,7 +364,7 @@ export default function TTSApp() {
     // 2. Style
     let styleStr = selectedStyles.join(" combinado com ");
     if (selectedStyles.includes("Estilo Personalizado") && customStyle) {
-      styleStr = \`\${styleStr} e \${customStyle}\`;
+      styleStr = `${styleStr} e ${customStyle}`;
     }
 
     // 3. Emotion
@@ -379,7 +380,7 @@ export default function TTSApp() {
     const natStr = SLIDER_LABELS.naturalidade[sliders.naturalidade];
     const engStr = SLIDER_LABELS.energia[sliders.energia];
 
-    let sliderInstruction = \`fale com velocidade \${speedStr}, tom \${pitchStr}, de forma \${exprStr}, com intensidade emocional \${intEmoStr}, \${formStr}, dramatismo \${dramStr}, \${natStr} e energia \${engStr}\`;
+    let sliderInstruction = `fale com velocidade ${speedStr}, tom ${pitchStr}, de forma ${exprStr}, com intensidade emocional ${intEmoStr}, ${formStr}, dramatismo ${dramStr}, ${natStr} e energia ${engStr}`;
 
     // 5. Toggles
     const toggleStrs: string[] = [];
@@ -388,9 +389,9 @@ export default function TTSApp() {
     if (toggles.sorriso) toggleStrs.push("fale com um leve sorriso na voz");
     if (toggles.aveludada) toggleStrs.push("use uma voz aveludada e suave");
     if (toggles.respiracoes) toggleStrs.push("inclua respirações naturais ocasionais");
-    if (customPronunciation) toggleStrs.push(\`pronuncie: \${customPronunciation}\`);
+    if (customPronunciation) toggleStrs.push(`pronuncie: ${customPronunciation}`);
 
-    const toggleInstruction = toggleStrs.length > 0 ? \`, \${toggleStrs.join(", ")}\` : "";
+    const toggleInstruction = toggleStrs.length > 0 ? `, ${toggleStrs.join(", ")}` : "";
 
     // 6. Text Replacements
     let processedText = rawText;
@@ -399,7 +400,7 @@ export default function TTSApp() {
     }
 
     // Final Prompt
-    return \`Leia o seguinte texto em voz alta em português brasileiro, com \${accentInstruction}, no estilo \${styleStr}, com emoção de \${emotionStr}, \${sliderInstruction}\${toggleInstruction}. O texto é: \${processedText}\`;
+    return `Leia o seguinte texto em voz alta em português brasileiro, com ${accentInstruction}, no estilo ${styleStr}, com emoção de ${emotionStr}, ${sliderInstruction}${toggleInstruction}. O texto é: ${processedText}`;
   };
 
   const generateAudio = async (textToGenerate: string, presetVoice?: string) => {
@@ -427,7 +428,7 @@ export default function TTSApp() {
 
     try {
       const response = await fetch(
-        \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=\${apiKey}\`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -498,7 +499,7 @@ export default function TTSApp() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = \`vozprime_\${voiceName}_\${Date.now()}.wav\`;
+    a.download = `vozprime_${voiceName}_${Date.now()}.wav`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -561,7 +562,7 @@ export default function TTSApp() {
     setSelectedAccent(preset.accent);
     setSelectedStyles(preset.styles);
     setSelectedEmotion(preset.emotion);
-    showToast(\`Preset "\${preset.name}" aplicado!\`, "success");
+    showToast(`Preset "${preset.name}" aplicado!`, "success");
     setCurrentView("gerar");
   };
 
@@ -583,25 +584,25 @@ export default function TTSApp() {
   // ═══════════════════════════════════════════════════
 
   return (
-    <div className={\`flex h-screen w-full font-sans overflow-hidden transition-colors duration-300 \${themeClass}\`}>
-      <style dangerouslySetInnerHTML={{__html: \`
+    <div className={`flex h-screen w-full font-sans overflow-hidden transition-colors duration-300 ${themeClass}`}>
+      <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Syne:wght@500;600;700&display=swap');
         .font-head { font-family: 'Syne', sans-serif; }
         .font-body { font-family: 'DM Sans', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: \${darkMode ? '#303040' : '#d1d5db'}; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: \${darkMode ? '#00d4aa' : '#00a88a'}; }
-      \`}} />
+        ::-webkit-scrollbar-thumb { background: ${darkMode ? '#303040' : '#d1d5db'}; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: ${darkMode ? '#00d4aa' : '#00a88a'}; }
+      `}} />
 
       {/* TOASTS */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map(toast => (
-          <div key={toast.id} className={\`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 \${
+          <div key={toast.id} className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 ${
             toast.type === 'error' ? 'bg-red-500 text-white' : 
             toast.type === 'success' ? 'bg-green-500 text-white' : 
             darkMode ? 'bg-[#303040] text-white' : 'bg-gray-800 text-white'
-          }\`}>
+          }`}>
             {toast.type === 'error' && <AlertCircle size={18} />}
             {toast.type === 'success' && <CheckCircle2 size={18} />}
             <span className="font-medium text-sm">{toast.message}</span>
@@ -621,9 +622,9 @@ export default function TTSApp() {
       {/* ═══════════════════════════════════════════════════ */}
       {/* LEFT SIDEBAR (240px) */}
       {/* ═══════════════════════════════════════════════════ */}
-      <div className={\`w-[240px] flex-shrink-0 flex flex-col border-r \${panelClass}\`}>
+      <div className={`w-[240px] flex-shrink-0 flex flex-col border-r ${panelClass}`}>
         <div className="p-6 flex items-center gap-3">
-          <div className={\`w-10 h-10 rounded-xl flex items-center justify-center \${buttonPrimaryClass}\`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${buttonPrimaryClass}`}>
             <Activity className="text-white" size={24} />
           </div>
           <div>
@@ -633,19 +634,19 @@ export default function TTSApp() {
         </div>
 
         <nav className="flex-1 px-4 py-4 flex flex-col gap-1 font-body">
-          <button onClick={() => setCurrentView("gerar")} className={\`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all \${currentView === "gerar" ? activeNavClass : hoverNavClass}\`}>
+          <button onClick={() => setCurrentView("gerar")} className={`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all ${currentView === "gerar" ? activeNavClass : hoverNavClass}`}>
             <Mic size={18} /> <span className="font-medium">Gerar Voz</span>
           </button>
-          <button onClick={() => setCurrentView("biblioteca")} className={\`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all \${currentView === "biblioteca" ? activeNavClass : hoverNavClass}\`}>
+          <button onClick={() => setCurrentView("biblioteca")} className={`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all ${currentView === "biblioteca" ? activeNavClass : hoverNavClass}`}>
             <Library size={18} /> <span className="font-medium">Biblioteca</span>
           </button>
-          <button onClick={() => setCurrentView("historico")} className={\`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all \${currentView === "historico" ? activeNavClass : hoverNavClass}\`}>
+          <button onClick={() => setCurrentView("historico")} className={`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all ${currentView === "historico" ? activeNavClass : hoverNavClass}`}>
             <Clock size={18} /> <span className="font-medium">Histórico</span>
           </button>
-          <button onClick={() => setCurrentView("presets")} className={\`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all \${currentView === "presets" ? activeNavClass : hoverNavClass}\`}>
+          <button onClick={() => setCurrentView("presets")} className={`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all ${currentView === "presets" ? activeNavClass : hoverNavClass}`}>
             <Zap size={18} /> <span className="font-medium">Presets</span>
           </button>
-          <button onClick={() => setCurrentView("configuracoes")} className={\`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all \${currentView === "configuracoes" ? activeNavClass : hoverNavClass}\`}>
+          <button onClick={() => setCurrentView("configuracoes")} className={`flex items-center gap-3 px-4 py-3 rounded-r-xl transition-all ${currentView === "configuracoes" ? activeNavClass : hoverNavClass}`}>
             <Settings size={18} /> <span className="font-medium">Configurações</span>
           </button>
         </nav>
@@ -653,7 +654,7 @@ export default function TTSApp() {
         <div className="p-4 border-t border-inherit">
           <button 
             onClick={() => setDarkMode(!darkMode)}
-            className={\`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl \${buttonOutlineClass}\`}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl ${buttonOutlineClass}`}
           >
             {darkMode ? <Sun size={16} /> : <Moon size={16} />}
             <span className="font-medium text-sm">{darkMode ? "Modo Claro" : "Modo Escuro"}</span>
@@ -685,7 +686,7 @@ export default function TTSApp() {
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Sua chave API do Google Gemini"
-                    className={\`w-full pl-10 pr-10 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#00d4aa] transition-all text-sm \${inputClass}\`}
+                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#00d4aa] transition-all text-sm ${inputClass}`}
                   />
                   <button 
                     onClick={() => setShowApiKey(!showApiKey)}
@@ -698,7 +699,7 @@ export default function TTSApp() {
               </div>
 
               {/* EDITOR SECTION */}
-              <div className={\`flex-1 flex flex-col rounded-2xl border overflow-hidden shadow-sm flex-shrink-0 \${panelClass}\`}>
+              <div className={`flex-1 flex flex-col rounded-2xl border overflow-hidden shadow-sm flex-shrink-0 ${panelClass}`}>
                 
                 {/* TOOLBAR */}
                 <div className="px-4 py-3 border-b border-inherit flex flex-wrap gap-2 items-center bg-black/5">
@@ -707,7 +708,7 @@ export default function TTSApp() {
                     <button 
                       key={tag} 
                       onClick={() => insertTag(tag)}
-                      className={\`text-xs px-2 py-1 rounded-md transition-colors \${buttonOutlineClass}\`}
+                      className={`text-xs px-2 py-1 rounded-md transition-colors ${buttonOutlineClass}`}
                     >
                       {tag}
                     </button>
@@ -721,24 +722,24 @@ export default function TTSApp() {
                   onChange={(e) => setText(e.target.value)}
                   maxLength={5000}
                   placeholder="Digite o texto que você deseja transformar em voz..."
-                  className={\`flex-1 w-full p-6 bg-transparent resize-none focus:outline-none font-body text-base leading-relaxed \${darkMode ? 'text-gray-200' : 'text-gray-800'}\`}
+                  className={`flex-1 w-full p-6 bg-transparent resize-none focus:outline-none font-body text-base leading-relaxed ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}
                   style={{ minHeight: '180px' }}
                 />
 
                 {/* BOTTOM BAR */}
                 <div className="px-4 py-3 border-t border-inherit flex items-center justify-between bg-black/5">
-                  <span className={\`text-xs \${text.length > 4800 ? 'text-red-500' : 'opacity-50'}\`}>
+                  <span className={`text-xs ${text.length > 4800 ? 'text-red-500' : 'opacity-50'}`}>
                     {text.length} / 5000 caracteres
                   </span>
                   
                   <div className="flex gap-2">
-                    <button className={\`px-6 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 \${buttonOutlineClass}\`}>
+                    <button className={`px-6 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 ${buttonOutlineClass}`}>
                       <PlayCircle size={16} /> Pré-visualizar
                     </button>
                     <button 
                       onClick={() => generateAudio(text)}
                       disabled={isGenerating || !text.trim()}
-                      className={\`px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed \${buttonPrimaryClass}\`}
+                      className={`px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${buttonPrimaryClass}`}
                     >
                       {isGenerating ? (
                         <><RefreshCw size={18} className="animate-spin" /> Gerando áudio...</>
@@ -754,14 +755,14 @@ export default function TTSApp() {
               <div className="mt-6 flex flex-wrap gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider opacity-50 flex items-center mr-2">Presets Rápidos:</span>
                 {PRESETS.map((p, i) => (
-                  <button key={i} onClick={() => applyPreset(p)} className={\`text-xs px-3 py-1.5 rounded-full transition-colors \${buttonOutlineClass}\`}>
+                  <button key={i} onClick={() => applyPreset(p)} className={`text-xs px-3 py-1.5 rounded-full transition-colors ${buttonOutlineClass}`}>
                     {p.name}
                   </button>
                 ))}
               </div>
 
               {/* AUDIO PLAYER (Shows only when audio generated) */}
-              <div className={\`mt-6 rounded-2xl border p-6 transition-all duration-500 \${audioUrl ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none hidden'} \${panelClass}\`}>
+              <div className={`mt-6 rounded-2xl border p-6 transition-all duration-500 ${audioUrl ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none hidden'} ${panelClass}`}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="font-head font-bold text-lg">{selectedVoice}</h3>
@@ -772,9 +773,9 @@ export default function TTSApp() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={saveToHistory} className={\`p-2 rounded-lg \${buttonOutlineClass}\`} title="Salvar no Histórico"><Save size={16} /></button>
-                    <button onClick={() => generateAudio(text)} className={\`p-2 rounded-lg \${buttonOutlineClass}\`} title="Regenerar"><RefreshCw size={16} /></button>
-                    <button onClick={() => handleDownload(audioBlob!, selectedVoice)} className={\`p-2 rounded-lg flex items-center gap-2 bg-gradient-to-r from-[#00d4aa]/20 to-[#0099ff]/20 text-[#00d4aa] border border-[#00d4aa]/30 hover:bg-[#00d4aa]/30 transition-colors\`}>
+                    <button onClick={saveToHistory} className={`p-2 rounded-lg ${buttonOutlineClass}`} title="Salvar no Histórico"><Save size={16} /></button>
+                    <button onClick={() => generateAudio(text)} className={`p-2 rounded-lg ${buttonOutlineClass}`} title="Regenerar"><RefreshCw size={16} /></button>
+                    <button onClick={() => handleDownload(audioBlob!, selectedVoice)} className={`p-2 rounded-lg flex items-center gap-2 bg-gradient-to-r from-[#00d4aa]/20 to-[#0099ff]/20 text-[#00d4aa] border border-[#00d4aa]/30 hover:bg-[#00d4aa]/30 transition-colors`}>
                       <Download size={16} /> <span className="font-bold text-sm">Baixar WAV</span>
                     </button>
                   </div>
@@ -783,7 +784,7 @@ export default function TTSApp() {
                 <div className="flex items-center gap-4">
                   <button 
                     onClick={togglePlay}
-                    className={\`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 \${buttonPrimaryClass}\`}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${buttonPrimaryClass}`}
                   >
                     {isPlaying ? <Pause size={20} className="fill-current" /> : <Play size={20} className="fill-current ml-1" />}
                   </button>
@@ -796,7 +797,7 @@ export default function TTSApp() {
                       onChange={handleSeek}
                       className="w-full h-2 bg-black/20 rounded-lg appearance-none cursor-pointer accent-[#00d4aa]"
                       style={{
-                        background: \`linear-gradient(to right, #00d4aa \${progress}%, \${darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.1)'} \${progress}%)\`
+                        background: `linear-gradient(to right, #00d4aa ${progress}%, ${darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.1)'} ${progress}%)`
                       }}
                     />
                     <div className="flex justify-between text-xs opacity-60 font-medium font-mono tracking-wider mt-1">
@@ -819,7 +820,7 @@ export default function TTSApp() {
             </div>
 
             {/* RIGHT PANEL (320px fixed) */}
-            <div className={\`w-[320px] flex-shrink-0 border-l flex flex-col overflow-y-auto overflow-x-hidden \${panelClass}\`}>
+            <div className={`w-[320px] flex-shrink-0 border-l flex flex-col overflow-y-auto overflow-x-hidden ${panelClass}`}>
               <div className="p-5 flex flex-col gap-6 font-body">
                 
                 {/* VOICE SELECTOR */}
@@ -830,15 +831,15 @@ export default function TTSApp() {
                       <button 
                         key={v.name}
                         onClick={() => setSelectedVoice(v.name)}
-                        className={\`p-3 rounded-xl border text-left transition-all relative overflow-hidden \${
+                        className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden ${
                           selectedVoice === v.name 
                           ? (darkMode ? 'border-[#00d4aa] bg-[#00d4aa]/10' : 'border-[#00a88a] bg-[#00a88a]/10') 
                           : buttonOutlineClass
-                        }\`}
+                        }`}
                       >
                         <div className="flex justify-between items-start mb-1">
                           <span className="font-bold text-sm">{v.name}</span>
-                          <span className={\`text-[10px] font-bold px-1.5 py-0.5 rounded \${v.gender === 'M' ? 'bg-blue-500/20 text-blue-500' : 'bg-pink-500/20 text-pink-500'}\`}>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${v.gender === 'M' ? 'bg-blue-500/20 text-blue-500' : 'bg-pink-500/20 text-pink-500'}`}>
                             {v.gender}
                           </span>
                         </div>
@@ -854,7 +855,7 @@ export default function TTSApp() {
                   <select 
                     value={selectedAccent} 
                     onChange={(e) => setSelectedAccent(e.target.value)}
-                    className={\`w-full p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#00d4aa] text-sm appearance-none \${inputClass}\`}
+                    className={`w-full p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#00d4aa] text-sm appearance-none ${inputClass}`}
                   >
                     {Object.entries(ACCENTS).map(([region, accents]) => (
                       <optgroup key={region} label={region}>
@@ -869,7 +870,7 @@ export default function TTSApp() {
                       placeholder="Ex: sotaque açoriano forte..."
                       value={customAccent}
                       onChange={(e) => setCustomAccent(e.target.value)}
-                      className={\`w-full mt-2 p-3 rounded-xl border text-sm \${inputClass}\`}
+                      className={`w-full mt-2 p-3 rounded-xl border text-sm ${inputClass}`}
                     />
                   )}
                 </div>
@@ -885,18 +886,18 @@ export default function TTSApp() {
                       <button 
                         key={s}
                         onClick={() => toggleStyle(s)}
-                        className={\`text-[11px] font-medium px-3 py-1.5 rounded-full border transition-colors \${
+                        className={`text-[11px] font-medium px-3 py-1.5 rounded-full border transition-colors ${
                           selectedStyles.includes(s)
                           ? (darkMode ? 'bg-[#0099ff]/20 border-[#0099ff] text-[#0099ff]' : 'bg-[#007b66]/20 border-[#007b66] text-[#007b66]')
                           : buttonOutlineClass
-                        }\`}
+                        }`}
                       >
                         {s}
                       </button>
                     ))}
                     <button 
                       onClick={() => toggleStyle("Estilo Personalizado")}
-                      className={\`text-[11px] font-medium px-3 py-1.5 rounded-full border border-dashed \${selectedStyles.includes("Estilo Personalizado") ? 'border-[#00d4aa] text-[#00d4aa]' : buttonOutlineClass}\`}
+                      className={`text-[11px] font-medium px-3 py-1.5 rounded-full border border-dashed ${selectedStyles.includes("Estilo Personalizado") ? 'border-[#00d4aa] text-[#00d4aa]' : buttonOutlineClass}`}
                     >
                       + Personalizado
                     </button>
@@ -907,7 +908,7 @@ export default function TTSApp() {
                       placeholder="Ex: estilo de narrador de rádio dos anos 50..."
                       value={customStyle}
                       onChange={(e) => setCustomStyle(e.target.value)}
-                      className={\`w-full mt-2 p-3 rounded-xl border text-sm \${inputClass}\`}
+                      className={`w-full mt-2 p-3 rounded-xl border text-sm ${inputClass}`}
                     />
                   )}
                 </div>
@@ -920,11 +921,11 @@ export default function TTSApp() {
                       <button 
                         key={e.id}
                         onClick={() => setSelectedEmotion(e.id)}
-                        className={\`flex flex-col items-center justify-center p-2 rounded-xl border transition-all \${
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${
                           selectedEmotion === e.id 
                           ? (darkMode ? 'border-[#00d4aa] bg-[#00d4aa]/10 scale-105' : 'border-[#00a88a] bg-[#00a88a]/10 scale-105') 
                           : buttonOutlineClass
-                        }\`}
+                        }`}
                         title={e.id}
                       >
                         <span className="text-xl mb-1">{e.icon}</span>
@@ -938,7 +939,7 @@ export default function TTSApp() {
                 <div className="border rounded-xl overflow-hidden border-inherit">
                   <button 
                     onClick={() => setShowSliders(!showSliders)}
-                    className={\`w-full p-4 flex justify-between items-center text-sm font-bold bg-black/5 hover:bg-black/10 transition-colors\`}
+                    className={`w-full p-4 flex justify-between items-center text-sm font-bold bg-black/5 hover:bg-black/10 transition-colors`}
                   >
                     Controles de Interpretação
                     {showSliders ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -967,7 +968,7 @@ export default function TTSApp() {
                 <div className="border rounded-xl overflow-hidden border-inherit">
                   <button 
                     onClick={() => setShowToggles(!showToggles)}
-                    className={\`w-full p-4 flex justify-between items-center text-sm font-bold bg-black/5 hover:bg-black/10 transition-colors\`}
+                    className={`w-full p-4 flex justify-between items-center text-sm font-bold bg-black/5 hover:bg-black/10 transition-colors`}
                   >
                     Configurações Avançadas
                     {showToggles ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -1001,14 +1002,14 @@ export default function TTSApp() {
                           placeholder="Ex: YouTube como 'Yutubi'" 
                           value={customPronunciation}
                           onChange={e => setCustomPronunciation(e.target.value)}
-                          className={\`w-full p-2 text-xs rounded-lg border \${inputClass}\`}
+                          className={`w-full p-2 text-xs rounded-lg border ${inputClass}`}
                         />
                       </div>
                     </div>
                   )}
                 </div>
 
-                <button className={\`w-full py-3 rounded-xl border border-dashed flex items-center justify-center gap-2 font-bold text-sm mt-2 \${buttonOutlineClass}\`}>
+                <button className={`w-full py-3 rounded-xl border border-dashed flex items-center justify-center gap-2 font-bold text-sm mt-2 ${buttonOutlineClass}`}>
                   <Heart size={16} /> Salvar como Preset
                 </button>
 
@@ -1027,12 +1028,12 @@ export default function TTSApp() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {VOICES.map(v => (
-                <div key={v.name} className={\`rounded-2xl p-6 border flex flex-col \${panelClass} hover:-translate-y-1 transition-transform duration-300 shadow-sm\`}>
+                <div key={v.name} className={`rounded-2xl p-6 border flex flex-col ${panelClass} hover:-translate-y-1 transition-transform duration-300 shadow-sm`}>
                   <div className="flex justify-between items-start mb-4">
-                    <div className={\`w-14 h-14 rounded-full bg-gradient-to-br \${v.gender === 'M' ? 'from-blue-500 to-indigo-600' : 'from-pink-500 to-rose-600'} flex items-center justify-center text-white font-bold text-2xl shadow-lg\`}>
+                    <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${v.gender === 'M' ? 'from-blue-500 to-indigo-600' : 'from-pink-500 to-rose-600'} flex items-center justify-center text-white font-bold text-2xl shadow-lg`}>
                       {v.name.charAt(0)}
                     </div>
-                    <span className={\`text-xs font-bold px-2.5 py-1 rounded-full \${v.gender === 'M' ? 'bg-blue-500/10 text-blue-500' : 'bg-pink-500/10 text-pink-500'}\`}>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${v.gender === 'M' ? 'bg-blue-500/10 text-blue-500' : 'bg-pink-500/10 text-pink-500'}`}>
                       {v.gender === 'M' ? 'Masculino' : 'Feminino'}
                     </span>
                   </div>
@@ -1047,13 +1048,13 @@ export default function TTSApp() {
                   <div className="flex gap-2 mt-auto">
                     <button 
                       onClick={() => generateAudio("Olá, eu sou uma demonstração de voz do sistema.", v.name)}
-                      className={\`flex-1 py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold \${buttonOutlineClass}\`}
+                      className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold ${buttonOutlineClass}`}
                     >
                       <Play size={16} /> Demo
                     </button>
                     <button 
                       onClick={() => { setSelectedVoice(v.name); setCurrentView("gerar"); }}
-                      className={\`flex-1 py-2 rounded-xl text-sm font-bold shadow-md \${buttonPrimaryClass}\`}
+                      className={`flex-1 py-2 rounded-xl text-sm font-bold shadow-md ${buttonPrimaryClass}`}
                     >
                       Usar Voz
                     </button>
@@ -1092,7 +1093,7 @@ export default function TTSApp() {
             ) : (
               <div className="flex flex-col gap-4">
                 {history.map(item => (
-                  <div key={item.id} className={\`p-4 rounded-2xl border flex items-center gap-4 \${panelClass}\`}>
+                  <div key={item.id} className={`p-4 rounded-2xl border flex items-center gap-4 ${panelClass}`}>
                     <button 
                       onClick={() => {
                         if (audioRef.current) {
@@ -1103,7 +1104,7 @@ export default function TTSApp() {
                           setAudioUrl(item.url);
                         }
                       }}
-                      className={\`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-r from-[#00d4aa] to-[#0099ff] text-white hover:scale-105 transition-transform shadow-md\`}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-r from-[#00d4aa] to-[#0099ff] text-white hover:scale-105 transition-transform shadow-md`}
                     >
                       <Play size={20} className="ml-1 fill-current" />
                     </button>
@@ -1122,7 +1123,7 @@ export default function TTSApp() {
                     </div>
 
                     <div className="flex gap-2">
-                      <button onClick={() => handleDownload(item.blob, item.voice)} className={\`p-2.5 rounded-xl \${buttonOutlineClass}\`} title="Baixar">
+                      <button onClick={() => handleDownload(item.blob, item.voice)} className={`p-2.5 rounded-xl ${buttonOutlineClass}`} title="Baixar">
                         <Download size={18} />
                       </button>
                       <button onClick={() => {
@@ -1132,12 +1133,12 @@ export default function TTSApp() {
                         setSelectedEmotion(item.emotion);
                         setCurrentView("gerar");
                         showToast("Configurações restauradas no editor", "success");
-                      }} className={\`p-2.5 rounded-xl \${buttonOutlineClass}\`} title="Duplicar Configurações">
+                      }} className={`p-2.5 rounded-xl ${buttonOutlineClass}`} title="Duplicar Configurações">
                         <Copy size={18} />
                       </button>
                       <button onClick={() => {
                         setHistory(h => h.filter(x => x.id !== item.id));
-                      }} className={\`p-2.5 rounded-xl text-red-500 hover:bg-red-500/10 border border-transparent transition-colors\`} title="Excluir">
+                      }} className={`p-2.5 rounded-xl text-red-500 hover:bg-red-500/10 border border-transparent transition-colors`} title="Excluir">
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -1158,7 +1159,7 @@ export default function TTSApp() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {PRESETS.map(p => (
-                <div key={p.name} className={\`p-6 rounded-2xl border \${panelClass} hover:border-[#00d4aa]/50 transition-colors\`}>
+                <div key={p.name} className={`p-6 rounded-2xl border ${panelClass} hover:border-[#00d4aa]/50 transition-colors`}>
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="font-head font-bold text-xl">{p.name}</h3>
                     <Zap className="text-[#00d4aa]" size={20} />
@@ -1185,7 +1186,7 @@ export default function TTSApp() {
 
                   <button 
                     onClick={() => applyPreset(p)}
-                    className={\`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-md \${buttonPrimaryClass}\`}
+                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-md ${buttonPrimaryClass}`}
                   >
                     <CheckCircle2 size={18} /> Aplicar Preset
                   </button>
@@ -1204,7 +1205,7 @@ export default function TTSApp() {
               <h2 className="font-head text-3xl font-bold mb-2">Configurações</h2>
               <p className="opacity-60 mb-8 font-body">Gerencie suas chaves e preferências do sistema.</p>
 
-              <div className={\`p-6 rounded-2xl border mb-6 \${panelClass}\`}>
+              <div className={`p-6 rounded-2xl border mb-6 ${panelClass}`}>
                 <h3 className="font-head text-xl font-bold mb-4 flex items-center gap-2"><Zap size={20} className="text-[#00d4aa]" /> Google Gemini API Key</h3>
                 <p className="text-sm opacity-70 mb-4">A chave é armazenada apenas na memória local do seu navegador enquanto a aba estiver aberta. Nunca enviamos sua chave para nossos servidores.</p>
                 
@@ -1213,7 +1214,7 @@ export default function TTSApp() {
                     type={showApiKey ? "text" : "password"}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    className={\`w-full pl-4 pr-12 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#00d4aa] transition-all \${inputClass}\`}
+                    className={`w-full pl-4 pr-12 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#00d4aa] transition-all ${inputClass}`}
                   />
                   <button 
                     onClick={() => setShowApiKey(!showApiKey)}
@@ -1225,7 +1226,7 @@ export default function TTSApp() {
                 <p className="text-xs text-red-500 mt-2 font-medium">Nota: O modelo Gemini TTS atualmente requer acesso beta/preview.</p>
               </div>
 
-              <div className={\`p-6 rounded-2xl border \${panelClass}\`}>
+              <div className={`p-6 rounded-2xl border ${panelClass}`}>
                 <h3 className="font-head text-xl font-bold mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-[#00d4aa]" /> Sobre a Conversão de Áudio</h3>
                 <p className="text-sm opacity-70 mb-4 leading-relaxed">
                   A API do Gemini TTS retorna áudio no formato <code>audio/L16;codec=pcm;rate=24000</code> bruto (base64). Navegadores não tocam esse formato nativamente. 

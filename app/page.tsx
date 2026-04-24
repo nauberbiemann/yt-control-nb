@@ -10,6 +10,7 @@ import ScriptEngine from '@/components/ScriptEngine';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import NarrativeLibrary from '@/components/NarrativeLibrary';
 import ThemeBank from '@/components/ThemeBank';
+import TTSModule from '@/components/TTSModule';
 import AuthOverlay from '@/components/auth/AuthOverlay';
 import AwaitingApproval from '@/components/auth/AwaitingApproval';
 import UserManagement from '@/components/admin/UserManagementPanel';
@@ -1625,6 +1626,8 @@ export default function Home() {
           />;
         case 'library':
           return <NarrativeLibrary activeProject={activeProject} />;
+        case 'vozprime':
+          return <TTSModule />;
       case 'calendar':
         return (
           <div className="glass-card p-24 text-center border-dashed border-2 border-white/5">

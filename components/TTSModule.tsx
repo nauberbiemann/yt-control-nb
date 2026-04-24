@@ -228,8 +228,15 @@ export default function TTSApp() {
   const [darkMode, setDarkMode] = useState(true);
 
   // API State
-  const [apiKey, setApiKey] = useState("MY_GEMINI_API_KEY");
+  const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedKey = localStorage.getItem("yt_gemini_key");
+      if (savedKey) setApiKey(savedKey);
+    }
+  }, []);
 
   // Form State
   const [text, setText] = useState("");
@@ -494,12 +501,12 @@ export default function TTSApp() {
     }
   };
 
-  const handleDownload = (blob: Blob, voiceName: string) => {
+  const handleDownload = (blob: Blob, voiceName: string, format: 'wav' | 'mp3' = 'wav') => {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `vozprime_${voiceName}_${Date.now()}.wav`;
+    a.download = `vozprime_${voiceName}_${Date.now()}.${format}`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -775,8 +782,11 @@ export default function TTSApp() {
                   <div className="flex gap-2">
                     <button onClick={saveToHistory} className={`p-2 rounded-lg ${buttonOutlineClass}`} title="Salvar no Histórico"><Save size={16} /></button>
                     <button onClick={() => generateAudio(text)} className={`p-2 rounded-lg ${buttonOutlineClass}`} title="Regenerar"><RefreshCw size={16} /></button>
-                    <button onClick={() => handleDownload(audioBlob!, selectedVoice)} className={`p-2 rounded-lg flex items-center gap-2 bg-gradient-to-r from-[#00d4aa]/20 to-[#0099ff]/20 text-[#00d4aa] border border-[#00d4aa]/30 hover:bg-[#00d4aa]/30 transition-colors`}>
-                      <Download size={16} /> <span className="font-bold text-sm">Baixar WAV</span>
+                    <button onClick={() => handleDownload(audioBlob!, selectedVoice, 'wav')} className={`p-2 rounded-lg flex items-center gap-2 bg-gradient-to-r from-[#00d4aa]/20 to-[#0099ff]/20 text-[#00d4aa] border border-[#00d4aa]/30 hover:bg-[#00d4aa]/30 transition-colors`}>
+                      <Download size={16} /> <span className="font-bold text-sm">WAV</span>
+                    </button>
+                    <button onClick={() => handleDownload(audioBlob!, selectedVoice, 'mp3')} className={`p-2 rounded-lg flex items-center gap-2 bg-gradient-to-r from-[#0099ff]/20 to-[#a855f7]/20 text-[#0099ff] border border-[#0099ff]/30 hover:bg-[#0099ff]/30 transition-colors`}>
+                      <Download size={16} /> <span className="font-bold text-sm">MP3</span>
                     </button>
                   </div>
                 </div>

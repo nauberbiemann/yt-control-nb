@@ -4,14 +4,51 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 // ============================================================================
-// Types
+// Types & Defaults
 // ============================================================================
-type Preset = 'default' | 'som_que_reza';
+interface CustomPreset {
+  id: string;
+  name: string;
+  genre: string;
+  emotion: string;
+  instruments: string;
+  vocal: string;
+  rules: string;
+  isCustom: boolean;
+}
+
+const DEFAULT_PRESETS: CustomPreset[] = [
+  {
+    id: 'default',
+    name: 'Padrão (Genérico)',
+    genre: '',
+    emotion: '',
+    instruments: '',
+    vocal: '',
+    rules: 'CRITICAL RULE: Structure the song perfectly for a standard pop/modern song (Intro, Verse, Chorus, Verse, Chorus, Bridge, Outro).',
+    isCustom: false
+  },
+  {
+    id: 'som_que_reza',
+    name: 'Som que Reza (Católico/Sensível)',
+    genre: 'Cinematic, ambient',
+    emotion: 'Reverent, emotional, sensitive',
+    instruments: 'Acoustic guitar, soft piano',
+    vocal: 'Breathy, raw, sensitive',
+    rules: `CRITICAL RULES FOR "SOM QUE REZA":
+1. The lyrics MUST be in Brazilian Portuguese.
+2. The theme is a spiritual journey of a Catholic soul passing through pain/desert and finding adoration/peace in God.
+3. The tone must be sensitive, poetic, human, and reverent. 
+4. Avoid generic evangelical cliches; focus on Catholic mysticism, the Eucharist, silence, and the cross.
+5. Vocals are usually raw, emotional, and sensitive.`,
+    isCustom: false
+  }
+];
 
 interface SunoGeneration {
   id: string;
   created_at: string;
-  preset_used: Preset;
+  preset_used: string;
   idea_prompt: string;
   style_prompt: string;
   lyrics: string;
@@ -21,39 +58,28 @@ interface SunoGeneration {
 // ============================================================================
 // System Prompts
 // ============================================================================
-const getSunoSystemPrompt = (preset: Preset, idea: string, genre: string, emotion: string, instruments: string, vocal: string) => {
-  const baseRules = `You are an expert AI music prompt engineer specializing in the Musci.io framework for Suno AI.
+const getSunoSystemPrompt = (presetRules: string, tema: string, vuln: string, genre: string, emotion: string, instruments: string, vocal: string) => {
+  return `You are an expert AI music prompt engineer specializing in the Musci.io framework for Suno AI.
 Your goal is to generate a highly optimized "Style Prompt" and "Lyrics with Metatags" based on the user's inputs.
 
 User Inputs:
-- Idea: ${idea}
+- Theme (Tema): ${tema}
+- Vulnerability/Pain (Vulnerabilidade): ${vuln}
 - Genre/Era: ${genre}
 - Emotion/Mood: ${emotion}
 - Instruments: ${instruments}
 - Vocal Style: ${vocal}
 
-Output Format strictly in JSON:
-{
-  "style_prompt": "A concise comma-separated list of tags (max 120 chars) combining the genre, emotion, instruments, and vocal style.",
-  "lyrics": "The actual lyrics formatted with structural metatags like [Intro], [Verse 1], [Chorus], [Bridge], [Outro] and vocal directions if necessary (e.g. (whispering))."
-}`;
+${presetRules}
 
-  if (preset === 'som_que_reza') {
-    return baseRules + `
+CRITICAL FORMATTING INSTRUCTIONS:
+Do NOT return JSON. You must return EXACTLY the following format:
 
-CRITICAL RULES FOR "SOM QUE REZA" PRESET:
-1. The lyrics MUST be in Brazilian Portuguese.
-2. The theme is a spiritual journey of a Catholic soul passing through pain/desert and finding adoration/peace in God.
-3. The tone must be sensitive, poetic, human, and reverent. 
-4. Avoid generic evangelical cliches; focus on Catholic mysticism, the Eucharist, silence, and the cross.
-5. Vocals are usually raw, emotional, and sensitive.`;
-  }
+=== STYLE PROMPT ===
+<A concise comma-separated list of tags (max 120 chars) combining the genre, emotion, instruments, and vocal style.>
 
-  return baseRules + `
-
-CRITICAL RULES FOR DEFAULT PRESET:
-1. Keep the lyrics in the language implied by the user's idea (default to Portuguese if ambiguous).
-2. Structure the song perfectly for a standard pop/modern song (Intro, Verse, Chorus, Verse, Chorus, Bridge, Outro).`;
+=== LYRICS ===
+<The actual lyrics formatted with structural metatags like [Intro], [Verse 1], [Chorus], [Bridge], [Outro] and vocal directions if necessary (e.g. (whispering)).>`;
 };
 
 const getVeo3SystemPrompt = (lyrics: string, count: number) => {
@@ -80,13 +106,17 @@ Example Output:
 };
 
 export default function SunoStudio() {
+  // State: Presets
+  const [presets, setPresets] = useState<CustomPreset[]>(DEFAULT_PRESETS);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('default');
+
   // State: Inputs
-  const [preset, setPreset] = useState<Preset>('default');
   const [genre, setGenre] = useState('');
   const [emotion, setEmotion] = useState('');
   const [instruments, setInstruments] = useState('');
   const [vocal, setVocal] = useState('');
-  const [idea, setIdea] = useState('');
+  const [tema, setTema] = useState('');
+  const [vulnerabilidade, setVulnerabilidade] = useState('');
   const [veoCount, setVeoCount] = useState(5);
 
   // State: Outputs
@@ -94,9 +124,12 @@ export default function SunoStudio() {
   const [lyrics, setLyrics] = useState('');
   const [veoPrompts, setVeoPrompts] = useState<string[]>([]);
   
-  // State: History
+  // State: History & Modals
   const [history, setHistory] = useState<SunoGeneration[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSavePreset, setShowSavePreset] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+  const [newPresetRules, setNewPresetRules] = useState('');
 
   // State: UI
   const [isGeneratingSuno, setIsGeneratingSuno] = useState(false);
@@ -106,10 +139,30 @@ export default function SunoStudio() {
   // Metatags quick-insert
   const metaTags = ['[Intro]', '[Verse]', '[Pre-Chorus]', '[Chorus]', '[Bridge]', '[Outro]', '[Instrumental Solo]', '(Whisper)', '(Belting)', '(Fade out)'];
 
-  // Load history on mount
+  // Initialization
   useEffect(() => {
     fetchHistory();
+    const savedPresets = localStorage.getItem('suno_custom_presets');
+    if (savedPresets) {
+      try {
+        const parsed = JSON.parse(savedPresets);
+        setPresets([...DEFAULT_PRESETS, ...parsed]);
+      } catch (e) {
+        console.error('Failed to parse custom presets', e);
+      }
+    }
   }, []);
+
+  // Sync inputs when preset changes
+  useEffect(() => {
+    const preset = presets.find(p => p.id === selectedPresetId);
+    if (preset) {
+      setGenre(preset.genre);
+      setEmotion(preset.emotion);
+      setInstruments(preset.instruments);
+      setVocal(preset.vocal);
+    }
+  }, [selectedPresetId, presets]);
 
   const fetchHistory = async () => {
     try {
@@ -126,9 +179,38 @@ export default function SunoStudio() {
     }
   };
 
+  // Preset Management
+  const handleSavePreset = () => {
+    if (!newPresetName.trim()) return;
+    const newPreset: CustomPreset = {
+      id: `custom_${Date.now()}`,
+      name: newPresetName,
+      genre, emotion, instruments, vocal,
+      rules: newPresetRules,
+      isCustom: true
+    };
+    
+    const customPresets = presets.filter(p => p.isCustom);
+    customPresets.push(newPreset);
+    
+    localStorage.setItem('suno_custom_presets', JSON.stringify(customPresets));
+    setPresets([...DEFAULT_PRESETS, ...customPresets]);
+    setSelectedPresetId(newPreset.id);
+    setShowSavePreset(false);
+    setNewPresetName('');
+    setNewPresetRules('');
+  };
+
+  const handleDeletePreset = (id: string) => {
+    const customPresets = presets.filter(p => p.isCustom && p.id !== id);
+    localStorage.setItem('suno_custom_presets', JSON.stringify(customPresets));
+    setPresets([...DEFAULT_PRESETS, ...customPresets]);
+    if (selectedPresetId === id) setSelectedPresetId('default');
+  };
+
   const handleGenerateSuno = async () => {
-    if (!idea) {
-      setError('A ideia da música é obrigatória.');
+    if (!tema) {
+      setError('O campo "Tema" é obrigatório.');
       return;
     }
     setError('');
@@ -136,9 +218,11 @@ export default function SunoStudio() {
 
     try {
       const geminiKey = localStorage.getItem('yt_gemini_key') || '';
-      if (!geminiKey) throw new Error('Chave do Gemini não encontrada no LocalStorage. Configure nas configurações globais do projeto.');
+      if (!geminiKey) throw new Error('Chave do Gemini não encontrada no LocalStorage. Vá em Gestão Master.');
 
-      const prompt = getSunoSystemPrompt(preset, idea, genre, emotion, instruments, vocal);
+      const activePreset = presets.find(p => p.id === selectedPresetId);
+      const rules = activePreset?.rules || '';
+      const prompt = getSunoSystemPrompt(rules, tema, vulnerabilidade, genre, emotion, instruments, vocal);
 
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
@@ -148,34 +232,46 @@ export default function SunoStudio() {
           model: 'gemini-3.1-pro',
           prompt: prompt,
           apiKeyOverwrite: geminiKey,
-          responseType: 'json'
+          responseType: 'text' // Mudança para texto puro (Sem JSON)
         })
       });
 
       if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
       
       const data = await res.json();
+      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
-      let parsed = null;
-      try {
-        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        parsed = JSON.parse(textResponse.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim());
-      } catch (e) {
-        throw new Error('Falha ao processar o formato JSON retornado pela IA.');
+      // Parser baseado em delimitadores
+      const styleMatch = textResponse.match(/===\s*STYLE PROMPT\s*===([\s\S]*?)===\s*LYRICS\s*===/i);
+      const lyricsMatch = textResponse.match(/===\s*LYRICS\s*===([\s\S]*)/i);
+
+      let extractedStyle = '';
+      let extractedLyrics = '';
+
+      if (styleMatch && styleMatch[1]) {
+        extractedStyle = styleMatch[1].trim();
+      }
+      if (lyricsMatch && lyricsMatch[1]) {
+        extractedLyrics = lyricsMatch[1].trim();
       }
 
-      setStylePrompt(parsed.style_prompt || '');
-      setLyrics(parsed.lyrics || '');
-      
-      // Clear previous Veo prompts as this is a new song
+      if (!extractedStyle && !extractedLyrics) {
+        // Fallback caso a IA ignore os delimitadores
+        extractedLyrics = textResponse.trim();
+        extractedStyle = "Falha ao separar Style Prompt";
+      }
+
+      setStylePrompt(extractedStyle);
+      setLyrics(extractedLyrics);
       setVeoPrompts([]);
 
-      // Save to Supabase
+      const ideaMerged = `Tema: ${tema} | Vulnerabilidade: ${vulnerabilidade}`;
+
       await supabase.from('suno_generations').insert({
-        preset_used: preset,
-        idea_prompt: idea,
-        style_prompt: parsed.style_prompt,
-        lyrics: parsed.lyrics,
+        preset_used: activePreset?.name || selectedPresetId,
+        idea_prompt: ideaMerged,
+        style_prompt: extractedStyle,
+        lyrics: extractedLyrics,
       });
 
       fetchHistory();
@@ -227,9 +323,8 @@ export default function SunoStudio() {
 
       setVeoPrompts(parsed.prompts || []);
 
-      // Update latest history entry with Veo prompts
       if (history.length > 0) {
-        const latestId = history[0].id; // Approximation, better to keep track of current saved ID
+        const latestId = history[0].id;
         await supabase.from('suno_generations').update({
           veo3_prompts: JSON.stringify(parsed.prompts)
         }).eq('id', latestId);
@@ -244,7 +339,7 @@ export default function SunoStudio() {
   };
 
   const insertMetaTag = (tag: string) => {
-    setLyrics(prev => prev + (prev ? '\\n\\n' : '') + tag + '\\n');
+    setLyrics(prev => prev + (prev ? '\n\n' : '') + tag + '\n');
   };
 
   const handleCopyAll = () => {
@@ -254,13 +349,25 @@ export default function SunoStudio() {
   };
 
   const handleClear = () => {
-    setIdea(''); setGenre(''); setEmotion(''); setInstruments(''); setVocal('');
+    setTema(''); setVulnerabilidade(''); 
     setStylePrompt(''); setLyrics(''); setVeoPrompts([]);
   };
 
   const loadHistoryItem = (item: SunoGeneration) => {
-    setPreset(item.preset_used);
-    setIdea(item.idea_prompt || '');
+    // Tenta encontrar o preset pelo nome, se não achar cai no default
+    const foundPreset = presets.find(p => p.name === item.preset_used) || presets[0];
+    setSelectedPresetId(foundPreset.id);
+    
+    // Extrai o Tema e Vulnerabilidade do idea_prompt "Tema: ... | Vulnerabilidade: ..."
+    const parts = item.idea_prompt.split('| Vulnerabilidade:');
+    if (parts.length === 2) {
+      setTema(parts[0].replace('Tema:', '').trim());
+      setVulnerabilidade(parts[1].trim());
+    } else {
+      setTema(item.idea_prompt);
+      setVulnerabilidade('');
+    }
+
     setStylePrompt(item.style_prompt || '');
     setLyrics(item.lyrics || '');
     
@@ -276,31 +383,59 @@ export default function SunoStudio() {
     setShowHistory(false);
   };
 
+  const isCustomPreset = presets.find(p => p.id === selectedPresetId)?.isCustom;
+
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-200 font-sans">
       
       {/* LEFT SIDEBAR: SUNO CONFIG */}
-      <div className="w-80 border-r border-neutral-800 bg-neutral-900 flex flex-col p-4 overflow-y-auto">
-        <h1 className="text-xl font-bold mb-6 text-white flex items-center justify-between">
+      <div className="w-80 border-r border-neutral-800 bg-neutral-900 flex flex-col p-4 overflow-y-auto custom-scrollbar">
+        <h1 className="text-xl font-bold mb-4 text-white flex items-center justify-between">
           Suno Studio
           <button onClick={() => setShowHistory(true)} className="text-sm bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded text-neutral-300">
             Histórico
           </button>
         </h1>
         
-        {error && <div className="bg-red-900/50 text-red-300 p-3 rounded mb-4 text-sm">{error}</div>}
+        {error && <div className="bg-red-900/50 border border-red-800 text-red-300 p-3 rounded mb-4 text-sm">{error}</div>}
 
         <div className="space-y-4 flex-1">
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1">Preset</label>
+          {/* Preset Selector */}
+          <div className="bg-neutral-950 p-3 rounded border border-neutral-800">
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-xs uppercase tracking-wider text-neutral-400 font-bold">Preset Atual</label>
+              <div className="flex gap-1">
+                {isCustomPreset && (
+                  <button onClick={() => handleDeletePreset(selectedPresetId)} className="text-[10px] text-red-400 hover:underline">
+                    Excluir
+                  </button>
+                )}
+              </div>
+            </div>
             <select 
-              value={preset} 
-              onChange={(e) => setPreset(e.target.value as Preset)}
-              className="w-full bg-neutral-950 border border-neutral-800 rounded p-2 text-sm focus:border-neutral-600 outline-none"
+              value={selectedPresetId} 
+              onChange={(e) => setSelectedPresetId(e.target.value)}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded p-2 text-sm focus:border-neutral-500 outline-none mb-2"
             >
-              <option value="default">Padrão (Genérico)</option>
-              <option value="som_que_reza">Som que Reza (Católico/Sensível)</option>
+              <optgroup label="Padrões">
+                {presets.filter(p => !p.isCustom).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </optgroup>
+              {presets.filter(p => p.isCustom).length > 0 && (
+                <optgroup label="Personalizados">
+                  {presets.filter(p => p.isCustom).map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+            <button 
+              onClick={() => setShowSavePreset(true)}
+              className="w-full text-xs bg-neutral-800 hover:bg-neutral-700 py-1.5 rounded text-neutral-300"
+            >
+              + Salvar configuração como novo
+            </button>
           </div>
 
           <div>
@@ -343,14 +478,25 @@ export default function SunoStudio() {
             />
           </div>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1">Sobre o que é a música?</label>
-            <textarea 
-              rows={4}
-              placeholder="A ideia central da música..." 
-              value={idea} onChange={e => setIdea(e.target.value)}
-              className="w-full bg-neutral-950 border border-neutral-800 rounded p-2 text-sm focus:border-neutral-600 outline-none resize-none"
-            />
+          <div className="bg-blue-900/10 border border-blue-900/30 p-3 rounded space-y-3">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-blue-400 mb-1 font-bold">Tema da Música</label>
+              <textarea 
+                rows={2}
+                placeholder="Ex: O Olhar de Jesus no Ostensório" 
+                value={tema} onChange={e => setTema(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded p-2 text-sm focus:border-blue-500 outline-none resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-blue-400 mb-1 font-bold">Vulnerabilidade / Dor</label>
+              <textarea 
+                rows={2}
+                placeholder="Ex: Baixa autoestima, sentimento de abandono" 
+                value={vulnerabilidade} onChange={e => setVulnerabilidade(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded p-2 text-sm focus:border-blue-500 outline-none resize-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -371,7 +517,7 @@ export default function SunoStudio() {
       </div>
 
       {/* CENTER: SUNO EDITOR */}
-      <div className="flex-1 flex flex-col p-6 bg-neutral-950 overflow-y-auto">
+      <div className="flex-1 flex flex-col p-6 bg-neutral-950 overflow-y-auto custom-scrollbar">
         <div className="mb-4">
           <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-2">Style Prompt Gerado (Max 120 chars)</label>
           <div className="flex gap-2">
@@ -413,7 +559,7 @@ export default function SunoStudio() {
       </div>
 
       {/* RIGHT SIDEBAR: VEO3 PROMPTS */}
-      <div className="w-80 border-l border-neutral-800 bg-neutral-900 flex flex-col p-4 overflow-y-auto">
+      <div className="w-80 border-l border-neutral-800 bg-neutral-900 flex flex-col p-4 overflow-y-auto custom-scrollbar">
         <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-400 mb-4">Geração de Videoclipes</h2>
         
         <div className="bg-neutral-950 border border-neutral-800 p-4 rounded mb-6">
@@ -439,7 +585,7 @@ export default function SunoStudio() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3">
+        <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
           {veoPrompts.map((prompt, i) => (
             <div key={i} className="bg-neutral-950 border border-neutral-800 rounded p-3 group relative">
               <span className="text-[10px] text-blue-500 font-bold block mb-1">CENA {i+1}</span>
@@ -459,6 +605,43 @@ export default function SunoStudio() {
         </div>
       </div>
 
+      {/* SAVE PRESET MODAL */}
+      {showSavePreset && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6 backdrop-blur-sm">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-lg w-full max-w-md shadow-2xl p-6">
+            <h2 className="font-bold text-lg mb-4">Salvar Novo Preset</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1">Nome do Preset</label>
+                <input 
+                  type="text" 
+                  value={newPresetName}
+                  onChange={e => setNewPresetName(e.target.value)}
+                  placeholder="Ex: Sertanejo Motivacional"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded p-2 text-sm focus:border-neutral-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1">Regras Customizadas para IA</label>
+                <textarea 
+                  rows={4}
+                  value={newPresetRules}
+                  onChange={e => setNewPresetRules(e.target.value)}
+                  placeholder="Ex: A letra deve conter gírias caipiras. A jornada do personagem sempre começa no campo e termina na cidade."
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded p-2 text-sm focus:border-neutral-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button onClick={handleSavePreset} className="flex-1 bg-blue-600 text-white font-medium py-2 rounded hover:bg-blue-500 transition-colors">Salvar Preset</button>
+              <button onClick={() => setShowSavePreset(false)} className="flex-1 bg-neutral-800 text-neutral-300 font-medium py-2 rounded hover:bg-neutral-700 transition-colors">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HISTORY MODAL */}
       {showHistory && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6 backdrop-blur-sm">
@@ -467,9 +650,9 @@ export default function SunoStudio() {
               <h2 className="font-bold text-lg">Histórico na Nuvem (Supabase)</h2>
               <button onClick={() => setShowHistory(false)} className="text-neutral-400 hover:text-white text-xl">&times;</button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {history.length === 0 ? (
-                <div className="text-center text-neutral-500 py-10">Nenhum histórico encontrado. O Supabase já foi atualizado com a migration?</div>
+                <div className="text-center text-neutral-500 py-10">Nenhum histórico encontrado.</div>
               ) : (
                 history.map((item) => (
                   <div key={item.id} className="bg-neutral-950 border border-neutral-800 p-4 rounded flex gap-4 hover:border-neutral-700 transition-colors">

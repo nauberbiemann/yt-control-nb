@@ -51,7 +51,6 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
     { id: 'library',     label: 'Narrative Library',   icon: BookOpen,    strategic: true },
     { id: 'themes',      label: 'Banco de Temas',       icon: Lightbulb,   strategic: true },
     { id: 'scripts',     label: 'Escrita Criativa',     icon: PenTool,     strategic: true },
-    { id: 'vozprime',    label: 'Voz Prime (TTS)',      icon: Mic,         strategic: false },
     { id: 'analytics',   label: 'BI & Analytics',       icon: History,     strategic: true },
   ];
 
@@ -204,6 +203,19 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
               Estúdio Suno AI
             </span>
           </a>
+          <button
+            onClick={() => onViewChange('vozprime')}
+            className={`
+              nav-item w-full text-purple-300 hover:text-purple-100 hover:bg-purple-900/20 border-l-2 border-transparent hover:border-purple-500 transition-all mt-1
+              ${currentView === 'vozprime' ? 'bg-purple-900/30 border-purple-500 text-purple-100' : ''}
+            `}
+            title="Voz Prime (TTS)"
+          >
+            <Mic size={18} className="text-purple-400" />
+            <span className="sidebar-label text-[13px] font-medium">
+              Voz Prime (TTS)
+            </span>
+          </button>
         </div>
 
         {userRole === 'admin' && adminItems.map((item) => (

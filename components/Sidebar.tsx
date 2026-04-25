@@ -16,7 +16,8 @@ import {
   Zap,
   PanelLeftClose,
   PanelLeftOpen,
-  Mic
+  Mic,
+  Music
 } from 'lucide-react';
 import { useProjectStore, useActiveProject, useProjects } from '@/lib/store/projectStore';
 
@@ -169,7 +170,7 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
         <label className="sidebar-label text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 mb-2 block">
           Menu Principal
         </label>
-        {allItems.map((item) => (
+        {menuItems.map((item) => (
           <button
             key={item.id}
             onClick={() => onViewChange(item.id)}
@@ -185,6 +186,39 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
             <span className="sidebar-label text-[13px] font-medium">
               {item.label}
               {(item as any).strategic && !activeProject && <span className="ml-2 text-[9px] opacity-60">🔒</span>}
+            </span>
+          </button>
+        ))}
+
+        <div className="mt-4 mb-2">
+          <label className="sidebar-label text-[10px] font-bold uppercase tracking-wider text-purple-400/80 px-2 mb-2 block">
+            Módulos Independentes
+          </label>
+          <a
+            href="/suno"
+            className="nav-item w-full text-purple-300 hover:text-purple-100 hover:bg-purple-900/20 border-l-2 border-transparent hover:border-purple-500 transition-all"
+            title="Estúdio Suno AI"
+          >
+            <Music size={18} className="text-purple-400" />
+            <span className="sidebar-label text-[13px] font-medium">
+              Estúdio Suno AI
+            </span>
+          </a>
+        </div>
+
+        {userRole === 'admin' && adminItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => onViewChange(item.id)}
+            className={`
+              nav-item w-full mt-2 border-t border-slate-800/50 pt-2
+              ${currentView === item.id ? 'nav-item-active' : ''}
+            `}
+            title={item.label}
+          >
+            <item.icon size={18} />
+            <span className="sidebar-label text-[13px] font-medium">
+              {item.label}
             </span>
           </button>
         ))}

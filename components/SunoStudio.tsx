@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Copy } from 'lucide-react';
+import { ArrowLeft, Copy, Mic } from 'lucide-react';
 
 // ============================================================================
 // Types & Defaults
@@ -61,7 +61,7 @@ interface SunoGeneration {
 // ============================================================================
 // System Prompts
 // ============================================================================
-const getSunoSystemPrompt = (presetRules: string, tema: string, vuln: string, genre: string, emotion: string, instruments: string, vocal: string) => {
+const getSunoSystemPrompt = (presetRules: string, tema: string, vuln: string, genre: string, emotion: string, instruments: string, vocal: string, includeSpokenIntro: boolean) => {
   return `You are an expert AI music prompt engineer specializing in the Musci.io framework for Suno AI.
 Your goal is to generate a highly optimized "Song Title", "Advanced Configs", "Style Prompt" and "Lyrics with Metatags" based on the user's inputs.
 
@@ -79,6 +79,7 @@ CRITICAL FORMATTING INSTRUCTIONS:
 1. Do NOT return JSON. You must return EXACTLY the 4 blocks below, separated by the exact headers.
 2. The lyrics MUST be completely generated, from [Intro] to [Outro]. Do not cut or abbreviate the lyrics. Length is not an issue, provide the full song.
 3. The lyrics MUST already contain all the necessary structural metatags (like [Intro], [Verse], [Chorus], [Bridge], [Outro]) and vocal directions (like (whispering), (belting)) inline.
+${includeSpokenIntro ? '4. CRITICAL: The lyrics MUST start with a [Spoken Intro: soft, reflective] containing exactly 4 lines of spoken introduction.' : ''}
 
 === SONG TITLE ===
 <A creative and emotional title for the song>
@@ -132,6 +133,7 @@ export default function SunoStudio() {
   const [tema, setTema] = useState('');
   const [vulnerabilidade, setVulnerabilidade] = useState('');
   const [veoCount, setVeoCount] = useState(5);
+  const [includeSpokenIntro, setIncludeSpokenIntro] = useState(false);
 
   // State: Outputs
   const [songTitle, setSongTitle] = useState('');
@@ -235,7 +237,7 @@ export default function SunoStudio() {
 
       const activePreset = presets.find(p => p.id === selectedPresetId);
       const rules = activePreset?.rules || '';
-      const prompt = getSunoSystemPrompt(rules, tema, vulnerabilidade, genre, emotion, instruments, vocal);
+      const prompt = getSunoSystemPrompt(rules, tema, vulnerabilidade, genre, emotion, instruments, vocal, includeSpokenIntro);
 
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
@@ -254,21 +256,50 @@ export default function SunoStudio() {
       const data = await res.json();
       const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
-      // Parser baseado em delimitadores múltiplos
-      const titleMatch = textResponse.match(/===\s*SONG TITLE\s*===([\s\S]*?)===\s*CONFIG\s*===/i);
-      const configMatch = textResponse.match(/===\s*CONFIG\s*===([\s\S]*?)===\s*STYLES\s*===/i);
-      const styleMatch = textResponse.match(/===\s*STYLES\s*===([\s\S]*?)===\s*LYRICS\s*===/i);
-      const lyricsMatch = textResponse.match(/===\s*LYRICS\s*===([\s\S]*)/i);
+      // Parser robusto baseado em delimitadores e posições
+      const headers = [
+        { key: 'title', regex: /(?:===|\*\*|#)*\s*(?:SONG TITLE|TÍTULO DA MÚSICA)\s*(?:===|\*\*|#)*/i },
+        { key: 'config', regex: /(?:===|\*\*|#)*\s*CONFIG(?:URAÇÕES)?\s*(?:===|\*\*|#)*/i },
+        { key: 'style', regex: /(?:===|\*\*|#)*\s*STYLES?\s*(?:===|\*\*|#)*/i },
+        { key: 'lyrics', regex: /(?:===|\*\*|#)*\s*(?:LYRICS?|LETRA(?: DA MÚSICA)?)\s*(?:===|\*\*|#)*/i }
+      ];
 
-      let extractedTitle = titleMatch ? titleMatch[1].trim() : '';
-      let extractedConfig = configMatch ? configMatch[1].trim() : '';
-      let extractedStyle = styleMatch ? styleMatch[1].trim() : '';
-      let extractedLyrics = lyricsMatch ? lyricsMatch[1].trim() : '';
+      const foundHeaders = headers.map(h => {
+        const match = textResponse.match(h.regex);
+        return {
+          key: h.key,
+          index: match ? match.index! : -1,
+          length: match ? match[0].length : 0
+        };
+      }).filter(h => h.index !== -1).sort((a, b) => a.index - b.index);
 
-      if (!extractedTitle && !extractedLyrics) {
-        // Fallback caso a IA ignore os delimitadores
-        extractedLyrics = textResponse.trim();
-        extractedStyle = "Falha ao processar os delimitadores.";
+      const extractPart = (key: string) => {
+        const idx = foundHeaders.findIndex(h => h.key === key);
+        if (idx === -1) return '';
+        const start = foundHeaders[idx].index + foundHeaders[idx].length;
+        const end = idx < foundHeaders.length - 1 ? foundHeaders[idx + 1].index : textResponse.length;
+        return textResponse.substring(start, end).replace(/^\s*[:\-*]*\s*/, '').trim();
+      };
+
+      let extractedTitle = extractPart('title').replace(/\*\*/g, '');
+      let extractedConfig = extractPart('config').replace(/\*\*/g, '');
+      let extractedStyle = extractPart('style').replace(/\*\*/g, '');
+      let extractedLyrics = extractPart('lyrics');
+
+      // Fallback caso a IA não tenha gerado o header de LYRICS corretamente
+      if (!extractedLyrics) {
+         // Procura o início de uma letra comum, como [Intro], [Verso], etc
+         const introMatch = textResponse.match(/\[(Intro|Verso|Verse|Chorus|Refrão|Instrumental)\]/i);
+         if (introMatch) {
+            extractedLyrics = textResponse.substring(introMatch.index!).trim();
+            // Limpa se a letra tiver sido engolida pela seção de estilo
+            if (extractedStyle && extractedStyle.includes(extractedLyrics)) {
+               extractedStyle = extractedStyle.replace(extractedLyrics, '').trim();
+            }
+         } else if (foundHeaders.length === 0) {
+            extractedLyrics = textResponse.trim();
+            extractedStyle = "Falha ao processar os delimitadores.";
+         }
       }
 
       setSongTitle(extractedTitle);
@@ -541,6 +572,18 @@ export default function SunoStudio() {
                 className="w-full bg-[#0b0f19] border border-neutral-800 rounded p-2 text-sm focus:border-blue-500/50 outline-none resize-none"
               />
             </div>
+            
+            <label className="flex items-center gap-2 cursor-pointer mt-3 p-2 bg-blue-900/10 rounded border border-blue-900/20 hover:bg-blue-900/20 transition-colors">
+              <input 
+                type="checkbox" 
+                checked={includeSpokenIntro} 
+                onChange={e => setIncludeSpokenIntro(e.target.checked)}
+                className="w-4 h-4 rounded bg-[#0b0f19] border-blue-800 text-blue-500 focus:ring-blue-600 focus:ring-offset-neutral-900"
+              />
+              <span className="text-xs text-blue-300 font-medium flex items-center gap-1.5">
+                <Mic size={14} /> Incluir introdução falada (4 linhas)
+              </span>
+            </label>
           </div>
         </div>
 

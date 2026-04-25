@@ -644,6 +644,17 @@ export default function SunoStudio() {
           >
             {isGeneratingVeo ? 'Criando Cena...' : '2. Gerar Prompts Veo3'}
           </button>
+          {veoPrompts.length > 0 && (
+            <button 
+              onClick={() => {
+                const formattedText = veoPrompts.map((p, i) => `(cena ${String(i + 1).padStart(3, '0')})-${p}`).join('\n\n');
+                navigator.clipboard.writeText(formattedText);
+              }}
+              className="w-full mt-2 bg-neutral-800 text-neutral-300 border border-neutral-700 font-medium py-1.5 rounded hover:bg-neutral-700 transition-colors text-xs flex items-center justify-center gap-2"
+            >
+              <Copy size={12} /> Copiar Todos os Prompts (Formatado)
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
@@ -725,13 +736,39 @@ export default function SunoStudio() {
                       <p className="text-sm text-neutral-200 mb-1 truncate font-medium">"{item.idea_prompt}"</p>
                       <p className="text-xs text-neutral-500 font-mono truncate">{item.song_title || 'Sem título'} - {item.style_prompt}</p>
                     </div>
-                    <div className="flex items-center">
-                      <button 
-                        onClick={() => loadHistoryItem(item)}
-                        className="bg-neutral-800 text-white text-sm px-4 py-2 rounded hover:bg-neutral-700 font-medium border border-neutral-700"
-                      >
-                        Carregar
-                      </button>
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2">
+                        <button 
+                          onClick={() => loadHistoryItem(item)}
+                          className="bg-blue-600/20 text-blue-400 text-xs px-3 py-1.5 rounded hover:bg-blue-600/30 font-medium border border-blue-500/30"
+                        >
+                          Carregar p/ Edição
+                        </button>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => navigator.clipboard.writeText(item.lyrics || '')}
+                            className="bg-neutral-800 text-neutral-300 text-xs px-2 py-1.5 rounded hover:bg-neutral-700 font-medium border border-neutral-700 flex-1 flex items-center justify-center gap-1"
+                            title="Copiar Letra"
+                          >
+                            <Copy size={12}/> Letra
+                          </button>
+                          {item.veo3_prompts && item.veo3_prompts !== '[]' && (
+                            <button 
+                              onClick={() => {
+                                try {
+                                  const parsed = JSON.parse(item.veo3_prompts!);
+                                  const formattedText = parsed.map((p: string, i: number) => `(cena ${String(i + 1).padStart(3, '0')})-${p}`).join('\n\n');
+                                  navigator.clipboard.writeText(formattedText);
+                                } catch(e) {}
+                              }}
+                              className="bg-neutral-800 text-neutral-300 text-xs px-2 py-1.5 rounded hover:bg-neutral-700 font-medium border border-neutral-700 flex-1 flex items-center justify-center gap-1"
+                              title="Copiar Prompts Veo3 Formatados"
+                            >
+                              <Copy size={12}/> Veo3
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))

@@ -256,12 +256,12 @@ export default function SunoStudio() {
       const data = await res.json();
       const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
-      // Parser robusto baseado em delimitadores e posições
+      // Parser robusto com âncoras de linha para não confundir com o conteúdo (ex: "Style Influence")
       const headers = [
-        { key: 'title', regex: /(?:===|\*\*|#)*\s*(?:SONG TITLE|TÍTULO DA MÚSICA)\s*(?:===|\*\*|#)*/i },
-        { key: 'config', regex: /(?:===|\*\*|#)*\s*CONFIG(?:URAÇÕES)?\s*(?:===|\*\*|#)*/i },
-        { key: 'style', regex: /(?:===|\*\*|#)*\s*STYLES?\s*(?:===|\*\*|#)*/i },
-        { key: 'lyrics', regex: /(?:===|\*\*|#)*\s*(?:LYRICS?|LETRA(?: DA MÚSICA)?)\s*(?:===|\*\*|#)*/i }
+        { key: 'title', regex: /^\s*(?:===|\*\*|#)*\s*(?:SONG TITLE|TÍTULO DA MÚSICA)\s*(?:===|\*\*|#|:)*\s*$/im },
+        { key: 'config', regex: /^\s*(?:===|\*\*|#)*\s*CONFIG(?:URAÇÕES)?\s*(?:===|\*\*|#|:)*\s*$/im },
+        { key: 'style', regex: /^\s*(?:===|\*\*|#)*\s*STYLES?\s*(?:===|\*\*|#|:)*\s*$/im },
+        { key: 'lyrics', regex: /^\s*(?:===|\*\*|#)*\s*(?:LYRICS?|LETRA(?: DA MÚSICA)?|SPOKEN INTRO)\s*(?:===|\*\*|#|:)*\s*$/im }
       ];
 
       const foundHeaders = headers.map(h => {
@@ -289,7 +289,7 @@ export default function SunoStudio() {
       // Fallback caso a IA não tenha gerado o header de LYRICS corretamente
       if (!extractedLyrics) {
          // Procura o início de uma letra comum, como [Intro], [Verso], etc
-         const introMatch = textResponse.match(/\[(Intro|Verso|Verse|Chorus|Refrão|Instrumental)\]/i);
+         const introMatch = textResponse.match(/\[(Intro|Verso|Verse|Chorus|Refrão|Instrumental|Spoken)\]/i);
          if (introMatch) {
             extractedLyrics = textResponse.substring(introMatch.index!).trim();
             // Limpa se a letra tiver sido engolida pela seção de estilo

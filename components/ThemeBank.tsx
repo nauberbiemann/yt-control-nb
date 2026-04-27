@@ -511,6 +511,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
           }
         : null;
       const payload = {
+        id: editingTheme?.id || crypto.randomUUID(),
         title: form.title,
         description: form.description || '',
         editorial_pillar: form.editorial_pillar || '',
@@ -531,6 +532,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         project_id: activeProject.id,
         user_id: userId || null,
         updated_at: new Date().toISOString(),
+        created_at: editingTheme?.created_at || new Date().toISOString(),
       };
 
       // 💾 1. Local-First Update: Update UI immediately
@@ -588,7 +590,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     if (editingTheme) {
       newComponents = themes.map(t => t.id === editingTheme.id ? normalizeThemeScheduleStatus({ ...t, ...payload, id: t.id, created_at: t.created_at }) : t);
     } else {
-      newComponents = [normalizeThemeScheduleStatus({ ...payload, id: crypto.randomUUID(), created_at: new Date().toISOString() }), ...themes];
+      newComponents = [normalizeThemeScheduleStatus({ ...payload, id: payload.id || crypto.randomUUID(), created_at: payload.created_at || new Date().toISOString() }), ...themes];
     }
     setThemes(newComponents as Theme[]);
     localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(newComponents));

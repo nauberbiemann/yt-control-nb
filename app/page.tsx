@@ -1860,8 +1860,8 @@ export default function Home() {
             
             // Extract projects
             const projectsArray = JSON.parse(localStorage.getItem('writer_studio_projects') || '[]');
-            const mTarget = projectsArray.find((p) => p.id === '5c24efcd-098c-41f1-88b2-b3173fbeb5eb');
-            const dTarget = projectsArray.find((p) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
+            const mTarget = projectsArray.find((p: any) => p.id === '5c24efcd-098c-41f1-88b2-b3173fbeb5eb');
+            const dTarget = projectsArray.find((p: any) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
             
             if (mTarget && dTarget) {
               alert('Backup carregado. Sincronizando com a nuvem...');

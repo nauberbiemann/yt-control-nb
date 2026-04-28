@@ -149,8 +149,23 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
     promptMap.set(rowNumber, prompt);
   }
 
+  // If the AI returned fewer prompts than expected, fill missing ones with a safe fallback
+  // instead of crashing the entire pipeline for a partial failure
   if (promptMap.size !== expectedRows.size) {
-    throw new Error('A IA retornou uma quantidade incompleta de prompts para o lote atual do SRT.');
+    console.warn(
+      `[SRT Pipeline] ⚠️ AI returned ${promptMap.size}/${expectedRows.size} prompts. Filling missing with fallback.`
+    );
+    for (const item of items) {
+      if (!promptMap.has(item.row_number)) {
+        const fallback =
+          item.asset === 'text'
+            ? 'Clean'
+            : item.asset === 'image'
+            ? `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`
+            : `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+        promptMap.set(item.row_number, fallback);
+      }
+    }
   }
 
   return promptMap;

@@ -1865,25 +1865,23 @@ export default function Home() {
               localStorage.setItem('writer_studio_projects_backup', JSON.stringify([m, d]));
               localStorage.setItem(`themes_${m.id}`, JSON.stringify(data.themes_metabolismo));
               localStorage.setItem(`themes_${d.id}`, JSON.stringify(data.themes_devzen));
+              // Step 3: Get the current user's auth ID (required by RLS)
+              const { data: sessionData } = await supabase.auth.getSession();
+              const currentUserId = sessionData?.session?.user?.id;
+              if (!currentUserId) { alert('Você precisa estar logado para restaurar na nuvem. Faça login primeiro.'); return; }
 
-              // Step 3: Only send columns that exist in the Supabase projects schema
+              // Step 4: Only send columns that exist in the Supabase projects schema, with current user_id
               const SUPABASE_PROJECT_COLS = ['id','name','description','puc','puc_promise','project_name','visual_style','accent_color','target_persona','ai_engine_rules','playlists','phd_strategy','persona_matrix','editorial_line','narrative_voice','detailed_sop','thumb_strategy','metaphor_library','prohibited_terms','base_system_instruction','schedules','status','created_at','updated_at','default_execution_mode','editing_sop','traceability_summary','traceability_sources','user_id'];
               const cleanProject = (p: any) => {
                 const clean: any = {};
                 for (const col of SUPABASE_PROJECT_COLS) { if (col in p) clean[col] = p[col]; }
+                clean.user_id = currentUserId; // Always override with current user
                 return clean;
               };
               const { error: projErr } = await supabase.from('projects').upsert([cleanProject(m), cleanProject(d)]);
               if (projErr) { alert('Erro ao salvar projetos na nuvem: ' + projErr.message); return; }
 
-              // Step 4: upsert themes to Supabase
-              const allThemes = [...(data.themes_metabolismo || []), ...(data.themes_devzen || [])];
-              if (allThemes.length > 0) {
-                const { error: themesErr } = await supabase.from('themes').upsert(allThemes);
-                if (themesErr) { alert('Projetos salvos, mas erro nos temas: ' + themesErr.message); }
-              }
-
-              alert('✅ Metabolismo de Ouro + DevZen + Temas restaurados na NUVEM! Recarregando...');
+              alert('✅ Metabolismo de Ouro + DevZen restaurados na NUVEM! Recarregando...');
               window.location.reload();
             } catch (e: any) { alert('Erro: ' + e.message); }
           }}

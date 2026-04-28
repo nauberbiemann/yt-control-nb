@@ -1866,10 +1866,12 @@ export default function Home() {
               localStorage.setItem(`themes_${m.id}`, JSON.stringify(data.themes_metabolismo));
               localStorage.setItem(`themes_${d.id}`, JSON.stringify(data.themes_devzen));
 
-              // Step 3: strip client-only fields not in Supabase schema
+              // Step 3: Only send columns that exist in the Supabase projects schema
+              const SUPABASE_PROJECT_COLS = ['id','name','description','puc','puc_promise','project_name','visual_style','accent_color','target_persona','ai_engine_rules','playlists','phd_strategy','persona_matrix','editorial_line','narrative_voice','detailed_sop','thumb_strategy','metaphor_library','prohibited_terms','base_system_instruction','schedules','status','created_at','updated_at','default_execution_mode','editing_sop','traceability_summary','traceability_sources','user_id'];
               const cleanProject = (p: any) => {
-                const { is_bootstrap_project: _a, is_recovered_project: _b, recovery_score: _c, ...rest } = p;
-                return rest;
+                const clean: any = {};
+                for (const col of SUPABASE_PROJECT_COLS) { if (col in p) clean[col] = p[col]; }
+                return clean;
               };
               const { error: projErr } = await supabase.from('projects').upsert([cleanProject(m), cleanProject(d)]);
               if (projErr) { alert('Erro ao salvar projetos na nuvem: ' + projErr.message); return; }

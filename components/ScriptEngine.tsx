@@ -630,9 +630,31 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (['male', 'female', 'custom'].includes(snapshot?.videoCharacterMode)) setVideoCharacterMode(snapshot.videoCharacterMode);
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
-      if (snapshot?.externalSrtPipeline) setExternalSrtPipeline(snapshot.externalSrtPipeline);
+      // Read large objects from their dedicated keys (split-storage pattern)
+      const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
+      const postPackageKey = `${executionStorageKey}_post_package`;
+
+      if (snapshot?._hasSrtPipeline) {
+        try {
+          const srtRaw = localStorage.getItem(srtPipelineKey);
+          if (srtRaw) setExternalSrtPipeline(JSON.parse(srtRaw));
+        } catch { /* ignore */ }
+      } else if (snapshot?.externalSrtPipeline) {
+        // Backward compat: old snapshots stored it inline
+        setExternalSrtPipeline(snapshot.externalSrtPipeline);
+      }
+
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
-      if (snapshot?.postScriptPackage) setPostScriptPackage(snapshot.postScriptPackage);
+
+      if (snapshot?._hasPostPackage) {
+        try {
+          const pkgRaw = localStorage.getItem(postPackageKey);
+          if (pkgRaw) setPostScriptPackage(JSON.parse(pkgRaw));
+        } catch { /* ignore */ }
+      } else if (snapshot?.postScriptPackage) {
+        // Backward compat: old snapshots stored it inline
+        setPostScriptPackage(snapshot.postScriptPackage);
+      }
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao salva.', error);
     } finally {
@@ -1071,7 +1093,44 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       updated_at: new Date().toISOString(),
     };
 
-    localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
+    // Split large objects into separate localStorage keys to avoid QuotaExceededError
+    // The main snapshot stores a sentinel instead of the full object
+    const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
+    const postPackageKey = `${executionStorageKey}_post_package`;
+
+    const { externalSrtPipeline: srtPipeline, postScriptPackage: postPkg, ...snapshotWithoutLargeObjects } = snapshot as any;
+
+    const compactSnapshot = {
+      ...snapshotWithoutLargeObjects,
+      _hasSrtPipeline: !!srtPipeline,
+      _hasPostPackage: !!postPkg,
+    };
+
+    try {
+      // Save large objects first (they're most likely to fail)
+      if (srtPipeline !== undefined) {
+        try {
+          localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
+        } catch (quotaErr) {
+          console.warn('[ScriptEngine] SRT pipeline too large for localStorage, skipping persistence of that field.', quotaErr);
+          compactSnapshot._hasSrtPipeline = false;
+        }
+      }
+
+      if (postPkg !== undefined) {
+        try {
+          localStorage.setItem(postPackageKey, JSON.stringify(postPkg));
+        } catch (quotaErr) {
+          console.warn('[ScriptEngine] Post-script package too large for localStorage, skipping persistence of that field.', quotaErr);
+          compactSnapshot._hasPostPackage = false;
+        }
+      }
+
+      // Save the compact snapshot (always small enough)
+      localStorage.setItem(executionStorageKey, JSON.stringify(compactSnapshot));
+    } catch (err) {
+      console.warn('[ScriptEngine] Falha ao persistir snapshot localmente.', err);
+    }
   };
 
   const buildScriptBlocksFromBriefing = (briefing: any, theme: string): ScriptBlock[] => {

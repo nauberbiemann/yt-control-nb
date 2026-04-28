@@ -1866,9 +1866,8 @@ export default function Home() {
               localStorage.setItem(`themes_${m.id}`, JSON.stringify(data.themes_metabolismo));
               localStorage.setItem(`themes_${d.id}`, JSON.stringify(data.themes_devzen));
               // Step 3: Get the current user's auth ID (required by RLS)
-              const { data: sessionData } = await supabase.auth.getSession();
-              const currentUserId = sessionData?.session?.user?.id;
-              if (!currentUserId) { alert('Você precisa estar logado para restaurar na nuvem. Faça login primeiro.'); return; }
+              const currentUserId = user?.id;
+              if (!currentUserId) { alert('Sessão não encontrada. Recarregue a página e tente novamente.'); return; }
 
               // Step 4: Only send columns that exist in the Supabase projects schema, with current user_id
               const SUPABASE_PROJECT_COLS = ['id','name','description','puc','puc_promise','project_name','visual_style','accent_color','target_persona','ai_engine_rules','playlists','phd_strategy','persona_matrix','editorial_line','narrative_voice','detailed_sop','thumb_strategy','metaphor_library','prohibited_terms','base_system_instruction','schedules','status','created_at','updated_at','default_execution_mode','editing_sop','traceability_summary','traceability_sources','user_id'];

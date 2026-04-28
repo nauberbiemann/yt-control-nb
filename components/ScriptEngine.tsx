@@ -217,6 +217,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isProcessingSrtPipeline, setIsProcessingSrtPipeline] = useState(false);
   const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
+  const [isRegeneratingFallbacks, setIsRegeneratingFallbacks] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1375,6 +1376,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       });
 
       const promptMap = new Map<number, string>();
+      const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
       const chunkSize = 2;
       const chunks = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
@@ -1421,8 +1423,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           throw new Error(data?.error || `Falha ao processar lote ${i + 1} do SRT.`);
         }
 
-        (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string }) => {
-          if (p.rowNumber && p.prompt) promptMap.set(p.rowNumber, p.prompt);
+        (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean }) => {
+          if (p.rowNumber && p.prompt) {
+            promptMap.set(p.rowNumber, p.prompt);
+            if (p.isFallback) fallbackRowNumbers.add(p.rowNumber);
+          }
         });
       }
 
@@ -1434,6 +1439,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         return {
           ...row,
           prompt: finalPrompt,
+          isFallback: fallbackRowNumbers.has(row.rowNumber), // 🏷️ Used for regeneration UI
         };
       });
 
@@ -1517,6 +1523,96 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       alert(error instanceof Error ? error.message : 'Nao foi possivel processar o SRT anexado.');
     } finally {
       setIsProcessingSrtPipeline(false);
+    }
+  };
+
+  const regenerateFallbackPrompts = async () => {
+    if (!externalSrtPipeline?.rows?.length) return;
+
+    const fallbackRows = externalSrtPipeline.rows.filter((row) => row.isFallback);
+    if (fallbackRows.length === 0) return;
+
+    setIsRegeneratingFallbacks(true);
+    try {
+      const { engine, model, apiKey } = (() => {
+        const cfg = (useProjectStore.getState() as any)?.activeAIConfig || {};
+        return {
+          engine: (cfg.engine || 'gemini') as 'openai' | 'gemini',
+          model: cfg.model || 'gemini-2.5-flash',
+          apiKey: cfg.apiKey || '',
+        };
+      })();
+
+      const batchItems = fallbackRows.flatMap((row, index) => {
+        const type = normalizeAssetType(row.asset);
+        const isEligible = type === 'vídeo' || type === 'imagem' || type === 'texto';
+        if (!isEligible) return [];
+        const allRows = externalSrtPipeline.rows;
+        const idx = allRows.findIndex((r) => r.rowNumber === row.rowNumber);
+        const previousText = allRows[idx - 1]?.texto?.trim() || '';
+        const nextText = allRows[idx + 1]?.texto?.trim() || '';
+        const startMs = parseSrtTimeToMs(row.startTime);
+        const endMs = parseSrtTimeToMs(row.endTime);
+        return [{
+          row_number: row.rowNumber,
+          asset: type === 'texto' ? ('text' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const)),
+          text: row.texto.trim(),
+          start_time: row.startTime,
+          end_time: row.endTime,
+          duration_seconds: Number(((endMs - startMs) / 1000).toFixed(3)),
+          previous_text: previousText,
+          next_text: nextText,
+        }];
+      });
+
+      if (batchItems.length === 0) return;
+
+      const res = await fetch('/api/assets/srt-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchItems,
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject,
+          videoContext: [
+            approvedTheme ? `Video title: ${approvedTheme}` : '',
+          ].filter(Boolean).join(' | '),
+          characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao regenerar prompts.');
+
+      // Merge: replace only the fallback rows with the new prompts
+      const newPromptMap = new Map<number, string>();
+      (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean }) => {
+        if (p.rowNumber && p.prompt && !p.isFallback) newPromptMap.set(p.rowNumber, p.prompt);
+      });
+
+      if (newPromptMap.size === 0) {
+        alert('A IA não conseguiu gerar os prompts faltantes. Tente novamente.');
+        return;
+      }
+
+      const updatedRows = externalSrtPipeline.rows.map((row) => {
+        const newPrompt = newPromptMap.get(row.rowNumber);
+        if (!newPrompt) return row;
+        return { ...row, prompt: newPrompt, isFallback: false };
+      });
+
+      const { buildPipelineResult: rebuild } = await import('@/lib/srt-asset-pipeline');
+      const updatedPipeline = { ...rebuild(updatedRows), generatedAt: externalSrtPipeline.generatedAt };
+      setExternalSrtPipeline(updatedPipeline);
+      persistExecutionSnapshotLocally({ externalSrtPipeline: updatedPipeline });
+      showToast(`✅ ${newPromptMap.size} prompt(s) regenerado(s) com sucesso.`);
+    } catch (err) {
+      console.error('[ScriptEngine] Falha ao regenerar fallbacks:', err);
+      alert(err instanceof Error ? err.message : 'Erro ao regenerar prompts incompletos.');
+    } finally {
+      setIsRegeneratingFallbacks(false);
     }
   };
 
@@ -3073,6 +3169,29 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                      >
                        {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
                      </button>
+                     {/* Fallback badge + regenerate button */}
+                     {externalSrtPipeline && (() => {
+                       const fallbackCount = externalSrtPipeline.rows.filter((r) => r.isFallback).length;
+                       if (fallbackCount === 0) return null;
+                       return (
+                         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-2">
+                           <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
+                             ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
+                           </p>
+                           <p className="text-[10px] text-orange-200/60 leading-relaxed">
+                             A IA não gerou {fallbackCount > 1 ? 'estes prompts' : 'este prompt'} corretamente. Clique para tentar regenerar apenas os itens faltantes.
+                           </p>
+                           <button
+                             type="button"
+                             onClick={regenerateFallbackPrompts}
+                             disabled={isRegeneratingFallbacks || isProcessingSrtPipeline}
+                             className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-200 transition-all hover:bg-orange-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                           >
+                              {isRegeneratingFallbacks ? 'REGENERANDO...' : `REGENERAR ${fallbackCount} ITEM${fallbackCount > 1 ? 'S' : ''} INCOMPLETO${fallbackCount > 1 ? 'S' : ''}`}
+                           </button>
+                         </div>
+                       );
+                     })()}
                     {externalSrtPipeline && (
                       <button
                         type="button"

@@ -10,7 +10,8 @@ import {
   type SrtAssetRow,
 } from '@/lib/srt-asset-pipeline';
 
-const BATCH_SIZE = 4;
+const BATCH_SIZE_DEFAULT = 4;
+const BATCH_SIZE_REASONING = 2; // Reasoning models handle smaller batches more reliably
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto']);
 
 export const maxDuration = 60;
@@ -138,6 +139,9 @@ const parseJsonResponse = (rawContent: string): PromptResponseShape => {
   }
 };
 
+// Map also tracks which rows used a fallback so the UI can offer regeneration
+const fallbackRows = new Set<number>();
+
 const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseShape) => {
   const expectedRows = new Set(items.map((item) => item.row_number));
   const promptMap = new Map<number, string>();
@@ -164,6 +168,7 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
             ? `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`
             : `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
         promptMap.set(item.row_number, fallback);
+        fallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
       }
     }
   }
@@ -321,6 +326,9 @@ const generatePromptMap = async ({
     ? projectConfig?.gemini_api_model || resolveModel(model)
     : projectConfig?.openai_api_model || resolveModel(model);
 
+  // Reasoning models handle smaller batches more reliably
+  const batchSize = isReasoningModel(resolvedModel) ? BATCH_SIZE_REASONING : BATCH_SIZE_DEFAULT;
+
   const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
   const projectStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || '';
   const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
@@ -328,7 +336,7 @@ const generatePromptMap = async ({
   const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
   const promptMap = new Map<number, string>();
 
-  for (const batch of chunk(items, BATCH_SIZE)) {
+  for (const batch of chunk(items, batchSize)) {
     const payload = engine === 'gemini'
       ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '' })
       : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '' });
@@ -377,9 +385,10 @@ export async function POST(req: NextRequest) {
         prompt: item.asset === 'video'
           ? enforceVideoPromptGuards(promptMap.get(item.row_number) || '', characterDescription)
           : promptMap.get(item.row_number) || '',
+        isFallback: fallbackRows.has(item.row_number), // 🏷️ Let UI know which rows need regeneration
       }));
 
-      return NextResponse.json({ prompts });
+      return NextResponse.json({ prompts, hasFallbacks: fallbackRows.size > 0 });
     }
 
     // Legacy / Full-File Mode Branch

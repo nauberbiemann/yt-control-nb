@@ -1,4 +1,4 @@
-﻿export type SrtAssetType = '' | 'texto' | 'vídeo' | 'imagem' | 'avatar';
+export type SrtAssetType = '' | 'texto' | 'vídeo' | 'imagem' | 'avatar';
 
 export interface SrtAssetRow {
   rowNumber: number;
@@ -8,6 +8,7 @@ export interface SrtAssetRow {
   asset: SrtAssetType;
   prompt: string;
   caminho: string;
+  isFallback?: boolean;
 }
 
 export interface SrtAssetStats {

@@ -1843,80 +1843,8 @@ export default function Home() {
         <div className="p-12 max-w-[1700px] mx-auto min-h-[calc(100vh-100px)]">
           {renderView()}
         </div>
-        <button
-          onClick={async () => {
-            try {
-              const res = await fetch('/safe_restore.json');
-              const data: { projects: any[]; themes_metabolismo: any[]; themes_devzen: any[] } = await res.json();
-              const m = data.projects.find((p: any) => p.id === '5c24efcd-098c-41f1-88b2-b3173fbeb5eb');
-              const d = data.projects.find((p: any) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
-              if (!m || !d) { alert('Projetos não encontrados no backup!'); return; }
-
-              // Step 1: clear ALL old localStorage to free space
-              const keysToDelete: string[] = [];
-              for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k !== 'content_os_active_project') keysToDelete.push(k);
-              }
-              keysToDelete.forEach(k => localStorage.removeItem(k));
-
-              // Step 2: write clean project list and themes to localStorage
-              localStorage.setItem('writer_studio_projects', JSON.stringify([m, d]));
-              localStorage.setItem('writer_studio_projects_backup', JSON.stringify([m, d]));
-              localStorage.setItem(`themes_${m.id}`, JSON.stringify(data.themes_metabolismo));
-              localStorage.setItem(`themes_${d.id}`, JSON.stringify(data.themes_devzen));
-              // Step 3: Get user ID - try component state first, then fetch directly
-              let currentUserId = user?.id;
-              if (!currentUserId) {
-                const { data: { user: freshUser } } = await supabase.auth.getUser();
-                currentUserId = freshUser?.id;
-              }
-              if (!currentUserId) { alert('Sessão expirada. Recarregue a página e tente novamente.'); return; }
-
-              // Step 4: Only send columns that exist in the Supabase projects schema, with current user_id
-              const SUPABASE_PROJECT_COLS = ['id','name','description','puc','puc_promise','project_name','visual_style','accent_color','target_persona','ai_engine_rules','playlists','phd_strategy','persona_matrix','editorial_line','narrative_voice','detailed_sop','thumb_strategy','metaphor_library','prohibited_terms','base_system_instruction','schedules','status','created_at','updated_at','default_execution_mode','editing_sop','traceability_summary','traceability_sources','user_id'];
-              const cleanProject = (p: any) => {
-                const clean: any = {};
-                for (const col of SUPABASE_PROJECT_COLS) { if (col in p) clean[col] = p[col]; }
-                clean.user_id = currentUserId;
-                return clean;
-              };
-              const { error: projErr } = await supabase.from('projects').upsert([cleanProject(m), cleanProject(d)]);
-              if (projErr) { alert('Erro ao salvar projetos na nuvem: ' + projErr.message); return; }
-
-              // Step 5: upsert themes to Supabase using the same schema as ThemeBank
-              const makeCloudTheme = (t: any, projectId: string) => ({
-                id: t.id,
-                project_id: projectId,
-                user_id: currentUserId,
-                title: t.title || t.title_structure || 'Tema',
-                description: t.description || '',
-                editorial_pillar: t.pillar || t.editorial_pillar || '',
-                status: t.status === 'published' ? 'published' : t.status === 'scheduled' ? 'scripted' : t.status || 'backlog',
-                title_structure: t.title_structure || '',
-                priority: Number(t.priority) || 0,
-                notes: t.notes || '',
-                created_at: t.created_at || new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
-              const allThemes = [
-                ...(data.themes_metabolismo || []).map((t: any) => makeCloudTheme(t, m.id)),
-                ...(data.themes_devzen || []).map((t: any) => makeCloudTheme(t, d.id)),
-              ];
-              if (allThemes.length > 0) {
-                const { error: themesErr } = await supabase.from('themes').upsert(allThemes);
-                if (themesErr) console.warn('Themes upsert warning:', themesErr.message);
-              }
-
-              alert('✅ Projetos + Temas restaurados na NUVEM! Recarregando...');
-              window.location.reload();
-            } catch (e: any) { alert('Erro: ' + e.message); }
-          }}
-          style={{ position:'fixed', top:'10px', left:'50%', transform:'translateX(-50%)', zIndex:99999, padding:'15px 40px', background:'#10b981', color:'#FFF', fontSize:'18px', fontWeight:'bold', borderRadius:'8px', cursor:'pointer', border:'2px solid white', boxShadow:'0 0 20px rgba(16,185,129,0.8)' }}
-        >
-          ✨ RESTAURAR TUDO DA NUVEM ✨
-        </button>
         </main>
+
 
       {isModalOpen && (
         <ProjectWizardModal 

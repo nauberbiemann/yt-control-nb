@@ -253,7 +253,7 @@ const recoverProjectsFromAuxiliaryCaches = (): Project[] => {
     return candidates
       .filter((project) => Number(project.recovery_score || 0) > 0)
       .sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0))
-      .slice(0, 1)
+      .slice(0, 10)
       .map((project) => ({
         ...project,
         name: project.name?.startsWith('Projeto recuperado') ? 'DevZen recuperado' : project.name,
@@ -299,18 +299,16 @@ const readLocalProjectCaches = () => {
   const repairedPrimary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
   const repairedBackup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
   const repairedRecovered = recoverProjectsFromAuxiliaryCaches();
-  const bestAfterRepair = repairedRecovered[0];
-  const shouldKeepRecoveredCard =
-    bestAfterRepair?.id &&
-    bestAfterRepair.id !== BOOTSTRAP_PROJECT_ID &&
-    getProjectRecoveryScore(bestAfterRepair.id) > getProjectRecoveryScore(BOOTSTRAP_PROJECT_ID);
+  const validRecoveredProjects = repairedRecovered.filter(
+    (p) => p.id && p.id !== BOOTSTRAP_PROJECT_ID && getProjectRecoveryScore(p.id) > 0
+  );
   const stablePrimary = repairedPrimary.filter((project) => !project.is_recovered_project);
   const stableBackup = repairedBackup.filter((project) => !project.is_recovered_project);
   const stableArchived = archived.filter((project) => !project.is_recovered_project);
 
   return mergeProjectCollections(
     mergeProjectCollections(mergeProjectCollections(stablePrimary, stableBackup), stableArchived),
-    shouldKeepRecoveredCard ? [bestAfterRepair] : []
+    validRecoveredProjects
   );
 };
 
@@ -421,8 +419,7 @@ const normalizeProjectList = (projects: Project[]) => {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
   const recoveredProjects = list
     .filter((project) => project.is_recovered_project)
-    .sort((a, b) => Number(b.recovery_score || getProjectRecoveryScore(b.id)) - Number(a.recovery_score || getProjectRecoveryScore(a.id)))
-    .slice(0, 1);
+    .sort((a, b) => Number(b.recovery_score || getProjectRecoveryScore(b.id)) - Number(a.recovery_score || getProjectRecoveryScore(a.id)));
   const listWithoutRecovered = list.filter((project) => !project.is_recovered_project);
   const normalizedList = [...recoveredProjects, ...listWithoutRecovered];
   const withoutBootstrap = normalizedList.filter((project) => !isBootstrapProject(project));

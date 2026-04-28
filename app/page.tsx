@@ -498,6 +498,30 @@ export default function Home() {
 
     initApp();
 
+    // DUMP LOCALSTORAGE FOR DEBUGGING
+    try {
+      setTimeout(() => {
+        const lsData: any = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key) {
+            try {
+              lsData[key] = JSON.parse(localStorage.getItem(key) || '""');
+            } catch(e) {
+              lsData[key] = localStorage.getItem(key);
+            }
+          }
+        }
+        fetch('/api/dump', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(lsData)
+        }).then(() => console.log('Dump completed'));
+      }, 1000);
+    } catch(e) {
+      console.error('Erro no dump', e);
+    }
+
     if (supabase) {
       // ⚠️ IMPORTANT: onAuthStateChange callback MUST be synchronous.
       // Calling async operations inside it holds the Supabase internal lock

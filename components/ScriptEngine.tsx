@@ -737,6 +737,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       setScriptBlocks(v4Blocks);
       setScriptStage('blueprint');
       setPostScriptPackage(null);
+      setManualPublishDate(''); // 🔑 Clear inherited date from previous snapshot - new theme starts without a publish date
+      setManualPublishDraftDate('');
+      setManualPublishDraftTime('');
       onClearPending?.();
       setAssemblerActive(false); // Move to editor once pending data arrives
     } else if (scriptBlocks.length === 0 && !approvedBriefing) {

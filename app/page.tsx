@@ -1901,7 +1901,7 @@ export default function Home() {
           dTarget.id = '08124252-c007-48ee-81ba-d075e26a41ab';
           
           const current = JSON.parse(localStorage.getItem('writer_studio_projects') || '[]');
-          let filtered = current.filter((p) => p.id !== mTarget.id && p.id !== dTarget.id && p.id !== 'demo-devzen-project');
+          let filtered = current.filter((p: any) => p.id !== mTarget.id && p.id !== dTarget.id && p.id !== 'demo-devzen-project');
           
           filtered.push(mTarget);
           filtered.push(dTarget);

@@ -1847,7 +1847,7 @@ export default function Home() {
           onClick={async () => {
             try {
               const res = await fetch('/safe_restore.json');
-              const data: { projects: any[] } = await res.json();
+              const data: { projects: any[]; themes_metabolismo: any[]; themes_devzen: any[] } = await res.json();
               const m = data.projects.find((p: any) => p.id === '5c24efcd-098c-41f1-88b2-b3173fbeb5eb');
               const d = data.projects.find((p: any) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
               if (!m || !d) { alert('Projetos não encontrados no backup!'); return; }
@@ -1860,19 +1860,28 @@ export default function Home() {
               }
               keysToDelete.forEach(k => localStorage.removeItem(k));
 
-              // Step 2: write only the clean project list
+              // Step 2: write clean project list and themes to localStorage
               localStorage.setItem('writer_studio_projects', JSON.stringify([m, d]));
               localStorage.setItem('writer_studio_projects_backup', JSON.stringify([m, d]));
+              localStorage.setItem(`themes_${m.id}`, JSON.stringify(data.themes_metabolismo));
+              localStorage.setItem(`themes_${d.id}`, JSON.stringify(data.themes_devzen));
 
               // Step 3: strip client-only fields not in Supabase schema
               const cleanProject = (p: any) => {
                 const { is_bootstrap_project: _a, is_recovered_project: _b, recovery_score: _c, ...rest } = p;
                 return rest;
               };
-              const { error } = await supabase.from('projects').upsert([cleanProject(m), cleanProject(d)]);
-              if (error) { alert('Erro ao salvar na nuvem: ' + error.message); return; }
+              const { error: projErr } = await supabase.from('projects').upsert([cleanProject(m), cleanProject(d)]);
+              if (projErr) { alert('Erro ao salvar projetos na nuvem: ' + projErr.message); return; }
 
-              alert('✅ Metabolismo de Ouro e DevZen restaurados na NUVEM! Recarregando...');
+              // Step 4: upsert themes to Supabase
+              const allThemes = [...(data.themes_metabolismo || []), ...(data.themes_devzen || [])];
+              if (allThemes.length > 0) {
+                const { error: themesErr } = await supabase.from('themes').upsert(allThemes);
+                if (themesErr) { alert('Projetos salvos, mas erro nos temas: ' + themesErr.message); }
+              }
+
+              alert('✅ Metabolismo de Ouro + DevZen + Temas restaurados na NUVEM! Recarregando...');
               window.location.reload();
             } catch (e: any) { alert('Erro: ' + e.message); }
           }}

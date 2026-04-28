@@ -1847,21 +1847,28 @@ export default function Home() {
           onClick={async () => {
             try {
               const res = await fetch('/safe_restore.json');
-              const data = await res.json();
-              for (const key of Object.keys(data)) {
-                if (key === 'content_os_active_project') continue;
-                const val = typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]);
-                localStorage.setItem(key, val);
-              }
-              const arr: any[] = JSON.parse(localStorage.getItem('writer_studio_projects') || '[]');
-              const m = arr.find((p: any) => p.id === '5c24efcd-098c-41f1-88b2-b3173fbeb5eb');
-              const d = arr.find((p: any) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
+              const data: { projects: any[] } = await res.json();
+              const m = data.projects.find((p: any) => p.id === '5c24efcd-098c-41f1-88b2-b3173fbeb5eb');
+              const d = data.projects.find((p: any) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
               if (!m || !d) { alert('Projetos não encontrados no backup!'); return; }
-              m.is_bootstrap_project = false; m.is_recovered_project = false;
-              d.is_bootstrap_project = false; d.is_recovered_project = false;
+
+              // Step 1: clear ALL old localStorage to free space
+              const keysToDelete: string[] = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k !== 'content_os_active_project') keysToDelete.push(k);
+              }
+              keysToDelete.forEach(k => localStorage.removeItem(k));
+
+              // Step 2: write only the clean project list
+              localStorage.setItem('writer_studio_projects', JSON.stringify([m, d]));
+              localStorage.setItem('writer_studio_projects_backup', JSON.stringify([m, d]));
+
+              // Step 3: upsert to Supabase so the cloud is the source of truth
               const { error } = await supabase.from('projects').upsert([m, d]);
               if (error) { alert('Erro ao salvar na nuvem: ' + error.message); return; }
-              alert('Restaurado na NUVEM! Recarregando...');
+
+              alert('✅ Metabolismo de Ouro e DevZen restaurados na NUVEM! Recarregando...');
               window.location.reload();
             } catch (e: any) { alert('Erro: ' + e.message); }
           }}

@@ -1884,6 +1884,38 @@ export default function Home() {
           projectName={projectToDelete?.project_name || projectToDelete?.name}
         />
       )}
+
+      {/* DUMP BUTTON FOR DEBUGGING */}
+      <button 
+        onClick={() => {
+          const lsData: any = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+              try { lsData[key] = JSON.parse(localStorage.getItem(key) || '""'); } 
+              catch(e) { lsData[key] = localStorage.getItem(key); }
+            }
+          }
+          
+          // Trigger file download
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(lsData, null, 2));
+          const downloadAnchorNode = document.createElement('a');
+          downloadAnchorNode.setAttribute("href",     dataStr);
+          downloadAnchorNode.setAttribute("download", "meu_diagnostico_metabolismo.json");
+          document.body.appendChild(downloadAnchorNode); // required for firefox
+          downloadAnchorNode.click();
+          downloadAnchorNode.remove();
+          
+          alert("Arquivo baixado! Por favor, arraste e solte o arquivo 'meu_diagnostico_metabolismo.json' no chat.");
+        }}
+        style={{
+          position: 'fixed', top: '10px', left: '50%', transform: 'translateX(-50%)', zIndex: 99999, 
+          padding: '15px 40px', background: '#FF0000', color: '#FFFFFF', 
+          fontSize: '18px', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: '2px solid white', boxShadow: '0 0 20px rgba(255,0,0,0.8)'
+        }}
+      >
+        🆘 CLIQUE AQUI PARA GERAR DIAGNÓSTICO
+      </button>
     </main>
   );
 

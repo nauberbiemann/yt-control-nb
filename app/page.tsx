@@ -1864,8 +1864,12 @@ export default function Home() {
               localStorage.setItem('writer_studio_projects', JSON.stringify([m, d]));
               localStorage.setItem('writer_studio_projects_backup', JSON.stringify([m, d]));
 
-              // Step 3: upsert to Supabase so the cloud is the source of truth
-              const { error } = await supabase.from('projects').upsert([m, d]);
+              // Step 3: strip client-only fields not in Supabase schema
+              const cleanProject = (p: any) => {
+                const { is_bootstrap_project: _a, is_recovered_project: _b, recovery_score: _c, ...rest } = p;
+                return rest;
+              };
+              const { error } = await supabase.from('projects').upsert([cleanProject(m), cleanProject(d)]);
               if (error) { alert('Erro ao salvar na nuvem: ' + error.message); return; }
 
               alert('✅ Metabolismo de Ouro e DevZen restaurados na NUVEM! Recarregando...');

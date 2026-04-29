@@ -1429,6 +1429,9 @@ export default function Home() {
                 {projects.map(project => {
                   const isActive = project.id === activeProjectId;
                   const brandColor = project.accent_color || '#3b82f6';
+                  const isLocalOnly = project.is_recovered_project === true;
+                  const syncLabel = isLocalOnly ? '⚠ Só Local' : '☁ Sincronizado';
+                  const syncColor = isLocalOnly ? 'text-amber-400/80' : 'text-emerald-400/70';
                   
                   return (
                     <div 
@@ -1469,15 +1472,19 @@ export default function Home() {
                       </p>
 
                       <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800/50">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: brandColor }} />
                            <span className="text-[10px] uppercase tracking-widest font-black text-slate-500">{project.visual_style || 'Default'}</span>
                         </div>
-                        <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-bold tracking-wide ${syncColor}`} title={isLocalOnly ? 'Este projeto existe apenas neste navegador. Salve-o para sincronizar com a nuvem.' : 'Projeto sincronizado com a nuvem'}>{syncLabel}</span>
+                          <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                        </div>
                       </div>
                     </div>
                   );
                 })}
+
               </div>
               
               {projects.length === 0 && (

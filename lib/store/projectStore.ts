@@ -417,26 +417,25 @@ const createBootstrapProject = (): Project => ({
 
 const normalizeProjectList = (projects: Project[]) => {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
-  const recoveredProjects = list
-    .filter((project) => project.is_recovered_project)
-    .sort((a, b) => Number(b.recovery_score || getProjectRecoveryScore(b.id)) - Number(a.recovery_score || getProjectRecoveryScore(a.id)));
-  const listWithoutRecovered = list.filter((project) => !project.is_recovered_project);
-  const normalizedList = [...recoveredProjects, ...listWithoutRecovered];
-  const withoutBootstrap = normalizedList.filter((project) => !isBootstrapProject(project));
-  const bootstrapProject = normalizedList.find((project) => isBootstrapProject(project));
 
-  if (recoveredProjects.length > 0) {
-    return [
-      ...recoveredProjects,
-      ...withoutBootstrap.filter((project) => !project.is_recovered_project),
-    ];
-  }
+  // Separate real projects (from cloud/localStorage) from recovered ghost copies
+  const realProjects = list.filter((project) => !project.is_recovered_project);
+  const recoveredProjects = list.filter((project) => project.is_recovered_project);
 
-  if (withoutBootstrap.some(isDevZenLikeProject)) {
-    return withoutBootstrap;
-  }
+  // Real project IDs take priority — recovered copies of same ID are discarded
+  const realIds = new Set(realProjects.map((p) => p.id));
+  const additionalRecovered = recoveredProjects
+    .filter((p) => !realIds.has(p.id)) // only add if there's no real version
+    .sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0));
 
-  if (withoutBootstrap.length > 0 && !bootstrapProject) {
+  const merged = [...realProjects, ...additionalRecovered];
+
+  // Separate bootstrap from real user projects
+  const withoutBootstrap = merged.filter((project) => !isBootstrapProject(project));
+  const bootstrapProject = merged.find((project) => isBootstrapProject(project));
+
+  // If there are real user projects (with or without DevZen name), show them without bootstrap
+  if (withoutBootstrap.some(isDevZenLikeProject) || withoutBootstrap.length > 0) {
     return withoutBootstrap;
   }
 

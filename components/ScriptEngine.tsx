@@ -677,6 +677,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       } else if (snapshot?.externalSrtPipeline) {
         // Backward compat: old snapshots stored it inline
         setExternalSrtPipeline(snapshot.externalSrtPipeline);
+      } else {
+        // Fallback: sentinel may be stale (false) but the key might still exist
+        try {
+          const srtRaw = localStorage.getItem(srtPipelineKey);
+          if (srtRaw) setExternalSrtPipeline(JSON.parse(srtRaw));
+        } catch { /* ignore */ }
       }
 
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
@@ -689,6 +695,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       } else if (snapshot?.postScriptPackage) {
         // Backward compat: old snapshots stored it inline
         setPostScriptPackage(snapshot.postScriptPackage);
+      } else {
+        // Fallback: sentinel may be stale (false) but the key might still exist
+        try {
+          const pkgRaw = localStorage.getItem(postPackageKey);
+          if (pkgRaw) setPostScriptPackage(JSON.parse(pkgRaw));
+        } catch { /* ignore */ }
       }
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao salva.', error);
@@ -1142,8 +1154,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     };
 
     try {
-      // Save large objects first (they're most likely to fail)
-      if (srtPipeline !== undefined) {
+      // Save large objects only when truthy.
+      // IMPORTANT: when null, we intentionally leave the existing key intact.
+      // This prevents a race condition where the auto-save useEffect fires before
+      // React has applied the new state, overwriting saved data with null.
+      // Explicit deletion of these keys happens only in clearExecutionState().
+      if (srtPipeline) {
         try {
           localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
         } catch (quotaErr) {
@@ -1151,8 +1167,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           compactSnapshot._hasSrtPipeline = false;
         }
       }
+      // Note: if srtPipeline is null/undefined we leave the existing key untouched.
+      // _hasSrtPipeline reflects the CURRENT in-memory state, not what's in the key.
 
-      if (postPkg !== undefined) {
+      if (postPkg) {
         try {
           localStorage.setItem(postPackageKey, JSON.stringify(postPkg));
         } catch (quotaErr) {
@@ -1160,6 +1178,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           compactSnapshot._hasPostPackage = false;
         }
       }
+      // Note: if postPkg is null/undefined we leave the existing key untouched.
 
       // Save the compact snapshot (always small enough)
       localStorage.setItem(executionStorageKey, JSON.stringify(compactSnapshot));
@@ -1628,14 +1647,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
     setIsRegeneratingFallbacks(true);
     try {
-      const { engine, model, apiKey } = (() => {
-        const cfg = (useProjectStore.getState() as any)?.activeAIConfig || {};
-        return {
-          engine: (cfg.engine || 'gemini') as 'openai' | 'gemini',
-          model: cfg.model || 'gemini-2.5-flash',
-          apiKey: cfg.apiKey || '',
-        };
-      })();
+      const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+      const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+      const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
 
       const batchItems = fallbackRows.flatMap((row, index) => {
         const type = normalizeAssetType(row.asset);
@@ -1946,7 +1960,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const clearExecutionState = () => {
-    if (executionStorageKey) localStorage.removeItem(executionStorageKey);
+    if (executionStorageKey) {
+      localStorage.removeItem(executionStorageKey);
+      // Also clear the split-storage keys for large objects
+      localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
+      localStorage.removeItem(`${executionStorageKey}_post_package`);
+    }
     setApprovedTheme('');
     setApprovedBriefing(null);
     setScriptStage('blueprint');

@@ -1420,6 +1420,63 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     URL.revokeObjectURL(url);
   };
 
+
+  /**
+   * Builds a rich narrative context string to anchor image/video prompt generation.
+   *
+   * Strategy: per-block summary (first 150 chars per block) so the LLM sees the
+   * FULL narrative structure (Hook → Context → Dev → CTA) regardless of which
+   * part of the SRT is in the current batch.
+   *
+   * Why not truncate by total chars? Cutting at 800 chars loses all blocks after
+   * the first one or two, leaving the LLM blind to the rest of the video.
+   * Why not first-N-blocks? Loses later blocks (Dev, CTA) which cover 60%+ of the SRT.
+   * Per-block summary: ~150 chars × 5-8 blocks ≈ 250-400 tokens — covers everything.
+   */
+  const buildVideoContext = (): string => {
+    const parts: string[] = [];
+
+    // 1. Approved theme (primary anchor)
+    if (approvedTheme) {
+      parts.push(`Video title: ${approvedTheme}`);
+    }
+
+    // 2. Strategic pain point from briefing
+    if (approvedBriefing?.pain_point) {
+      parts.push(`Strategic pain point: ${approvedBriefing.pain_point}`);
+    } else if (approvedBriefing?.theme_title && approvedBriefing.theme_title !== approvedTheme) {
+      parts.push(`Theme: ${approvedBriefing.theme_title}`);
+    }
+
+    // 3. Narrative structure — internal mode: use scriptBlocks (source of truth)
+    //    Since the SRT is the script with timing, every row in the SRT corresponds
+    //    to content from these blocks. Giving the LLM the full block structure lets
+    //    it contextualize any batch regardless of where in the timeline it falls.
+    if (executionMode === 'internal' && scriptBlocks.length > 0) {
+      const blockSummaries = scriptBlocks
+        .filter((b) => b.type !== 'SOP' && b.content?.trim())
+        .map((b) => {
+          const summary = b.content.trim().slice(0, 150);
+          return `[${b.type}: ${b.title}] ${summary}${b.content.trim().length > 150 ? '...' : ''}`;
+        })
+        .join(' | ');
+
+      if (blockSummaries) {
+        parts.push(`Full script structure: ${blockSummaries}`);
+      }
+    }
+
+    // 4. External mode: use the script text directly (SRT == script with timing)
+    if (executionMode === 'external') {
+      const scriptSource = externalScriptText?.trim() || externalSrtText?.trim() || '';
+      if (scriptSource) {
+        parts.push(`Script context: ${scriptSource.slice(0, 500)}${scriptSource.length > 500 ? '...' : ''}`);
+      }
+    }
+
+    return parts.filter(Boolean).join('\n');
+  };
+
   const processAttachedSrtAssets = async () => {
     if (!externalSrtText.trim()) {
       alert('Anexe um arquivo .srt antes de processar os assets.');
@@ -1508,11 +1565,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             model,
             apiKeyOverwrite: apiKey,
             projectConfig: activeProject,
-            videoContext: [
-              approvedTheme ? `Video title: ${approvedTheme}` : '',
-              approvedBriefing?.theme_title ? `Theme: ${approvedBriefing.theme_title}` : '',
-              approvedBriefing?.pain_point ? `Pain point: ${approvedBriefing.pain_point}` : '',
-            ].filter(Boolean).join(' | '),
+            videoContext: buildVideoContext(),
             textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
             characterProfile: {
               mode: videoCharacterMode,
@@ -1684,9 +1737,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           model,
           apiKeyOverwrite: apiKey,
           projectConfig: activeProject,
-          videoContext: [
-            approvedTheme ? `Video title: ${approvedTheme}` : '',
-          ].filter(Boolean).join(' | '),
+          videoContext: buildVideoContext(),
           characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
         }),
       });

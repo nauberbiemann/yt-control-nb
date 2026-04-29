@@ -526,23 +526,46 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       duration_minutes: Number((briefing?.estimatedDuration || '').match(/\d+/)?.[0] || 0) || null,
       voice_pattern: briefing?.diagnostics?.locked?.voicePatternId || null,
       execution_mode: executionSnapshot?.executionMode || executionMode,
-      external_script_text: executionSnapshot?.externalScriptText || '',
+      // Only store file NAMES, not full text content — text is stored in ws_script_execution_* keys to avoid filling localStorage
+      external_script_text: '',    // stripped to save space; lives in ws_script_execution_*
       external_file_name: executionSnapshot?.externalScriptFileName || '',
       external_source_label: executionSnapshot?.externalSourceLabel || '',
-      external_srt_text: executionSnapshot?.externalSrtText || '',
+      external_srt_text: '',       // stripped to save space; lives in ws_script_execution_*
       external_srt_file_name: executionSnapshot?.externalSrtFileName || '',
       target_publish_date: targetPublishDate || null,
       schedule_status: scheduleStatus,
       execution_snapshot: executionSnapshot || null,
     };
 
-    // 2. Strip large objects from execution_snapshot for the themes list to prevent QuotaExceededError
+    // 2. Strip ALL large fields from execution_snapshot for the themes list.
+    //    Large texts (script, SRT, script blocks) only need to live in the workspace key.
+    //    The themes index is for metadata and resume navigation, not for storing full content.
     const compactExecutionSnapshot = executionSnapshot ? {
-      ...executionSnapshot,
+      approvedTheme: executionSnapshot.approvedTheme,
+      approvedBriefing: executionSnapshot.approvedBriefing,
+      scriptStage: executionSnapshot.scriptStage,
+      assemblerActive: executionSnapshot.assemblerActive,
+      thumbnailDirective: executionSnapshot.thumbnailDirective,
+      showThumbnailPanel: executionSnapshot.showThumbnailPanel,
+      thumbnailUrl: executionSnapshot.thumbnailUrl,
+      executionMode: executionSnapshot.executionMode,
+      externalScriptFileName: executionSnapshot.externalScriptFileName,
+      externalSourceLabel: executionSnapshot.externalSourceLabel,
+      externalSrtFileName: executionSnapshot.externalSrtFileName,
+      videoCharacterMode: executionSnapshot.videoCharacterMode,
+      videoCharacterCustom: executionSnapshot.videoCharacterCustom,
+      videoFormat: executionSnapshot.videoFormat,
+      manualPublishDate: executionSnapshot.manualPublishDate,
+      // Stripped: externalScriptText, externalSrtText, scriptBlocks, externalSrtPipeline, postScriptPackage, externalSrtObserver
+      scriptBlocks: [],     // stripped - regenerated from briefing when needed
+      externalScriptText: '',  // stripped
+      externalSrtText: '',     // stripped
       externalSrtPipeline: undefined,
       postScriptPackage: undefined,
+      externalSrtObserver: [],
       _hasSrtPipeline: !!executionSnapshot.externalSrtPipeline,
       _hasPostPackage: !!executionSnapshot.postScriptPackage,
+      _themeId: themeId,
       _isCompact: true,
     } : null;
 
@@ -1138,6 +1161,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
+  const clearPublishDate = async () => {
+    setManualPublishDate('');
+    setManualPublishDraftDate('');
+    setManualPublishDraftTime('');
+    persistExecutionSnapshotLocally({ manualPublishDate: '' });
+    if (approvedBriefing && approvedTheme) {
+      await syncApprovedThemeSnapshot({ manualPublishDate: '' });
+    }
+    showToast('Data de postagem removida. Status voltou para Produção.');
+  };
+
   const resolveSnapshotBlocks = (snapshot: any): ScriptBlock[] => {
     if (Array.isArray(snapshot?.scriptBlocks) && snapshot.scriptBlocks.length > 0) {
       return snapshot.scriptBlocks;
@@ -1169,7 +1203,21 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       ...snapshotWithoutLargeObjects,
       _hasSrtPipeline: !!srtPipeline,
       _hasPostPackage: !!postPkg,
+      _themeId: (snapshot as any)._themeId,
     };
+
+    // Pre-emptive cleanup: remove other projects' workspace keys to free space before writing
+    try {
+      const toClean: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) || '';
+        // Remove workspace keys from other projects
+        if (k.startsWith('ws_script_execution_') && !k.startsWith(executionStorageKey)) toClean.push(k);
+        // Remove any snapshot_ keys (compact, should be tiny, but clean up anyway)
+        if (k.startsWith('snapshot_')) toClean.push(k);
+      }
+      toClean.forEach(k => localStorage.removeItem(k));
+    } catch { /* ignore */ }
 
     try {
       // Save large objects only when truthy.
@@ -3248,6 +3296,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/65 transition-all hover:border-white/20 hover:text-white"
                     >
                       Descartar alteracao
+                    </button>
+                  )}
+                  {manualPublishDate && (
+                    <button
+                      type="button"
+                      onClick={() => { void clearPublishDate(); }}
+                      className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-red-300 transition-all hover:border-red-400/50 hover:bg-red-500/20"
+                    >
+                      Limpar data
                     </button>
                   )}
                 </div>

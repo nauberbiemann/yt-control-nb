@@ -225,6 +225,21 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingTitleUpdate, setPendingTitleUpdate] = useState<{ newTitle: string; oldTitle: string } | null>(null);
+  const [storageUsageMB, setStorageUsageMB] = useState(0);
+
+  const STORAGE_LIMIT_MB = 5;
+  const STORAGE_WARN_THRESHOLD = 0.78; // warn at 78% (~3.9 MB)
+
+  const checkStorageUsage = () => {
+    try {
+      let total = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) || '';
+        total += (localStorage.getItem(k) || '').length * 2; // UTF-16: 2 bytes per char
+      }
+      setStorageUsageMB(total / (1024 * 1024));
+    } catch { /* ignore */ }
+  };
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -782,6 +797,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     postScriptPackage,
   ]);
 
+  // Check storage usage on mount so the badge shows immediately if already high
+  useEffect(() => { checkStorageUsage(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!executionHydrated) return;
     if (approvedBriefing || approvedTheme || externalScriptText || externalSrtText || !assemblerActive) return;
@@ -1154,10 +1172,32 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const applyManualPublishRegistration = async () => {
     const nextValue = composeManualPublishDate(manualPublishDraftDate, manualPublishDraftTime);
+    const newStatus = resolveThemeStatusFromPublishDate(nextValue, 'scripted');
+    const isSchedulingOrPublishing = newStatus === 'scheduled' || newStatus === 'published';
+
     setManualPublishDate(nextValue);
 
+    // When moving to scheduled/published, txt and srt content are no longer needed.
+    // Clear them from state to free localStorage space for the next project in production.
+    if (isSchedulingOrPublishing) {
+      setExternalScriptText('');
+      setExternalSrtText('');
+      setExternalSrtObserver(buildInitialSrtObserver());
+    }
+
     if (approvedBriefing && approvedTheme) {
-      await syncApprovedThemeSnapshot({ manualPublishDate: nextValue });
+      await syncApprovedThemeSnapshot({
+        manualPublishDate: nextValue,
+        ...(isSchedulingOrPublishing ? {
+          externalScriptText: '',
+          externalSrtText: '',
+          externalSrtObserver: [],
+        } : {}),
+      });
+    }
+
+    if (isSchedulingOrPublishing) {
+      showToast('Conteúdo de texto liberado. Espaço de armazenamento otimizado.');
     }
   };
 
@@ -1248,6 +1288,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       // Save the compact snapshot (always small enough)
       localStorage.setItem(executionStorageKey, JSON.stringify(compactSnapshot));
+      // Update storage usage indicator after every write
+      checkStorageUsage();
     } catch (err) {
       console.warn('[ScriptEngine] Falha ao persistir snapshot localmente.', err);
     }
@@ -4280,6 +4322,78 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           }}
         >
           ✓ {toastMessage}
+        </div>
+      )}
+      {storageUsageMB >= STORAGE_LIMIT_MB * STORAGE_WARN_THRESHOLD && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '28px',
+            left: '28px',
+            zIndex: 9998,
+            background: 'rgba(20,12,4,0.95)',
+            border: `1px solid ${storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.4)'}`,
+            borderRadius: '14px',
+            padding: '12px 16px',
+            color: '#fff',
+            fontSize: '11px',
+            fontWeight: 700,
+            backdropFilter: 'blur(14px)',
+            boxShadow: '0 4px 32px rgba(0,0,0,0.5)',
+            minWidth: '240px',
+            maxWidth: '300px',
+          }}
+        >
+          <p style={{ color: storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '#f87171' : '#fbbf24', fontSize: '9px', letterSpacing: '0.2em', marginBottom: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
+            {storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '🔴 Armazenamento crítico' : '⚠️ Armazenamento alto'}
+          </p>
+          {/* Usage bar */}
+          <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px', height: '5px', marginBottom: '8px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${Math.min(100, (storageUsageMB / STORAGE_LIMIT_MB) * 100).toFixed(1)}%`,
+              background: storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '#ef4444' : '#f59e0b',
+              borderRadius: '6px',
+              transition: 'width 0.5s ease',
+            }} />
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '10px', marginBottom: '8px' }}>
+            {storageUsageMB.toFixed(1)} MB de ~{STORAGE_LIMIT_MB} MB usados ({((storageUsageMB / STORAGE_LIMIT_MB) * 100).toFixed(0)}%)
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '9px', lineHeight: 1.5, marginBottom: '8px' }}>
+            Programe os temas prontos para liberar espaço automaticamente.
+          </p>
+          <button
+            onClick={() => {
+              // Purge stale workspace keys and snapshot_ keys to free space
+              try {
+                const toRemove: string[] = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                  const k = localStorage.key(i) || '';
+                  if (k.startsWith('snapshot_')) toRemove.push(k);
+                  if (k.startsWith('ws_script_execution_') && executionStorageKey && !k.startsWith(executionStorageKey)) toRemove.push(k);
+                }
+                toRemove.forEach(k => localStorage.removeItem(k));
+                checkStorageUsage();
+                showToast(`${toRemove.length} entradas antigas removidas.`);
+              } catch { /* ignore */ }
+            }}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '8px',
+              padding: '5px 10px',
+              fontSize: '9px',
+              fontWeight: 900,
+              letterSpacing: '0.15em',
+              color: 'rgba(255,255,255,0.7)',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              width: '100%',
+            }}
+          >
+            Limpar dados antigos
+          </button>
         </div>
       )}
       </div>

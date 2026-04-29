@@ -729,29 +729,58 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
     const { externalSrtPipeline: srtPipeline, postScriptPackage: postPkg, ...compactSnapshot } = workspaceSnapshot as any;
 
+    // Free up space: remove stale dedicated snapshot_ keys for this theme before writing
     try {
-      if (srtPipeline) {
+      // Clean up any old snapshot_ entries that may be taking up space
+      const keysToClean: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) || '';
+        if (k.startsWith('snapshot_') && k !== `snapshot_${theme.id}`) keysToClean.push(k);
+      }
+      keysToClean.forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore cleanup failures */ }
+
+    // Write large objects independently — failure here is non-blocking
+    let hasSrt = false;
+    let hasPost = false;
+
+    if (srtPipeline) {
+      try {
         localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
-      } else {
+        hasSrt = true;
+      } catch (e) {
+        console.warn('[ThemeBank] SRT pipeline too large, skipping (ScriptEngine will have no SRT on resume).', e);
         localStorage.removeItem(srtPipelineKey);
       }
-      
-      if (postPkg) {
+    } else {
+      localStorage.removeItem(srtPipelineKey);
+    }
+
+    if (postPkg) {
+      try {
         localStorage.setItem(postPackageKey, JSON.stringify(postPkg));
-      } else {
+        hasPost = true;
+      } catch (e) {
+        console.warn('[ThemeBank] Post-script package too large, skipping.', e);
         localStorage.removeItem(postPackageKey);
       }
+    } else {
+      localStorage.removeItem(postPackageKey);
+    }
 
+    // Write the compact snapshot (small — always works unless localStorage is entirely full)
+    try {
       localStorage.setItem(executionStorageKey, JSON.stringify({
         ...compactSnapshot,
-        _hasSrtPipeline: !!srtPipeline,
-        _hasPostPackage: !!postPkg,
+        _hasSrtPipeline: hasSrt,
+        _hasPostPackage: hasPost,
       }));
     } catch (e) {
       console.warn('[ThemeBank] Failed to push resumed snapshot to workspace.', e);
       alert('Erro ao tentar retomar o roteiro. Pode haver falta de espaco no navegador.');
       return;
     }
+
 
     closeForm();
     if (onResumeInWriting) {

@@ -544,10 +544,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       execution_snapshot: compactExecutionSnapshot,
     };
 
-    // 3. Save the full execution snapshot in a dedicated localStorage key for this theme
-    if (executionSnapshot) {
+    // 3. Save the COMPACT execution snapshot in a dedicated key for this theme.
+    //    The large objects (SRT pipeline, post-script) live in _srt_pipeline / _post_package keys
+    //    and don't need to be duplicated here — that was causing QuotaExceededErrors.
+    if (compactExecutionSnapshot) {
       try {
-        localStorage.setItem(`snapshot_${themeId}`, JSON.stringify(fullProductionAssets.execution_snapshot));
+        localStorage.setItem(`snapshot_${themeId}`, JSON.stringify(compactExecutionSnapshot));
       } catch (e) {
         console.warn(`[ScriptEngine] Failed to save dedicated snapshot for theme ${themeId}`, e);
       }

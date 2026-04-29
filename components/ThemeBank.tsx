@@ -716,6 +716,15 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       console.warn(`[ThemeBank] Failed to load full snapshot for theme ${theme.id}`, e);
     }
 
+    // Read the existing workspace key — it may have the full text content (scriptText, srtText, scriptBlocks)
+    // that the themes index now strips for space savings.
+    const executionStorageKey = `ws_script_execution_${activeProject.id}`;
+    let existingWorkspace: any = null;
+    try {
+      const existingRaw = localStorage.getItem(executionStorageKey);
+      if (existingRaw) existingWorkspace = JSON.parse(existingRaw);
+    } catch { /* ignore */ }
+
     // Prepare the workspace execution state.
     // Detect if title was changed compared to what was originally approved.
     const originalTitle = (executionSnapshot as any)?.approvedTheme || '';
@@ -723,6 +732,12 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
     const workspaceSnapshot = {
       ...executionSnapshot,
+      // Restore large text fields from the existing workspace key (stripped from themes index)
+      externalScriptText:  (executionSnapshot as any).externalScriptText  || existingWorkspace?.externalScriptText  || '',
+      externalSrtText:     (executionSnapshot as any).externalSrtText     || existingWorkspace?.externalSrtText     || '',
+      scriptBlocks: (Array.isArray((executionSnapshot as any).scriptBlocks) && (executionSnapshot as any).scriptBlocks.length > 0)
+        ? (executionSnapshot as any).scriptBlocks
+        : (existingWorkspace?.scriptBlocks || []),
       approvedTheme: theme.title,          // 🔑 always sync current title
       _themeId: theme.id,                  // 🔑 stable ID to survive title renames
       _pendingTitleUpdate: titleChanged ? theme.title : undefined,
@@ -730,8 +745,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       updated_at: new Date().toISOString(),
     };
 
+
     // The ScriptEngine's new split-storage logic expects SRT and Post-Script to be in separate keys
-    const executionStorageKey = `ws_script_execution_${activeProject.id}`;
     const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
     const postPackageKey = `${executionStorageKey}_post_package`;
 

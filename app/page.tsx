@@ -1617,6 +1617,11 @@ export default function Home() {
               setPendingScript(theme ?? null);
               setCurrentView('scripts');
             }}
+            onResumeInWriting={() => {
+              // Switches to scripts view without setting pendingData, 
+              // allowing ScriptEngine to hydrate from localStorage
+              setCurrentView('scripts');
+            }}
           />;
         case 'scripts':
           return <ScriptEngine 

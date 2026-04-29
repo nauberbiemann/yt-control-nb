@@ -90,6 +90,7 @@ interface ThemeBankProps {
   selectedAIConfig?: any;
   onGerarRoteiro?: (data: any) => void;
   onOpenInWriting?: (theme: any) => void;
+  onResumeInWriting?: () => void;
 }
 
 const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -119,7 +120,7 @@ const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   target_publish_date: '',
 };
 
-export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, onGerarRoteiro, onOpenInWriting }: ThemeBankProps) {
+export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, onGerarRoteiro, onOpenInWriting, onResumeInWriting }: ThemeBankProps) {
   // Zustand store takes priority over prop for isolation guarantee
   const storeProject = useActiveProject();
   const activeProject = storeProject || propProject;
@@ -695,19 +696,67 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const reopenInWriting = (theme: Theme) => {
     if (!activeProject?.id) return;
 
-    const executionSnapshot = theme?.production_assets?.execution_snapshot;
+    let executionSnapshot = theme?.production_assets?.execution_snapshot;
     if (!executionSnapshot) {
       alert('Este tema ainda nao tem um snapshot da Escrita Criativa para retomar.');
       return;
     }
 
-    localStorage.setItem(`ws_script_execution_${activeProject.id}`, JSON.stringify({
+    // Attempt to load the full snapshot from the dedicated key (if it was stripped to save space)
+    try {
+      const fullSnapshotRaw = localStorage.getItem(`snapshot_${theme.id}`);
+      if (fullSnapshotRaw) {
+        const fullSnapshot = JSON.parse(fullSnapshotRaw);
+        executionSnapshot = { ...executionSnapshot, ...fullSnapshot };
+      }
+    } catch (e) {
+      console.warn(`[ThemeBank] Failed to load full snapshot for theme ${theme.id}`, e);
+    }
+
+    // Prepare the workspace execution state
+    const workspaceSnapshot = {
       ...executionSnapshot,
       updated_at: new Date().toISOString(),
-    }));
+    };
+
+    // The ScriptEngine's new split-storage logic expects SRT and Post-Script to be in separate keys
+    const executionStorageKey = `ws_script_execution_${activeProject.id}`;
+    const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
+    const postPackageKey = `${executionStorageKey}_post_package`;
+
+    const { externalSrtPipeline: srtPipeline, postScriptPackage: postPkg, ...compactSnapshot } = workspaceSnapshot as any;
+
+    try {
+      if (srtPipeline) {
+        localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
+      } else {
+        localStorage.removeItem(srtPipelineKey);
+      }
+      
+      if (postPkg) {
+        localStorage.setItem(postPackageKey, JSON.stringify(postPkg));
+      } else {
+        localStorage.removeItem(postPackageKey);
+      }
+
+      localStorage.setItem(executionStorageKey, JSON.stringify({
+        ...compactSnapshot,
+        _hasSrtPipeline: !!srtPipeline,
+        _hasPostPackage: !!postPkg,
+      }));
+    } catch (e) {
+      console.warn('[ThemeBank] Failed to push resumed snapshot to workspace.', e);
+      alert('Erro ao tentar retomar o roteiro. Pode haver falta de espaco no navegador.');
+      return;
+    }
 
     closeForm();
-    onOpenInWriting?.(theme);
+    if (onResumeInWriting) {
+      onResumeInWriting();
+    } else {
+      // Fallback if prop not provided
+      onOpenInWriting?.(theme);
+    }
   };
 
   const structureOptions = projectTitleStructures.map((structure) => ({

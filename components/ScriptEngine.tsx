@@ -499,7 +499,58 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       existingTheme?.description ||
       `Tema aprovado manualmente na Escrita Criativa para o projeto ${activeProject?.name || activeProject?.project_name || 'ativo'}${structureLabel}${pillarLabel}.`;
 
+    const themeId = existingTheme?.id || crypto.randomUUID();
+
+    // 1. Prepare the full production_assets
+    const fullProductionAssets = {
+      source: 'script_engine_manual_approval',
+      approved_at: new Date().toISOString(),
+      hook_id: briefing?.assetLog?.hook || null,
+      cta_id: briefing?.assetLog?.ctaFinal || null,
+      title_structure_id: briefing?.assetLog?.titleStructure || null,
+      narrative_curve_id: briefing?.selectedNarrativeCurve?.id || briefing?.assetLog?.narrativeCurve || null,
+      argument_mode_id: briefing?.selectedArgumentMode?.id || briefing?.assetLog?.argumentMode || null,
+      repetition_rule_ids: briefing?.selectedRepetitionRules?.map((rule: any) => rule.id) || [],
+      block_count: briefing?.blockCount || briefing?.blocks?.length || null,
+      duration_minutes: Number((briefing?.estimatedDuration || '').match(/\d+/)?.[0] || 0) || null,
+      voice_pattern: briefing?.diagnostics?.locked?.voicePatternId || null,
+      execution_mode: executionSnapshot?.executionMode || executionMode,
+      external_script_text: executionSnapshot?.externalScriptText || '',
+      external_file_name: executionSnapshot?.externalScriptFileName || '',
+      external_source_label: executionSnapshot?.externalSourceLabel || '',
+      external_srt_text: executionSnapshot?.externalSrtText || '',
+      external_srt_file_name: executionSnapshot?.externalSrtFileName || '',
+      target_publish_date: targetPublishDate || null,
+      schedule_status: scheduleStatus,
+      execution_snapshot: executionSnapshot || null,
+    };
+
+    // 2. Strip large objects from execution_snapshot for the themes list to prevent QuotaExceededError
+    const compactExecutionSnapshot = executionSnapshot ? {
+      ...executionSnapshot,
+      externalSrtPipeline: undefined,
+      postScriptPackage: undefined,
+      _hasSrtPipeline: !!executionSnapshot.externalSrtPipeline,
+      _hasPostPackage: !!executionSnapshot.postScriptPackage,
+      _isCompact: true,
+    } : null;
+
+    const compactProductionAssets = {
+      ...fullProductionAssets,
+      execution_snapshot: compactExecutionSnapshot,
+    };
+
+    // 3. Save the full execution snapshot in a dedicated localStorage key for this theme
+    if (executionSnapshot) {
+      try {
+        localStorage.setItem(`snapshot_${themeId}`, JSON.stringify(fullProductionAssets.execution_snapshot));
+      } catch (e) {
+        console.warn(`[ScriptEngine] Failed to save dedicated snapshot for theme ${themeId}`, e);
+      }
+    }
+
     const themePayload = {
+      id: themeId,
       title: themeTitle,
       description: resolvedDescription,
       editorial_pillar: resolvedEditorialPillar,
@@ -515,28 +566,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       notes: existingTheme?.notes || 'Origem: tema manual aprovado na Escrita Criativa.',
       match_score: Number(briefing?.diagnostics?.noveltyScore || 0),
       demand_views: existingTheme?.demand_views || '',
-      production_assets: {
-        source: 'script_engine_manual_approval',
-        approved_at: new Date().toISOString(),
-        hook_id: briefing?.assetLog?.hook || null,
-        cta_id: briefing?.assetLog?.ctaFinal || null,
-        title_structure_id: briefing?.assetLog?.titleStructure || null,
-        narrative_curve_id: briefing?.selectedNarrativeCurve?.id || briefing?.assetLog?.narrativeCurve || null,
-        argument_mode_id: briefing?.selectedArgumentMode?.id || briefing?.assetLog?.argumentMode || null,
-        repetition_rule_ids: briefing?.selectedRepetitionRules?.map((rule: any) => rule.id) || [],
-        block_count: briefing?.blockCount || briefing?.blocks?.length || null,
-        duration_minutes: Number((briefing?.estimatedDuration || '').match(/\d+/)?.[0] || 0) || null,
-        voice_pattern: briefing?.diagnostics?.locked?.voicePatternId || null,
-        execution_mode: executionSnapshot?.executionMode || executionMode,
-        external_script_text: executionSnapshot?.externalScriptText || '',
-        external_file_name: executionSnapshot?.externalScriptFileName || '',
-        external_source_label: executionSnapshot?.externalSourceLabel || '',
-        external_srt_text: executionSnapshot?.externalSrtText || '',
-        external_srt_file_name: executionSnapshot?.externalSrtFileName || '',
-        target_publish_date: targetPublishDate || null,
-        schedule_status: scheduleStatus,
-        execution_snapshot: executionSnapshot || null,
-      },
+      production_assets: compactProductionAssets,
       project_id: activeProject.id,
       user_id: activeProject?.user_id || null,
       updated_at: new Date().toISOString(),
@@ -553,11 +583,15 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     } else {
       nextThemes.unshift({
         ...localThemePayload,
-        id: crypto.randomUUID(),
         created_at: new Date().toISOString(),
       });
     }
-    localStorage.setItem(storageKey, JSON.stringify(nextThemes));
+    
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(nextThemes));
+    } catch (e) {
+      console.warn('[ScriptEngine] Quota exceeded saving themes locally.', e);
+    }
 
     if (!supabase) return;
 
@@ -574,6 +608,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         priority: themePayload.priority,
         notes: themePayload.notes,
         updated_at: themePayload.updated_at,
+        production_assets: compactProductionAssets,
       };
 
       const existingRemote = await supabase

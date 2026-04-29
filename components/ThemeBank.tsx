@@ -716,9 +716,11 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       console.warn(`[ThemeBank] Failed to load full snapshot for theme ${theme.id}`, e);
     }
 
-    // Prepare the workspace execution state
+    // Prepare the workspace execution state.
+    // Always use the CURRENT theme.title so edits made in ThemeBank are reflected immediately.
     const workspaceSnapshot = {
       ...executionSnapshot,
+      approvedTheme: theme.title,          // 🔑 sync title edits to the ScriptEngine
       updated_at: new Date().toISOString(),
     };
 

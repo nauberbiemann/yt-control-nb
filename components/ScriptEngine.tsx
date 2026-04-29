@@ -1265,9 +1265,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       // IMPORTANT: when null, we intentionally leave the existing key intact.
       // Explicit deletion of these keys happens only in clearExecutionState().
       if (srtPipeline || postPkg) {
-        if (supabase) {
+        const currentThemeId = (snapshot as any)._themeId;
+        if (supabase && currentThemeId) {
           // CLOUD FIRST: Save heavy assets to script_executions table to avoid QuotaExceededError
-          upsertScriptExecution(themeId, {
+          upsertScriptExecution(currentThemeId, {
             externalSrtPipeline: srtPipeline || undefined,
             postScriptPackage: postPkg || undefined,
           }).catch(err => console.warn('[ScriptEngine] Failed to save heavy assets to Supabase', err));
@@ -2133,13 +2134,6 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       localStorage.removeItem(`${executionStorageKey}_post_package`);
     }
 
-    // Clear cloud state if exists
-    if (supabase && existingTheme?.id) {
-      upsertScriptExecution(existingTheme.id, {
-        externalSrtPipeline: null,
-        postScriptPackage: null
-      }).catch(() => {});
-    }
     setApprovedTheme('');
     setApprovedBriefing(null);
     setScriptStage('blueprint');

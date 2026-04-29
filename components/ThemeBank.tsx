@@ -88,6 +88,7 @@ interface ThemeBankProps {
   activeProject?: any; // Optional: store takes priority
   userId?: string;
   selectedAIConfig?: any;
+  initialExpandedStatus?: string; // Auto-expand this status section on mount
   onGerarRoteiro?: (data: any) => void;
   onOpenInWriting?: (theme: any) => void;
   onResumeInWriting?: () => void;
@@ -120,7 +121,7 @@ const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   target_publish_date: '',
 };
 
-export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, onGerarRoteiro, onOpenInWriting, onResumeInWriting }: ThemeBankProps) {
+export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, initialExpandedStatus, onGerarRoteiro, onOpenInWriting, onResumeInWriting }: ThemeBankProps) {
   // Zustand store takes priority over prop for isolation guarantee
   const storeProject = useActiveProject();
   const activeProject = storeProject || propProject;
@@ -138,7 +139,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const [projectTitleStructures, setProjectTitleStructures] = useState<TitleStructureAsset[]>(DEFAULT_TITLE_STRUCTURES);
 
   // Accordion & Sorting states
-  const [expandedStatuses, setExpandedStatuses] = useState<string[]>([]);
+  const [expandedStatuses, setExpandedStatuses] = useState<string[]>(
+    initialExpandedStatus ? [initialExpandedStatus] : []
+  );
   const [sortConfigs, setSortConfigs] = useState<Record<string, 'priority' | 'date_desc' | 'date_asc'>>({});
 
   const toggleStatus = (status: string) => {

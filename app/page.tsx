@@ -384,6 +384,7 @@ export default function Home() {
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [activeAIConfig, setActiveAIConfig] = useState<AIConfig>(DEFAULT_CONFIG);
   const [pendingScript, setPendingScript] = useState<any>(null);
+  const [themeBankInitialStatus, setThemeBankInitialStatus] = useState<string | undefined>(undefined);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectSyncStatus, setProjectSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
   const hasInitialized = useRef(false);
@@ -1273,7 +1274,11 @@ export default function Home() {
 
             {/* 2. Cards de Resumo */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="glass-card flex items-center gap-4 bg-emerald-500/5 border-emerald-500/20">
+              <button
+                onClick={() => { if (activeProject) { setThemeBankInitialStatus('published'); setCurrentView('themes'); } }}
+                disabled={!activeProject}
+                className="glass-card flex items-center gap-4 bg-emerald-500/5 border-emerald-500/20 text-left w-full transition-all hover:scale-[1.02] hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
                 <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
                   <CheckSquare size={24} />
                 </div>
@@ -1281,8 +1286,12 @@ export default function Home() {
                   <p className="text-2xl font-black text-white leading-none">{stats.finished}</p>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Fenômenos Publicados</p>
                 </div>
-              </div>
-              <div className="glass-card flex items-center gap-4 bg-blue-500/5 border-blue-500/20">
+              </button>
+              <button
+                onClick={() => { if (activeProject) { setThemeBankInitialStatus('backlog'); setCurrentView('themes'); } }}
+                disabled={!activeProject}
+                className="glass-card flex items-center gap-4 bg-blue-500/5 border-blue-500/20 text-left w-full transition-all hover:scale-[1.02] hover:border-blue-500/40 hover:shadow-lg hover:shadow-blue-500/5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
                 <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-500">
                   <Lightbulb size={24} />
                 </div>
@@ -1290,8 +1299,12 @@ export default function Home() {
                   <p className="text-2xl font-black text-white leading-none">{stats.pending}</p>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Temas Qualificados</p>
                 </div>
-              </div>
-              <div className="glass-card flex items-center gap-4 bg-amber-500/5 border-amber-500/20">
+              </button>
+              <button
+                onClick={() => { if (activeProject) { setThemeBankInitialStatus('scripted'); setCurrentView('themes'); } }}
+                disabled={!activeProject}
+                className="glass-card flex items-center gap-4 bg-amber-500/5 border-amber-500/20 text-left w-full transition-all hover:scale-[1.02] hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
                 <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500">
                   <Cpu size={24} />
                 </div>
@@ -1299,8 +1312,12 @@ export default function Home() {
                   <p className="text-2xl font-black text-white leading-none">{stats.production}</p>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Scripts em Produção</p>
                 </div>
-              </div>
-              <div className="glass-card flex items-center gap-4 bg-orange-500/5 border-orange-500/20">
+              </button>
+              <button
+                onClick={() => { if (activeProject) { setThemeBankInitialStatus('scheduled'); setCurrentView('themes'); } }}
+                disabled={!activeProject}
+                className="glass-card flex items-center gap-4 bg-orange-500/5 border-orange-500/20 text-left w-full transition-all hover:scale-[1.02] hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
                 <div className="w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center text-orange-400">
                   <Clock size={24} />
                 </div>
@@ -1308,7 +1325,7 @@ export default function Home() {
                   <p className="text-2xl font-black text-white leading-none">{stats.scheduled}</p>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mt-1">Posts Programados</p>
                 </div>
-              </div>
+              </button>
             </div>
 
             {/* 3. Bloco Principal Form + Dicas */}
@@ -1612,6 +1629,7 @@ export default function Home() {
             activeProject={activeProject} 
             userId={user?.id} 
             selectedAIConfig={activeAIConfig}
+            initialExpandedStatus={themeBankInitialStatus}
             onGerarRoteiro={handleGerarRoteiro}
             onOpenInWriting={(theme) => {
               setPendingScript(theme ?? null);

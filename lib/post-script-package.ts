@@ -102,10 +102,31 @@ const cleanPreview = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const extractSfxExcerpt = (value: string) => {
+const extractSfxExcerpt = (value: string, matchIndex: number = -1) => {
   const clean = cleanPreview(value);
-  const words = clean.split(/\s+/).slice(0, 12).join(' ').trim();
-  return words.length < clean.length ? `${words}...` : words;
+  if (matchIndex === -1 || matchIndex >= clean.length) {
+    const words = clean.split(/\s+/).slice(0, 12).join(' ').trim();
+    return words.length < clean.length ? `${words}...` : words;
+  }
+
+  const windowSize = 60;
+  let start = Math.max(0, matchIndex - windowSize);
+  let end = Math.min(clean.length, matchIndex + windowSize);
+  
+  if (start > 0) {
+    const spaceIdx = clean.indexOf(' ', start);
+    if (spaceIdx !== -1 && spaceIdx < matchIndex) start = spaceIdx + 1;
+  }
+  if (end < clean.length) {
+    const spaceIdx = clean.lastIndexOf(' ', end);
+    if (spaceIdx !== -1 && spaceIdx > matchIndex) end = spaceIdx;
+  }
+  
+  let excerpt = clean.slice(start, end).trim();
+  if (start > 0) excerpt = `...${excerpt}`;
+  if (end < clean.length) excerpt = `${excerpt}...`;
+  
+  return excerpt;
 };
 
 const cleanInlineLabelHuman = (value: string) =>
@@ -176,13 +197,19 @@ const cleanInlineLabel = (value: string) =>
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const SFX_SEMANTIC_PATTERNS: Array<{ regex: RegExp; score: number; rationale: string }> = [
+  // Tech/Dev niche (existing)
   { regex: /\b(crash|colapso|pane|quebra|quebrou)\b/gi, score: 5, rationale: 'momento de colapso ou falha' },
-  { regex: /\b(alerta|alarme|critico|critica|urgente)\b/gi, score: 4, rationale: 'sinal de alerta ou urgencia' },
-  { regex: /\b(virada|mudanca|decisao|aceitei|percebi|entendi|clareza)\b/gi, score: 4, rationale: 'virada ou realizacao importante' },
   { regex: /\b(sobrecarga|burnout|exaust|cansaco|esgotamento)\b/gi, score: 5, rationale: 'trecho de desgaste ou pressao alta' },
-  { regex: /\b(foco|prioridade|disciplina|limite|protocolo|regra)\b/gi, score: 3, rationale: 'trecho de direcionamento pratico' },
   { regex: /\b(slap|glitch|erro|bug|falha|loop)\b/gi, score: 4, rationale: 'linguagem de falha ou disrupcao' },
   { regex: /\b(reconstrucao|recuperacao|reinicio|reboot|calma|controle)\b/gi, score: 3, rationale: 'trecho de recuperacao ou estabilizacao' },
+  // Universal Narrative / Hooks
+  { regex: /\b(alerta|alarme|critico|urgente|atencao|cuidado|perigo|risco)\b/gi, score: 4, rationale: 'sinal de alerta ou urgencia' },
+  { regex: /\b(virada|mudanca|decisao|aceitei|percebi|entendi|clareza|descobri|revelacao)\b/gi, score: 4, rationale: 'virada ou realizacao importante' },
+  { regex: /\b(foco|prioridade|disciplina|limite|regra|solucao|estrategia|metodo|passo)\b/gi, score: 3, rationale: 'direcionamento pratico ou solucao' },
+  { regex: /\b(surpresa|incrivel|chocante|inesperado|bizarro|absurdo)\b/gi, score: 4, rationale: 'momento de choque ou surpresa' },
+  { regex: /\b(segredo|misterio|verdade|mentira|mito|oculto|escondido)\b/gi, score: 4, rationale: 'revelacao de segredo ou mito' },
+  { regex: /\b(sucesso|conquista|vitoria|resultado|lucro|crescimento|aumento|esforco)\b/gi, score: 4, rationale: 'momento de conquista ou impacto' },
+  { regex: /\b(dor|problema|dificuldade|obstaculo|barreira|medo|frustracao|crise)\b/gi, score: 4, rationale: 'ponto de dor ou obstaculo' },
 ];
 
 export const buildScriptTranscript = (blocks: PostScriptScriptBlock[]) =>
@@ -279,22 +306,28 @@ const blockTimeMetadata = ({
 const scoreSemanticCandidate = (text: string) => {
   let score = 0;
   const rationales = new Set<string>();
+  let bestMatchIndex = -1;
 
   for (const pattern of SFX_SEMANTIC_PATTERNS) {
-    const matches = text.match(pattern.regex);
-    if (!matches?.length) continue;
-    score += pattern.score * matches.length;
-    rationales.add(pattern.rationale);
+    const regex = new RegExp(pattern.regex.source, pattern.regex.flags.replace('g', '') + 'g');
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      score += pattern.score;
+      rationales.add(`${pattern.rationale} ("${match[0]}")`);
+      if (bestMatchIndex === -1) bestMatchIndex = match.index;
+    }
   }
 
   if (/[!?]/.test(text)) {
     score += 1;
     rationales.add('trecho com carga de impacto');
+    if (bestMatchIndex === -1) bestMatchIndex = text.search(/[!?]/);
   }
 
   return {
     score,
-    rationale: Array.from(rationales).join(', ') || 'trecho de impacto semantico',
+    rationale: Array.from(rationales).join('; ') || 'trecho de impacto semantico',
+    bestMatchIndex
   };
 };
 
@@ -700,11 +733,19 @@ export const buildSfxAnchorPlan = ({
 
   const semanticCandidates = timeline
     .map((item) => {
-      const { score, rationale } = scoreSemanticCandidate(`${item.block.title} ${item.block.content}`);
+      const { score, rationale, bestMatchIndex } = scoreSemanticCandidate(`${item.block.title} ${item.block.content}`);
+      let contentMatchIndex = -1;
+      const titleLen = (item.block.title || '').length + 1;
+      if (bestMatchIndex >= titleLen) {
+        contentMatchIndex = bestMatchIndex - titleLen;
+      } else if (bestMatchIndex !== -1) {
+        contentMatchIndex = 0;
+      }
       return {
         ...item,
         score,
         rationale,
+        contentMatchIndex
       };
     })
     .filter((item) => item.score > 0)
@@ -717,7 +758,7 @@ export const buildSfxAnchorPlan = ({
       seconds: item.seconds,
       layer: 'semantic',
       rationale: item.rationale,
-      excerpt: extractSfxExcerpt(item.block?.content || ''),
+      excerpt: extractSfxExcerpt(item.block?.content || '', item.contentMatchIndex),
     });
   }
 

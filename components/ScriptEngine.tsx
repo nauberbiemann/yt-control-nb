@@ -1246,14 +1246,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       _themeId: (snapshot as any)._themeId,
     };
 
-    // Pre-emptive cleanup: remove other projects' workspace keys to free space before writing
+    // Pre-emptive cleanup: remove stale snapshot_ keys only (safe — these are small, per-theme compact snapshots)
     try {
       const toClean: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i) || '';
-        // Remove workspace keys from other projects
-        if (k.startsWith('ws_script_execution_') && !k.startsWith(executionStorageKey)) toClean.push(k);
-        // Remove any snapshot_ keys (compact, should be tiny, but clean up anyway)
         if (k.startsWith('snapshot_')) toClean.push(k);
       }
       toClean.forEach(k => localStorage.removeItem(k));
@@ -4365,13 +4362,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           </p>
           <button
             onClick={() => {
-              // Purge stale workspace keys and snapshot_ keys to free space
+              // Purge stale snapshot_ keys only — never touch other projects' workspace keys
               try {
                 const toRemove: string[] = [];
                 for (let i = 0; i < localStorage.length; i++) {
                   const k = localStorage.key(i) || '';
                   if (k.startsWith('snapshot_')) toRemove.push(k);
-                  if (k.startsWith('ws_script_execution_') && executionStorageKey && !k.startsWith(executionStorageKey)) toRemove.push(k);
                 }
                 toRemove.forEach(k => localStorage.removeItem(k));
                 checkStorageUsage();

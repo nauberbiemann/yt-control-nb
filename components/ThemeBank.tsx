@@ -717,10 +717,15 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     }
 
     // Prepare the workspace execution state.
-    // Always use the CURRENT theme.title so edits made in ThemeBank are reflected immediately.
+    // Detect if title was changed compared to what was originally approved.
+    const originalTitle = (executionSnapshot as any)?.approvedTheme || '';
+    const titleChanged = originalTitle && originalTitle !== theme.title;
+
     const workspaceSnapshot = {
       ...executionSnapshot,
-      approvedTheme: theme.title,          // 🔑 sync title edits to the ScriptEngine
+      approvedTheme: theme.title,          // 🔑 always sync current title
+      _pendingTitleUpdate: titleChanged ? theme.title : undefined,
+      _originalApprovedTitle: titleChanged ? originalTitle : undefined,
       updated_at: new Date().toISOString(),
     };
 
@@ -1145,13 +1150,31 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1 block">Título do Tema *</label>
-                  <input
-                    value={form.title}
-                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                    placeholder="Ex: Por que 80% das pessoas falham em..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white placeholder-white/20 outline-none focus:border-sage/40 font-bold"
-                  />
+                  {(() => {
+                    const isLocked = editingTheme && (editingTheme.status === 'published' || editingTheme.status === 'scheduled');
+                    return (
+                      <>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1 flex items-center gap-1">
+                          Título do Tema *
+                          {isLocked && <span title="Tema publicado ou programado: título bloqueado para evitar inconsistência nos assets já gerados." className="text-amber-400 cursor-help">🔒</span>}
+                        </label>
+                        <input
+                          value={form.title}
+                          onChange={e => !isLocked && setForm(f => ({ ...f, title: e.target.value }))}
+                          readOnly={!!isLocked}
+                          placeholder="Ex: Por que 80% das pessoas falham em..."
+                          className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-[11px] placeholder-white/20 outline-none font-bold ${
+                            isLocked
+                              ? 'border-amber-500/20 text-white/40 cursor-not-allowed'
+                              : 'border-white/10 text-white focus:border-sage/40'
+                          }`}
+                        />
+                        {isLocked && (
+                          <p className="text-[9px] text-amber-400/60 mt-1">Tema {editingTheme.status === 'published' ? 'publicado' : 'programado'}: título bloqueado. Edição só disponível em Produção.</p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="col-span-2">
                   <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1 block">Descrição / Ângulo</label>

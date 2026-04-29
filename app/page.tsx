@@ -386,6 +386,7 @@ export default function Home() {
   const [pendingScript, setPendingScript] = useState<any>(null);
   const [themeBankInitialStatus, setThemeBankInitialStatus] = useState<string | undefined>(undefined);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [scriptResumeKey, setScriptResumeKey] = useState(0); // incremented on resume to force ScriptEngine re-hydration
   const [projectSyncStatus, setProjectSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
   const hasInitialized = useRef(false);
   const isMasterUser = isMasterAccessEmail(user?.email);
@@ -1645,13 +1646,15 @@ export default function Home() {
               setCurrentView('scripts');
             }}
             onResumeInWriting={() => {
-              // Switches to scripts view without setting pendingData, 
-              // allowing ScriptEngine to hydrate from localStorage
+              // Increment resumeKey to force ScriptEngine to remount and re-hydrate from localStorage
+              // (ThemeBank already wrote the updated snapshot with the new title + _pendingTitleUpdate flag)
+              setScriptResumeKey(k => k + 1);
               setCurrentView('scripts');
             }}
           />;
         case 'scripts':
           return <ScriptEngine 
+            key={`script-engine-${scriptResumeKey}`}
             activeProject={activeProject} 
             pendingData={pendingScript}
             onClearPending={() => setPendingScript(null)}

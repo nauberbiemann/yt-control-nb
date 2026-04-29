@@ -223,6 +223,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isRegeneratingFallbacks, setIsRegeneratingFallbacks] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [pendingTitleUpdate, setPendingTitleUpdate] = useState<{ newTitle: string; oldTitle: string } | null>(null);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -672,6 +673,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
       if (snapshot?.videoFormat === 'faceless' || snapshot?.videoFormat === 'avatar') setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
+      // Detect pending title update injected by ThemeBank on resume
+      if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
+        setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
+      }
       // Read large objects from their dedicated keys (split-storage pattern)
       const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
       const postPackageKey = `${executionStorageKey}_post_package`;
@@ -3053,6 +3058,48 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
         {approvedBriefing && (
           <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-blue-500/[0.035] border border-blue-500/18 rounded-[28px] shadow-[0_0_40px_rgba(59,130,246,0.08)] space-y-5">
+            {/* ⚡ Title-changed banner */}
+            {pendingTitleUpdate && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-0.5">⚡ Título alterado</p>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    O tema foi renomeado para <span className="text-amber-300 font-bold">&ldquo;{pendingTitleUpdate.newTitle}&rdquo;</span>. Os blocos abaixo ainda usam o tema anterior.
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      setApprovedTheme(pendingTitleUpdate.newTitle);
+                      setPendingTitleUpdate(null);
+                      persistExecutionSnapshotLocally();
+                      showToast('Título atualizado. Blocos mantidos.');
+                    }}
+                    className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all"
+                  >
+                    Manter blocos
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!approvedBriefing) return;
+                      const newTitle = pendingTitleUpdate.newTitle;
+                      setApprovedTheme(newTitle);
+                      const updatedBriefing = { ...approvedBriefing, title: newTitle };
+                      setApprovedBriefing(updatedBriefing);
+                      const newBlocks = buildScriptBlocksFromBriefing(updatedBriefing, newTitle);
+                      setScriptBlocks(newBlocks);
+                      setScriptStage('blueprint');
+                      setPendingTitleUpdate(null);
+                      persistExecutionSnapshotLocally();
+                      showToast('Blocos regenerados com o novo tema!');
+                    }}
+                    className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-amber-500 hover:bg-amber-400 text-black transition-all"
+                  >
+                    Regenerar blocos
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="min-w-0 space-y-2">
               <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-300">Briefing aprovado</p>
               <p className="max-w-3xl text-[11px] text-white/45 leading-relaxed">

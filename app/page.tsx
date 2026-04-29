@@ -1170,7 +1170,9 @@ export default function Home() {
               const pending: string[] = JSON.parse(localStorage.getItem('_pending_project_sync') || '[]');
               localStorage.setItem('_pending_project_sync', JSON.stringify(pending.filter((id) => id !== projectData.id)));
             } catch {}
-            projectStore.loadProjects();
+            // ⚠️ DO NOT call loadProjects() here. The local state was already updated
+            // (line ~1137) and persisted. Calling loadProjects() here causes a race condition
+            // where Supabase (which may only have 1 project synced) overwrites the full local list.
           }
         });
       }

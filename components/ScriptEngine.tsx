@@ -74,6 +74,7 @@ interface ExecutionSnapshot {
   externalSrtPipeline: SrtAssetPipelineResult | null;
   externalSrtObserver: SrtPipelineObserverStep[];
   postScriptPackage: PostScriptPackage | null;
+  _themeId?: string; // stable ID to find the theme even after a title rename
 }
 
 interface ScriptEngineProps {
@@ -464,9 +465,14 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
     const storageKey = `themes_${activeProject.id}`;
     const existingThemes = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const themeIndex = existingThemes.findIndex((item: any) =>
+    // Primary search: by title. Fallback: by theme ID stored in the snapshot (handles renamed themes)
+    const snapshotThemeId = (executionSnapshot as any)?._themeId || null;
+    let themeIndex = existingThemes.findIndex((item: any) =>
       item?.title?.trim().toLowerCase() === themeTitle.trim().toLowerCase()
     );
+    if (themeIndex < 0 && snapshotThemeId) {
+      themeIndex = existingThemes.findIndex((item: any) => item?.id === snapshotThemeId);
+    }
     const targetPublishDate = executionSnapshot?.manualPublishDate || manualPublishDate;
     const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
 

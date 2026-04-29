@@ -724,6 +724,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     const workspaceSnapshot = {
       ...executionSnapshot,
       approvedTheme: theme.title,          // 🔑 always sync current title
+      _themeId: theme.id,                  // 🔑 stable ID to survive title renames
       _pendingTitleUpdate: titleChanged ? theme.title : undefined,
       _originalApprovedTitle: titleChanged ? originalTitle : undefined,
       updated_at: new Date().toISOString(),
@@ -747,20 +748,31 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       keysToClean.forEach((k) => localStorage.removeItem(k));
     } catch { /* ignore cleanup failures */ }
 
-    // Write large objects independently — failure here is non-blocking
+    // Write large objects independently — failure here is non-blocking.
+    // IMPORTANT: if the compact snapshot doesn't have the large object (it was stripped to save space),
+    // the dedicated key (_srt_pipeline / _post_package) already exists from persistExecutionSnapshotLocally.
+    // We must NOT remove those keys — just check their current presence.
     let hasSrt = false;
     let hasPost = false;
 
     if (srtPipeline) {
+      // Full snapshot had it inline — write it
       try {
         localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
         hasSrt = true;
       } catch (e) {
-        console.warn('[ThemeBank] SRT pipeline too large, skipping (ScriptEngine will have no SRT on resume).', e);
+        console.warn('[ThemeBank] SRT pipeline too large, skipping.', e);
         localStorage.removeItem(srtPipelineKey);
       }
     } else {
-      localStorage.removeItem(srtPipelineKey);
+      // Not inline — check if the dedicated key already has data (from a prior persistExecutionSnapshotLocally)
+      const existingSrt = localStorage.getItem(srtPipelineKey);
+      if (existingSrt) {
+        hasSrt = true;  // keep it as-is
+      } else if (compactSnapshot._hasSrtPipeline === false) {
+        localStorage.removeItem(srtPipelineKey);  // genuinely absent
+      }
+      // if _hasSrtPipeline is true but key is missing, hasSrt stays false (data lost, nothing we can do)
     }
 
     if (postPkg) {
@@ -772,7 +784,12 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         localStorage.removeItem(postPackageKey);
       }
     } else {
-      localStorage.removeItem(postPackageKey);
+      const existingPost = localStorage.getItem(postPackageKey);
+      if (existingPost) {
+        hasPost = true;  // keep it as-is
+      } else if (compactSnapshot._hasPostPackage === false) {
+        localStorage.removeItem(postPackageKey);  // genuinely absent
+      }
     }
 
     // Write the compact snapshot (small — always works unless localStorage is entirely full)

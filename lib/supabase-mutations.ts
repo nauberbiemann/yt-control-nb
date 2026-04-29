@@ -218,3 +218,62 @@ export async function fetchLastCompositions(projectId: string, limit = 3): Promi
     return remoteEntries.slice(0, limit);
   }
 }
+
+// ─── SCRIPT EXECUTIONS (HEAVY ASSETS) ────────────────────────────────────────
+
+export async function upsertScriptExecution(themeId: string, executionSnapshot: any): Promise<{ data: any; error: any }> {
+  const projectId = useProjectStore.getState().activeProjectId;
+
+  if (!projectId) {
+    return { data: null, error: new Error('No active project selected.') };
+  }
+
+  if (!supabase) {
+    return { data: null, error: new Error('Supabase not configured.') };
+  }
+
+  try {
+    // Check if it exists for this theme
+    const { data: existing } = await supabase
+      .from('script_executions')
+      .select('id')
+      .eq('theme_id', themeId)
+      .single();
+
+    if (existing?.id) {
+      return supabase
+        .from('script_executions')
+        .update({ 
+          execution_snapshot: executionSnapshot, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+    } else {
+      return supabase
+        .from('script_executions')
+        .insert({ 
+          project_id: projectId, 
+          theme_id: themeId, 
+          execution_snapshot: executionSnapshot 
+        })
+        .select()
+        .single();
+    }
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}
+
+export async function getScriptExecution(themeId: string): Promise<{ data: any; error: any }> {
+  if (!supabase) {
+    return { data: null, error: new Error('Supabase not configured.') };
+  }
+
+  return supabase
+    .from('script_executions')
+    .select('execution_snapshot')
+    .eq('theme_id', themeId)
+    .single();
+}

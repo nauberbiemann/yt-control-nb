@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
-import { immutableInsert } from '@/lib/supabase-mutations';
+import { immutableInsert, upsertScriptExecution, getScriptExecution } from '@/lib/supabase-mutations';
 import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText } from 'lucide-react';
 import {
   applyAssetRules,
@@ -721,43 +721,47 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
       }
-      // Read large objects from their dedicated keys (split-storage pattern)
+      // Read large objects (Cloud First, fallback to LocalStorage split-storage pattern)
       const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
       const postPackageKey = `${executionStorageKey}_post_package`;
 
-      if (snapshot?._hasSrtPipeline) {
-        try {
-          const srtRaw = localStorage.getItem(srtPipelineKey);
-          if (srtRaw) setExternalSrtPipeline(JSON.parse(srtRaw));
-        } catch { /* ignore */ }
-      } else if (snapshot?.externalSrtPipeline) {
-        // Backward compat: old snapshots stored it inline
-        setExternalSrtPipeline(snapshot.externalSrtPipeline);
-      } else {
-        // Fallback: sentinel may be stale (false) but the key might still exist
-        try {
-          const srtRaw = localStorage.getItem(srtPipelineKey);
-          if (srtRaw) setExternalSrtPipeline(JSON.parse(srtRaw));
-        } catch { /* ignore */ }
-      }
+      const loadHeavyAssets = async () => {
+        let loadedSrt = null;
+        let loadedPost = null;
+
+        if (supabase && snapshot?._themeId) {
+          const { data } = await getScriptExecution(snapshot._themeId);
+          if (data?.execution_snapshot) {
+            loadedSrt = data.execution_snapshot.externalSrtPipeline;
+            loadedPost = data.execution_snapshot.postScriptPackage;
+          }
+        }
+
+        // Fallback to local if cloud didn't have it (or offline)
+        if (!loadedSrt) {
+          try {
+            const srtRaw = localStorage.getItem(srtPipelineKey);
+            if (srtRaw) loadedSrt = JSON.parse(srtRaw);
+          } catch { /* ignore */ }
+          if (!loadedSrt && snapshot?.externalSrtPipeline) loadedSrt = snapshot.externalSrtPipeline; // old compat
+        }
+
+        if (!loadedPost) {
+          try {
+            const pkgRaw = localStorage.getItem(postPackageKey);
+            if (pkgRaw) loadedPost = JSON.parse(pkgRaw);
+          } catch { /* ignore */ }
+          if (!loadedPost && snapshot?.postScriptPackage) loadedPost = snapshot.postScriptPackage; // old compat
+        }
+
+        if (loadedSrt) setExternalSrtPipeline(loadedSrt);
+        if (loadedPost) setPostScriptPackage(loadedPost);
+      };
+
+      // Fire and forget: load heavy assets in background
+      loadHeavyAssets();
 
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
-
-      if (snapshot?._hasPostPackage) {
-        try {
-          const pkgRaw = localStorage.getItem(postPackageKey);
-          if (pkgRaw) setPostScriptPackage(JSON.parse(pkgRaw));
-        } catch { /* ignore */ }
-      } else if (snapshot?.postScriptPackage) {
-        // Backward compat: old snapshots stored it inline
-        setPostScriptPackage(snapshot.postScriptPackage);
-      } else {
-        // Fallback: sentinel may be stale (false) but the key might still exist
-        try {
-          const pkgRaw = localStorage.getItem(postPackageKey);
-          if (pkgRaw) setPostScriptPackage(JSON.parse(pkgRaw));
-        } catch { /* ignore */ }
-      }
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao salva.', error);
     } finally {
@@ -1259,29 +1263,34 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     try {
       // Save large objects only when truthy.
       // IMPORTANT: when null, we intentionally leave the existing key intact.
-      // This prevents a race condition where the auto-save useEffect fires before
-      // React has applied the new state, overwriting saved data with null.
       // Explicit deletion of these keys happens only in clearExecutionState().
-      if (srtPipeline) {
-        try {
-          localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
-        } catch (quotaErr) {
-          console.warn('[ScriptEngine] SRT pipeline too large for localStorage, skipping persistence of that field.', quotaErr);
-          compactSnapshot._hasSrtPipeline = false;
+      if (srtPipeline || postPkg) {
+        if (supabase) {
+          // CLOUD FIRST: Save heavy assets to script_executions table to avoid QuotaExceededError
+          upsertScriptExecution(themeId, {
+            externalSrtPipeline: srtPipeline || undefined,
+            postScriptPackage: postPkg || undefined,
+          }).catch(err => console.warn('[ScriptEngine] Failed to save heavy assets to Supabase', err));
+        } else {
+          // OFFLINE FALLBACK: Save to localStorage (may throw QuotaExceededError)
+          if (srtPipeline) {
+            try {
+              localStorage.setItem(srtPipelineKey, JSON.stringify(srtPipeline));
+            } catch (quotaErr) {
+              console.warn('[ScriptEngine] SRT pipeline too large for localStorage, skipping persistence of that field.', quotaErr);
+              compactSnapshot._hasSrtPipeline = false;
+            }
+          }
+          if (postPkg) {
+            try {
+              localStorage.setItem(postPackageKey, JSON.stringify(postPkg));
+            } catch (quotaErr) {
+              console.warn('[ScriptEngine] Post-script package too large for localStorage, skipping persistence of that field.', quotaErr);
+              compactSnapshot._hasPostPackage = false;
+            }
+          }
         }
       }
-      // Note: if srtPipeline is null/undefined we leave the existing key untouched.
-      // _hasSrtPipeline reflects the CURRENT in-memory state, not what's in the key.
-
-      if (postPkg) {
-        try {
-          localStorage.setItem(postPackageKey, JSON.stringify(postPkg));
-        } catch (quotaErr) {
-          console.warn('[ScriptEngine] Post-script package too large for localStorage, skipping persistence of that field.', quotaErr);
-          compactSnapshot._hasPostPackage = false;
-        }
-      }
-      // Note: if postPkg is null/undefined we leave the existing key untouched.
 
       // Save the compact snapshot (always small enough)
       localStorage.setItem(executionStorageKey, JSON.stringify(compactSnapshot));
@@ -2122,6 +2131,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       // Also clear the split-storage keys for large objects
       localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
       localStorage.removeItem(`${executionStorageKey}_post_package`);
+    }
+
+    // Clear cloud state if exists
+    if (supabase && existingTheme?.id) {
+      upsertScriptExecution(existingTheme.id, {
+        externalSrtPipeline: null,
+        postScriptPackage: null
+      }).catch(() => {});
     }
     setApprovedTheme('');
     setApprovedBriefing(null);

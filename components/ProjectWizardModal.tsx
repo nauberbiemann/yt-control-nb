@@ -149,7 +149,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       phd_strategy: normalizePhdStrategy(d.phd_strategy || {}),
       persona_matrix: normalizePersonaMatrix(d.persona_matrix || {}, d.target_persona || {}),
       
-      // Stage 2: InteligÃªncia (Editorial)
+      // Stage 2: Inteligência (Editorial)
       editorial_line: normalizeEditorialLine(d.editorial_line || {}),
       narrative_voice: normalizeNarrativeVoice(d.narrative_voice || {}),
       
@@ -287,7 +287,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <div key={f} className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
                   <label className="text-[9px] font-black uppercase text-white/60 tracking-widest">{f}</label>
                   <p className="text-[8px] uppercase font-bold text-white/40 leading-tight mt-0.5 mb-3">
-                    {f === 'passion' ? 'O que te move por anos' : f === 'skill' ? 'Sua autoridade técnica' : 'Volume de audiÃªncia real'}
+                    {f === 'passion' ? 'O que te move por anos' : f === 'skill' ? 'Sua autoridade técnica' : 'Volume de audiência real'}
                   </p>
                   <textarea 
                     className="w-full bg-transparent border-none text-white text-xs outline-none h-24 resize-none leading-relaxed placeholder:text-white/5"
@@ -300,7 +300,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             </div>
             <div className="p-8 rounded-[32px] border border-white/10 bg-white/[0.03] shadow-inner">
               <label className="text-[10px] uppercase font-black tracking-widest text-white/60 mb-1 block">Matriz de Persona (Target)</label>
-              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Desenhe o avatar que vocÃª deseja dominar e ajudar.</span>
+              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Desenhe o avatar que você deseja dominar e ajudar.</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2">
                   <span className="text-[9px] uppercase font-black text-white/40 ml-1">Lifestyle / Demografia</span>
@@ -342,7 +342,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             </div>
             <div className="p-8 rounded-[32px] border border-blue-500/5 bg-blue-500/[0.01] shadow-inner">
               <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1 block">Rastreabilidade Gerada pela Aplicação</label>
-              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">VocÃª não precisa preencher isto manualmente. A aplicação monta esse resumo a partir dos campos anteriores e usa isso nas análises futuras.</span>
+              <span className="text-[9px] uppercase font-bold text-white/40 block mb-6">Você não precisa preencher isto manualmente. A aplicação monta esse resumo a partir dos campos anteriores e usa isso nas análises futuras.</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {buildTraceabilitySummary().summary.map((item: string) => (
                   <div key={item} className="p-4 rounded-2xl border border-white/10 bg-white/[0.03]">
@@ -406,7 +406,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 <span className="text-[9px] uppercase font-bold text-white/20 ml-2">Posicionamento do Narrador</span>
                 <textarea 
                   className="p-6 bg-white/5 border border-white/10 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none h-full"
-                  placeholder="Quem é vocÃª para o seu público? O Mentor, o Cético ou o Oráculo?"
+                  placeholder="Quem é você para o seu público? O Mentor, o Cético ou o Oráculo?"
                   value={formData.narrative_voice.positioning}
                   onChange={(e) => updateFormData({ narrative_voice: { ...formData.narrative_voice, positioning: e.target.value } })}
                 />
@@ -746,7 +746,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               onClick={onClose} 
               className="w-10 h-10 flex items-center justify-center hover:bg-red-500/10 border border-white/10 rounded-full transition-all text-white/20 hover:text-red-500 group"
             >
-              <span className="group-hover:rotate-90 transition-transform">âœ•</span>
+              <span className="group-hover:rotate-90 transition-transform">✕</span>
             </button>
           </div>
         </div>
@@ -789,7 +789,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               {step === 4 ? (
                 isSubmitting ? 'SALVANDO...' : <>DEPLOY ESTRATÉGICO <Rocket size={16} className="group-hover:animate-bounce" /></>
               ) : (
-                <>PRÃ“XIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
+                <>PRÓXIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
               )}
             </button>
           </div>

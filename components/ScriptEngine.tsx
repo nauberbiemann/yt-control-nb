@@ -69,7 +69,7 @@ interface ExecutionSnapshot {
   externalSrtFileName: string;
   videoCharacterMode: VideoCharacterMode;
   videoCharacterCustom: string;
-  videoFormat: VideoFormat;
+  videoFormat?: VideoFormat;
   manualPublishDate: string;
   externalSrtPipeline: SrtAssetPipelineResult | null;
   externalSrtObserver: SrtPipelineObserverStep[];

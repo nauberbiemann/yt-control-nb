@@ -1442,7 +1442,6 @@ export default function Home() {
                       }`} 
                       onClick={() => {
                         setActiveProjectId(project.id);
-                        setCurrentView('themes');
                       }}
                     >
                       <div className="flex justify-between items-start mb-4">

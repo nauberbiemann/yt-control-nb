@@ -36,6 +36,7 @@ type ExecutionMode = 'internal' | 'external';
 type ScriptStage = 'blueprint' | 'final';
 type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
 type VideoCharacterMode = 'male' | 'female' | 'custom';
+type VideoFormat = 'avatar' | 'faceless';
 
 interface SrtPipelineObserverStep {
   key: 'upload' | 'csv' | 'assets' | 'prompts' | 'render' | 'persist';
@@ -68,6 +69,7 @@ interface ExecutionSnapshot {
   externalSrtFileName: string;
   videoCharacterMode: VideoCharacterMode;
   videoCharacterCustom: string;
+  videoFormat: VideoFormat;
   manualPublishDate: string;
   externalSrtPipeline: SrtAssetPipelineResult | null;
   externalSrtObserver: SrtPipelineObserverStep[];
@@ -206,6 +208,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [externalSrtFileName, setExternalSrtFileName] = useState('');
   const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('male');
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
+  const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
   const [textStyleMode, setTextStyleMode] = useState('auto');
   const [customTextStyle, setCustomTextStyle] = useState('');
   const [manualPublishDate, setManualPublishDate] = useState('');
@@ -443,6 +446,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSrtFileName,
     videoCharacterMode,
     videoCharacterCustom,
+    videoFormat,
     manualPublishDate,
     externalSrtPipeline,
     externalSrtObserver,
@@ -664,6 +668,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.externalSrtFileName === 'string') setExternalSrtFileName(snapshot.externalSrtFileName);
       if (['male', 'female', 'custom'].includes(snapshot?.videoCharacterMode)) setVideoCharacterMode(snapshot.videoCharacterMode);
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
+      if (snapshot?.videoFormat === 'faceless' || snapshot?.videoFormat === 'avatar') setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       // Read large objects from their dedicated keys (split-storage pattern)
       const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
@@ -1511,13 +1516,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setSrtPipelineStatus('CSV base derivado. Aplicando a heuristica de marcacao de assets...');
 
       updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video ou imagem...');
-      const assetRows = applyAssetRules(parsedRows);
+      const assetRows = applyAssetRules(parsedRows, videoFormat);
       const assetStats = buildAssetStats(assetRows);
-      updateSrtObserverStep(
-        'assets',
-        'done',
-        `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video e ${assetStats.image} imagem.`
-      );
+      const assetDesc = videoFormat === 'faceless'
+        ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
+        : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video e ${assetStats.image} imagem.`;
+      updateSrtObserverStep('assets', 'done', assetDesc);
       setSrtPipelineStatus('Assets marcados. Enviando as linhas elegiveis para gerar prompts visuais...');
 
       updateSrtObserverStep('prompts', 'running', 'Aguardando o envio do primeiro lote...');
@@ -1566,6 +1570,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             apiKeyOverwrite: apiKey,
             projectConfig: activeProject,
             videoContext: buildVideoContext(),
+            videoFormat,
             textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
             characterProfile: {
               mode: videoCharacterMode,
@@ -1738,6 +1743,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           apiKeyOverwrite: apiKey,
           projectConfig: activeProject,
           videoContext: buildVideoContext(),
+          videoFormat,
           characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
         }),
       });
@@ -3258,6 +3264,41 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     />
                     <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
                       {externalSrtFileName ? `Arquivo persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado ainda.'}
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
+                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+                          Com Apresentador usa avatar para preencher os cortes. Faceless cobre toda a tela com imagens e videos.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { value: 'avatar', label: 'Com Apresentador' },
+                          { value: 'faceless', label: 'Faceless' },
+                        ] as { value: VideoFormat; label: string }[]).map((option) => {
+                          const selected = videoFormat === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setVideoFormat(option.value)}
+                              className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                                selected
+                                  ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
+                                  : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {videoFormat === 'faceless' && (
+                        <p className="text-[9px] text-amber-400/70 leading-relaxed">
+                          Modo Faceless: imagens e videos a cada ~6s. As lacunas no CSV ficam em branco — estique a midia anterior no editor.
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
                       <div>

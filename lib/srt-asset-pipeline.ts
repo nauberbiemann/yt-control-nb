@@ -45,6 +45,8 @@ const SECOND_SECTION_LIMIT = 0.7;
 const FIRST_SECTION_INTERVAL_MS = 20_000;
 const SECOND_SECTION_INTERVAL_MS = 30_000;
 const THIRD_SECTION_INTERVAL_MS = 60_000;
+// Faceless mode: shorter b-roll interval — editor stretches the previous media for gaps
+const FACELESS_INTERVAL_MS = 6_000;
 
 export const normalizeLineBreaks = (value: string) => value.replace(/\r\n/g, '\n');
 
@@ -175,7 +177,7 @@ export const parseCsvToRows = (csvContent: string): SrtAssetRow[] => {
     }));
 };
 
-export const applyAssetRules = (rows: SrtAssetRow[]) => {
+export const applyAssetRules = (rows: SrtAssetRow[], videoFormat: 'avatar' | 'faceless' = 'avatar') => {
   if (!rows.length) return rows;
 
   let lastBrollMarkerMs = 0;
@@ -186,17 +188,23 @@ export const applyAssetRules = (rows: SrtAssetRow[]) => {
     const startMs = parseSrtTimeToMs(row.startTime);
     const endMs = parseSrtTimeToMs(row.endTime);
 
+    // Short text always becomes a cinematic text overlay
     if (text.length <= TEXT_MAX_CHARS) {
       return { ...row, asset: 'texto' as const };
     }
 
-    const intervalMs = getIntervalMs(index, totalRows);
+    const intervalMs = videoFormat === 'faceless'
+      ? FACELESS_INTERVAL_MS
+      : getIntervalMs(index, totalRows);
+
     if (endMs - lastBrollMarkerMs >= intervalMs) {
       lastBrollMarkerMs = Math.max(lastBrollMarkerMs + intervalMs, startMs);
       return { ...row, asset: getBrollAsset(startMs, endMs) };
     }
 
-    return { ...row, asset: 'avatar' as const };
+    // Avatar mode: fill gap with avatar presenter
+    // Faceless mode: leave blank — editor stretches the previous media until next marker
+    return { ...row, asset: (videoFormat === 'faceless' ? '' : 'avatar') as SrtAssetType };
   });
 };
 

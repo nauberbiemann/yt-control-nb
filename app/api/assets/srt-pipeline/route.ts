@@ -194,6 +194,7 @@ const generateBatchWithOpenAI = async ({
   textStyles,
   visualIdentity,
   videoContext,
+  facelessHint,
 }: {
   apiKey: string;
   model: string;
@@ -202,6 +203,7 @@ const generateBatchWithOpenAI = async ({
   textStyles: string;
   visualIdentity: string;
   videoContext: string;
+  facelessHint: string;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
@@ -216,7 +218,7 @@ const generateBatchWithOpenAI = async ({
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
-          'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
+          facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
         ].filter(Boolean).join('\n\n'),
@@ -256,6 +258,7 @@ const generateBatchWithGemini = async ({
   textStyles,
   visualIdentity,
   videoContext,
+  facelessHint,
 }: {
   apiKey: string;
   model: string;
@@ -264,6 +267,7 @@ const generateBatchWithGemini = async ({
   textStyles: string;
   visualIdentity: string;
   videoContext: string;
+  facelessHint: string;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -281,7 +285,7 @@ const generateBatchWithGemini = async ({
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
-              'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
+              facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
             ].filter(Boolean).join('\n\n'),
@@ -313,6 +317,7 @@ const generatePromptMap = async ({
   items,
   characterDescription,
   videoContext,
+  videoFormat,
 }: {
   engine: 'openai' | 'gemini';
   model: string;
@@ -321,6 +326,7 @@ const generatePromptMap = async ({
   items: PromptBatchItem[];
   characterDescription: string;
   videoContext?: string;
+  videoFormat?: 'avatar' | 'faceless';
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -336,10 +342,15 @@ const generatePromptMap = async ({
   const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
   const promptMap = new Map<number, string>();
 
+  // Faceless mode: suppress character entirely and request full-screen compositions
+  const facelessHint = videoFormat === 'faceless'
+    ? 'FACELESS VIDEO MODE: Do NOT include any presenter, character, or person in video or image prompts. Every prompt must be a full-screen cinematic composition (cinematic B-roll, 3D animation, macro photography, abstract visual) that fills the entire frame. The subtitle text is your only reference for subject matter.'
+    : '';
+
   for (const batch of chunk(items, batchSize)) {
     const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '' })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '' });
+      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint })
+      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint });
 
     const validatedBatch = validatePromptBatch(batch, payload);
     validatedBatch.forEach((prompt, rowNumber) => {
@@ -358,6 +369,7 @@ export async function POST(req: NextRequest) {
     const projectConfig = body?.projectConfig || {};
     const characterDescription = resolveCharacterProfile(body?.characterProfile);
     const videoContext = String(body?.videoContext || '').trim();
+    const videoFormat: 'avatar' | 'faceless' = body?.videoFormat === 'faceless' ? 'faceless' : 'avatar';
     
     // Batch Mode Branch
     if (Array.isArray(body?.batchItems) && body.batchItems.length > 0) {
@@ -378,6 +390,7 @@ export async function POST(req: NextRequest) {
         items: promptItems,
         characterDescription,
         videoContext,
+        videoFormat,
       });
 
       const prompts = promptItems.map((item) => ({

@@ -22,6 +22,8 @@ import {
   Clock,
   FileText,
   Star,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 
 const PILLARS = ['Educação', 'Entretenimento', 'Autoridade', 'Conversão', 'Comunidade'];
@@ -143,6 +145,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     initialExpandedStatus ? [initialExpandedStatus] : []
   );
   const [sortConfigs, setSortConfigs] = useState<Record<string, 'priority' | 'date_desc' | 'date_asc'>>({});
+  const [cloudSyncedIds, setCloudSyncedIds] = useState<Set<string>>(new Set());
 
   const toggleStatus = (status: string) => {
     setExpandedStatuses(prev => 
@@ -493,6 +496,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
            setThemes(mergedThemes);
            console.log(`[ThemeBank] ☁️ Background Sync applied: ${cloudThemes.length} cloud, ${mergedThemes.length} merged`);
          }
+         // Track which IDs are confirmed in the cloud
+         setCloudSyncedIds(new Set([...cloudIds, ...unsyncedItems.filter(u => !cloudIds.has(u.id)).map(u => u.id)]));
       }
     } catch (err) {
       console.warn('[ThemeBank] Erro inesperado SWR capturado.', err);
@@ -1131,6 +1136,17 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                               <span className="ml-auto text-blue-400" title="Validação Estratégica Completa">
                                 <CheckCircle2 size={12} />
                               </span>
+                            )}
+                            {cloudSyncedIds.size > 0 && (
+                              cloudSyncedIds.has(theme.id) ? (
+                                <span className="ml-auto flex items-center gap-1 text-emerald-400/70" title="Sincronizado com a nuvem">
+                                  <Cloud size={11} />
+                                </span>
+                              ) : (
+                                <span className="ml-auto flex items-center gap-1 text-amber-400/80" title="Apenas local — aguardando sincronização">
+                                  <CloudOff size={11} />
+                                </span>
+                              )
                             )}
                           </div>
                           {isScriptEngineTheme(theme) && (

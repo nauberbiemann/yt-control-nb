@@ -393,9 +393,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         if (!error && data) {
           const titleOnly = (data as any[]).filter((component) => component.type === 'Title Structure');
           const merged = mergeNarrativeComponents(localItems, titleOnly);
-          const normalized = normalizeTitleStructures(merged);
           setProjectTitleStructures(normalized);
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(merged));
           return;
         }
       }
@@ -487,7 +485,6 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          const mergedStr = JSON.stringify(mergedThemes);
          if (mergedStr !== JSON.stringify(localThemes)) {
            setThemes(mergedThemes);
-           localStorage.setItem(`themes_${activeProject.id}`, mergedStr);
            console.log(`[ThemeBank] ☁️ Background Sync applied: ${cloudThemes.length} cloud, ${mergedThemes.length} merged`);
          }
       }
@@ -597,7 +594,6 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       newComponents = [normalizeThemeScheduleStatus({ ...payload, id: payload.id || crypto.randomUUID(), created_at: payload.created_at || new Date().toISOString() }), ...themes];
     }
     setThemes(newComponents as Theme[]);
-    localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(newComponents));
   };
 
   const handleDelete = async (id: string) => {
@@ -629,7 +625,6 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     try {
       const updated = themes.filter(t => t.id !== id);
       setThemes(updated);
-      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updated));
 
       if (editingTheme?.id === id) {
         closeForm();

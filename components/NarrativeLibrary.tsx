@@ -344,7 +344,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
         const mergedStr = JSON.stringify(merged);
         if (mergedStr !== JSON.stringify(localItems)) {
           setComponents(merged);
-          localStorage.setItem(`ws_narrative_${activeProject.id}`, mergedStr);
+          // localStorage.setItem(`ws_narrative_${activeProject.id}`, mergedStr);
           console.log(`[ContentOS] ☁️ Background Sync applied: ${cloudItems.length} cloud, ${merged.length} merged`);
         }
       }
@@ -386,7 +386,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
 
       const dedupedLocal = dedupeNarrativeComponents(newComponents);
       setComponents(dedupedLocal);
-      localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
+      // localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
       
       // 🏁 UI Feedback: Fecha modal e limpa form
       setIsModalOpen(false);
@@ -425,7 +425,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       } else {
         const newComponents = components.filter(c => c.id !== id);
         setComponents(newComponents);
-        localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(newComponents));
+        // localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(newComponents));
       }
     }
   };

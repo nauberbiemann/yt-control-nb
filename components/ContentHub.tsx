@@ -385,7 +385,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
           const normalizedThemes = data.map((theme: Theme) => normalizeTheme(theme));
           const mergedThemes = mergeThemes(localThemes, normalizedThemes);
           setThemes(mergedThemes);
-          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
+          // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
           return;
         }
       }
@@ -422,7 +422,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     try {
       const updatedThemes = [newTheme, ...themes];
       setThemes(updatedThemes);
-      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
+      // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const projectToSync = sanitizeProjectForCloud(activeProject);
@@ -451,7 +451,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     try {
       const filtered = themes.filter(t => t.id !== id);
       setThemes(filtered);
-      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(filtered));
+      // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(filtered));
 
       if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const { error } = await supabase.from('themes').delete().eq('id', id);
@@ -745,7 +745,7 @@ REGRAS:
       const updatedThemes = themes.map(t => t.id === themeId ? updatedTheme : t);
       
       setThemes(updatedThemes);
-      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
+      // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const cloudTheme = sanitizeThemeForCloud(updatedTheme);

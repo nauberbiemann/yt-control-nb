@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -638,8 +638,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       });
     }
     
+    // Storage cloud-only
     try {
-      localStorage.setItem(storageKey, JSON.stringify(nextThemes));
+      // Local caching of themes disabled to avoid 10MB quota limit
     } catch (e) {
       console.warn('[ScriptEngine] Quota exceeded saving themes locally.', e);
     }

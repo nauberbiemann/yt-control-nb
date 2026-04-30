@@ -187,7 +187,7 @@ export default function Home() {
     user_id: item?.user_id || currentUserId || null,
     title: item?.title || item?.refined_title || item?.theme || 'Tema sem título',
     description: item?.description || '',
-    editorial_pillar: item?.editorial_pillar || item?.pipeline_level || '',
+    editorial_pillar: item?.editorial_pillar || '',
     status: sanitizeThemeStatusForCloud(item?.status),
     hook_id: isValidUuid(item?.hook_id) ? item.hook_id : null,
     title_structure: item?.title_structure || '',
@@ -247,7 +247,8 @@ export default function Home() {
         `Tema recuperado da execucao local da Escrita Criativa para o projeto ${project?.project_name || project?.name || 'ativo'}.`,
       editorial_pillar:
         existingTheme?.editorial_pillar ||
-        project?.playlists?.tactical_journey?.[0]?.label ||
+        briefing?.editorialPillar ||
+        existingTheme?.production_assets?.editorial_pillar ||
         '',
       status: scheduleStatus,
       title_structure:
@@ -261,7 +262,8 @@ export default function Home() {
         null,
       pipeline_level:
         existingTheme?.pipeline_level ||
-        project?.playlists?.tactical_journey?.[0]?.label ||
+        briefing?.pipelineLevel ||
+        existingTheme?.production_assets?.pipeline_level ||
         '',
       is_demand_vetted: existingTheme?.is_demand_vetted ?? true,
       is_persona_vetted: existingTheme?.is_persona_vetted ?? true,

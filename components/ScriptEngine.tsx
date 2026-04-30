@@ -495,19 +495,31 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const existingTheme = themeIndex >= 0 ? existingThemes[themeIndex] : null;
 
     // Resolve pipeline_level: preserva o valor existente do tema no banco;
-    // fallback para o nível do briefing (quando disponível no futuro) e depois para
-    // o primeiro item da jornada tática — evitando que todos fiquem fixos em T1.
+    // lê do briefing (agora preenchido pelo Assembler V16) e randomiza da
+    // jornada tática como fallback — evitando que todos fiquem fixos em T1.
+    const tacticalJourneys = activeProject?.playlists?.tactical_journey || [];
     const resolvedPipelineLevel =
       existingTheme?.pipeline_level ||
       briefing?.pipelineLevel ||
-      activeProject?.playlists?.tactical_journey?.[0]?.label ||
+      (tacticalJourneys.length > 0
+        ? tacticalJourneys[Math.floor(Math.random() * tacticalJourneys.length)]?.label
+        : '') ||
       '';
 
-    // Resolve editorial_pillar com a mesma lógica de precedência.
+    // Resolve editorial_pillar: lê do briefing (agora preenchido pelo Assembler V16
+    // a partir de editorial_line.pillars) com fallback para randomização local.
+    const rawPillars = activeProject?.editorial_line?.pillars
+      || activeProject?.editorial_pillars
+      || [];
+    const pillarList: string[] = (Array.isArray(rawPillars) ? rawPillars : [])
+      .map((p: any) => typeof p === 'string' ? p : p?.name || p?.label || '')
+      .filter(Boolean);
     const resolvedEditorialPillar =
       existingTheme?.editorial_pillar ||
       briefing?.editorialPillar ||
-      activeProject?.playlists?.tactical_journey?.[0]?.label ||
+      (pillarList.length > 0
+        ? pillarList[Math.floor(Math.random() * pillarList.length)]
+        : '') ||
       '';
 
     // Resolve title_structure: prefere o nome da estrutura selecionada no briefing;
@@ -2604,7 +2616,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     if (!activeProject) return;
 
     const { theme, variation } = getCommandContext();
-    const editorialPillar = activeProject?.playlists?.tactical_journey?.[0]?.label || 'T1';
+    const editorialPillar = approvedBriefing?.editorialPillar
+      || (() => {
+        const rp = activeProject?.editorial_line?.pillars || activeProject?.editorial_pillars || [];
+        const pl: string[] = (Array.isArray(rp) ? rp : [])
+          .map((p: any) => typeof p === 'string' ? p : p?.name || p?.label || '')
+          .filter(Boolean);
+        return pl.length > 0 ? pl[Math.floor(Math.random() * pl.length)] : 'T1';
+      })();
 
     // Collect narrative asset UUIDs ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚Â filter out mock/non-UUID IDs
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

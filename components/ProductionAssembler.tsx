@@ -115,7 +115,8 @@ interface ProductionBriefing {
   historyChoiceReason?: string;
   // V14: asset traceability log
   assetLog?: Record<string, string>; // { assetType: assetId }
-  editorialPillar?: string; // V15: Randomized tactical journey pillar
+  editorialPillar?: string; // V15: Randomized editorial pillar from editorial_line
+  pipelineLevel?: string; // V16: Randomized pipeline level from tactical_journey (T1/T2/T3)
 }
 
 interface ProductionAssemblerProps {
@@ -859,10 +860,22 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       }
 
       // Map API response -> ProductionBriefing
+      // PIPELINE LEVEL: randomize from tactical_journey (T1/T2/T3 — funnel position)
       const tacticalJourneys = activeProject?.playlists?.tactical_journey || [];
-      const selectedEditorialPillar = tacticalJourneys.length > 0
+      const selectedPipelineLevel = tacticalJourneys.length > 0
         ? tacticalJourneys[Math.floor(Math.random() * tacticalJourneys.length)]?.label || 'T1'
         : 'T1';
+
+      // EDITORIAL PILLAR: randomize from editorial_line.pillars (real content pillars)
+      const rawPillars = activeProject?.editorial_line?.pillars
+        || activeProject?.editorial_pillars
+        || [];
+      const pillarList: string[] = (Array.isArray(rawPillars) ? rawPillars : [])
+        .map((p: any) => typeof p === 'string' ? p : p?.name || p?.label || '')
+        .filter(Boolean);
+      const selectedEditorialPillar = pillarList.length > 0
+        ? pillarList[Math.floor(Math.random() * pillarList.length)]
+        : selectedPipelineLevel; // graceful fallback if no pillars configured yet
 
       const selectedHook = hooks.find(h => h.id === data.selectedHookId) || hooks[0];
       const selectedCta  = ctas.find(c => c.id === data.selectedCtaId)   || ctas[0];
@@ -996,6 +1009,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       setBriefing({
         title: chosenTheme,
         editorialPillar: selectedEditorialPillar,
+        pipelineLevel: selectedPipelineLevel,
         estimatedDuration: `~${finalMinutes} minutos`,
         estimatedChars,
         hookChars: hookCharsBudget,

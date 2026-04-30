@@ -683,19 +683,35 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   };
 
   useEffect(() => {
-    if (!executionStorageKey || pendingData) {
+    if (!executionStorageKey) {
       setExecutionHydrated(true);
       return;
     }
 
     try {
-      const raw = localStorage.getItem(executionStorageKey);
-      if (!raw) {
+      let snapshot: any = null;
+      
+      // If we received pendingData that has an approvedTheme, it's a resume from ThemeBank.
+      // We should hydrate directly from it instead of localStorage.
+      if (pendingData && pendingData.approvedTheme) {
+        snapshot = pendingData;
+      } else if (!pendingData) {
+        // Otherwise, if there is no pendingData (e.g. F5 reload), load from localStorage
+        const raw = localStorage.getItem(executionStorageKey);
+        if (raw) snapshot = JSON.parse(raw);
+      }
+
+      // If there is still pendingData (but no approvedTheme), it's a new generation. 
+      // We skip hydration and let the Assembler V4 effect handle it.
+      if (!snapshot && pendingData) {
         setExecutionHydrated(true);
         return;
       }
 
-      const snapshot = JSON.parse(raw);
+      if (!snapshot) {
+        setExecutionHydrated(true);
+        return;
+      }
       if (snapshot?.approvedTheme) setApprovedTheme(snapshot.approvedTheme);
       if (snapshot?.approvedBriefing) setApprovedBriefing(snapshot.approvedBriefing);
       const normalizedSnapshotBlocks = resolveSnapshotBlocks(snapshot);
@@ -762,6 +778,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       loadHeavyAssets();
 
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
+      
+      if (pendingData && pendingData.approvedTheme) {
+        onClearPending?.();
+      }
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao salva.', error);
     } finally {
@@ -820,7 +840,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   
   useEffect(() => {
     if (!executionHydrated) return;
-    if (pendingData) {
+    // Only initialize Assembler V4 if it's a NEW theme (no approvedTheme)
+    if (pendingData && !pendingData.approvedTheme) {
       console.log('--- Assembler V4 Initializing from Content OS Kernel ---');
       
       const metaphorsStr = activeProject?.metaphor_library || '';

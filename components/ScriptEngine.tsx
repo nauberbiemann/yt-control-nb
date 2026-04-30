@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -2827,28 +2827,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-160px)]">
-      {ScriptMobileTabs}
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 animate-in">
-        {/* Left: Building Blocks ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚Â hidden on mobile when main tab active */}
-        <section className={`w-full lg:w-[300px] xl:w-[340px] lg:shrink-0 flex-col gap-6 overflow-y-auto pr-2 pb-6 custom-scrollbar ${mobileTab === 'context' ? 'flex' : 'hidden lg:flex'}`}>
-        <div className="glass-card p-6 flex flex-col gap-4 border-blue-500/10 bg-blue-500/[0.02] shadow-xl">
-          <label className="text-[10px] uppercase tracking-widest font-black text-blue-400">Instancia Content OS</label>
-          <div className="flex items-center justify-between p-4 bg-midnight/40 border border-white/10 rounded-2xl ring-1 ring-white/5">
-            <div className="flex flex-col gap-1">
-              <span className="font-black text-sm text-white">{selectedProject}</span>
-              <span className="text-[9px] text-blue-500/50 font-black uppercase tracking-widest">V4 Kernel Operational</span>
-            </div>
-            <div className="p-2 bg-blue-500/10 rounded-full">
-              <Sparkles size={14} className="text-blue-400" />
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-1 min-h-0 animate-in">
 
-
-</section>
-
-        {/* Right: Script Workspace - hidden on mobile when context tab active */}
-        <section className={`flex-1 min-w-0 min-h-0 glass-card flex-col shadow-2xl border-white/10 ring-1 ring-white/5 ${mobileTab === 'main' ? 'flex' : 'hidden lg:flex'}`}>
+        {/* Full-width Script Workspace */}
+        <section className="flex-1 min-w-0 min-h-0 glass-card flex-col shadow-2xl border-white/10 ring-1 ring-white/5 flex">
         {assemblerActive ? (
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 xl:p-6">
             <ProductionAssembler

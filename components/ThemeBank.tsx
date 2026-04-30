@@ -26,6 +26,8 @@ import {
   Cloud,
   CloudOff,
   BarChart3,
+  Maximize2,
+  X,
 } from 'lucide-react';
 
 const PILLARS = ['Educação', 'Entretenimento', 'Autoridade', 'Conversão', 'Comunidade'];
@@ -150,6 +152,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const [cloudSyncedIds, setCloudSyncedIds] = useState<Set<string>>(new Set());
   const [allNarrativeComponents, setAllNarrativeComponents] = useState<any[]>([]);
   const [showDnaTable, setShowDnaTable] = useState(false);
+  const [showDnaFullscreen, setShowDnaFullscreen] = useState(false);
 
   const toggleStatus = (status: string) => {
     setExpandedStatuses(prev => 
@@ -905,7 +908,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     { key: 'argument', label: 'Argumento', color: 'text-cyan-400' },
     { key: 'voice', label: 'Voz', color: 'text-indigo-400' },
     { key: 'blocks', label: 'Blocos', color: 'text-white/50' },
-    { key: 'duration', label: 'Duração', color: 'text-white/50' },
+    { key: 'duration', label: 'Estimada', color: 'text-white/50' },
+    { key: 'actualDuration', label: 'Real', color: 'text-emerald-300' },
   ] as const;
 
   const buildDnaRow = (theme: Theme) => {
@@ -935,6 +939,27 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       voice: assets.voice_pattern ? assets.voice_pattern.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '—',
       blocks: assets.block_count ? `${assets.block_count}` : '—',
       duration: assets.duration_minutes ? `~${assets.duration_minutes}min` : '—',
+      actualDuration: (() => {
+        // 1. Check if user manually set the actual duration
+        if (assets.actual_duration_minutes) return `${assets.actual_duration_minutes}min`;
+        // 2. Try to extract from SRT pipeline (last subtitle end time)
+        const srtKey = theme.id ? `ws_script_execution_${theme.id}_srt_pipeline` : '';
+        if (srtKey && typeof window !== 'undefined') {
+          try {
+            const srtRaw = localStorage.getItem(srtKey);
+            if (srtRaw) {
+              const srtData = JSON.parse(srtRaw);
+              const entries = srtData?.entries || srtData?.srt_entries || [];
+              if (entries.length > 0) {
+                const lastEntry = entries[entries.length - 1];
+                const endMs = lastEntry?.end_ms || lastEntry?.endMs || 0;
+                if (endMs > 0) return `${Math.round(endMs / 60000)}min`;
+              }
+            }
+          } catch {}
+        }
+        return '—';
+      })(),
       compositionCode: [
         theme.pipeline_level || '',
         hook?.code || '',
@@ -950,6 +975,161 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     acc[s] = filtered.filter(t => t.status === s);
     return acc;
   }, {} as Record<string, Theme[]>);
+
+  // ── Reusable DNA Table Renderer ──────────────────────────────────
+  const handleActualDurationChange = (themeId: string, value: string) => {
+    const numVal = parseInt(value) || 0;
+    if (numVal <= 0) return;
+    // Update the theme's production_assets locally
+    setThemes(prev => prev.map(t => {
+      if (t.id !== themeId) return t;
+      const updatedAssets = { ...(t.production_assets || {}), actual_duration_minutes: numVal };
+      return { ...t, production_assets: updatedAssets };
+    }));
+    // Persist to localStorage
+    const localKey = `ws_themes_${activeProject?.id}`;
+    try {
+      const stored = JSON.parse(localStorage.getItem(localKey) || '[]');
+      const updated = stored.map((t: any) => {
+        if (t.id !== themeId) return t;
+        return { ...t, production_assets: { ...(t.production_assets || {}), actual_duration_minutes: numVal } };
+      });
+      localStorage.setItem(localKey, JSON.stringify(updated));
+    } catch {}
+    // Background cloud sync
+    if (supabase) {
+      supabase.from('themes').select('production_assets').eq('id', themeId).single()
+        .then(({ data }: { data: any }) => {
+          const merged = { ...(data?.production_assets || {}), actual_duration_minutes: numVal };
+          supabase.from('themes').update({ production_assets: merged }).eq('id', themeId).then(() => {});
+        });
+    }
+  };
+
+  const renderDnaTable = (fullscreen: boolean) => {
+    const fontSize = fullscreen ? 'text-[11px]' : 'text-[9px]';
+    const headerFontSize = fullscreen ? 'text-[10px]' : 'text-[9px]';
+    const cellPadding = fullscreen ? 'px-3 py-3' : 'px-2 py-2';
+    const headerPadding = fullscreen ? 'px-3 py-3' : 'px-2 py-2.5';
+    const minWidth = fullscreen ? 'min-w-[1200px]' : 'min-w-[900px]';
+    const titleMinWidth = fullscreen ? 'min-w-[280px]' : 'min-w-[180px]';
+    const bgBase = fullscreen ? 'bg-midnight' : 'bg-midnight/95';
+
+    return (
+      <div className={`${fullscreen ? '' : 'mt-3'} rounded-2xl border border-white/5 bg-white/[0.015] overflow-hidden`}>
+        <div className="overflow-x-auto no-scrollbar">
+          <table className={`w-full ${fontSize} border-collapse ${minWidth}`}>
+            <thead>
+              <tr className="border-b border-white/5">
+                <th className={`sticky left-0 z-10 ${bgBase} backdrop-blur-sm ${headerPadding} text-left text-white/40 font-black uppercase tracking-widest ${titleMinWidth} ${headerFontSize}`}>
+                  Tema
+                </th>
+                <th className={`${headerPadding} text-center text-white/20 font-black uppercase tracking-widest whitespace-nowrap ${headerFontSize}`}>
+                  Código
+                </th>
+                {DNA_COLUMNS.map(col => (
+                  <th key={col.key} className={`${headerPadding} text-center font-black uppercase tracking-widest whitespace-nowrap ${col.color} opacity-70 ${headerFontSize}`}>
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {normalizedThemes
+                .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                .map((theme) => {
+                  const dna = buildDnaRow(theme);
+                  const hasComposition = theme.production_assets?.hook_id || theme.production_assets?.cta_id;
+                  const statusMeta = STATUS_META[theme.status] || STATUS_META.backlog;
+
+                  return (
+                    <tr key={theme.id} className="border-b border-white/[0.03] hover:bg-white/[0.03] transition-colors">
+                      {/* Theme title — sticky */}
+                      <td className={`sticky left-0 z-10 ${bgBase} backdrop-blur-sm ${cellPadding} max-w-[280px]`}>
+                        <p className={`text-white/80 font-bold ${fullscreen ? '' : 'truncate'} leading-tight`} title={theme.title}>
+                          {theme.title}
+                        </p>
+                        <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border ${statusMeta.color}`}>
+                          {statusMeta.label}
+                        </span>
+                      </td>
+
+                      {/* Composition code */}
+                      <td className={`${cellPadding} text-center`}>
+                        {hasComposition ? (
+                          <span className={`px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 font-mono font-black ${fullscreen ? 'text-[9px]' : 'text-[8px]'} whitespace-nowrap`}>
+                            {dna.compositionCode}
+                          </span>
+                        ) : (
+                          <span className="text-white/15 italic">—</span>
+                        )}
+                      </td>
+
+                      {/* Dynamic columns */}
+                      {DNA_COLUMNS.map(col => {
+                        const val = dna[col.key as keyof typeof dna] || '—';
+                        const nameKey = `${col.key}Name` as keyof typeof dna;
+                        const fullName = dna[nameKey] || '';
+                        const isNone = val === '—';
+
+                        // Special: editable input for actualDuration when empty
+                        if (col.key === 'actualDuration' && isNone) {
+                          return (
+                            <td key={col.key} className={`${cellPadding} text-center`}>
+                              <input
+                                type="number"
+                                placeholder="min"
+                                min={1}
+                                max={999}
+                                className={`w-12 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-center ${fontSize} text-emerald-300 placeholder-white/15 outline-none focus:border-emerald-400/40 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                                onBlur={(e) => handleActualDurationChange(theme.id, e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                              />
+                            </td>
+                          );
+                        }
+
+                        return (
+                          <td key={col.key} className={`${cellPadding} text-center`} title={fullName ? `${val} — ${fullName}` : ''}>
+                            {isNone ? (
+                              <span className="text-white/10">—</span>
+                            ) : (
+                              <span className={`font-black ${col.color}`}>
+                                {val}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Legend */}
+        <div className={`${fullscreen ? 'px-6 py-3' : 'px-4 py-2.5'} border-t border-white/[0.03] flex flex-wrap gap-x-4 gap-y-1`}>
+          {Object.entries(CODE_PREFIX).map(([type, prefix]) => {
+            const count = allNarrativeComponents.filter(c => c.type === type).length;
+            if (count === 0) return null;
+            const colDef = DNA_COLUMNS.find(c =>
+              (type === 'Hook' && c.key === 'hook') ||
+              (type === 'CTA' && c.key === 'cta') ||
+              (type === 'Title Structure' && c.key === 'structure') ||
+              (type === 'Narrative Curve' && c.key === 'curve') ||
+              (type === 'Argument Mode' && c.key === 'argument')
+            );
+            return (
+              <span key={type} className={`${fullscreen ? 'text-[9px]' : 'text-[8px]'} font-black uppercase tracking-widest ${colDef?.color || 'text-white/30'}`}>
+                {prefix}1-{prefix}{count}: {type} ({count})
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   if (!activeProject) {
     return (
@@ -1112,121 +1292,65 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       {/* ── DNA DA COMPOSIÇÃO: Tabela Comparativa ────────────────────── */}
       {normalizedThemes.length > 0 && (
         <div className="px-8 pt-3">
-          <button
-            onClick={() => setShowDnaTable(!showDnaTable)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                <BarChart3 size={14} className="text-purple-400" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDnaTable(!showDnaTable)}
+              className="flex-1 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                  <BarChart3 size={14} className="text-purple-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/70">DNA da Composição</p>
+                  <p className="text-[9px] text-white/30 mt-0.5">
+                    {normalizedThemes.filter(t => t.production_assets?.hook_id).length} temas com composição registrada
+                  </p>
+                </div>
               </div>
-              <div className="text-left">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/70">DNA da Composição</p>
-                <p className="text-[9px] text-white/30 mt-0.5">
-                  {normalizedThemes.filter(t => t.production_assets?.hook_id).length} temas com composição registrada
+              <ChevronDown size={14} className={`text-white/30 transition-transform duration-300 ${showDnaTable ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              onClick={() => setShowDnaFullscreen(true)}
+              title="Abrir em tela cheia"
+              className="flex items-center justify-center w-10 h-10 rounded-xl border border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 transition-all"
+            >
+              <Maximize2 size={14} />
+            </button>
+          </div>
+
+          {showDnaTable && renderDnaTable(false)}
+        </div>
+      )}
+
+      {/* ── DNA FULLSCREEN MODAL ────────────────────────────────────── */}
+      {showDnaFullscreen && (
+        <div className="fixed inset-0 z-[9999] bg-midnight/98 backdrop-blur-xl flex flex-col overflow-hidden">
+          {/* Fullscreen Header */}
+          <div className="flex items-center justify-between px-8 py-5 border-b border-white/5 flex-shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <BarChart3 size={18} className="text-purple-400" />
+              </div>
+              <div>
+                <h2 className="font-black text-white italic text-sm uppercase tracking-widest">DNA da Composição</h2>
+                <p className="text-white/30 text-[10px] uppercase tracking-widest font-black">
+                  {activeProject?.name} · {normalizedThemes.length} temas · {normalizedThemes.filter(t => t.production_assets?.hook_id).length} com composição
                 </p>
               </div>
             </div>
-            <ChevronDown size={14} className={`text-white/30 transition-transform duration-300 ${showDnaTable ? 'rotate-180' : ''}`} />
-          </button>
+            <button
+              onClick={() => setShowDnaFullscreen(false)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest"
+            >
+              <X size={14} /> Fechar
+            </button>
+          </div>
 
-          {showDnaTable && (
-            <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.015] overflow-hidden">
-              <div className="overflow-x-auto no-scrollbar">
-                <table className="w-full text-[9px] border-collapse min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-white/5">
-                      <th className="sticky left-0 z-10 bg-midnight/95 backdrop-blur-sm px-3 py-2.5 text-left text-white/40 font-black uppercase tracking-widest min-w-[180px]">
-                        Tema
-                      </th>
-                      <th className="px-2 py-2.5 text-center text-white/20 font-black uppercase tracking-widest whitespace-nowrap">
-                        Código
-                      </th>
-                      {DNA_COLUMNS.map(col => (
-                        <th key={col.key} className={`px-2 py-2.5 text-center font-black uppercase tracking-widest whitespace-nowrap ${col.color} opacity-70`}>
-                          {col.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {normalizedThemes
-                      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-                      .map((theme) => {
-                        const dna = buildDnaRow(theme);
-                        const hasComposition = theme.production_assets?.hook_id || theme.production_assets?.cta_id;
-                        const statusMeta = STATUS_META[theme.status] || STATUS_META.backlog;
-
-                        return (
-                          <tr key={theme.id} className="border-b border-white/[0.03] hover:bg-white/[0.03] transition-colors">
-                            {/* Theme title — sticky */}
-                            <td className="sticky left-0 z-10 bg-midnight/95 backdrop-blur-sm px-3 py-2 max-w-[200px]">
-                              <p className="text-white/80 font-bold truncate leading-tight" title={theme.title}>
-                                {theme.title}
-                              </p>
-                              <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border ${statusMeta.color}`}>
-                                {statusMeta.label}
-                              </span>
-                            </td>
-
-                            {/* Composition code */}
-                            <td className="px-2 py-2 text-center">
-                              {hasComposition ? (
-                                <span className="px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 font-mono font-black text-[8px] whitespace-nowrap">
-                                  {dna.compositionCode}
-                                </span>
-                              ) : (
-                                <span className="text-white/15 italic">—</span>
-                              )}
-                            </td>
-
-                            {/* Dynamic columns */}
-                            {DNA_COLUMNS.map(col => {
-                              const val = dna[col.key as keyof typeof dna] || '—';
-                              const nameKey = `${col.key}Name` as keyof typeof dna;
-                              const fullName = dna[nameKey] || '';
-                              const isNone = val === '—';
-
-                              return (
-                                <td key={col.key} className="px-2 py-2 text-center" title={fullName ? `${val} — ${fullName}` : ''}>
-                                  {isNone ? (
-                                    <span className="text-white/10">—</span>
-                                  ) : (
-                                    <span className={`font-black ${col.color}`}>
-                                      {val}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Legend */}
-              <div className="px-4 py-2.5 border-t border-white/[0.03] flex flex-wrap gap-x-4 gap-y-1">
-                {Object.entries(CODE_PREFIX).map(([type, prefix]) => {
-                  const count = allNarrativeComponents.filter(c => c.type === type).length;
-                  if (count === 0) return null;
-                  const colDef = DNA_COLUMNS.find(c =>
-                    (type === 'Hook' && c.key === 'hook') ||
-                    (type === 'CTA' && c.key === 'cta') ||
-                    (type === 'Title Structure' && c.key === 'structure') ||
-                    (type === 'Narrative Curve' && c.key === 'curve') ||
-                    (type === 'Argument Mode' && c.key === 'argument')
-                  );
-                  return (
-                    <span key={type} className={`text-[8px] font-black uppercase tracking-widest ${colDef?.color || 'text-white/30'}`}>
-                      {prefix}1-{prefix}{count}: {type} ({count})
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Fullscreen Table */}
+          <div className="flex-1 overflow-auto px-6 py-4">
+            {renderDnaTable(true)}
+          </div>
         </div>
       )}
 

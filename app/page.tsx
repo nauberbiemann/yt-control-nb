@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
@@ -1383,21 +1383,7 @@ export default function Home() {
                         <Plus size={16} />
                       </button>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-700/30">
-                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Prioridade</p>
-                        <p className="text-xs font-semibold text-slate-300">Não definida</p>
-                      </div>
-                      <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-700/30">
-                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Categoria</p>
-                        <p className="text-xs font-semibold text-slate-300">Sem categoria</p>
-                      </div>
-                      <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-700/30">
-                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Data de Vencimento</p>
-                        <p className="text-xs font-semibold text-slate-300">dd/mm/aaaa</p>
-                      </div>
-                    </div>
+
                   </div>
                 </div>
               </div>

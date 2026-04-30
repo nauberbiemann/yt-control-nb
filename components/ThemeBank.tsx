@@ -163,7 +163,10 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     dateValue: string,
     fallbackStatus: typeof STATUSES[number]
   ): typeof STATUSES[number] => {
-    if (!dateValue) return fallbackStatus;
+    if (!dateValue) {
+      if (fallbackStatus === 'scheduled' || fallbackStatus === 'published') return 'scripted';
+      return fallbackStatus;
+    }
 
     const selected = new Date(dateValue.includes('T') ? dateValue : `${dateValue}T00:00:00`);
     if (Number.isNaN(selected.getTime())) return fallbackStatus;
@@ -279,6 +282,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     title_structure: payload.title_structure || '',
     priority: Number(payload.priority) || 0,
     notes: payload.notes || '',
+    target_publish_date: payload.target_publish_date || null,
+    production_assets: payload.production_assets || {},
     created_at: editingTheme?.created_at || payload.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });

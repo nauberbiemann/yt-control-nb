@@ -193,6 +193,8 @@ export default function Home() {
     title_structure: item?.title_structure || '',
     priority: Number.isFinite(Number(item?.priority)) ? Number(item.priority) : 0,
     notes: item?.notes || '',
+    target_publish_date: item?.target_publish_date || null,
+    production_assets: item?.production_assets || {},
     created_at: item?.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });

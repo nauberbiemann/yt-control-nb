@@ -660,6 +660,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         title_structure: themePayload.title_structure,
         priority: themePayload.priority,
         notes: themePayload.notes,
+        target_publish_date: themePayload.target_publish_date || null,
         updated_at: themePayload.updated_at,
         production_assets: compactProductionAssets,
       };

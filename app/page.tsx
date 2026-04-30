@@ -1253,11 +1253,16 @@ export default function Home() {
     switch(currentView) {
       case 'home':
         const activeThemes = localStorage.getItem(`themes_${activeProjectId}`) ? JSON.parse(localStorage.getItem(`themes_${activeProjectId}`)!) : [];
+        const now = new Date();
         const stats = {
           finished: activeThemes.filter((t: any) => t.status === 'published').length,
           pending: activeThemes.filter((t: any) => ['backlog', 'vetted'].includes(t.status)).length,
           production: activeThemes.filter((t: any) => t.status === 'scripted').length,
-          scheduled: activeThemes.filter((t: any) => t.status === 'scheduled').length
+          scheduled: activeThemes.filter((t: any) => {
+            if (t.status !== 'scheduled') return false;
+            if (!t.manual_publish_date) return false;
+            return new Date(t.manual_publish_date) > now;
+          }).length
         };
 
         return (

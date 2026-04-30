@@ -3212,117 +3212,105 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           </div>
         )}
 
-        <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
-          <div className="space-y-4">
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
-            </div>
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
-              {[
-                { value: 'internal', title: 'Produzir no aplicativo', description: 'Gera o texto final por IA dentro do app.' },
-                { value: 'external', title: 'Produzir externamente', description: 'Copia o prompt e recebe o roteiro final por texto ou .txt.' },
-              ].map((option) => {
+        <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl">
+          <div className="mb-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
+          </div>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+            {/* Segmented control compacto */}
+            <div className="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/8 self-start shrink-0">
+              {([
+                { value: 'internal' as ExecutionMode, title: 'No Aplicativo' },
+                { value: 'external' as ExecutionMode, title: 'Externamente' },
+              ]).map((option) => {
                 const isActive = executionMode === option.value;
                 return (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setExecutionMode(option.value as ExecutionMode)}
-                    className={`rounded-2xl border px-5 py-4 text-left transition-all flex flex-col gap-2 ${
+                    onClick={() => setExecutionMode(option.value)}
+                    className={`rounded-lg px-5 py-2 text-[10px] font-black uppercase tracking-[1.5px] transition-all ${
                       isActive
-                        ? 'bg-blue-500/15 border-blue-400/40 shadow-lg shadow-blue-500/15'
-                        : 'bg-white/5 border-white/10 hover:border-white/20'
+                        ? 'bg-blue-500/20 border border-blue-400/40 text-blue-200 shadow-sm shadow-blue-500/20'
+                        : 'text-white/40 hover:text-white/70 border border-transparent'
                     }`}
                   >
-                    <span className={`block text-[10px] font-black uppercase tracking-[2px] ${isActive ? 'text-blue-300' : 'text-white/80'}`}>
-                      {option.title}
-                    </span>
-                    <span className="block text-[11px] text-white/45 leading-relaxed">
-                      {option.description}
-                    </span>
+                    {option.title}
                   </button>
                 );
               })}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
-                  Data e hora de postagem
-                </label>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Data</span>
-                    <input
-                      type="date"
-                      value={manualPublishDraftDate}
-                      onChange={(e) => {
-                        const nextDate = e.target.value;
-                        setManualPublishDraftDate(nextDate);
-                        if (!nextDate) {
-                          setManualPublishDraftTime('');
-                          return;
-                        }
-
-                        if (!manualPublishDraftTime) {
-                          setManualPublishDraftTime('09:00');
-                        }
-                      }}
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Horario</span>
-                    <input
-                      type="time"
-                      value={manualPublishDraftTime}
-                      onChange={(e) => setManualPublishDraftTime(e.target.value)}
-                      disabled={!manualPublishDraftDate}
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40 disabled:cursor-not-allowed disabled:opacity-40"
-                    />
-                  </div>
-                </div>
-                <p className="mt-3 text-[10px] leading-5 text-white/35">
-                  Com horario, passado publica e futuro programa. Sem horario, vale a regra por dia.
-                </p>
-                <div className="mt-3 rounded-xl border border-white/8 bg-black/15 px-3 py-2">
-                  <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-white/35">Rastreabilidade</span>
-                  <p className="mt-1 text-[10px] leading-5 text-white/60">
-                    Snapshot atual: {formatManualPublishTrace(manualPublishDate)}. Esse valor segue junto na execução salva e no tema quando houver registro no banco.
-                  </p>
-                </div>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void applyManualPublishRegistration();
+            </div>
+            {/* Painel de data e hora */}
+            <div className="flex-1 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+              <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
+                Data e hora de postagem
+              </label>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Data</span>
+                  <input
+                    type="date"
+                    value={manualPublishDraftDate}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      setManualPublishDraftDate(nextDate);
+                      if (!nextDate) { setManualPublishDraftTime(''); return; }
+                      if (!manualPublishDraftTime) { setManualPublishDraftTime('09:00'); }
                     }}
-                    disabled={!manualPublishDraftDate || !hasPendingManualPublishChange}
-                    className="rounded-xl border border-blue-400/30 bg-blue-500/15 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100 transition-all hover:border-blue-300/50 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {manualPublishDate ? 'Atualizar data registrada' : 'Registrar data de postagem'}
-                  </button>
-                  {hasPendingManualPublishChange && manualPublishDate && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setManualPublishDraftDate(manualPublishParts.date);
-                        setManualPublishDraftTime(manualPublishParts.time);
-                      }}
-                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/65 transition-all hover:border-white/20 hover:text-white"
-                    >
-                      Descartar alteracao
-                    </button>
-                  )}
-                  {manualPublishDate && (
-                    <button
-                      type="button"
-                      onClick={() => { void clearPublishDate(); }}
-                      className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-red-300 transition-all hover:border-red-400/50 hover:bg-red-500/20"
-                    >
-                      Limpar data
-                    </button>
-                  )}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40"
+                  />
+                </div>
+                <div>
+                  <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Horario</span>
+                  <input
+                    type="time"
+                    value={manualPublishDraftTime}
+                    onChange={(e) => setManualPublishDraftTime(e.target.value)}
+                    disabled={!manualPublishDraftDate}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  />
                 </div>
               </div>
+              <p className="mt-2 text-[10px] leading-5 text-white/35">
+                Com horario, passado publica e futuro programa. Sem horario, vale a regra por dia.
+              </p>
+              <div className="mt-2 rounded-xl border border-white/8 bg-black/15 px-3 py-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-white/35">Rastreabilidade</span>
+                <p className="mt-1 text-[10px] leading-5 text-white/60">
+                  Snapshot atual: {formatManualPublishTrace(manualPublishDate)}. Esse valor segue junto na execucao salva e no tema quando houver registro no banco.
+                </p>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => { void applyManualPublishRegistration(); }}
+                  disabled={!manualPublishDraftDate || !hasPendingManualPublishChange}
+                  className="rounded-xl border border-blue-400/30 bg-blue-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100 transition-all hover:border-blue-300/50 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {manualPublishDate ? 'Atualizar data registrada' : 'Registrar data de postagem'}
+                </button>
+                {hasPendingManualPublishChange && manualPublishDate && (
+                  <button
+                    type="button"
+                    onClick={() => { setManualPublishDraftDate(manualPublishParts.date); setManualPublishDraftTime(manualPublishParts.time); }}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/65 transition-all hover:border-white/20 hover:text-white"
+                  >
+                    Descartar alteracao
+                  </button>
+                )}
+                {manualPublishDate && (
+                  <button
+                    type="button"
+                    onClick={() => { void clearPublishDate(); }}
+                    className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-red-300 transition-all hover:border-red-400/50 hover:bg-red-500/20"
+                  >
+                    Limpar data
+                  </button>
+                )}
+              </div>
             </div>
+          </div>
+        </div>
           </div>
 
           {executionMode === 'external' && (

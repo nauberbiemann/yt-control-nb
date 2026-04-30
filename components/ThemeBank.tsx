@@ -497,7 +497,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
            console.log(`[ThemeBank] ☁️ Background Sync applied: ${cloudThemes.length} cloud, ${mergedThemes.length} merged`);
          }
          // Track which IDs are confirmed in the cloud
-         setCloudSyncedIds(new Set([...cloudIds, ...unsyncedItems.filter(u => !cloudIds.has(u.id)).map(u => u.id)]));
+         const syncedIds: string[] = [...Array.from(cloudIds) as string[], ...unsyncedItems.filter((u: any) => !cloudIds.has(u.id)).map((u: any) => u.id as string)];
+         setCloudSyncedIds(new Set(syncedIds));
       }
     } catch (err) {
       console.warn('[ThemeBank] Erro inesperado SWR capturado.', err);

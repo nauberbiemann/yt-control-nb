@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  Sparkles,
   ChevronRight,
   RotateCcw,
   Zap,
@@ -1346,126 +1345,62 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               </div>
             </div>
 
-            {briefing.selectedTitleStructure && (
-              <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={14} className="text-purple-400" />
-                  <span className="text-xs font-black uppercase tracking-widest text-purple-400">Estrutura do Projeto</span>
-                </div>
-                <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedTitleStructure.name}</p>
-                <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedTitleStructure.pattern}</p>
-              </div>
-            )}
 
-            {(briefing.selectedNarrativeCurve || briefing.selectedArgumentMode) && (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                {briefing.selectedNarrativeCurve && (
-                  <div className="p-4 bg-pink-500/5 border border-pink-500/20 rounded-xl min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Shuffle size={14} className="text-pink-300" />
-                      <span className="text-xs font-black uppercase tracking-widest text-pink-300">Curva Narrativa</span>
-                    </div>
-                    <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedNarrativeCurve.name}</p>
-                    <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedNarrativeCurve.pattern}</p>
-                  </div>
-                )}
-                {briefing.selectedArgumentMode && (
-                  <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Mic size={14} className="text-amber-300" />
-                      <span className="text-xs font-black uppercase tracking-widest text-amber-300">Modo de Argumentacao</span>
-                    </div>
-                    <p className="text-sm font-black text-white mb-1.5 break-words">{briefing.selectedArgumentMode.name}</p>
-                    <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">{briefing.selectedArgumentMode.pattern}</p>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ── Compact Metadata Strip ── */}
+            {(() => {
+              const badges: { label: string; color: string }[] = [];
 
-            {!!briefing.selectedRepetitionRules?.length && (
-              <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl min-w-0">
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertTriangle size={14} className="text-red-300" />
-                  <span className="text-xs font-black uppercase tracking-widest text-red-300">Regras Anti-Repeticao Ativas</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {briefing.selectedRepetitionRules.map((rule) => (
-                    <span key={rule.id} className="px-3 py-1.5 rounded-full border border-red-400/20 bg-red-400/5 text-[10px] font-black uppercase tracking-widest text-red-200">
-                      {rule.name}
+              if (briefing.selectedNarrativeCurve)
+                badges.push({ label: `Curva: ${briefing.selectedNarrativeCurve.name}`, color: 'border-pink-500/30 text-pink-300/70 bg-pink-500/5' });
+
+              if (briefing.selectedArgumentMode)
+                badges.push({ label: `Argumento: ${briefing.selectedArgumentMode.name}`, color: 'border-amber-500/30 text-amber-300/70 bg-amber-500/5' });
+
+              if (briefing.selectedRepetitionRules?.length)
+                briefing.selectedRepetitionRules.forEach(r =>
+                  badges.push({ label: r.name, color: 'border-red-400/20 text-red-200/60 bg-red-400/5' })
+                );
+
+              if (briefing.selectedTitleStructure)
+                badges.push({ label: `Estrutura: ${briefing.selectedTitleStructure.name}`, color: 'border-purple-500/30 text-purple-300/70 bg-purple-500/5' });
+
+              if (briefing.editorialPillar)
+                badges.push({ label: `Pilar: ${briefing.editorialPillar}`, color: 'border-blue-400/30 text-blue-300/70 bg-blue-400/5' });
+
+              if (!badges.length) return null;
+
+              return (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {badges.map((b, i) => (
+                    <span key={i} className={`px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${b.color}`}>
+                      {b.label}
                     </span>
                   ))}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
+            {/* ── Anti-Repetição Summary ── */}
             {briefing.diagnostics && (
-              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl min-w-0 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Info size={14} className="text-amber-400" />
-                    <span className="text-xs font-black uppercase tracking-widest text-amber-400">Painel Anti-Repeticao</span>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full border border-amber-400/30 bg-amber-400/10 text-[10px] font-black uppercase tracking-widest text-amber-300">
-                    Score de novidade: {briefing.diagnostics.noveltyScore}
+              <div className="flex items-center justify-between px-3 py-2 bg-white/[0.02] border border-white/5 rounded-xl gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-[2px] text-white/25">Motor Anti-Repetição</span>
+                  <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${
+                    briefing.diagnostics.noveltyScore >= 70
+                      ? 'border-green-500/30 text-green-400/80 bg-green-500/5'
+                      : briefing.diagnostics.noveltyScore >= 40
+                        ? 'border-yellow-500/30 text-yellow-400/80 bg-yellow-500/5'
+                        : 'border-red-500/30 text-red-400/80 bg-red-500/5'
+                  }`}>
+                    Score {briefing.diagnostics.noveltyScore}
                   </span>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                  {[
-                    { label: 'Abertura travada', value: briefing.openingHook.name },
-                    { label: 'Conversao final travada', value: briefing.selectedCta.name },
-                    { label: 'Estrutura travada', value: briefing.selectedTitleStructure?.name || 'Nao definida' },
-                    { label: 'Curva travada', value: briefing.selectedNarrativeCurve?.name || 'Nao definida' },
-                    { label: 'Argumento travado', value: briefing.selectedArgumentMode?.name || 'Nao definido' },
-                    { label: 'Padrao de voz', value: formatVoicePatternLabel(briefing.diagnostics.locked.voicePatternId) },
-                    { label: 'Duracao', value: formatDurationLabel(briefing.diagnostics.locked.durationMinutes) },
-                    { label: 'Blocos travados', value: `${briefing.diagnostics.locked.blockCount} blocos` },
-                  ].map((item) => (
-                    <div key={item.label} className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1">{item.label}</p>
-                      <p className="text-xs font-black text-white leading-snug break-words">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Bloqueios ativos</p>
-                    <div className="space-y-1 text-[11px] text-white/70">
-                      <p>Estruturas bloqueadas: {briefing.diagnostics.blocked.titleStructureIds.length}</p>
-                      <p>Curvas bloqueadas: {briefing.diagnostics.blocked.curveIds.length}</p>
-                      <p>Argumentos bloqueados: {briefing.diagnostics.blocked.argumentModeIds.length}</p>
-                      <p>Regras ativas: {briefing.diagnostics.blocked.repetitionRuleIds.length || 'Nenhuma'}</p>
-                      <p>Combos bloqueados: {briefing.diagnostics.blocked.comboKeys.length}</p>
-                      <p>Blocos bloqueados: {briefing.diagnostics.blocked.blockCounts.join(', ') || 'Nenhum'}</p>
-                      <p>Duracoes bloqueadas: {briefing.diagnostics.blocked.durationMinutes.map((value) => `${value}m`).join(', ') || 'Nenhuma'}</p>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Historico recente</p>
-                    <div className="space-y-1 text-[11px] text-white/70">
-                      <p>Fonte da variacao: {briefing.historySourceLabel || 'Historico registrado'}</p>
-                      <p>Sessao atual: {briefing.diagnostics.recentUsage.sourceBreakdown?.session || 0}</p>
-                      <p>Historico registrado: {briefing.diagnostics.recentUsage.sourceBreakdown?.registered || 0}</p>
-                      <p>Aberturas recentes: {briefing.diagnostics.recentUsage.hookIds.length}</p>
-                      <p>Conversoes finais recentes: {briefing.diagnostics.recentUsage.ctaIds.length}</p>
-                      <p>Estruturas recentes: {briefing.diagnostics.recentUsage.titleStructureIds.length}</p>
-                      <p>Curvas recentes: {briefing.diagnostics.recentUsage.curveIds.length}</p>
-                      <p>Argumentos recentes: {briefing.diagnostics.recentUsage.argumentModeIds.length}</p>
-                      <p>Regras recentes: {briefing.diagnostics.recentUsage.repetitionRuleIds.length}</p>
-                      <p>Blocos recentes: {briefing.diagnostics.recentUsage.blockCounts.map((value) => `${value}`).join(', ') || 'Nenhum'}</p>
-                      <p>Duracoes recentes: {briefing.diagnostics.recentUsage.durationMinutes.map((value) => `${value}m`).join(', ') || 'Nenhuma'}</p>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Motivo da escolha</p>
-                    <p className="text-[11px] text-white/70 leading-relaxed">
-                      {briefing.historyChoiceReason || 'O motor travou uma composicao menos usada no projeto ativo e evitou repetir a mesma combinacao recente de abertura, conversao final, estrutura, duracao, contagem e voz.'}
-                    </p>
-                  </div>
-                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/20">
+                  {briefing.historySourceLabel || 'Histórico registrado'}
+                </span>
               </div>
             )}
+
 
             {/* Modular Structure */}
             <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden mt-4">

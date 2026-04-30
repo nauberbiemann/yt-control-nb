@@ -18,6 +18,7 @@ import { LocalRescueTool } from '@/components/LocalRescueTool';
 import { supabase } from '@/lib/supabase';
 import { isMasterAccessEmail } from '@/lib/auth-access';
 import { useProjectStore, useActiveProject, useProjects, isBootstrapProject } from '@/lib/store/projectStore';
+import { useThemes } from '@/lib/hooks/useProjectData';
 
 // 🛠️ MODO DE DESENVOLVIMENTO: Altere para true para reativar a segurança
 const ENFORCE_AUTH = true;
@@ -46,6 +47,7 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
+  const { themes: activeThemes } = useThemes();
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const isValidUuid = (value?: string | null) => !!value && uuidRegex.test(value);
@@ -1253,7 +1255,6 @@ export default function Home() {
 
     switch(currentView) {
       case 'home':
-        const activeThemes = localStorage.getItem(`themes_${activeProjectId}`) ? JSON.parse(localStorage.getItem(`themes_${activeProjectId}`)!) : [];
         const now = new Date();
 
         const resolveStatus = (theme: any) => {

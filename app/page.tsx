@@ -14,6 +14,7 @@ import TTSModule from '@/components/TTSModule';
 import AuthOverlay from '@/components/auth/AuthOverlay';
 import AwaitingApproval from '@/components/auth/AwaitingApproval';
 import UserManagement from '@/components/admin/UserManagementPanel';
+import { LocalRescueTool } from '@/components/LocalRescueTool';
 import { supabase } from '@/lib/supabase';
 import { isMasterAccessEmail } from '@/lib/auth-access';
 import { useProjectStore, useActiveProject, useProjects, isBootstrapProject } from '@/lib/store/projectStore';
@@ -1293,6 +1294,8 @@ export default function Home() {
                 }
               </p>
             </header>
+            
+            <LocalRescueTool />
 
             {/* 2. Cards de Resumo */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

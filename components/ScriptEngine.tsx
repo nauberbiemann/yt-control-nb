@@ -2844,75 +2844,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           </div>
         </div>
 
-        {/* Modular Pieces */}
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-xs font-black uppercase tracking-widest text-white/40">Blueprint Modular</h3>
-            <Settings size={14} className="text-white/20" />
-          </div>
 
-          {/* SOP Visualizer */}
-          <div className="glass-card p-6 border-blue-500/30 bg-blue-500/10 shadow-lg shadow-blue-500/5">
-            <div className="flex items-center gap-3 mb-4">
-              <Zap className="text-blue-400" size={18} />
-              <span className="text-xs font-black uppercase tracking-widest text-white">Diretrizes SOP</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-midnight/40 rounded-xl border border-white/10 text-center">
-                <span className="text-[9px] text-white/40 uppercase font-black block mb-1">Corte</span>
-                <span className="text-sm font-black text-white">{activeProject?.editing_sop?.cut_rhythm || '3s'}</span>
-              </div>
-              <div className="p-3 bg-midnight/40 rounded-xl border border-white/10 text-center">
-                <span className="text-[9px] text-white/40 uppercase font-black block mb-1">Zoom</span>
-                <span className="text-sm font-black text-white">{activeProject?.editing_sop?.zoom_style || 'Dynamic'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Hooks Selection */}
-          <div className="glass-card p-6 flex flex-col gap-3">
-            <div className="flex items-center gap-3 mb-3">
-              <Sparkles className="text-blue-400" size={18} />
-              <span className="text-xs font-black uppercase tracking-widest text-white">Openers Estrategicos</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {uniqueHookTemplates.map(h => (
-                <button 
-                  key={h.id} 
-                  onClick={() => setSelectedHookId(h.id)}
-                  className={`w-full p-4 rounded-xl text-left transition-all flex items-center justify-between group border ${
-                    selectedHookId === h.id 
-                    ? 'bg-blue-500/15 border-blue-400/40 ring-1 ring-blue-400/20' 
-                    : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className={`font-black text-xs ${selectedHookId === h.id ? 'text-blue-300' : 'text-white/80 group-hover:text-white'}`}>{h.name}</span>
-                    <span className="text-[9px] uppercase font-bold text-white/30 group-hover:text-white/50">{h.description}</span>
-                  </div>
-                  {selectedHookId === h.id ? <Zap size={14} className="text-blue-300" /> : <ChevronDown size={14} className="text-white/20 group-hover:text-white/40 transition-transform" /> }
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* D.I.O Journey */}
-          <div className="glass-card p-6 flex flex-col gap-3 border-orange-400/30 bg-orange-400/5">
-            <div className="flex items-center gap-3 mb-3">
-              <Layout className="text-orange-400" size={18} />
-              <span className="text-xs font-black uppercase tracking-widest text-white">Jornada Tatica</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {(activeProject?.playlists?.tactical_journey || []).map((m: any) => (
-                <div key={m.id} className="p-3 bg-midnight/40 rounded-xl border border-white/10 flex items-center justify-between group/item">
-                  <span className="text-[10px] font-black text-white/70">{m.label}: <span className="text-white/40">{m.title}</span></span>
-                  <Plus size={12} className="text-white/20 cursor-pointer hover:text-orange-400 transition-all hover:scale-125" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        </section>
+</section>
 
         {/* Right: Script Workspace - hidden on mobile when context tab active */}
         <section className={`flex-1 min-w-0 min-h-0 glass-card flex-col shadow-2xl border-white/10 ring-1 ring-white/5 ${mobileTab === 'main' ? 'flex' : 'hidden lg:flex'}`}>

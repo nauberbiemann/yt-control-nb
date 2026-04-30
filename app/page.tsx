@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
@@ -1254,17 +1254,31 @@ export default function Home() {
       case 'home':
         const activeThemes = localStorage.getItem(`themes_${activeProjectId}`) ? JSON.parse(localStorage.getItem(`themes_${activeProjectId}`)!) : [];
         const now = new Date();
-        const stats = {
-          finished: activeThemes.filter((t: any) => t.status === 'published').length,
-          pending: activeThemes.filter((t: any) => ['backlog', 'vetted'].includes(t.status)).length,
-          production: activeThemes.filter((t: any) => t.status === 'scripted').length,
-          scheduled: activeThemes.filter((t: any) => {
-            if (t.status !== 'scheduled') return false;
-            if (!t.manual_publish_date) return false;
-            return new Date(t.manual_publish_date) > now;
-          }).length
+
+        const resolveStatus = (theme: any) => {
+          const dateValue = theme.target_publish_date || (theme.production_assets ? theme.production_assets.target_publish_date : null);
+          if (!dateValue) return theme.status;
+          const selected = new Date(dateValue.includes("T") ? dateValue : `${dateValue}T00:00:00`);
+          if (Number.isNaN(selected.getTime())) return theme.status;
+          const today = new Date();
+          if (dateValue.includes("T")) {
+            return selected.getTime() <= today.getTime() ? "published" : "scheduled";
+          }
+          const selectedDay = new Date(selected);
+          selectedDay.setHours(0, 0, 0, 0);
+          const todayStart = new Date(today);
+          todayStart.setHours(0, 0, 0, 0);
+          if (selectedDay.getTime() < todayStart.getTime()) return "published";
+          if (selectedDay.getTime() > todayStart.getTime()) return "scheduled";
+          return "scripted";
         };
 
+        const stats = {
+          finished: activeThemes.filter((t: any) => resolveStatus(t) === "published").length,
+          pending: activeThemes.filter((t: any) => ["backlog", "vetted"].includes(resolveStatus(t))).length,
+          production: activeThemes.filter((t: any) => resolveStatus(t) === "scripted").length,
+          scheduled: activeThemes.filter((t: any) => resolveStatus(t) === "scheduled").length
+        };
         return (
           <div className="animate-in space-y-12">
             {/* 1. Header Forte */}

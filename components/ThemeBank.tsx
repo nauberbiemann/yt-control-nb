@@ -393,6 +393,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         if (!error && data) {
           const titleOnly = (data as any[]).filter((component) => component.type === 'Title Structure');
           const merged = mergeNarrativeComponents(localItems, titleOnly);
+          const normalized = normalizeTitleStructures(merged);
           setProjectTitleStructures(normalized);
           return;
         }

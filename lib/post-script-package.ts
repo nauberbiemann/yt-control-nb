@@ -263,6 +263,7 @@ export const buildChapterAnchors = ({
   const totalWeight = weights.reduce((acc, weight) => acc + weight, 0);
   const cleanForMatch = (text: string) => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   let lastMatchedRowIndex = 0;
+  let accumulated = 0;
 
   return scriptBlocks.map((block, index) => {
     let timestampSeconds = 0;

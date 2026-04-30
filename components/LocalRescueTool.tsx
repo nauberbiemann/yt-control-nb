@@ -92,7 +92,8 @@ export function LocalRescueTool() {
         'id', 'project_id', 'user_id', 'title', 'description', 'editorial_pillar', 
         'status', 'hook_id', 'title_structure', 'priority', 'notes', 'created_at', 
         'updated_at', 'title_structure_asset_id', 'origin_mode', 'execution_mode', 
-        'composition_log_id', 'script_execution_id'
+        'composition_log_id', 'script_execution_id', 'target_publish_date', 
+        'production_assets', 'selected_structure'
       ];
       
       const cleanThemes = allThemes.map(t => {

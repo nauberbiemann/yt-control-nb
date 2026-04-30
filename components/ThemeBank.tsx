@@ -1140,12 +1140,12 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                             )}
                             {cloudSyncedIds.size > 0 && (
                               cloudSyncedIds.has(theme.id) ? (
-                                <span className="ml-auto flex items-center gap-1 text-emerald-400/70" title="Sincronizado com a nuvem">
-                                  <Cloud size={11} />
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[9px] font-black uppercase tracking-widest" title="Sincronizado com a nuvem">
+                                  <Cloud size={10} /> Sync
                                 </span>
                               ) : (
-                                <span className="ml-auto flex items-center gap-1 text-amber-400/80" title="Apenas local — aguardando sincronização">
-                                  <CloudOff size={11} />
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-amber-400 text-[9px] font-black uppercase tracking-widest animate-pulse" title="Apenas local — aguardando sincronização">
+                                  <CloudOff size={10} /> Local
                                 </span>
                               )
                             )}

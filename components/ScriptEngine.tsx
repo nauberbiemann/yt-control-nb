@@ -1221,6 +1221,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       });
     }
 
+    persistExecutionSnapshotLocally({
+      manualPublishDate: nextValue,
+      ...(isSchedulingOrPublishing ? {
+        externalScriptText: '',
+        externalSrtText: '',
+        externalSrtObserver: [],
+      } : {}),
+    });
+
     if (isSchedulingOrPublishing) {
       showToast('Conteúdo de texto liberado. Espaço de armazenamento otimizado.');
     }

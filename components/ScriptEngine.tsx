@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -3327,7 +3327,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
           {executionMode === 'external' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
                 <div className="space-y-3">
                   <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
                   <textarea
@@ -3338,54 +3338,58 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                   />
                 </div>
 
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
-                      <input
-                        value={externalSourceLabel}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setExternalSourceLabel(value);
-                          persistExecutionSnapshotLocally({
-                            executionMode: 'external',
-                            externalSourceLabel: value,
-                          });
-                        }}
-                        placeholder="Ex: ChatGPT, Claude, Gemini..."
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
-                      />
-                    </div>
-                    <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
+                    <input
+                      value={externalSourceLabel}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setExternalSourceLabel(value);
+                        persistExecutionSnapshotLocally({
+                          executionMode: 'external',
+                          externalSourceLabel: value,
+                        });
+                      }}
+                      placeholder="Ex: ChatGPT, Claude, Gemini..."
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
+                    />
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div>
                       <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
-                      <input
-                        type="file"
-                        accept=".txt,text/plain"
-                        onChange={handleExternalScriptUpload}
-                        className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
-                      />
-                      <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                        {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
-                      </div>
+                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
+                        Use para aplicar o roteiro final aos blocos atuais. O arquivo fica salvo nesta execucao mesmo se voce sair da pagina.
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".txt,text/plain"
+                      onChange={handleExternalScriptUpload}
+                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
+                    />
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                      {externalScriptFileName ? `Arquivo persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado ainda.'}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                    {/* Col 1: SRT Upload */}
-                    <div className="space-y-2">
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div>
                       <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
-                      <input
-                        type="file"
-                        accept=".srt,text/plain"
-                        onChange={handleExternalSrtUpload}
-                        className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
-                      />
-                      <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                        {externalSrtFileName ? `Persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado.'}
-                      </div>
+                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
+                        O upload do .srt atende a entrada da etapa 1. Abaixo, o app replica as etapas 2, 3 e 4 do pipeline para gerar CSV base, marcacao de assets e prompts visuais.
+                      </p>
                     </div>
-                    {/* Col 2: Formato + Personagem */}
-                    <div className="space-y-3">
+                    <input
+                      type="file"
+                      accept=".srt,text/plain"
+                      onChange={handleExternalSrtUpload}
+                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
+                    />
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                      {externalSrtFileName ? `Arquivo persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado ainda.'}
+                    </div>
                     <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
                       <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
@@ -3459,13 +3463,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
                         />
                       )}
-                     </div>
                     </div>
-                    {/* Col 3: Estilo Visual + Botões de Ação */}
-                    <div className="space-y-3">
                     <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
-                       <div>
-                         <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
                         <p className="mt-1 text-[10px] leading-relaxed text-white/40">
                           Delegue para a IA decidir o estilo cena a cena, ou force um estilo global para tudo.
                         </p>
@@ -3560,8 +3561,6 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           ? `Pacote persistido em ${new Date(postScriptPackage.generatedAt).toLocaleString('pt-BR')}.`
                           : 'Nenhum pacote pos-roteiro processado ainda.'}
                     </div>
-                    </div>
-                  </div>
                   </div>
                 </div>
               </div>

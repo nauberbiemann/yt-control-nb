@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -3214,11 +3214,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
         <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
           <div className="space-y-4">
-            <div className="max-w-3xl">
+            <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
-              <p className="mt-2 max-w-xl text-[11px] text-white/45 leading-relaxed">
-                O orquestrador continua montando o blueprint. Aqui voce decide se o texto final sera produzido no app ou em plataforma externa.
-              </p>
             </div>
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
               {[
@@ -3231,7 +3228,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     key={option.value}
                     type="button"
                     onClick={() => setExecutionMode(option.value as ExecutionMode)}
-                    className={`min-h-[168px] rounded-2xl border px-5 py-5 text-left transition-all ${
+                    className={`rounded-2xl border px-5 py-4 text-left transition-all flex flex-col gap-2 ${
                       isActive
                         ? 'bg-blue-500/15 border-blue-400/40 shadow-lg shadow-blue-500/15'
                         : 'bg-white/5 border-white/10 hover:border-white/20'
@@ -3240,7 +3237,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <span className={`block text-[10px] font-black uppercase tracking-[2px] ${isActive ? 'text-blue-300' : 'text-white/80'}`}>
                       {option.title}
                     </span>
-                    <span className="block mt-3 text-[11px] text-white/45 leading-relaxed">
+                    <span className="block text-[11px] text-white/45 leading-relaxed">
                       {option.description}
                     </span>
                   </button>
@@ -3337,7 +3334,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     value={externalScriptText}
                     onChange={(e) => setExternalScriptText(e.target.value)}
                     placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
-                    className="w-full min-h-[220px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
+                    className="w-full min-h-[100px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
                   />
                 </div>
 
@@ -3690,7 +3687,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           <textarea
                             readOnly
                             value={externalSrtPipeline.videoPromptsTxt || 'Nenhum prompt de video foi gerado para este SRT.'}
-                            className="w-full min-h-[180px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                            className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />
                         </div>
 
@@ -3720,7 +3717,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           <textarea
                             readOnly
                             value={externalSrtPipeline.imagePromptsTxt || 'Nenhum prompt de imagem foi gerado para este SRT.'}
-                            className="w-full min-h-[180px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                            className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />
                         </div>
                       </div>
@@ -3864,7 +3861,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                             <textarea
                               readOnly
                               value={externalSrtPipeline.textRender.log || 'Sem log de render disponivel.'}
-                              className="w-full min-h-[180px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                              className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                             />
                           </>
                         ) : (
@@ -3961,7 +3958,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         <Copy size={12} className="inline mr-2" /> Copiar
                       </button>
                     </div>
-                    <div className="min-h-[320px] rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
+                    <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
                       <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
                         <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Abertura</p>
                         <div className="mt-3 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
@@ -4021,7 +4018,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         <span className="block text-[12px] font-bold text-white/85">{postScriptPackage.sunoSuggestedTitle}</span>
                       </div>
                     )}
-                    <div className="min-h-[260px] rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
+                    <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
                       {postScriptPackage.sunoPrompt}
                     </div>
                   </div>

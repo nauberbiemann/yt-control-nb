@@ -106,10 +106,13 @@ export function LocalRescueTool() {
         return cleaned;
       });
 
+      // DEDUPLICAR para evitar erro "ON CONFLICT DO UPDATE command cannot affect row a second time"
+      const uniqueThemes = Array.from(new Map(cleanThemes.map(t => [t.id, t])).values());
+
       // Upsert Themes em Lotes (Supabase limite de payload)
       const batchSize = 50;
-      for (let i = 0; i < cleanThemes.length; i += batchSize) {
-        const batch = cleanThemes.slice(i, i + batchSize);
+      for (let i = 0; i < uniqueThemes.length; i += batchSize) {
+        const batch = uniqueThemes.slice(i, i + batchSize);
         const { error } = await supabase.from('themes').upsert(batch, { onConflict: 'id' });
         if (error) throw new Error('Erro ao salvar temas: ' + error.message);
       }
@@ -129,9 +132,11 @@ export function LocalRescueTool() {
         return cleaned;
       });
 
+      const uniqueNarratives = Array.from(new Map(cleanNarratives.map(n => [n.id, n])).values());
+
       // Upsert Narratives
-      for (let i = 0; i < cleanNarratives.length; i += batchSize) {
-        const batch = cleanNarratives.slice(i, i + batchSize);
+      for (let i = 0; i < uniqueNarratives.length; i += batchSize) {
+        const batch = uniqueNarratives.slice(i, i + batchSize);
         const { error } = await supabase.from('narrative_components').upsert(batch, { onConflict: 'id' });
         if (error) throw new Error('Erro ao salvar ativos de narrativa: ' + error.message);
       }
@@ -153,9 +158,11 @@ export function LocalRescueTool() {
         return cleaned;
       });
 
+      const uniqueLogs = Array.from(new Map(cleanLogs.map(l => [l.id, l])).values());
+
       // Upsert BI logs
-      for (let i = 0; i < cleanLogs.length; i += batchSize) {
-        const batch = cleanLogs.slice(i, i + batchSize);
+      for (let i = 0; i < uniqueLogs.length; i += batchSize) {
+        const batch = uniqueLogs.slice(i, i + batchSize);
         await supabase.from('composition_log').upsert(batch, { onConflict: 'id' }).catch(() => {});
       }
       

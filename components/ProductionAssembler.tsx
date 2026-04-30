@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Sparkles,
   ChevronRight,
   RotateCcw,
   Zap,

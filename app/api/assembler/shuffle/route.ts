@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { resolveModel, isReasoningModel } from '@/lib/ai-config';
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -130,7 +130,12 @@ const pickLeastUsedDifferent = <T extends { id: string }>(
     }))
     .sort((a, b) => a.usage - b.usage);
 
-  return scored[0]?.item || candidates[0];
+  // Among tied candidates (same usage), pick randomly to ensure variation
+  const minUsage = scored[0].usage;
+  const tied = scored.filter((s) => s.usage === minUsage);
+  const picked = tied[Math.floor(Math.random() * tied.length)];
+
+  return picked?.item || candidates[0];
 };
 
 const pickDirectiveItem = <T extends { id: string; category?: string }>(
@@ -152,7 +157,8 @@ const pickDirectiveItem = <T extends { id: string; category?: string }>(
     return pickLeastUsedDifferent(experimentalItems, recentIds) || experimentalItems[0];
   }
 
-  return pickLeastUsedDifferent(items, recentIds) || items[0];
+  // No category defined → treat all items as rotative (least-used + randomized tiebreak)
+  return pickLeastUsedDifferent(items, recentIds) || items[Math.floor(Math.random() * items.length)];
 };
 
 const pickRepetitionRules = <T extends { id: string; category?: string }>(

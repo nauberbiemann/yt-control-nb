@@ -3849,7 +3849,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
               )}
             </div>
           )}
-        </div>
+
 
         {(canProcessPostScriptPackage || !!postScriptPackage) && (
           <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-blue-500/15 bg-blue-500/[0.03] overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.06)]">

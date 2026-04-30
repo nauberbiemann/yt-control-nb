@@ -653,7 +653,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         title: themePayload.title,
         description: themePayload.description,
         editorial_pillar: themePayload.editorial_pillar,
-        status: themePayload.status,
+        status: themePayload.status === 'scheduled' ? 'scripted' : themePayload.status,
         hook_id: null,
         title_structure: themePayload.title_structure,
         priority: themePayload.priority,
@@ -662,18 +662,39 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         production_assets: compactProductionAssets,
       };
 
-      const existingRemote = await supabase
-        .from('themes')
-        .select('id')
-        .eq('project_id', activeProject.id)
-        .ilike('title', themeTitle)
-        .limit(1);
+      let remoteId = existingTheme?.id;
 
-      if (existingRemote.data && existingRemote.data[0]?.id) {
-        await supabase.from('themes').update(cloudThemePayload).eq('id', existingRemote.data[0].id);
+      if (remoteId) {
+        const existingRemoteById = await supabase
+          .from('themes')
+          .select('id')
+          .eq('id', remoteId)
+          .limit(1);
+          
+        if (!existingRemoteById.data || !existingRemoteById.data[0]) {
+           remoteId = undefined; // ID not found in remote, fallback to title
+        }
+      }
+
+      if (!remoteId) {
+        const existingRemoteByTitle = await supabase
+          .from('themes')
+          .select('id')
+          .eq('project_id', activeProject.id)
+          .ilike('title', themeTitle)
+          .limit(1);
+          
+        if (existingRemoteByTitle.data && existingRemoteByTitle.data[0]) {
+          remoteId = existingRemoteByTitle.data[0].id;
+        }
+      }
+
+      if (remoteId) {
+        await supabase.from('themes').update(cloudThemePayload).eq('id', remoteId);
       } else {
         await supabase.from('themes').insert({
           ...cloudThemePayload,
+          id: existingTheme?.id || crypto.randomUUID(),
           created_at: new Date().toISOString(),
         });
       }

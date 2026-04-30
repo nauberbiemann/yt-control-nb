@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -3327,8 +3327,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
           {executionMode === 'external' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-                <div className="space-y-3">
+              {/* ROW 1: Textarea + Plataforma/TXT side by side */}
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="space-y-2">
                   <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
                   <textarea
                     value={externalScriptText}
@@ -3337,8 +3338,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     className="w-full min-h-[100px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
                   />
                 </div>
-
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="space-y-2">
                     <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
                     <input
@@ -3355,197 +3355,173 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
                     />
                   </div>
-
-                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
-                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
-                        Use para aplicar o roteiro final aos blocos atuais. O arquivo fica salvo nesta execucao mesmo se voce sair da pagina.
-                      </p>
-                    </div>
+                  <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
                     <input
                       type="file"
                       accept=".txt,text/plain"
                       onChange={handleExternalScriptUpload}
                       className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
                     />
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
-                      {externalScriptFileName ? `Arquivo persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado ainda.'}
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                      {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
                     </div>
                   </div>
+                </div>
+              </div>
 
-                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
-                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
-                        O upload do .srt atende a entrada da etapa 1. Abaixo, o app replica as etapas 2, 3 e 4 do pipeline para gerar CSV base, marcacao de assets e prompts visuais.
+              {/* ROW 2: SRT + Formato/Personagem + Estilo + Botoes — 3 cols */}
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                {/* Col 1: SRT Upload */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
+                  <input
+                    type="file"
+                    accept=".srt,text/plain"
+                    onChange={handleExternalSrtUpload}
+                    className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
+                  />
+                  <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                    {externalSrtFileName ? `Persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado.'}
+                  </div>
+                </div>
+
+                {/* Col 2: Formato + Personagem */}
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { value: 'avatar', label: 'Com Apresentador' },
+                        { value: 'faceless', label: 'Faceless' },
+                      ] as { value: VideoFormat; label: string }[]).map((option) => {
+                        const selected = videoFormat === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setVideoFormat(option.value)}
+                            className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                              selected
+                                ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
+                                : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {videoFormat === 'faceless' && (
+                      <p className="text-[9px] text-amber-400/70 leading-relaxed">
+                        Modo Faceless: imagens e videos a cada ~6s. As lacunas no CSV ficam em branco — estique a midia anterior no editor.
                       </p>
-                    </div>
-                    <input
-                      type="file"
-                      accept=".srt,text/plain"
-                      onChange={handleExternalSrtUpload}
-                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
-                    />
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
-                      {externalSrtFileName ? `Arquivo persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado ainda.'}
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
-                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
-                          Com Apresentador usa avatar para preencher os cortes. Faceless cobre toda a tela com imagens e videos.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {([
-                          { value: 'avatar', label: 'Com Apresentador' },
-                          { value: 'faceless', label: 'Faceless' },
-                        ] as { value: VideoFormat; label: string }[]).map((option) => {
-                          const selected = videoFormat === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setVideoFormat(option.value)}
-                              className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
-                                selected
-                                  ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
-                                  : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {videoFormat === 'faceless' && (
-                        <p className="text-[9px] text-amber-400/70 leading-relaxed">
-                          Modo Faceless: imagens e videos a cada ~6s. As lacunas no CSV ficam em branco — estique a midia anterior no editor.
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
-                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
-                          Mantem continuidade visual entre cenas. Os prompts de video tambem serao gerados sem falas, apenas com som ambiente.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { value: 'male', label: 'Masculino' },
-                          { value: 'female', label: 'Feminino' },
-                          { value: 'custom', label: 'Personalizado' },
-                        ].map((option) => {
-                          const selected = videoCharacterMode === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setVideoCharacterMode(option.value as VideoCharacterMode)}
-                              className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
-                                selected
-                                  ? 'border-purple-300/40 bg-purple-500/15 text-purple-100'
-                                  : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {videoCharacterMode === 'custom' && (
-                        <textarea
-                          value={videoCharacterCustom}
-                          onChange={(e) => setVideoCharacterCustom(e.target.value)}
-                          placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
-                          className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
-                        />
-                      )}
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
-                        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
-                          Delegue para a IA decidir o estilo cena a cena, ou force um estilo global para tudo.
-                        </p>
-                      </div>
-                      <select 
-                        value={textStyleMode}
-                        onChange={(e) => setTextStyleMode(e.target.value)}
-                        className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
-                      >
-                        <option value="auto">Automático (IA, Variável cena a cena)</option>
-                        {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                        <option value="custom">Personalizado...</option>
-                      </select>
-                      {textStyleMode === 'custom' && (
-                        <input
-                           value={customTextStyle}
-                           onChange={(e) => setCustomTextStyle(e.target.value)}
-                           placeholder="Ex: Neon, Vintage VHS, Clean White..."
-                           className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
-                        />
-                      )}
-                    </div>
-                     <button
-                       type="button"
-                       onClick={processAttachedSrtAssets}
-                       disabled={isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
-                       className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                     >
-                       {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
-                     </button>
-                     {/* Fallback badge + regenerate button */}
-                     {externalSrtPipeline && (() => {
-                       const fallbackCount = externalSrtPipeline.rows.filter((r) => r.isFallback).length;
-                       if (fallbackCount === 0) return null;
-                       return (
-                         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-2">
-                           <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
-                             ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
-                           </p>
-                           <p className="text-[10px] text-orange-200/60 leading-relaxed">
-                             A IA não gerou {fallbackCount > 1 ? 'estes prompts' : 'este prompt'} corretamente. Clique para tentar regenerar apenas os itens faltantes.
-                           </p>
-                           <button
-                             type="button"
-                             onClick={regenerateFallbackPrompts}
-                             disabled={isRegeneratingFallbacks || isProcessingSrtPipeline}
-                             className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-200 transition-all hover:bg-orange-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
-                           >
-                              {isRegeneratingFallbacks ? 'REGENERANDO...' : `REGENERAR ${fallbackCount} ITEM${fallbackCount > 1 ? 'S' : ''} INCOMPLETO${fallbackCount > 1 ? 'S' : ''}`}
-                           </button>
-                         </div>
-                       );
-                     })()}
-                    {externalSrtPipeline && (
-                      <button
-                        type="button"
-                        onClick={renderTextAssetsFromPipeline}
-                        disabled={isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline.stats.texto === 0}
-                        className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {isRenderingTextAssets ? 'RENDERIZANDO TEXTOS...' : 'ETAPA 5 · RENDERIZAR TEXTOS'}
-                      </button>
                     )}
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
-                      {externalSrtPipeline?.generatedAt
-                        ? `Pipeline persistido em ${new Date(externalSrtPipeline.generatedAt).toLocaleString('pt-BR')}.`
-                        : 'Nenhum pipeline de assets processado ainda.'}
-                    </div>
                   </div>
-
-                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Pacote pos-roteiro</label>
-                      <p className="mt-1 text-[10px] text-white/40 leading-relaxed">
-                        Processa titulos virais, descricao SEO com timestamps, prompt Suno e a timeline de SFX a partir do roteiro final que ja esta nos blocos.
-                      </p>
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'male', label: 'Masculino' },
+                        { value: 'female', label: 'Feminino' },
+                        { value: 'custom', label: 'Custom' },
+                      ].map((option) => {
+                        const selected = videoCharacterMode === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setVideoCharacterMode(option.value as VideoCharacterMode)}
+                            className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                              selected
+                                ? 'border-purple-300/40 bg-purple-500/15 text-purple-100'
+                                : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
                     </div>
+                    {videoCharacterMode === 'custom' && (
+                      <textarea
+                        value={videoCharacterCustom}
+                        onChange={(e) => setVideoCharacterCustom(e.target.value)}
+                        placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
+                        className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Col 3: Estilo + Botoes de Acao */}
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
+                    <select
+                      value={textStyleMode}
+                      onChange={(e) => setTextStyleMode(e.target.value)}
+                      className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
+                    >
+                      <option value="auto">Automatico (IA, Variavel cena a cena)</option>
+                      {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                      <option value="custom">Personalizado...</option>
+                    </select>
+                    {textStyleMode === 'custom' && (
+                      <input
+                        value={customTextStyle}
+                        onChange={(e) => setCustomTextStyle(e.target.value)}
+                        placeholder="Ex: Neon, Vintage VHS, Clean White..."
+                        className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
+                      />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={processAttachedSrtAssets}
+                    disabled={isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
+                    className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
+                  </button>
+                  {externalSrtPipeline && (() => {
+                    const fallbackCount = externalSrtPipeline.rows.filter((r) => r.isFallback).length;
+                    if (fallbackCount === 0) return null;
+                    return (
+                      <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-2">
+                        <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
+                          ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={regenerateFallbackPrompts}
+                          disabled={isRegeneratingFallbacks || isProcessingSrtPipeline}
+                          className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-200 transition-all hover:bg-orange-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isRegeneratingFallbacks ? 'REGENERANDO...' : `REGENERAR ${fallbackCount} ITEM${fallbackCount > 1 ? 'S' : ''}`}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {externalSrtPipeline && (
+                    <button
+                      type="button"
+                      onClick={renderTextAssetsFromPipeline}
+                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline.stats.texto === 0}
+                      className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isRenderingTextAssets ? 'RENDERIZANDO TEXTOS...' : 'ETAPA 5 · RENDERIZAR TEXTOS'}
+                    </button>
+                  )}
+                  <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                    {externalSrtPipeline?.generatedAt
+                      ? `Pipeline persistido em ${new Date(externalSrtPipeline.generatedAt).toLocaleString('pt-BR')}.`
+                      : 'Nenhum pipeline processado ainda.'}
+                  </div>
+                  <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Pacote pos-roteiro</label>
                     <button
                       type="button"
                       onClick={generatePostScriptPackage}
@@ -3554,7 +3530,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     >
                       {isGeneratingPostScriptPackage ? 'PROCESSANDO PACOTE...' : postScriptPackage ? 'REPROCESSAR PACOTE POS-ROTEIRO' : 'PROCESSAR PACOTE POS-ROTEIRO'}
                     </button>
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-3 text-[11px] text-white/65">
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
                       {!canProcessPostScriptPackage
                         ? 'Finalize o roteiro interno ou anexe um .txt externo para habilitar esta etapa.'
                         : postScriptPackage
@@ -3564,6 +3540,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                   </div>
                 </div>
               </div>
+
 
               {(isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline) && (
                 <div className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.04] p-5 space-y-4">

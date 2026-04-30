@@ -288,11 +288,13 @@ export async function POST(req: NextRequest) {
     const seoChapterPlan = buildSeoChapterPlan({
       scriptBlocks,
       totalDurationSeconds: timelineContext.totalDurationSeconds,
+      srtRows,
     });
     const sfxPlan = buildSfxAnchorPlan({
       scriptBlocks,
       totalDurationSeconds: timelineContext.totalDurationSeconds,
       minSpacingSeconds: 25,
+      srtRows,
     });
 
     const prompt = buildUserPrompt({

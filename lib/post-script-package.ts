@@ -251,26 +251,74 @@ export const buildPostScriptTimelineContext = ({
 export const buildChapterAnchors = ({
   scriptBlocks,
   totalDurationSeconds,
+  srtRows,
 }: {
   scriptBlocks: PostScriptScriptBlock[];
   totalDurationSeconds: number;
+  srtRows?: Array<{ startTime?: string; endTime?: string; texto?: string }> | null;
 }): PostScriptChapterAnchor[] => {
   if (!scriptBlocks.length) return [];
 
   const weights = scriptBlocks.map((block) => Math.max(1, cleanPreview(block.content).length));
   const totalWeight = weights.reduce((acc, weight) => acc + weight, 0);
-  let accumulated = 0;
+  const cleanForMatch = (text: string) => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  let lastMatchedRowIndex = 0;
 
   return scriptBlocks.map((block, index) => {
-    const timestamp = index === 0
-      ? 0
-      : Math.round((accumulated / totalWeight) * Math.max(0, totalDurationSeconds - 1));
+    let timestampSeconds = 0;
+
+    if (index === 0) {
+      timestampSeconds = 0;
+    } else {
+      const targetRatio = accumulated / totalWeight;
+
+      if (srtRows && srtRows.length > 0) {
+        let matched = false;
+        const blockStart = cleanForMatch(cleanPreview(block.content).slice(0, 80));
+        
+        if (blockStart.length > 10) {
+          for (let i = lastMatchedRowIndex; i < srtRows.length; i++) {
+            const rowClean = cleanForMatch(srtRows[i].texto || '');
+            if (!rowClean) continue;
+            
+            if (
+              (blockStart.length >= 15 && rowClean.length >= 15 && (blockStart.startsWith(rowClean.slice(0, 15)) || rowClean.startsWith(blockStart.slice(0, 15)))) ||
+              (rowClean.length >= 25 && blockStart.includes(rowClean)) ||
+              (blockStart.length >= 25 && rowClean.includes(blockStart))
+            ) {
+              timestampSeconds = toSeconds((srtRows[i].startTime || '').replace(',', '.').split('.')[0]);
+              lastMatchedRowIndex = i;
+              matched = true;
+              break;
+            }
+          }
+        }
+
+        if (!matched) {
+          const srtWeights = srtRows.map(row => Math.max(1, cleanPreview(row.texto || '').length));
+          const totalSrtWeight = srtWeights.reduce((acc, w) => acc + w, 0);
+          const targetSrtChars = targetRatio * totalSrtWeight;
+        
+          let currentSrtChars = 0;
+          for (let i = 0; i < srtRows.length; i++) {
+            currentSrtChars += srtWeights[i];
+            if (currentSrtChars >= targetSrtChars) {
+              timestampSeconds = toSeconds((srtRows[i].startTime || '').replace(',', '.').split('.')[0]);
+              lastMatchedRowIndex = i;
+              break;
+            }
+          }
+        }
+      } else {
+        timestampSeconds = Math.round(targetRatio * Math.max(0, totalDurationSeconds - 1));
+      }
+    }
 
     accumulated += weights[index];
 
     return {
       index: index + 1,
-      timestamp: formatTimelineTimestamp(timestamp),
+      timestamp: formatTimelineTimestamp(timestampSeconds),
       originalTitle: String(block.title || `Bloco ${index + 1}`).trim(),
       preview: cleanPreview(block.content).slice(0, BLOCK_PREVIEW_LIMIT),
     };
@@ -289,11 +337,13 @@ const parseAnchorSeconds = (timestamp: string) => toSeconds(timestamp);
 const blockTimeMetadata = ({
   scriptBlocks,
   totalDurationSeconds,
+  srtRows,
 }: {
   scriptBlocks: PostScriptScriptBlock[];
   totalDurationSeconds: number;
+  srtRows?: Array<{ startTime?: string; endTime?: string; texto?: string }> | null;
 }) => {
-  const chapterAnchors = buildChapterAnchors({ scriptBlocks, totalDurationSeconds });
+  const chapterAnchors = buildChapterAnchors({ scriptBlocks, totalDurationSeconds, srtRows });
   return scriptBlocks.map((block, index) => ({
     index,
     block,
@@ -539,13 +589,15 @@ const buildSeoDescriptionFromPackage = (rawSeoDescription: string, anchors: Post
 export const buildSeoChapterPlan = ({
   scriptBlocks,
   totalDurationSeconds,
+  srtRows,
 }: {
   scriptBlocks: PostScriptScriptBlock[];
   totalDurationSeconds: number;
+  srtRows?: Array<{ startTime?: string; endTime?: string; texto?: string }> | null;
 }) => {
   const targetCount = determineSeoChapterCount(totalDurationSeconds);
   const minSpacingSeconds = Math.max(60, Math.round(totalDurationSeconds * 0.08));
-  const timeline = blockTimeMetadata({ scriptBlocks, totalDurationSeconds });
+  const timeline = blockTimeMetadata({ scriptBlocks, totalDurationSeconds, srtRows });
   const selected: PostScriptChapterAnchor[] = [];
 
   const addChapter = (input: {
@@ -693,13 +745,15 @@ export const buildSfxAnchorPlan = ({
   scriptBlocks,
   totalDurationSeconds,
   minSpacingSeconds = 25,
+  srtRows,
 }: {
   scriptBlocks: PostScriptScriptBlock[];
   totalDurationSeconds: number;
   minSpacingSeconds?: number;
+  srtRows?: Array<{ startTime?: string; endTime?: string; texto?: string }> | null;
 }) => {
   const targetCount = clamp(Math.round(totalDurationSeconds / 80) + 2, 6, 20);
-  const timeline = blockTimeMetadata({ scriptBlocks, totalDurationSeconds });
+  const timeline = blockTimeMetadata({ scriptBlocks, totalDurationSeconds, srtRows });
   const anchors: PostScriptSfxAnchor[] = [];
 
   const addAnchor = (anchor: PostScriptSfxAnchor) => {

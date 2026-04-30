@@ -489,7 +489,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     if (themeIndex < 0 && snapshotThemeId) {
       themeIndex = existingThemes.findIndex((item: any) => item?.id === snapshotThemeId);
     }
-    const targetPublishDate = executionSnapshot?.manualPublishDate || manualPublishDate;
+    const targetPublishDate = (executionSnapshot?.manualPublishDate ?? manualPublishDate) || '';
     const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
 
     const existingTheme = themeIndex >= 0 ? existingThemes[themeIndex] : null;
@@ -656,12 +656,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         title: themePayload.title,
         description: themePayload.description,
         editorial_pillar: themePayload.editorial_pillar,
-        status: themePayload.status === 'scheduled' ? 'scripted' : themePayload.status,
+        status: themePayload.status,
         hook_id: null,
         title_structure: themePayload.title_structure,
         priority: themePayload.priority,
         notes: themePayload.notes,
-        target_publish_date: themePayload.target_publish_date || null,
+        target_publish_date: themePayload.target_publish_date ?? null,
         updated_at: themePayload.updated_at,
         production_assets: compactProductionAssets,
       };

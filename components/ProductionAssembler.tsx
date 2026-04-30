@@ -115,6 +115,7 @@ interface ProductionBriefing {
   historyChoiceReason?: string;
   // V14: asset traceability log
   assetLog?: Record<string, string>; // { assetType: assetId }
+  editorialPillar?: string; // V15: Randomized tactical journey pillar
 }
 
 interface ProductionAssemblerProps {
@@ -857,7 +858,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         throw new Error('O motor V14 nao retornou blocos. Verifique se ha Hooks e CTAs cadastrados na Biblioteca Narrativa.');
       }
 
-      // Map API response â†’ ProductionBriefing
+      // Map API response -> ProductionBriefing
+      const tacticalJourneys = activeProject?.playlists?.tactical_journey || [];
+      const selectedEditorialPillar = tacticalJourneys.length > 0
+        ? tacticalJourneys[Math.floor(Math.random() * tacticalJourneys.length)]?.label || 'T1'
+        : 'T1';
+
       const selectedHook = hooks.find(h => h.id === data.selectedHookId) || hooks[0];
       const selectedCta  = ctas.find(c => c.id === data.selectedCtaId)   || ctas[0];
       const selectedTitleStructure = titleStructures.find(t => t.id === data.selectedTitleStructureId) || titleStructures[0];
@@ -989,6 +995,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
       setBriefing({
         title: chosenTheme,
+        editorialPillar: selectedEditorialPillar,
         estimatedDuration: `~${finalMinutes} minutos`,
         estimatedChars,
         hookChars: hookCharsBudget,

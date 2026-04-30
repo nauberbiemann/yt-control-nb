@@ -88,9 +88,20 @@ export function LocalRescueTool() {
       setUploadProgress(30);
 
       // Limpar campos inexistentes ou mal formatados antes do Upsert
+      const validThemeKeys = [
+        'id', 'project_id', 'user_id', 'title', 'description', 'editorial_pillar', 
+        'status', 'hook_id', 'title_structure', 'priority', 'notes', 'created_at', 
+        'updated_at', 'title_structure_asset_id', 'origin_mode', 'execution_mode', 
+        'composition_log_id', 'script_execution_id'
+      ];
+      
       const cleanThemes = allThemes.map(t => {
-        const cleaned = { ...t };
-        delete cleaned.is_editing;
+        const cleaned: any = {};
+        validThemeKeys.forEach(key => {
+          if (t[key] !== undefined) {
+            cleaned[key] = t[key];
+          }
+        });
         return cleaned;
       });
 
@@ -103,18 +114,47 @@ export function LocalRescueTool() {
       }
       setUploadProgress(60);
 
+      const validNarrativeKeys = [
+        'id', 'project_id', 'type', 'name', 'description', 'content_pattern',
+        'is_active', 'created_at', 'category', 'behavior_flag', 'usage_mode',
+        'tags', 'compatibility_notes', 'active'
+      ];
+      
+      const cleanNarratives = allNarratives.map(n => {
+        const cleaned: any = {};
+        validNarrativeKeys.forEach(key => {
+          if (n[key] !== undefined) cleaned[key] = n[key];
+        });
+        return cleaned;
+      });
+
       // Upsert Narratives
-      for (let i = 0; i < allNarratives.length; i += batchSize) {
-        const batch = allNarratives.slice(i, i + batchSize);
+      for (let i = 0; i < cleanNarratives.length; i += batchSize) {
+        const batch = cleanNarratives.slice(i, i + batchSize);
         const { error } = await supabase.from('narrative_components').upsert(batch, { onConflict: 'id' });
         if (error) throw new Error('Erro ao salvar ativos de narrativa: ' + error.message);
       }
       setUploadProgress(80);
 
+      const validLogKeys = [
+        'id', 'project_id', 'theme_id', 'created_at', 'title_structure_asset_id',
+        'selected_curve_id', 'selected_argument_mode_id', 'selected_closing_style_id',
+        'selected_language_signature_ids', 'selected_humanization_device_ids',
+        'selected_repetition_rule_ids', 'execution_mode', 'block_count',
+        'duration_minutes', 'voice_pattern', 'novelty_score', 'selection_diagnostics'
+      ];
+      
+      const cleanLogs = allLogs.map(l => {
+        const cleaned: any = {};
+        validLogKeys.forEach(key => {
+          if (l[key] !== undefined) cleaned[key] = l[key];
+        });
+        return cleaned;
+      });
+
       // Upsert BI logs
-      for (let i = 0; i < allLogs.length; i += batchSize) {
-        const batch = allLogs.slice(i, i + batchSize);
-        // composition_log não pode ser atualizado se a estrutura mudar muito, ignorar erros não-críticos
+      for (let i = 0; i < cleanLogs.length; i += batchSize) {
+        const batch = cleanLogs.slice(i, i + batchSize);
         await supabase.from('composition_log').upsert(batch, { onConflict: 'id' }).catch(() => {});
       }
       

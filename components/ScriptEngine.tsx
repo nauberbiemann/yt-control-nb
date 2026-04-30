@@ -252,6 +252,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const thumbnailPanelRef = useRef<HTMLDivElement | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
   const generationStoppedRef = useRef(false);
+  const hasHydratedRef = useRef(false);
   
   // BI Traceability States
   const [components, setComponents] = useState<any[]>([]);
@@ -709,6 +710,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       setExecutionHydrated(true);
       return;
     }
+
+    if (hasHydratedRef.current) return;
+    hasHydratedRef.current = true;
 
     try {
       let snapshot: any = null;

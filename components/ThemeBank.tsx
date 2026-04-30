@@ -11,6 +11,7 @@ import {
   Search,
   Filter,
   ChevronRight,
+  ChevronDown,
   Trash2,
   Edit3,
   BookOpen,
@@ -24,6 +25,7 @@ import {
   Star,
   Cloud,
   CloudOff,
+  BarChart3,
 } from 'lucide-react';
 
 const PILLARS = ['Educação', 'Entretenimento', 'Autoridade', 'Conversão', 'Comunidade'];
@@ -146,6 +148,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   );
   const [sortConfigs, setSortConfigs] = useState<Record<string, 'priority' | 'date_desc' | 'date_asc'>>({});
   const [cloudSyncedIds, setCloudSyncedIds] = useState<Set<string>>(new Set());
+  const [allNarrativeComponents, setAllNarrativeComponents] = useState<any[]>([]);
+  const [showDnaTable, setShowDnaTable] = useState(false);
 
   const toggleStatus = (status: string) => {
     setExpandedStatuses(prev => 
@@ -399,7 +403,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const titleOnly = (data as any[]).filter((component) => component.type === 'Title Structure');
+          const allComponents = data as any[];
+          setAllNarrativeComponents(allComponents);
+          const titleOnly = allComponents.filter((component) => component.type === 'Title Structure');
           const merged = mergeNarrativeComponents(localItems, titleOnly);
           const normalized = normalizeTitleStructures(merged);
           setProjectTitleStructures(normalized);
@@ -407,6 +413,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         }
       }
 
+      setAllNarrativeComponents(localItems);
       setProjectTitleStructures(normalizeTitleStructures(localItems));
     } catch (err) {
       console.warn('Erro ao buscar title structures:', err);
@@ -849,6 +856,96 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     .filter(t => !filterPillar || t.editorial_pillar === filterPillar)
     .filter(t => !filterStatus || t.status === filterStatus);
 
+  // ── DNA COMPOSITION: Build short-code map from narrative library ──────
+  const CODE_PREFIX: Record<string, string> = {
+    'Hook': 'H',
+    'CTA': 'CTA',
+    'Title Structure': 'S',
+    'Narrative Curve': 'C',
+    'Argument Mode': 'AM',
+    'Repetition Rule': 'RR',
+    'Community': 'COM',
+  };
+
+  const narrativeCodeMap: Record<string, { code: string; name: string; type: string }> = {};
+  (() => {
+    const byType: Record<string, any[]> = {};
+    allNarrativeComponents.forEach(c => {
+      const type = c.type || 'Unknown';
+      if (!byType[type]) byType[type] = [];
+      byType[type].push(c);
+    });
+    Object.entries(byType).forEach(([type, items]) => {
+      const prefix = CODE_PREFIX[type] || type.slice(0, 2).toUpperCase();
+      items.sort((a: any, b: any) => (a.created_at || '').localeCompare(b.created_at || ''));
+      items.forEach((item: any, i: number) => {
+        narrativeCodeMap[item.id] = {
+          code: `${prefix}${i + 1}`,
+          name: item.name || 'Sem nome',
+          type,
+        };
+      });
+    });
+  })();
+
+  const resolveCode = (id: string | null | undefined) => {
+    if (!id) return null;
+    return narrativeCodeMap[id] || null;
+  };
+
+  // Build DNA rows for the comparison table
+  const DNA_COLUMNS = [
+    { key: 'pipeline', label: 'Pipeline', color: 'text-blue-400' },
+    { key: 'pillar', label: 'Pilar', color: 'text-purple-400' },
+    { key: 'hook', label: 'Hook', color: 'text-orange-400' },
+    { key: 'cta', label: 'CTA Final', color: 'text-emerald-400' },
+    { key: 'ctaMid', label: 'CTA Mid', color: 'text-teal-400' },
+    { key: 'structure', label: 'Estrutura', color: 'text-yellow-400' },
+    { key: 'curve', label: 'Curva', color: 'text-pink-400' },
+    { key: 'argument', label: 'Argumento', color: 'text-cyan-400' },
+    { key: 'voice', label: 'Voz', color: 'text-indigo-400' },
+    { key: 'blocks', label: 'Blocos', color: 'text-white/50' },
+    { key: 'duration', label: 'Duração', color: 'text-white/50' },
+  ] as const;
+
+  const buildDnaRow = (theme: Theme) => {
+    const assets = theme.production_assets || {};
+    const hook = resolveCode(assets.hook_id);
+    const cta = resolveCode(assets.cta_id);
+    const ctaMid = resolveCode(assets.execution_snapshot?.approvedBriefing?.assetLog?.ctaMid);
+    const structure = resolveCode(assets.title_structure_id);
+    const curve = resolveCode(assets.narrative_curve_id);
+    const argument = resolveCode(assets.argument_mode_id);
+
+    return {
+      pipeline: theme.pipeline_level || assets.pipeline_level || '—',
+      pillar: theme.editorial_pillar || assets.editorial_pillar || '—',
+      hook: hook ? `${hook.code}` : '—',
+      hookName: hook?.name || '',
+      cta: cta ? `${cta.code}` : '—',
+      ctaName: cta?.name || '',
+      ctaMid: ctaMid ? `${ctaMid.code}` : '—',
+      ctaMidName: ctaMid?.name || '',
+      structure: structure ? `${structure.code}` : (theme.title_structure?.split(' ')[0] || '—'),
+      structureName: structure?.name || theme.title_structure || '',
+      curve: curve ? `${curve.code}` : '—',
+      curveName: curve?.name || '',
+      argument: argument ? `${argument.code}` : '—',
+      argumentName: argument?.name || '',
+      voice: assets.voice_pattern ? assets.voice_pattern.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '—',
+      blocks: assets.block_count ? `${assets.block_count}` : '—',
+      duration: assets.duration_minutes ? `~${assets.duration_minutes}min` : '—',
+      compositionCode: [
+        theme.pipeline_level || '',
+        hook?.code || '',
+        cta?.code || '',
+        structure?.code || theme.title_structure?.split(' ')[0] || '',
+        curve?.code || '',
+        argument?.code || '',
+      ].filter(Boolean).join('·') || '—',
+    };
+  };
+
   const byStatus = STATUSES.reduce((acc, s) => {
     acc[s] = filtered.filter(t => t.status === s);
     return acc;
@@ -1011,6 +1108,127 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
           className="min-w-[160px]"
         />
       </div>
+
+      {/* ── DNA DA COMPOSIÇÃO: Tabela Comparativa ────────────────────── */}
+      {normalizedThemes.length > 0 && (
+        <div className="px-8 pt-3">
+          <button
+            onClick={() => setShowDnaTable(!showDnaTable)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <BarChart3 size={14} className="text-purple-400" />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/70">DNA da Composição</p>
+                <p className="text-[9px] text-white/30 mt-0.5">
+                  {normalizedThemes.filter(t => t.production_assets?.hook_id).length} temas com composição registrada
+                </p>
+              </div>
+            </div>
+            <ChevronDown size={14} className={`text-white/30 transition-transform duration-300 ${showDnaTable ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showDnaTable && (
+            <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.015] overflow-hidden">
+              <div className="overflow-x-auto no-scrollbar">
+                <table className="w-full text-[9px] border-collapse min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="sticky left-0 z-10 bg-midnight/95 backdrop-blur-sm px-3 py-2.5 text-left text-white/40 font-black uppercase tracking-widest min-w-[180px]">
+                        Tema
+                      </th>
+                      <th className="px-2 py-2.5 text-center text-white/20 font-black uppercase tracking-widest whitespace-nowrap">
+                        Código
+                      </th>
+                      {DNA_COLUMNS.map(col => (
+                        <th key={col.key} className={`px-2 py-2.5 text-center font-black uppercase tracking-widest whitespace-nowrap ${col.color} opacity-70`}>
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {normalizedThemes
+                      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                      .map((theme) => {
+                        const dna = buildDnaRow(theme);
+                        const hasComposition = theme.production_assets?.hook_id || theme.production_assets?.cta_id;
+                        const statusMeta = STATUS_META[theme.status] || STATUS_META.backlog;
+
+                        return (
+                          <tr key={theme.id} className="border-b border-white/[0.03] hover:bg-white/[0.03] transition-colors">
+                            {/* Theme title — sticky */}
+                            <td className="sticky left-0 z-10 bg-midnight/95 backdrop-blur-sm px-3 py-2 max-w-[200px]">
+                              <p className="text-white/80 font-bold truncate leading-tight" title={theme.title}>
+                                {theme.title}
+                              </p>
+                              <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border ${statusMeta.color}`}>
+                                {statusMeta.label}
+                              </span>
+                            </td>
+
+                            {/* Composition code */}
+                            <td className="px-2 py-2 text-center">
+                              {hasComposition ? (
+                                <span className="px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 font-mono font-black text-[8px] whitespace-nowrap">
+                                  {dna.compositionCode}
+                                </span>
+                              ) : (
+                                <span className="text-white/15 italic">—</span>
+                              )}
+                            </td>
+
+                            {/* Dynamic columns */}
+                            {DNA_COLUMNS.map(col => {
+                              const val = dna[col.key as keyof typeof dna] || '—';
+                              const nameKey = `${col.key}Name` as keyof typeof dna;
+                              const fullName = dna[nameKey] || '';
+                              const isNone = val === '—';
+
+                              return (
+                                <td key={col.key} className="px-2 py-2 text-center" title={fullName ? `${val} — ${fullName}` : ''}>
+                                  {isNone ? (
+                                    <span className="text-white/10">—</span>
+                                  ) : (
+                                    <span className={`font-black ${col.color}`}>
+                                      {val}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Legend */}
+              <div className="px-4 py-2.5 border-t border-white/[0.03] flex flex-wrap gap-x-4 gap-y-1">
+                {Object.entries(CODE_PREFIX).map(([type, prefix]) => {
+                  const count = allNarrativeComponents.filter(c => c.type === type).length;
+                  if (count === 0) return null;
+                  const colDef = DNA_COLUMNS.find(c =>
+                    (type === 'Hook' && c.key === 'hook') ||
+                    (type === 'CTA' && c.key === 'cta') ||
+                    (type === 'Title Structure' && c.key === 'structure') ||
+                    (type === 'Narrative Curve' && c.key === 'curve') ||
+                    (type === 'Argument Mode' && c.key === 'argument')
+                  );
+                  return (
+                    <span key={type} className={`text-[8px] font-black uppercase tracking-widest ${colDef?.color || 'text-white/30'}`}>
+                      {prefix}1-{prefix}{count}: {type} ({count})
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Collapsible Accordion Board */}
       <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">

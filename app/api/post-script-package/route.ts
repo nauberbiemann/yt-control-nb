@@ -324,8 +324,8 @@ export async function POST(req: NextRequest) {
       : await requestWithOpenAI({ apiKey, model: apiModel, prompt });
 
     const payload = sanitizePostScriptPackage(rawPackage, seoChapterPlan.anchors, timelineContext.source);
-    if (payload.titles.length < 10) {
-      return NextResponse.json({ error: 'A IA retornou menos de 10 titulos virais.' }, { status: 502 });
+    if (payload.titles.length < 1) {
+      return NextResponse.json({ error: 'A IA nao retornou nenhum titulo viral.' }, { status: 502 });
     }
 
     if (!payload.seoDescription || !payload.sunoPrompt || !payload.sfxTimelineTxt) {

@@ -27,8 +27,18 @@ Return only valid JSON with this exact shape:
 }
 
 Rules:
-- "titles" must contain exactly 5 distinct viral title options in PT-BR.
-- Titles must feel clickable, human, and niche-aware for experienced tech professionals.
+- "titles" must contain exactly 10 distinct title options in PT-BR.
+- Each title must organically combine these 5 structural components:
+  1. Tensão inicial (hook): cria desequilíbrio ou lacuna mental.
+  2. Promessa emocional: mostra o que o público vai descobrir, resolver ou entender.
+  3. Contraste: opõe duas ideias, criando tensão semântica.
+  4. Transformação: revela uma virada de entendimento.
+  5. Fechamento de recompensa: entrega o valor final ou insight.
+- Use emotional, curious and intense language. Avoid technical jargon.
+- Mix formats: questions ("Por que..."), paradoxical statements ("A verdade brutal sobre..."), comparative phrases ("O lado oculto de...").
+- Maximum 12 words per title.
+- Vary tones across titles: provocative, philosophical, inspirational, narrative.
+- Titles must feel clickable and relevant to the specific video topic.
 - "seoDescription" must be in PT-BR and should focus on writing only the human opening paragraph of the YouTube description.
 - Use correct Brazilian Portuguese spelling and accentuation in every PT-BR field.
 - The SEO description must follow this formatting:
@@ -143,7 +153,9 @@ const buildUserPrompt = ({
     transcript,
     '',
     'Important output expectations:',
-    '- Titles must target curiosity, tension, and relevance for senior developers.',
+    '- Generate exactly 10 title options. Each title must combine: hook tension + emotional promise + contrast + transformation + reward.',
+    '- Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.',
+    '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',
     '- Do not output timestamps or the AI notice; the app will add them after generation.',
     '- Make the opening paragraph sound like a real YouTube description, not like a system summary.',
@@ -312,8 +324,8 @@ export async function POST(req: NextRequest) {
       : await requestWithOpenAI({ apiKey, model: apiModel, prompt });
 
     const payload = sanitizePostScriptPackage(rawPackage, seoChapterPlan.anchors, timelineContext.source);
-    if (payload.titles.length < 5) {
-      return NextResponse.json({ error: 'A IA retornou menos de 5 titulos virais.' }, { status: 502 });
+    if (payload.titles.length < 10) {
+      return NextResponse.json({ error: 'A IA retornou menos de 10 titulos virais.' }, { status: 502 });
     }
 
     if (!payload.seoDescription || !payload.sunoPrompt || !payload.sfxTimelineTxt) {

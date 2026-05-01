@@ -24,6 +24,21 @@ import {
 import ProductionAssembler from './ProductionAssembler';
 import ScrollToTopButton from './ScrollToTopButton';
 
+type TitleCriterionResult = true | 'parcial' | false;
+interface TitleValidationResult {
+  title: string;
+  score: number;
+  verdict: 'Aprovado' | 'Ajustes' | 'Fraco';
+  breakdown: {
+    tensao: TitleCriterionResult;
+    relevancia: TitleCriterionResult;
+    curiosidade: TitleCriterionResult;
+    valor: TitleCriterionResult;
+    saturacao: TitleCriterionResult;
+    singularidade: TitleCriterionResult;
+  };
+}
+
 interface ScriptBlock {
   id: string;
   type: 'Hook' | 'Context' | 'Development' | 'CTA' | 'SOP';
@@ -222,6 +237,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [isRegeneratingFallbacks, setIsRegeneratingFallbacks] = useState(false);
+  const [isValidatingTitles, setIsValidatingTitles] = useState(false);
+  const [titleValidations, setTitleValidations] = useState<TitleValidationResult[] | null>(null);
+  const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingTitleUpdate, setPendingTitleUpdate] = useState<{ newTitle: string; oldTitle: string } | null>(null);
@@ -2356,6 +2374,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
       setPostScriptPackage(nextPackage);
+      setTitleValidations(null);
       persistExecutionSnapshotLocally({
         postScriptPackage: nextPackage,
         scriptStage,
@@ -2373,6 +2392,127 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       alert(`Erro ao gerar pacote pos-roteiro: ${error?.message || error}`);
     } finally {
       setIsGeneratingPostScriptPackage(false);
+    }
+  };
+
+  const validateViralTitles = async () => {
+    if (!postScriptPackage?.titles?.length || !approvedTheme) return;
+
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+    if (!apiKey) {
+      alert('Configure sua chave de API em Ajustes Globais para validar os títulos.');
+      return;
+    }
+
+    setIsValidatingTitles(true);
+    try {
+      const response = await fetch('/api/post-script-titles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          approvedTheme,
+          titles: postScriptPackage.titles,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao validar os títulos.');
+      }
+
+      if (Array.isArray(data?.results)) {
+        setTitleValidations(data.results);
+      }
+    } catch (error: any) {
+      console.warn('[ScriptEngine] Falha ao validar títulos.', error);
+      alert(`Erro ao validar títulos: ${error?.message || error}`);
+    } finally {
+      setIsValidatingTitles(false);
+    }
+  };
+
+  const regenerateViralTitles = async () => {
+    if (!approvedTheme || !canProcessPostScriptPackage || !postScriptPackage) return;
+
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+    if (!apiKey) {
+      alert('Configure sua chave de API em Ajustes Globais para regerar os títulos.');
+      return;
+    }
+
+    const sourceBlocks = resolvePostScriptSourceBlocks();
+    if (!sourceBlocks.length) return;
+
+    const srtRows = externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []);
+    const timelineContext = buildPostScriptTimelineContext({
+      scriptBlocks: sourceBlocks,
+      estimatedDuration: approvedBriefing?.estimatedDuration,
+      srtRows,
+    });
+    const fallbackSeoPlan = buildSeoChapterPlan({
+      scriptBlocks: sourceBlocks,
+      totalDurationSeconds: timelineContext.totalDurationSeconds,
+    });
+
+    setIsRegeneratingTitles(true);
+    setTitleValidations(null);
+    try {
+      const response = await fetch('/api/post-script-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+          approvedTheme,
+          approvedBriefing,
+          scriptBlocks: sourceBlocks,
+          srtRows,
+          projectContext: {
+            projectName: activeProject?.name || activeProject?.project_name || '',
+            puc: activeProject?.puc || activeProject?.puc_promise || '',
+            persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
+            soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao regerar os títulos.');
+      }
+
+      const newPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
+      // Only update the titles — preserve existing SEO, Suno and SFX fields
+      const mergedPackage: PostScriptPackage = {
+        ...postScriptPackage,
+        titles: newPackage.titles,
+        generatedAt: new Date().toISOString(),
+      };
+      setPostScriptPackage(mergedPackage);
+      persistExecutionSnapshotLocally({
+        postScriptPackage: mergedPackage,
+        scriptStage,
+      });
+      void syncApprovedThemeSnapshot({
+        postScriptPackage: mergedPackage,
+        scriptStage,
+      }).catch((error) => {
+        console.warn('[ScriptEngine] Falha ao sincronizar títulos regerados.', error);
+      });
+    } catch (error: any) {
+      console.warn('[ScriptEngine] Falha ao regerar títulos.', error);
+      alert(`Erro ao regerar títulos: ${error?.message || error}`);
+    } finally {
+      setIsRegeneratingTitles(false);
     }
   };
 
@@ -3920,10 +4060,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
               <>
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.95fr)]">
                   <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                    {/* Header row */}
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">5 titulos virais</p>
-                        <p className="mt-1 text-[10px] text-white/40">Opcoes persistidas para teste rapido.</p>
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">
+                          {postScriptPackage.titles.length} título{postScriptPackage.titles.length !== 1 ? 's' : ''} virais
+                        </p>
+                        <p className="mt-1 text-[10px] text-white/40">
+                          {titleValidations ? 'Validação concluída. Revise os vereditos abaixo.' : 'Opções persistidas para teste rápido.'}
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -3933,13 +4078,62 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         <Copy size={12} className="inline mr-2" /> Copiar
                       </button>
                     </div>
+
+                    {/* Titles list */}
                     <div className="space-y-2">
-                      {postScriptPackage.titles.map((title, index) => (
-                        <div key={`${index}-${title}`} className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
-                          <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">Opcao {index + 1}</span>
-                          <p className="text-[13px] font-bold leading-6 text-white/90">{title}</p>
-                        </div>
-                      ))}
+                      {postScriptPackage.titles.map((title, index) => {
+                        const validation = titleValidations?.[index];
+                        const verdictEmoji = validation
+                          ? validation.score >= 4.5 ? '🟩' : validation.score >= 3.0 ? '🟨' : '🟥'
+                          : null;
+                        const verdictColor = validation
+                          ? validation.score >= 4.5
+                            ? 'text-emerald-300'
+                            : validation.score >= 3.0
+                              ? 'text-amber-300'
+                              : 'text-red-300'
+                          : '';
+                        return (
+                          <div key={`${index}-${title}`} className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-white/35 mb-1 mt-0.5 shrink-0">
+                                Opção {index + 1}
+                              </span>
+                              {validation && (
+                                <span className={`text-[10px] font-black tabular-nums shrink-0 ${verdictColor}`}>
+                                  {verdictEmoji} {validation.score}/6 · {validation.verdict}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[13px] font-bold leading-6 text-white/90">{title}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-2 pt-1">
+                      {/* Step 1 → always visible: Validate */}
+                      <button
+                        type="button"
+                        onClick={validateViralTitles}
+                        disabled={isValidatingTitles || isRegeneratingTitles}
+                        className="w-full rounded-xl border border-blue-400/20 bg-blue-500/8 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isValidatingTitles ? 'VALIDANDO...' : titleValidations ? 'REVALIDAR TÍTULOS' : 'VALIDAR TÍTULOS'}
+                      </button>
+                      {/* Step 2 → conditional: Regenerate (appears after validation) */}
+                      {titleValidations && (
+                        <button
+                          type="button"
+                          onClick={regenerateViralTitles}
+                          disabled={isRegeneratingTitles || isValidatingTitles}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 transition-all hover:border-blue-400/20 hover:text-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <RotateCcw size={11} className="inline mr-2" />
+                          {isRegeneratingTitles ? 'REGERANDO...' : 'REGERAR TÍTULOS'}
+                        </button>
+                      )}
                     </div>
                   </div>
 

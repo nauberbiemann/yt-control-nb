@@ -4161,6 +4161,20 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               : 'REGERAR TÍTULOS'}
                         </button>
                       )}
+                      {/* AI working indicator */}
+                      {(isValidatingTitles || isRegeneratingTitles) && (
+                        <div className="flex items-center gap-3 rounded-xl border border-blue-400/15 bg-blue-500/5 px-4 py-3">
+                          <span className="relative flex h-2 w-2 shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
+                          </span>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">
+                            {isValidatingTitles
+                              ? 'IA avaliando os títulos com checklist estrutural...'
+                              : 'IA gerando títulos substitutos...'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -238,7 +238,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [isRegeneratingFallbacks, setIsRegeneratingFallbacks] = useState(false);
   const [isValidatingTitles, setIsValidatingTitles] = useState(false);
-  const [titleValidations, setTitleValidations] = useState<TitleValidationResult[] | null>(null);
+  const [titleValidations, setTitleValidations] = useState<(TitleValidationResult | null)[] | null>(null);
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
   const [srtPipelineStatus, setSrtPipelineStatus] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -2406,6 +2406,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
 
+    // Only validate null slots (unscored). If all are scored, nothing to do.
+    const indicesToValidate: number[] = titleValidations
+      ? titleValidations.map((v, i) => (v === null ? i : -1)).filter((i) => i >= 0)
+      : postScriptPackage.titles.map((_, i) => i); // all when no validation exists yet
+
+    if (indicesToValidate.length === 0) return;
+
+    const titlesToValidate = indicesToValidate.map((i) => postScriptPackage.titles[i]);
+
     setIsValidatingTitles(true);
     try {
       const response = await fetch('/api/post-script-titles', {
@@ -2416,7 +2425,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           model,
           apiKeyOverwrite: apiKey,
           approvedTheme,
-          titles: postScriptPackage.titles,
+          titles: titlesToValidate,
         }),
       });
 
@@ -2426,7 +2435,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       if (Array.isArray(data?.results)) {
-        setTitleValidations(data.results);
+        // Merge results back into the correct positions
+        const nextValidations: (TitleValidationResult | null)[] = titleValidations
+          ? [...titleValidations]
+          : postScriptPackage.titles.map(() => null);
+        indicesToValidate.forEach((titleIndex, resultIndex) => {
+          nextValidations[titleIndex] = data.results[resultIndex] ?? null;
+        });
+        setTitleValidations(nextValidations);
       }
     } catch (error: any) {
       console.warn('[ScriptEngine] Falha ao validar títulos.', error);
@@ -2447,10 +2463,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
 
-    // Determine which slots need replacement (non-Aprovado) vs which to keep
+    // Determine which slots need replacement: those with explicit weak verdict
+    // (null = unscored/new, we don't auto-regenerate those)
     const weakIndices: number[] = titleValidations
       ? titleValidations
-          .map((v, i) => (v.verdict !== 'Aprovado' ? i : -1))
+          .map((v, i) => (v !== null && v.verdict !== 'Aprovado' ? i : -1))
           .filter((i) => i >= 0)
       : postScriptPackage.titles.map((_, i) => i); // no validation → replace all
 
@@ -2476,7 +2493,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     });
 
     setIsRegeneratingTitles(true);
-    setTitleValidations(null);
+    // Preserve approved scores; null out the slots being replaced so they show as unscored
+    const partialValidations: (TitleValidationResult | null)[] | null = titleValidations
+      ? titleValidations.map((v, i) => (weakIndices.includes(i) ? null : v))
+      : null;
+    setTitleValidations(partialValidations);
     try {
       const response = await fetch('/api/post-script-package', {
         method: 'POST',
@@ -4143,7 +4164,13 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         disabled={isValidatingTitles || isRegeneratingTitles}
                         className="w-full rounded-xl border border-blue-400/20 bg-blue-500/8 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        {isValidatingTitles ? 'VALIDANDO...' : titleValidations ? 'REVALIDAR TÍTULOS' : 'VALIDAR TÍTULOS'}
+                        {isValidatingTitles
+                          ? 'VALIDANDO...'
+                          : !titleValidations
+                            ? 'VALIDAR TÍTULOS'
+                            : titleValidations.some(v => v === null)
+                              ? `VALIDAR NOVOS (${titleValidations.filter(v => v === null).length})`
+                              : 'REVALIDAR TÍTULOS'}
                       </button>
                       {/* Step 2 → conditional: Regenerate (appears after validation) */}
                       {titleValidations && (
@@ -4157,7 +4184,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           {isRegeneratingTitles
                             ? 'REGERANDO...'
                             : titleValidations
-                              ? `REGERAR FRACOS (${titleValidations.filter(v => v.verdict !== 'Aprovado').length})`
+                              ? `REGERAR FRACOS (${titleValidations.filter(v => v !== null && v.verdict !== 'Aprovado').length})`
                               : 'REGERAR TÍTULOS'}
                         </button>
                       )}

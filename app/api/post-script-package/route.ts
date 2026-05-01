@@ -90,6 +90,7 @@ interface RouteBody {
     persona?: string;
     soundtrack?: string;
   } | null;
+  titleCountHint?: number;
 }
 
 const parseJsonResponse = (rawContent: string): Partial<PostScriptPackage> => {
@@ -112,6 +113,7 @@ const buildUserPrompt = ({
   timelineSource,
   projectContext,
   sfxPlan,
+  titleCountHint,
 }: {
   approvedTheme: string;
   approvedBriefing: RouteBody['approvedBriefing'];
@@ -120,6 +122,7 @@ const buildUserPrompt = ({
   timelineSource: 'srt' | 'estimated';
   projectContext?: RouteBody['projectContext'];
   sfxPlan: ReturnType<typeof buildSfxAnchorPlan>;
+  titleCountHint?: number;
 }) => {
   const transcript = buildScriptTranscript(scriptBlocks);
 
@@ -153,7 +156,7 @@ const buildUserPrompt = ({
     transcript,
     '',
     'Important output expectations:',
-    '- Generate exactly 10 title options. Each title must combine: hook tension + emotional promise + contrast + transformation + reward.',
+    `- Generate exactly ${titleCountHint ?? 10} title options. Each title must combine: hook tension + emotional promise + contrast + transformation + reward.`,
     '- Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.',
     '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',
@@ -264,6 +267,7 @@ export async function POST(req: NextRequest) {
       scriptBlocks = [],
       srtRows,
       projectContext,
+      titleCountHint,
     } = body;
 
     if (!approvedTheme?.trim()) {
@@ -317,6 +321,7 @@ export async function POST(req: NextRequest) {
       timelineSource: timelineContext.source,
       projectContext,
       sfxPlan,
+      titleCountHint,
     });
 
     const rawPackage = engine === 'gemini'

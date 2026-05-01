@@ -2447,6 +2447,20 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
 
+    // Determine which slots need replacement (non-Aprovado) vs which to keep
+    const weakIndices: number[] = titleValidations
+      ? titleValidations
+          .map((v, i) => (v.verdict !== 'Aprovado' ? i : -1))
+          .filter((i) => i >= 0)
+      : postScriptPackage.titles.map((_, i) => i); // no validation → replace all
+
+    if (weakIndices.length === 0) {
+      alert('Todos os títulos já estão aprovados! Não há nada para regerar.');
+      return;
+    }
+
+    const titleCountHint = weakIndices.length;
+
     const sourceBlocks = resolvePostScriptSourceBlocks();
     if (!sourceBlocks.length) return;
 
@@ -2476,6 +2490,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           approvedBriefing,
           scriptBlocks: sourceBlocks,
           srtRows,
+          titleCountHint,
           projectContext: {
             projectName: activeProject?.name || activeProject?.project_name || '',
             puc: activeProject?.puc || activeProject?.puc_promise || '',
@@ -2491,10 +2506,18 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       const newPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
-      // Only update the titles — preserve existing SEO, Suno and SFX fields
+
+      // Smart merge: keep approved titles, insert new ones at weak positions
+      const updatedTitles = [...postScriptPackage.titles];
+      weakIndices.forEach((slotIndex, newTitleIndex) => {
+        if (newPackage.titles[newTitleIndex] !== undefined) {
+          updatedTitles[slotIndex] = newPackage.titles[newTitleIndex];
+        }
+      });
+
       const mergedPackage: PostScriptPackage = {
         ...postScriptPackage,
-        titles: newPackage.titles,
+        titles: updatedTitles,
         generatedAt: new Date().toISOString(),
       };
       setPostScriptPackage(mergedPackage);
@@ -4131,7 +4154,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 transition-all hover:border-blue-400/20 hover:text-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <RotateCcw size={11} className="inline mr-2" />
-                          {isRegeneratingTitles ? 'REGERANDO...' : 'REGERAR TÍTULOS'}
+                          {isRegeneratingTitles
+                            ? 'REGERANDO...'
+                            : titleValidations
+                              ? `REGERAR FRACOS (${titleValidations.filter(v => v.verdict !== 'Aprovado').length})`
+                              : 'REGERAR TÍTULOS'}
                         </button>
                       )}
                     </div>

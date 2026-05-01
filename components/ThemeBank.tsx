@@ -1072,17 +1072,20 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                         const fullName = dna[nameKey] || '';
                         const isNone = val === '—';
 
-                        // Special: editable input for actualDuration when empty
-                        if (col.key === 'actualDuration' && isNone) {
+                        // Special: editable input for actualDuration (always editable)
+                        if (col.key === 'actualDuration') {
+                          const currentMinutes = theme.production_assets?.actual_duration_minutes || 0;
                           return (
                             <td key={col.key} className={`${cellPadding} text-center`}>
                               <input
                                 type="number"
                                 placeholder="min"
+                                defaultValue={currentMinutes > 0 ? currentMinutes : ''}
                                 min={1}
                                 max={999}
-                                className={`w-12 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-center ${fontSize} text-emerald-300 placeholder-white/15 outline-none focus:border-emerald-400/40 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                                onBlur={(e) => handleActualDurationChange(theme.id, e.target.value)}
+                                title={currentMinutes > 0 ? `${currentMinutes}min — clique para corrigir` : 'Duração real em minutos'}
+                                className={`w-14 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-center ${fontSize} text-emerald-300 placeholder-white/15 outline-none focus:border-emerald-400/40 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                                onBlur={(e) => { if (e.target.value) handleActualDurationChange(theme.id, e.target.value); }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                               />
                             </td>

@@ -1185,6 +1185,26 @@ MAPA DE TENSAO NARRATIVA
 CURVA DEFINIDA PELO ORQUESTRADOR
 ${centralDevelopmentBlocks > 0 ? '- A curva abaixo vale para os blocos centrais de desenvolvimento; a abertura e o fechamento funcionam como camadas narrativas acopladas ao primeiro e ao ultimo bloco.\n' : ''}${narrativeArcSummary || 'Curva narrativa nao definida.'}
 
+MECANICAS DE RETENCAO OBRIGATORIAS
+- Os primeiros 5 segundos devem gerar impacto imediato, sem preambulo, apresentacao ou contexto. O tipo de abertura deve ser guiado pela voz dominante declarada e pelo ativo de abertura selecionado no briefing, nao por uma formula padrao.
+- Voz Vulnerabilidade: abra com cena concreta de falha, tensao pessoal ou momento de decisao. Nao use pergunta retorica como entrada padrao.
+- Voz Desafio Direto: abra com afirmacao polarizadora, diagnostico provocativo ou problema imediato sem introducao. Nao use "Imagine que..." ou "Voce ja se perguntou..." como primeiro movimento.
+- Voz Tecnica: abra com dado surpreendente, contradicao observavel ou mecanismo revelado. Nao use narrativa pessoal como ponto de entrada.
+- Proibido como primeira frase de qualquer roteiro: "Voce ja se perguntou...", "Imagine que...", "Hoje vou te falar sobre...", "Neste video...", "Ola [nome]...". Essas construcoes sinalizam roteiro generico antes de qualquer conteudo real.
+- Varie o ponto de entrada gramatical entre roteiros: ora comece com uma acao ("Ele abriu o computador e..."), ora com uma contradicao ("Todo mundo faz X. Ninguem percebe que Y."), ora com um dado concreto ("487 dias."), ora com uma cena direta ("3h da manha. Notificacao."). A abertura deste roteiro nao deve usar o mesmo padrao gramatical da abertura-tipo do projeto.
+- Crie pelo menos um curiosity gap nos primeiros blocos: plante uma tensao ou duvida que so sera respondida nos blocos finais. O viewer nao pode antecipar como o assunto sera resolvido desde o inicio.
+- Em momentos de alta probabilidade de saida (apos entrega de insight relevante ou no meio do roteiro), use escalacao ou revelacao parcial para manter a progressao ativa.
+- Cada bloco deve parecer uma etapa necessaria da jornada. O viewer que pulasse qualquer parte precisaria sentir que perdeu algo essencial.
+
+REGRAS DE HUMANIZACAO
+- Cada bloco deve conter pelo menos uma sensacao fisica ou sensorial concreta. Nao use abstracoes: nao "voce sente medo", mas "aquela tensao no peito antes de abrir o Slack de manha e ver mensagens nao lidas do gestor".
+- Use frases fragmentadas intencionalmente em momentos de revelacao ou tensao maxima. Exemplo: "Isso nao e sorte. E processo. Processo. Todo. Dia."
+- Use autocorrecao ou hesitacao natural em momentos de vulnerabilidade ou diagnostico pesado. Exemplo: "O resultado foi... cara... tipo surpreendente mesmo."
+- Use repeticao enfatica para impacto em frases-chave. Exemplo: "Ele fez isso. Todo dia. TODO. DIA."
+- Vocabulario proibido por soar formal ou robotico: "portanto", "ademais", "e necessario", "individuos", "outrossim", "destarte", "neste sentido", "no que tange". Use: "entao", "dai", "voce precisa", "pessoas", "gente".
+- Cada paragrafo deve passar no teste da conversa: seria falado naturalmente para um amigo proximo? Se soar como relatorio ou apresentacao formal, reescreva.
+- Nunca inicie um bloco com nome canonico de conceito, rotulo operacional ou jargao do sistema. Inicie com cena, sensacao, pergunta concreta ou observacao direta.
+
 REGRAS GERAIS DE ESCRITA
 - Preserve a funcao de cada bloco exatamente na ordem fornecida.
 - Respeite a meta de caracteres de cada bloco com tolerancia maxima de 8%.
@@ -1201,22 +1221,19 @@ REGRAS GERAIS DE ESCRITA
 - Marcadores explicitos de narracao devem ser tratados como prioridade maxima: primeira pessoa para vulnerabilidade, segunda pessoa para desafio direto e terceira pessoa para diagnostico tecnico.
 - Sempre que possivel, transforme abstracao em cena, sintoma observavel, metrica simples ou decisao concreta.
 - O roteiro completo precisa parecer escrito de uma vez so, com progressao, cadencia e memoria interna.
-- Nao devolver explicacoes, rotulos tecnicos, markdown ou comentarios sobre o processo.
-- Entregar o roteiro final separado por blocos, na mesma ordem abaixo.
+- Nao devolver explicacoes, rotulos tecnicos, markdown, numeracoes, titulos de secao ou qualquer comentario fora da narracao.
 
 BLUEPRINT BLOCO A BLOCO
 ${blockSpecifications.join('\n\n')}${midCtaSection ? `\n\n${midCtaSection}` : ''}
 
 FORMATO DE SAIDA
-- A saida final deve conter exatamente ${totalOutputBlocks || 'N/A'} blocos numerados, na ordem abaixo.
-- Entregue um bloco por vez, na mesma sequencia especificada.
-- Use o titulo interno de cada bloco apenas como cabecalho operacional.
-- Em cada bloco, escreva somente o texto final correspondente.
-- Nao omita nenhum bloco.
-- Nao fundir blocos.
-- Nao mudar a ordem.
-- Nao criar bloco extra fora da numeracao definida.
-- Nao reduzir a ambicao dos caracteres sem justificativa estrutural.`;
+- Escreva o roteiro inteiro como texto corrido de narrador, sem nenhuma divisao visual.
+- Nao use cabecalhos, numeracao de blocos, titulos de secao, marcadores de markdown, colchetes ou qualquer elemento estrutural no texto entregue.
+- O roteiro deve fluir do inicio ao fim como uma unica fala continua. A ordem e funcao interna de cada bloco devem ser respeitadas, mas nao devem ser visiveis no texto final.
+- Nao adicione notas ao editor, indicacoes de tom, parenteses explicativos ou qualquer comentario fora da narracao.
+- O resultado deve ser um texto pronto para leitura de narrador, do primeiro ao ultimo caractere, sem nenhum ajuste adicional de formatacao.
+- Respeite a meta total de ${formatCharsLabel(totalChars)} e a distribuicao de caracteres por bloco com tolerancia maxima de 8%.
+- Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.`;
   };
 
   const buildInternalWritingPrompt = () => {

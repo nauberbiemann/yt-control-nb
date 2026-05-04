@@ -403,14 +403,15 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <span className="text-[9px] uppercase font-bold text-white/20 ml-2">Posicionamento do Narrador</span>
+                <span className="text-[9px] uppercase font-bold text-blue-400 ml-2">Identidade do Narrador</span>
+                <span className="text-[8px] uppercase font-bold text-white/40 ml-2 -mt-1">Quem fala e como fala. Usado pela IA para calibrar a personalidade do roteiro.</span>
                 <textarea 
-                  className="p-6 bg-white/5 border border-white/10 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none h-full"
-                  placeholder="Quem é você para o seu público? O Mentor, o Cético ou o Oráculo?"
+                  className="p-6 bg-white/5 border border-blue-500/20 rounded-2xl outline-none text-xs text-white leading-relaxed resize-none h-full focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  placeholder="Ex: Senior que fala como par, nunca como professor. Usa a propria trajetoria de erro como evidencia. Tom direto, sem suavizar. Ironia seca quando o tema permite."
                   value={formData.narrative_voice.positioning}
                   onChange={(e) => updateFormData({ narrative_voice: { ...formData.narrative_voice, positioning: e.target.value } })}
                 />
-                <span className="text-[8px] uppercase font-bold opacity-10 ml-2">Define a hierarquia de autoridade com a persona.</span>
+                <span className="text-[8px] uppercase font-bold text-white/30 ml-2">Se vazio, a IA deriva automaticamente do padrao de voz e PUC do canal.</span>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

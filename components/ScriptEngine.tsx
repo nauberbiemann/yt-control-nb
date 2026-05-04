@@ -990,6 +990,23 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const selectedNarrativeCurve = approvedBriefing?.selectedNarrativeCurve;
     const selectedArgumentMode = approvedBriefing?.selectedArgumentMode;
     const selectedRepetitionRules = (approvedBriefing?.selectedRepetitionRules || []) as Array<{ id?: string; name?: string; pattern?: string; description?: string }>;
+
+    // Narrator identity: use explicit profile if set, otherwise derive from voice + PUC
+    const narratorPositioning = activeProject?.narrative_voice?.positioning?.trim() || '';
+    const atmosphereList = (activeProject?.narrative_voice?.atmosphere || []).join(', ');
+    const dominantVoiceLabel = approvedBriefing?.dominantVoice || approvedBriefing?.diagnostics?.locked?.voicePatternId || '';
+    const narratorIdentity = narratorPositioning
+      ? narratorPositioning
+      : [
+          dominantVoiceLabel === 'Vulnerabilidade'
+            ? 'Fala em primeira pessoa, a partir da propria experiencia. Nao como especialista externo, mas como alguem que passou pelo mesmo problema e tem cicatriz para mostrar.'
+            : dominantVoiceLabel === 'Desafio Direto'
+            ? 'Fala como par senior que confronta sem agredir. Nao suaviza, nao enrola. Da o diagnostico e vai embora.'
+            : 'Fala com distancia tecnica analitica. Mostra o mecanismo, nao a emocao. A autoridade vem da clareza, nao da intensidade.',
+          atmosphereList ? `Tom predominante do canal: ${atmosphereList}.` : '',
+          activeProject?.puc ? `Posicionamento unico: ${activeProject.puc}.` : '',
+        ].filter(Boolean).join(' ');
+
     const hookTensionMap = {
       tensionLevel: 'Alta',
       narrativeRole: 'Ruptura',
@@ -1160,6 +1177,11 @@ CONTEXTO ESSENCIAL
 - SOP base: corte ${sop.cut_rhythm || 'Nao definido'}, zoom ${sop.zoom_style || 'Nao definido'}, trilha ${sop.soundtrack || 'Nao definido'}
 - Metaforas do projeto: ${metaphors || 'Nao definidas'}
 - Elementos de comunidade disponiveis: ${communityReferenceCatalog || 'Nao definidos'}
+
+IDENTIDADE DO NARRADOR
+${narratorIdentity}
+- Esta identidade deve ser sentida na escolha de palavras, no nivel de intimidade, na postura diante do assunto e no ponto de entrada de cada bloco.
+- Nao declare a identidade do narrador no texto. Apenas encarne-a.
 
 DIRECAO ORQUESTRADA
 ${lockedCompositionSection}

@@ -46,9 +46,9 @@ const buildVf = (
   palette: HfStyleOverride,
 ): string => {
   const { text, bar } = PALETTE_COLORS[palette];
-  // Use fontconfig font name — avoids ANY path/colon escaping issue in FFmpeg 8.x drawtext.
-  // FFmpeg is compiled with --enable-fontconfig so 'font=Arial' works on all Windows systems.
-  const FONT = 'font=Arial';
+  // Use a relative font path via pushd — avoids ALL colon/fontconfig issues in FFmpeg drawtext.
+  // The BAT does pushd C:\Windows\Fonts before ffmpeg, so arial.ttf resolves correctly.
+  const FONT = 'fontfile=arial.ttf';
   const t = esc(caption);
 
   switch (template) {
@@ -145,7 +145,10 @@ export const buildHyperframesBat = (
     'set "FONT=C:\\Windows\\Fonts\\segoeui.ttf"',
     'if not exist "%FONT%" set "FONT=C:\\Windows\\Fonts\\arial.ttf"',
     '',
-    ':: [3] Criando pasta de output',
+    ':: [3] Mudar para pasta de fontes (resolve fontfile sem path absoluto)',
+    'pushd C:\Windows\Fonts',
+    '',
+    ':: [4] Criando pasta de output',
     'set "OUT_DIR=%~dp0hyperframes_overlays"',
     'if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"',
     '',
@@ -196,6 +199,7 @@ export const buildHyperframesBat = (
   });
 
   const footer = [
+    'popd',
     ':: ================================================================',
     'color 0A',
     'echo.',

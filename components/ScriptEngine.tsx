@@ -1991,17 +1991,29 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        if (res.status === 504) {
+          throw new Error('Timeout (504): A operação demorou demais. Tente com um modelo mais rápido (ex: gemini-2.5-flash).');
+        }
+        throw new Error(`Erro inesperado (${res.status}) ao regenerar: ${responseText.slice(0, 80)}`);
+      }
       if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao regenerar prompts.');
 
-      // Merge: replace only the fallback rows with the new prompts
+      // Merge: replace fallback rows with the new prompts.
+      // Accept the prompt regardless of isFallback flag on the response — the LLM sometimes
+      // still marks it as fallback even when a real prompt was generated (template-like output).
+      // What matters is that a non-empty prompt string came back for the row number.
       const newPromptMap = new Map<number, string>();
       (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean }) => {
-        if (p.rowNumber && p.prompt && !p.isFallback) newPromptMap.set(p.rowNumber, p.prompt);
+        if (p.rowNumber && p.prompt?.trim()) newPromptMap.set(p.rowNumber, p.prompt.trim());
       });
 
       if (newPromptMap.size === 0) {
-        alert('A IA não conseguiu gerar os prompts faltantes. Tente novamente.');
+        alert('A IA não retornou nenhum prompt para os itens selecionados. Tente novamente.');
         return;
       }
 
@@ -3843,13 +3855,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     </div>
 
                     {externalSrtPipeline && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
                         {[
                           { label: 'Linhas', value: externalSrtPipeline.stats.total },
                           { label: 'Texto', value: externalSrtPipeline.stats.texto },
                           { label: 'Avatar', value: externalSrtPipeline.stats.avatar },
                           { label: 'Video', value: externalSrtPipeline.stats.video },
                           { label: 'Imagem', value: externalSrtPipeline.stats.image },
+                          { label: 'Hyperframe', value: externalSrtPipeline.stats.hyperframe },
                           { label: 'Render', value: externalSrtPipeline.rows.filter((row) => row.caminho).length },
                         ].map((item) => (
                           <div key={item.label} className="rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3">

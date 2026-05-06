@@ -1,4 +1,4 @@
-import { normalizeAssetType, sanitizeDownloadFileStem, type SrtAssetRow, type SrtAssetType } from './srt-asset-pipeline';
+import { normalizeAssetType, parseSrtTimeToMs, sanitizeDownloadFileStem, type SrtAssetRow, type SrtAssetType } from './srt-asset-pipeline';
 
 // ─── SFX type mapping ─────────────────────────────────────────────────────────
 
@@ -35,7 +35,14 @@ const rowSeed = (projectSeed: number, rowNumber: number): number =>
 const detectSfxEvents = (rows: SrtAssetRow[], projectSeed: number): SfxEvent[] => {
   const events: SfxEvent[] = [];
 
+  // Prevent SFX flooding: minimum gap between consecutive SFX (15 s) + max 15 events per project
+  const SFX_COOLDOWN_MS = 15_000;
+  const SFX_MAX_EVENTS  = 15;
+  let lastSfxEndMs = -Infinity;
+
   for (let i = 0; i < rows.length - 1; i++) {
+    if (events.length >= SFX_MAX_EVENTS) break;
+
     const from = normalizeAssetType(rows[i].asset);
     const to   = normalizeAssetType(rows[i + 1].asset);
 
@@ -45,6 +52,11 @@ const detectSfxEvents = (rows: SrtAssetRow[], projectSeed: number): SfxEvent[] =
     const sfxType = TRANSITION_MAP[key];
 
     if (!sfxType) continue;
+
+    // Enforce minimum cooldown between SFX events
+    const startMs = parseSrtTimeToMs(rows[i + 1].startTime);
+    if (startMs - lastSfxEndMs < SFX_COOLDOWN_MS) continue;
+    lastSfxEndMs = parseSrtTimeToMs(rows[i + 1].endTime || rows[i + 1].startTime);
 
     events.push({
       rowNumber: rows[i + 1].rowNumber,
@@ -107,26 +119,38 @@ export const buildSfxBat = (rows: SrtAssetRow[], stem: string): string => {
     'ffmpeg -version >nul 2>&1',
     'if %errorlevel% neq 0 (',
     '    color 0C',
+    '    echo.',
     '    echo ERRO: FFmpeg nao encontrado no PATH.',
     '    echo Baixe em https://ffmpeg.org/download.html',
-    '    pause & exit /b 1',
+    '    echo.',
+    '    echo Pressione qualquer tecla para fechar...',
+    '    pause >nul',
+    '    exit /b 1',
     ')',
     '',
     ':: [2] Python disponivel?',
     'python --version >nul 2>&1',
     'if %errorlevel% neq 0 (',
     '    color 0C',
+    '    echo.',
     '    echo ERRO: Python nao encontrado no PATH.',
-    '    pause & exit /b 1',
+    '    echo.',
+    '    echo Pressione qualquer tecla para fechar...',
+    '    pause >nul',
+    '    exit /b 1',
     ')',
     '',
     ':: [3] Script de render disponivel?',
     `set "RENDER_SCRIPT=${RENDER_SFX_SCRIPT}"`,
     'if not exist "%RENDER_SCRIPT%" (',
     '    color 0C',
+    '    echo.',
     '    echo ERRO: render_sfx.py nao encontrado.',
     `    echo Local esperado: "${RENDER_SFX_SCRIPT}"`,
-    '    pause & exit /b 1',
+    '    echo.',
+    '    echo Pressione qualquer tecla para fechar...',
+    '    pause >nul',
+    '    exit /b 1',
     ')',
     '',
     ':: [4] Criando pasta de output',

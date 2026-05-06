@@ -23,7 +23,15 @@ Return only valid JSON with this exact shape:
   "seoDescription": "...",
   "sunoPrompt": "...",
   "sunoSuggestedTitle": "...",
-  "sfxTimelineTxt": "..."
+  "sfxTimelineTxt": "...",
+  "hfContextTitles": [
+    {
+      "timestamp": "[MM:SS]",
+      "headline": "...",
+      "subtitle": "...",
+      "metrics": "..."
+    }
+  ]
 }
 
 Rules:
@@ -67,6 +75,10 @@ Rules:
   FUNCAO: ...
   TRECHO: ...
   OBS: ...
+- For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
+  1. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
+  2. "subtitle": Contextual phrase (max 15 words).
+  3. "metrics": Optional support metrics (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
 - Do not include markdown fences.
 - Do not explain the process.
 `.trim();
@@ -83,7 +95,7 @@ interface RouteBody {
     dominantVoice?: string;
   } | null;
   scriptBlocks?: PostScriptScriptBlock[];
-  srtRows?: Array<{ startTime?: string; endTime?: string }> | null;
+  srtRows?: Array<{ startTime?: string; endTime?: string; texto?: string; asset?: string }> | null;
   projectContext?: {
     projectName?: string;
     puc?: string;
@@ -110,6 +122,7 @@ const buildUserPrompt = ({
   approvedBriefing,
   scriptBlocks,
   chapterAnchors,
+  hfAnchors,
   timelineSource,
   projectContext,
   sfxPlan,
@@ -119,6 +132,7 @@ const buildUserPrompt = ({
   approvedBriefing: RouteBody['approvedBriefing'];
   scriptBlocks: PostScriptScriptBlock[];
   chapterAnchors: PostScriptChapterAnchor[];
+  hfAnchors: Array<{ timestamp: string; texto: string }>;
   timelineSource: 'srt' | 'estimated';
   projectContext?: RouteBody['projectContext'];
   sfxPlan: ReturnType<typeof buildSfxAnchorPlan>;
@@ -139,6 +153,9 @@ const buildUserPrompt = ({
     '',
     `CAPITULOS EDITORIAIS DISPONIVEIS PARA A DESCRICAO SEO (use somente estes, em ordem crescente, com no maximo ${chapterAnchors.length} linhas):`,
     JSON.stringify(chapterAnchors, null, 2),
+    '',
+    'HYPERFRAME ANCHORS (Gere um hfContextTitles para CADA um destes timestamps exatos):',
+    hfAnchors.length > 0 ? JSON.stringify(hfAnchors, null, 2) : 'Nenhum hyperframe detectado neste roteiro.',
     '',
     'PLANO DE SFX (obrigatorio seguir a logica abaixo):',
     JSON.stringify({
@@ -313,11 +330,19 @@ export async function POST(req: NextRequest) {
       srtRows,
     });
 
+    const hfAnchors = (srtRows || [])
+      .filter((row) => (row as any).asset === 'hyperframe')
+      .map((row) => ({
+        timestamp: row.startTime || '',
+        texto: row.texto || '',
+      }));
+
     const prompt = buildUserPrompt({
       approvedTheme,
       approvedBriefing,
       scriptBlocks,
       chapterAnchors: seoChapterPlan.anchors,
+      hfAnchors,
       timelineSource: timelineContext.source,
       projectContext,
       sfxPlan,

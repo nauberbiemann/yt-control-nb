@@ -53,6 +53,7 @@ export const buildHyperframesBat = (
   rows: SrtAssetRow[],
   stem: string,
   styleOverride?: HfStyleOverride,
+  hfContextTitles?: Array<{ timestamp: string; headline: string; subtitle?: string; metrics?: string }>
 ): string => {
   const safeStem  = sanitizeDownloadFileStem(stem);
   const hfRows    = rows.filter((r) => normalizeAssetType(r.asset) === 'hyperframe');
@@ -176,17 +177,34 @@ export const buildHyperframesBat = (
     const durationSec = Math.max(1.0, (endMs - startMs) / 1000).toFixed(2);
     const outName = `hf_${String(row.rowNumber).padStart(3, '0')}_${startSafe}_${template}.webm`;
 
+    // Find contextual titles for this anchor
+    const context = (hfContextTitles || []).find((c) => c.timestamp === row.startTime);
+    let titleArg = '';
+    let subtitleArg = '';
+    let metricsArg = '';
+
+    if (context) {
+      if (context.headline) titleArg = `--title "${escapeCaption(context.headline)}"`;
+      if (context.subtitle && context.subtitle !== '—') subtitleArg = `--subtitle "${escapeCaption(context.subtitle)}"`;
+      if (context.metrics && context.metrics !== '—') metricsArg = `--metrics "${escapeCaption(context.metrics)}"`;
+    } else {
+      // Fallback: use raw text if no AI context is found
+      titleArg = `--title "${escapeCaption(row.texto)}"`;
+    }
+
     // Build single-line python call
     const pyArgs = [
       `--template ${template}`,
-      `--caption "${caption}"`,
+      titleArg,
+      subtitleArg,
+      metricsArg,
       `--duration ${durationSec}`,
       '--seed %SEED%',
       '--palette %PALETTE%',
       '--motion %MOTION%',
       '--entry %ENTRY%',
       `--output "%OUT_DIR%\\${outName}"`,
-    ].join(' ');
+    ].filter(Boolean).join(' ');
 
     overlayCommands.push(
       `:: --- [${i + 1}/${hfRows.length}] row ${row.rowNumber} | ${row.startTime} | ${template} ---`,

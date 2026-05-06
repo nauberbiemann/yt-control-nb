@@ -18,6 +18,12 @@ export interface PostScriptPackage {
   sunoPrompt: string;
   sunoSuggestedTitle?: string;
   sfxTimelineTxt: string;
+  hfContextTitles?: Array<{
+    timestamp: string;
+    headline: string;
+    subtitle: string;
+    metrics: string;
+  }>;
   chapterAnchors: PostScriptChapterAnchor[];
   timelineSource: 'srt' | 'estimated';
   generatedAt: string;
@@ -868,6 +874,7 @@ export const sanitizePostScriptPackage = (
     sunoPrompt: truncateSunoPrompt(cleanMultiline(String(raw?.sunoPrompt || ''))),
     sunoSuggestedTitle: cleanPreview(String(raw?.sunoSuggestedTitle || '')),
     sfxTimelineTxt: normalizeSfxTimelineEffectNames(String(raw?.sfxTimelineTxt || '')),
+    hfContextTitles: Array.isArray(raw?.hfContextTitles) ? raw.hfContextTitles : [],
     chapterAnchors: Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors,
     timelineSource,
     generatedAt: String(raw?.generatedAt || new Date().toISOString()),

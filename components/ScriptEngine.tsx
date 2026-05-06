@@ -2117,7 +2117,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         (r) => normalizeAssetType(r.asset) === 'hyperframe',
       );
       if (hfRows.length > 0) {
-        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem);
+        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, postScriptPackage?.hfContextTitles);
         setTimeout(() => {
           downloadTextArtifact(
             srtArtifactStem,
@@ -3822,7 +3822,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <button
                       type="button"
                       onClick={renderTextAssetsFromPipeline}
-                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline.stats.texto === 0 || !postScriptPackage}
+                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || !postScriptPackage}
                       className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isRenderingTextAssets ? 'GERANDO BATs...' : 'ETAPA 5 · GERAR BATs'}
@@ -4096,9 +4096,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                           <div>
-                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Etapa 5 · Render de texto</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Etapa 5 · Scripts BAT (Offline)</p>
                             <p className="text-[10px] text-white/40 mt-1">
-                              Usa o `renderizar_textos.py` externo para gerar MP4s apenas para as linhas marcadas como `texto` e atualizar a coluna `caminho`.
+                              Gera e baixa automaticamente os scripts `.bat` para renderizar Textos, Hyperframes e SFX localmente na sua máquina.
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -4157,7 +4157,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           </>
                         ) : (
                           <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
-                            A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · RENDERIZAR TEXTOS</span>, o app vai gerar o CSV espelho no pipeline externo, executar o `renderizar_textos.py` e preencher a coluna `caminho` das linhas marcadas como texto.
+                            A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · GERAR BATS</span>, o app vai processar e baixar automaticamente todos os scripts necessários para a produção offline dos recursos do projeto. Certifique-se de ter gerado o Pacote Pós-Roteiro primeiro.
                           </div>
                         )}
                       </div>

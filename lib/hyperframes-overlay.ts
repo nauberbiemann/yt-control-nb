@@ -81,7 +81,7 @@ export const buildHyperframesBat = (
     'color 0A',
     '',
     ':: ================================================================',
-    ':: ETAPA 2 — HyperFrames Overlay Generator',
+    ':: ETAPA 2 -- HyperFrames Overlay Generator',
     `:: Projeto : ${safeStem}`,
     `:: Estilo  : ${variation.label}`,
     `:: Overlays: ${hfRows.length} cena(s) identificada(s)`,
@@ -98,8 +98,7 @@ export const buildHyperframesBat = (
     '    echo ERRO: Python nao encontrado no PATH.',
     '    echo Instale em https://www.python.org e marque "Add to PATH".',
     '    echo.',
-    '    echo Pressione qualquer tecla para fechar...',
-    '    pause >nul',
+    '    pause',
     '    exit /b 1',
     ')',
     '',
@@ -114,8 +113,7 @@ export const buildHyperframesBat = (
     '        echo.',
     '        echo ERRO: Falha ao instalar Pillow.',
     '        echo.',
-    '        echo Pressione qualquer tecla para fechar...',
-    '        pause >nul',
+    '        pause',
     '        exit /b 1',
     '    )',
     ')',
@@ -128,8 +126,7 @@ export const buildHyperframesBat = (
     '    echo ERRO: FFmpeg nao encontrado no PATH.',
     '    echo Baixe em https://ffmpeg.org/download.html e adicione ao PATH.',
     '    echo.',
-    '    echo Pressione qualquer tecla para fechar...',
-    '    pause >nul',
+    '    pause',
     '    exit /b 1',
     ')',
     '',
@@ -139,12 +136,11 @@ export const buildHyperframesBat = (
     '    color 0C',
     '    echo.',
     '    echo ERRO: render_hyperframes.py nao encontrado.',
-    `    echo Local esperado: "${RENDER_SCRIPT_PATH}"`,
+    `    echo Local esperado: ${RENDER_SCRIPT_PATH}`,
     '    echo.',
-    '    echo Verifique se o avatar-hyperframes-editor-skill esta instalado no caminho acima.',
+    '    echo Verifique se o avatar-hyperframes-editor-skill esta instalado.',
     '    echo.',
-    '    echo Pressione qualquer tecla para fechar...',
-    '    pause >nul',
+    '    pause',
     '    exit /b 1',
     ')',
     '',
@@ -197,18 +193,22 @@ export const buildHyperframesBat = (
     const durationSec = ((endMs - startMs) / 1000).toFixed(2);
     const outName = `hf_${String(row.rowNumber).padStart(3, '0')}_${startSafe}_${template}.webm`;
 
+    // Build single-line python call — avoids ^ continuation + errorlevel issues
+    const pyArgs = [
+      `--template ${template}`,
+      `--caption "${caption}"`,
+      `--duration ${durationSec}`,
+      '--seed %SEED%',
+      '--palette %PALETTE%',
+      '--motion %MOTION%',
+      '--entry %ENTRY%',
+      `--output "%OUT_DIR%\\${outName}"`,
+    ].join(' ');
+
     overlayCommands.push(
       `:: --- [${i + 1}/${hfRows.length}] row ${row.rowNumber} | ${row.startTime} | ${template} ---`,
       `echo [${i + 1}/${hfRows.length}] Gerando: ${outName}`,
-      'python "%RENDER_SCRIPT%" ^',
-      `  --template ${template} ^`,
-      `  --caption "${caption}" ^`,
-      `  --duration ${durationSec} ^`,
-      '  --seed %SEED% ^',
-      '  --palette %PALETTE% ^',
-      '  --motion %MOTION% ^',
-      '  --entry %ENTRY% ^',
-      `  --output "%OUT_DIR%\\${outName}"`,
+      `python "%RENDER_SCRIPT%" ${pyArgs}`,
       'if %errorlevel% neq 0 (',
       '    color 0E',
       `    echo AVISO: Falha ao gerar overlay ${row.rowNumber}. Continue e ajuste manualmente.`,
@@ -219,6 +219,7 @@ export const buildHyperframesBat = (
       'echo.',
     );
   });
+
 
   const footer = [
     ':: ================================================================',

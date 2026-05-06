@@ -3,261 +3,172 @@ import { sanitizeDownloadFileStem } from './srt-asset-pipeline';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SfxTimelineEntry {
-  timestamp: string; // MM:SS or HH:MM:SS
-  effect:    string; // e.g. "Digital Glitch"
-  purpose:   string; // e.g. "Abertura da narrativa"
-  excerpt:   string; // script snippet
+  timestamp: string;
+  effect:    string;
+  purpose:   string;
+  excerpt:   string;
   notes:     string;
 }
 
-// ─── FFmpeg lavfi synthesis recipes ──────────────────────────────────────────
+// ─── FFmpeg aevalsrc recipes ──────────────────────────────────────────────────
 //
-// Each recipe is a self-contained `ffmpeg -f lavfi -i <filter> ...` command.
-// All outputs are MP3, mono, 44100 Hz, ~3 s unless the effect has a natural length.
+// ALL recipes use a SINGLE aevalsrc source + -af chain.
+// This is the only reliable way to use lavfi without filter_complex in a BAT.
 //
-// Parameters exposed per recipe:
-//   DURATION  – seconds (float) from the entry duration window (or 3.0)
-//   SEED      – numeric seed derived from timestamp for subtle variation
+// Command structure:
+//   ffmpeg -y -f lavfi -i "aevalsrc='<expr>':c=mono:s=44100:d=<dur>"
+//          -af "<af_chain>" -ar 44100 -ac 1 -ab 192k output.mp3
+//
+// The aevalsrc expression uses only: sin(), PI, t, random(0), basic math.
+// No named pads, no amix, no multi-source — guaranteed to work on FFmpeg >= 4.0.
 
 type FfmpegRecipe = {
-  label:       string;
-  duration:    number;       // default duration in seconds
-  filterFn:    (seed: number, dur: number) => string; // lavfi filter string
+  label:    string;
+  duration: number;
+  // Returns { src, af } — two separate strings, no quoting ambiguity
+  buildFn:  (seed: number, dur: number) => { src: string; af: string };
 };
 
-// Small deterministic "wobble" helper so each instance sounds slightly different
 const w = (seed: number, range: number, base: number): number =>
-  Number((base + ((seed % 100) / 100) * range - range / 2).toFixed(3));
+  Number((base + ((seed % 100) / 100) * range - range / 2).toFixed(2));
 
 const RECIPES: Record<string, FfmpegRecipe> = {
 
   'Digital Glitch': {
     label: 'Digital Glitch',
     duration: 1.5,
-    filterFn: (seed, dur) => {
-      // Sine-modulated noise bursts + pitch envelope → glitchy digital crunch
-      const freq  = w(seed, 200, 900);
-      const mod   = w(seed, 5, 12);
-      return [
-        `sine=f=${freq}:r=44100:d=${dur}[s1]`,
-        `anoisesrc=r=44100:a=0.08:c=white:d=${dur}[n1]`,
-        `[s1][n1]amix=inputs=2:weights=0.4 0.6[mix]`,
-        `[mix]tremolo=f=${mod}:d=0.9[tr]`,
-        `[tr]afade=t=out:st=${Math.max(0, dur - 0.3)}:d=0.3`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='sin(2*PI*${w(seed,200,900)}*t)*(random(0)-0.5)*abs(sin(2*PI*${w(seed,4,10)}*t))':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=300,afade=t=out:st=${(dur*0.6).toFixed(2)}:d=${(dur*0.4).toFixed(2)}`,
+    }),
   },
 
   'Low Rumble': {
     label: 'Low Rumble',
     duration: 3.0,
-    filterFn: (seed, dur) => {
-      const freq = w(seed, 10, 50);
-      return [
-        `sine=f=${freq}:r=44100:d=${dur}[sub]`,
-        `anoisesrc=r=44100:a=0.06:c=pink:d=${dur}[pnk]`,
-        `[sub][pnk]amix=inputs=2:weights=0.7 0.3[mix]`,
-        `[mix]lowpass=f=120[lp]`,
-        `[lp]afade=t=in:st=0:d=0.4,afade=t=out:st=${Math.max(0, dur - 0.6)}:d=0.6`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='0.5*sin(2*PI*${w(seed,15,50)}*t)+0.3*(random(0)-0.5)':c=mono:s=44100:d=${dur}`,
+      af: `lowpass=f=160,afade=t=in:st=0:d=0.4,afade=t=out:st=${(dur-0.6).toFixed(2)}:d=0.6`,
+    }),
   },
 
   'Cinematic Whoosh': {
     label: 'Cinematic Whoosh',
     duration: 2.0,
-    filterFn: (seed, dur) => {
-      const startF = w(seed, 100, 200);
-      const endF   = w(seed, 200, 2200);
-      return [
-        `sine=f=${startF}:r=44100:d=${dur}[sw]`,
-        `anoisesrc=r=44100:a=0.35:c=white:d=${dur}[nw]`,
-        `[sw][nw]amix=inputs=2:weights=0.2 0.8[raw]`,
-        `[raw]aeval=val(0)*sin(PI*t/${dur})|val(0)*sin(PI*t/${dur}):c=same[env]`,
-        `[env]highpass=f=${startF},lowpass=f=${endF}[hp]`,
-        `[hp]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, dur - 0.2)}:d=0.2`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='(random(0)-0.5)*sin(PI*t/${dur})':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=${w(seed,100,200).toFixed(0)},lowpass=f=4000,afade=t=in:st=0:d=0.1,afade=t=out:st=${(dur-0.2).toFixed(2)}:d=0.2`,
+    }),
   },
 
   'Tension Riser': {
     label: 'Tension Riser',
     duration: 4.0,
-    filterFn: (seed, dur) => {
-      const startF = w(seed, 30, 120);
-      const endF   = w(seed, 100, 1800);
-      return [
-        `anoisesrc=r=44100:a=0.5:c=pink:d=${dur}[pnk]`,
-        `sine=f=${startF}:r=44100:d=${dur}[tone]`,
-        `[pnk][tone]amix=inputs=2:weights=0.75 0.25[mix]`,
-        `[mix]highpass=f=${startF},lowpass=f=${endF}[hp]`,
-        `[hp]aeval=val(0)*(t/${dur})|val(0)*(t/${dur}):c=same[ramp]`,
-        `[ramp]afade=t=out:st=${Math.max(0, dur - 0.4)}:d=0.4`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='(random(0)-0.5)*(t/${dur})+0.2*sin(2*PI*${w(seed,60,120)}*t)*(t/${dur})':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=80,afade=t=out:st=${(dur-0.5).toFixed(2)}:d=0.5`,
+    }),
   },
 
   'Metallic Impact': {
     label: 'Metallic Impact',
     duration: 1.2,
-    filterFn: (seed, dur) => {
-      const freq = w(seed, 300, 1200);
-      return [
-        `sine=f=${freq}:r=44100:d=${dur}[s1]`,
-        `anoisesrc=r=44100:a=0.9:c=white:d=0.05[burst]`,
-        `[s1][burst]amix=inputs=2:weights=0.3 0.7[mix]`,
-        `[mix]highpass=f=600,bandpass=f=${freq}:width_type=o:w=3[bp]`,
-        `[bp]afade=t=out:st=${Math.max(0, dur * 0.15)}:d=${(dur * 0.85).toFixed(2)}`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='(random(0)-0.5)*exp(-t*8)+0.4*sin(2*PI*${w(seed,400,1000)}*t)*exp(-t*12)':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=500,afade=t=out:st=${(dur*0.3).toFixed(2)}:d=${(dur*0.7).toFixed(2)}`,
+    }),
   },
 
   'Keyboard Clicks': {
     label: 'Keyboard Clicks',
     duration: 2.0,
-    filterFn: (seed, dur) => {
-      const clickHz = w(seed, 2, 6);
-      return [
-        `anoisesrc=r=44100:a=0.6:c=white:d=${dur}[n]`,
-        `[n]highpass=f=3000,bandpass=f=5000:width_type=o:w=2[hp]`,
-        `[hp]tremolo=f=${clickHz}:d=0.95[tr]`,
-        `[tr]afade=t=in:st=0:d=0.05,afade=t=out:st=${Math.max(0, dur - 0.2)}:d=0.2`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='(random(0)-0.5)*abs(sin(2*PI*${w(seed,2,5)}*t))':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=2000,bandpass=f=4000:width_type=o:w=2,afade=t=in:st=0:d=0.05,afade=t=out:st=${(dur-0.2).toFixed(2)}:d=0.2`,
+    }),
   },
 
   'Notification Ping': {
     label: 'Notification Ping',
     duration: 0.8,
-    filterFn: (seed, dur) => {
-      const freq = w(seed, 200, 1200);
-      return [
-        `sine=f=${freq}:r=44100:d=${dur}[s1]`,
-        `sine=f=${w(seed * 2, 100, freq * 1.5)}:r=44100:d=${dur}[s2]`,
-        `[s1][s2]amix=inputs=2[mix]`,
-        `[mix]afade=t=out:st=${Math.max(0, dur * 0.2)}:d=${(dur * 0.8).toFixed(2)}`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='sin(2*PI*${w(seed,200,1200)}*t)+0.5*sin(2*PI*${w(seed,150,1800)}*t)':c=mono:s=44100:d=${dur}`,
+      af: `afade=t=out:st=${(dur*0.2).toFixed(2)}:d=${(dur*0.8).toFixed(2)}`,
+    }),
   },
 
   'Ambient Room Tone': {
     label: 'Ambient Room Tone',
     duration: 4.0,
-    filterFn: (seed, dur) => {
-      const freq = w(seed, 50, 400);
-      return [
-        `anoisesrc=r=44100:a=0.15:c=brown:d=${dur}[brn]`,
-        `sine=f=${freq}:r=44100:d=${dur}[pad]`,
-        `[brn][pad]amix=inputs=2:weights=0.8 0.2[mix]`,
-        `[mix]lowpass=f=800[lp]`,
-        `[lp]afade=t=in:st=0:d=0.8,afade=t=out:st=${Math.max(0, dur - 0.8)}:d=0.8`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='0.12*(random(0)-0.5)+0.05*sin(2*PI*${w(seed,50,300)}*t)':c=mono:s=44100:d=${dur}`,
+      af: `lowpass=f=600,afade=t=in:st=0:d=0.8,afade=t=out:st=${(dur-0.8).toFixed(2)}:d=0.8`,
+    }),
   },
 
   'Sub Bass Pulse': {
     label: 'Sub Bass Pulse',
     duration: 2.0,
-    filterFn: (seed, dur) => {
-      const freq = w(seed, 15, 45);
-      const mod  = w(seed, 1, 3);
-      return [
-        `sine=f=${freq}:r=44100:d=${dur}[sub]`,
-        `[sub]tremolo=f=${mod}:d=0.7[tr]`,
-        `[tr]lowpass=f=100[lp]`,
-        `[lp]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, dur - 0.3)}:d=0.3`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='sin(2*PI*${w(seed,10,45)}*t)*abs(sin(2*PI*${w(seed,1,2.5)}*t))':c=mono:s=44100:d=${dur}`,
+      af: `lowpass=f=100,afade=t=in:st=0:d=0.1,afade=t=out:st=${(dur-0.3).toFixed(2)}:d=0.3`,
+    }),
   },
 
   'Reverse Whoosh': {
     label: 'Reverse Whoosh',
     duration: 2.0,
-    filterFn: (seed, dur) => {
-      const startF = w(seed, 200, 2400);
-      const endF   = w(seed, 100, 200);
-      return [
-        `anoisesrc=r=44100:a=0.45:c=white:d=${dur}[n]`,
-        `sine=f=${startF}:r=44100:d=${dur}[s]`,
-        `[n][s]amix=inputs=2:weights=0.8 0.2[mix]`,
-        `[mix]highpass=f=${endF},lowpass=f=${startF}[hp]`,
-        `[hp]aeval=val(0)*(1-t/${dur})|val(0)*(1-t/${dur}):c=same[ramp]`,
-        `[ramp]afade=t=in:st=0:d=0.1`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='(random(0)-0.5)*(1-t/${dur})':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=${w(seed,200,400).toFixed(0)},lowpass=f=3000,afade=t=in:st=0:d=0.1`,
+    }),
   },
 
-  // Generic fallback
   'Cinematic Accent Hit': {
     label: 'Cinematic Accent Hit',
     duration: 1.5,
-    filterFn: (seed, dur) => {
-      const freq = w(seed, 400, 800);
-      return [
-        `sine=f=${freq}:r=44100:d=${dur}[s]`,
-        `anoisesrc=r=44100:a=0.5:c=white:d=0.08[burst]`,
-        `[s][burst]amix=inputs=2:weights=0.25 0.75[mix]`,
-        `[mix]highpass=f=300[hp]`,
-        `[hp]afade=t=out:st=${Math.max(0, dur * 0.1)}:d=${(dur * 0.9).toFixed(2)}`,
-      ].join(',');
-    },
+    buildFn: (seed, dur) => ({
+      src: `aevalsrc='(random(0)-0.5)*exp(-t*6)+0.3*sin(2*PI*${w(seed,300,700)}*t)*exp(-t*8)':c=mono:s=44100:d=${dur}`,
+      af: `highpass=f=200,afade=t=out:st=${(dur*0.15).toFixed(2)}:d=${(dur*0.85).toFixed(2)}`,
+    }),
   },
 };
 
-// Resolve which recipe to use, falling back gracefully
 const resolveRecipe = (effectName: string): FfmpegRecipe => {
-  // Exact match first
   if (RECIPES[effectName]) return RECIPES[effectName];
-
-  // Fuzzy: check if effectName contains any key word
   const lower = effectName.toLowerCase();
   for (const [key, recipe] of Object.entries(RECIPES)) {
     if (lower.includes(key.toLowerCase())) return recipe;
   }
-
   return RECIPES['Cinematic Accent Hit'];
 };
 
-// Numeric seed from timestamp string
 const timestampToSeed = (ts: string): number =>
   ts.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000;
 
-// Safe filename from timestamp: "02:09" → "02-09"
-const safeTs = (ts: string) => ts.replace(/:/g, '-').replace(',', '-');
+const safeTs = (ts: string) => ts.replace(/:/g, '-');
 
 // ─── BAT builder ──────────────────────────────────────────────────────────────
 
-/**
- * Builds the content of the _3_sfx.bat file from the AI-generated SFX timeline.
- *
- * Each named effect (Digital Glitch, Tension Riser, …) is synthesized entirely
- * via FFmpeg's lavfi (virtual device) — no Python, no external audio files.
- *
- * @param sfxTimelineTxt  The sfxTimelineTxt string from postScriptPackage
- * @param stem            Project artifact stem (used for naming)
- */
-export const buildSfxBatFromTimeline = (
-  sfxTimelineTxt: string,
-  stem: string,
-): string => {
-  const safeStem = sanitizeDownloadFileStem(stem);
-
-  // Parse the SFX timeline text into entries
-  const entries = parseSfxTimelineForBat(sfxTimelineTxt);
+export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string): string => {
+  const safeStem  = sanitizeDownloadFileStem(stem);
+  const entries   = parseSfxTimelineForBat(sfxTimelineTxt);
   if (!entries.length) return '';
 
-  const header = [
+  const L = (...lines: string[]) => lines;
+
+  const header = L(
     '@echo off',
     'chcp 65001 >nul',
     'color 0A',
     '',
     ':: ================================================================',
-    ':: ETAPA 3 — SFX Generator (FFmpeg lavfi — sem Python)',
+    `:: ETAPA 3 -- SFX Generator (FFmpeg aevalsrc -- sem Python)`,
     `:: Projeto : ${safeStem}`,
     `:: Efeitos : ${entries.length} ponto(s) da timeline da IA`,
     '::',
     ':: Sintetiza cada efeito localmente via FFmpeg.',
-    ':: Roda em paralelo com os Bats 1 e 2.',
+    ':: Requisito: FFmpeg no PATH (https://ffmpeg.org)',
     ':: ================================================================',
     '',
     ':: [1] FFmpeg disponivel?',
@@ -268,8 +179,7 @@ export const buildSfxBatFromTimeline = (
     '    echo ERRO: FFmpeg nao encontrado no PATH.',
     '    echo Baixe em https://ffmpeg.org/download.html e adicione ao PATH.',
     '    echo.',
-    '    echo Pressione qualquer tecla para fechar...',
-    '    pause >nul',
+    '    pause',
     '    exit /b 1',
     ')',
     '',
@@ -278,69 +188,54 @@ export const buildSfxBatFromTimeline = (
     'if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"',
     '',
     'echo.',
-    'echo --- SFX GENERATOR (FFmpeg lavfi) ---',
+    'echo --- SFX GENERATOR ---',
     `echo Projeto : ${safeStem}`,
-    `echo Efeitos : ${entries.length} ponto(s) da timeline`,
+    `echo Efeitos : ${entries.length} ponto(s)`,
     'echo Output  : %OUT_DIR%',
     'echo.',
-    '',
-  ];
+  );
 
   const commands: string[] = [];
-
   entries.forEach((entry, i) => {
     const recipe  = resolveRecipe(entry.effect);
     const seed    = timestampToSeed(entry.timestamp);
     const dur     = recipe.duration;
-    const filter  = recipe.filterFn(seed, dur);
-    const outName = `sfx_${String(i + 1).padStart(3, '0')}_${safeTs(entry.timestamp)}_${safeStem.slice(0, 20)}.mp3`;
-    const label   = entry.effect;
-    const purpose = entry.purpose !== '—' ? entry.purpose : '';
+    const { src, af } = recipe.buildFn(seed, dur);
+    const outName = `sfx_${String(i + 1).padStart(3, '0')}_${safeTs(entry.timestamp)}_${recipe.label.replace(/\s+/g, '_')}.mp3`;
 
     commands.push(
-      `:: --- [${i + 1}/${entries.length}] ${entry.timestamp} | ${label} ---`,
-      `echo [${i + 1}/${entries.length}] ${label}${purpose ? ` — ${purpose}` : ''}`,
+      `:: --- [${i + 1}/${entries.length}] ${entry.timestamp} | ${entry.effect} ---`,
+      `echo [${i + 1}/${entries.length}] ${entry.effect} -- ${entry.purpose}`,
       `echo     Tempo  : ${entry.timestamp}`,
       `echo     Output : ${outName}`,
-      `ffmpeg -y -f lavfi -i "${filter}" -ar 44100 -ac 1 -ab 192k "%OUT_DIR%\\${outName}" >nul 2>&1`,
+      `ffmpeg -y -f lavfi -i "${src}" -af "${af}" -ar 44100 -ac 1 -ab 192k "%OUT_DIR%\\${outName}"`,
       'if %errorlevel% neq 0 (',
-      '    color 0E',
-      `    echo AVISO: Falha ao gerar SFX ${i + 1}. Verifique a versao do FFmpeg (>= 4.4).`,
-      '    color 0A',
+      `    echo AVISO: Falha ao gerar SFX ${i + 1}. Verifique sua versao do FFmpeg.`,
       ') else (',
-      `    echo     OK!`,
+      '    echo     OK!',
       ')',
       'echo.',
     );
   });
 
-  const footer = [
+  const footer = L(
     ':: ================================================================',
     'color 0A',
     'echo.',
     `echo --- PRONTO! ${entries.length} efeito(s) gerado(s) em:`,
     'echo %OUT_DIR%',
     'echo.',
-    'echo Como usar no editor:',
-    'echo   1. Importe a pasta sfx_overlays no seu projeto',
-    'echo   2. O tempo de entrada esta no nome do arquivo',
-    'echo      ex: sfx_006_12-14_Eliminando.mp3',
-    'echo          significa: insira em 12:14 do video',
-    'echo   3. Coloque cada .mp3 em uma faixa de audio dedicada',
-    'echo   4. Ajuste o volume conforme necessario (sugerido: -12dB)',
+    'echo Como usar: importe sfx_overlays no editor, insira cada .mp3',
+    'echo no tempo indicado no nome do arquivo, volume sugerido: -12dB',
     'echo.',
     'pause',
-  ];
+  );
 
   return [...header, ...commands, ...footer].join('\r\n');
 };
 
-// ─── Timeline parser (local copy — avoids importing ScriptEngine internals) ───
+// ─── Timeline parser ───────────────────────────────────────────────────────────
 
-/**
- * Parses the sfxTimelineTxt string into SfxTimelineEntry objects.
- * Mirrors the parseSfxTimelineEntries logic in ScriptEngine.tsx.
- */
 export const parseSfxTimelineForBat = (value: string): SfxTimelineEntry[] => {
   const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
   if (!normalized) return [];
@@ -353,18 +248,14 @@ export const parseSfxTimelineForBat = (value: string): SfxTimelineEntry[] => {
     .map((match, index) => {
       const entry = match.trim();
       if (!entry) return null;
-
       const tsMatch      = entry.match(/(?:\*\*)?\[?(\d{2}:\d{2}(?::\d{2})?)\]?(?:\*\*)?/);
       const effectMatch  = entry.match(/EFEITO:\s*([^\n]+)/i);
       const purposeMatch = entry.match(/FUNC(?:A|Ã)O:\s*([^\n]+)/i);
       const excerptMatch = entry.match(/TRECHO:\s*([^\n]+)/i);
       const notesMatch   = entry.match(/OBS:\s*([^\n]+)/i);
-
-      const clean = (s: string | undefined) =>
-        s ? s.trim().replace(/\*\*|["']/g, '') : '—';
-
+      const clean = (s?: string) => s ? s.trim().replace(/\*\*|["']/g, '') : '—';
       return {
-        timestamp: tsMatch ? tsMatch[1] : `00:${String(index).padStart(2, '0')}`,
+        timestamp: tsMatch?.[1] ?? `00:${String(index).padStart(2, '0')}`,
         effect:    clean(effectMatch?.[1]),
         purpose:   clean(purposeMatch?.[1]),
         excerpt:   clean(excerptMatch?.[1]),

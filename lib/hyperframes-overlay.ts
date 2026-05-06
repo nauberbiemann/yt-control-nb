@@ -5,10 +5,10 @@ import { normalizeAssetType, sanitizeDownloadFileStem, type SrtAssetRow } from '
 export type HfStyleOverride = 'dark' | 'light' | 'brand-warm' | 'brand-cool';
 
 const STYLE_LABELS: Record<HfStyleOverride, string> = {
-  'dark':       'Dark (fundo escuro, texto claro)',
-  'light':      'Light (fundo claro, texto escuro)',
-  'brand-warm': 'Brand Warm (tons quentes, dourado)',
-  'brand-cool': 'Brand Cool (tons frios, azul/ciano)',
+  'dark':       'Dark - fundo escuro, texto claro',
+  'light':      'Light - fundo claro, texto escuro',
+  'brand-warm': 'Brand Warm - tons quentes, dourado',
+  'brand-cool': 'Brand Cool - tons frios, azul/ciano',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ const escapeCaption = (text: string): string =>
   text
     .replace(/"/g, '\\"')
     .replace(/[%]/g, '%%')
+    .replace(/[()]/g, '')      // parens break CMD if blocks
     .replace(/[<>|&^]/g, '')
     .trim()
     .slice(0, 75);
@@ -68,9 +69,9 @@ export const buildHyperframesBat = (
     ':: ETAPA 2 -- HyperFrames Overlay Generator (Pillow + FFmpeg)',
     `:: Projeto : ${safeStem}`,
     `:: Estilo  : ${variation.label}`,
-    `:: Overlays: ${hfRows.length} cena(s) identificada(s)`,
+    `:: Overlays: ${hfRows.length} cenas identificadas`,
     '::',
-    ':: Gera overlays WebM com fundo transparente (canal alpha).',
+    ':: Gera overlays WebM com fundo transparente -- canal alpha.',
     ':: Pillow renderiza os frames PNG, FFmpeg empacota como WebM.',
     ':: ================================================================',
     '',
@@ -86,11 +87,11 @@ export const buildHyperframesBat = (
     '    exit /b 1',
     ')',
     '',
-    ':: [2] Pillow instalado? (instala automaticamente se ausente)',
+    ':: [2] Pillow instalado?',
     'python -c "import PIL" >nul 2>&1',
     'if %errorlevel% neq 0 (',
     '    color 0E',
-    '    echo Instalando Pillow (necessario apenas uma vez)...',
+    '    echo Instalando Pillow -- necessario apenas uma vez...',
     '    python -m pip install pillow',
     '    if %errorlevel% neq 0 (',
     '        color 0C',

@@ -150,7 +150,7 @@ const safeTs = (ts: string) => ts.replace(/:/g, '-');
 
 // ─── BAT builder ──────────────────────────────────────────────────────────────
 
-export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string): string => {
+export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string, csvRowOffset: number = 0): string => {
   const safeStem  = sanitizeDownloadFileStem(stem);
   const entries   = parseSfxTimelineForBat(sfxTimelineTxt);
   if (!entries.length) return '';
@@ -165,7 +165,7 @@ export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string): s
     ':: ================================================================',
     `:: ETAPA 3 -- SFX Generator (FFmpeg aevalsrc -- sem Python)`,
     `:: Projeto : ${safeStem}`,
-    `:: Efeitos : ${entries.length} ponto(s) da timeline da IA`,
+    `:: Efeitos : ${entries.length} pontos da timeline da IA`,
     '::',
     ':: Sintetiza cada efeito localmente via FFmpeg.',
     ':: Requisito: FFmpeg no PATH (https://ffmpeg.org)',
@@ -190,7 +190,7 @@ export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string): s
     'echo.',
     'echo --- SFX GENERATOR ---',
     `echo Projeto : ${safeStem}`,
-    `echo Efeitos : ${entries.length} ponto(s)`,
+    `echo Efeitos : ${entries.length} pontos`,
     'echo Output  : %OUT_DIR%',
     'echo.',
   );
@@ -201,7 +201,8 @@ export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string): s
     const seed    = timestampToSeed(entry.timestamp);
     const dur     = recipe.duration;
     const { src, af } = recipe.buildFn(seed, dur);
-    const outName = `sfx_${String(i + 1).padStart(3, '0')}_${safeTs(entry.timestamp)}_${recipe.label.replace(/\s+/g, '_')}.mp3`;
+    const csvRow  = csvRowOffset + i + 1;
+    const outName = `${String(csvRow).padStart(3, '0')}_sfx_${safeTs(entry.timestamp)}_${recipe.label.replace(/\s+/g, '_')}.mp3`;
 
     commands.push(
       `:: --- [${i + 1}/${entries.length}] ${entry.timestamp} | ${entry.effect} ---`,
@@ -222,7 +223,7 @@ export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string): s
     ':: ================================================================',
     'color 0A',
     'echo.',
-    `echo --- PRONTO! ${entries.length} efeito(s) gerado(s) em:`,
+    `echo --- PRONTO! ${entries.length} efeitos gerados em:`,
     'echo %OUT_DIR%',
     'echo.',
     'echo Como usar: importe sfx_overlays no editor, insira cada .mp3',

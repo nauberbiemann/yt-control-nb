@@ -2128,9 +2128,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }, 1000);
       }
 
-      // Bat 3 — SFX overlays (IA timeline from postScriptPackage, synthesized via FFmpeg lavfi)
       const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';
-      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem);
+      const csvRowOffset = externalSrtPipeline.rows.length;
+      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, csvRowOffset);
       if (batSfx) {
         setTimeout(() => {
           downloadTextArtifact(
@@ -3802,10 +3802,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <button
                       type="button"
                       onClick={renderTextAssetsFromPipeline}
-                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline.stats.texto === 0}
+                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline.stats.texto === 0 || !postScriptPackage}
                       className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {isRenderingTextAssets ? 'RENDERIZANDO TEXTOS...' : 'ETAPA 5 · RENDERIZAR TEXTOS'}
+                      {isRenderingTextAssets ? 'GERANDO BATs...' : 'ETAPA 5 · GERAR BATs'}
                     </button>
                   )}
                   <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">

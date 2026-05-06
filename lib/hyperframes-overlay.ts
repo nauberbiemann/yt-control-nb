@@ -46,9 +46,9 @@ const buildVf = (
   palette: HfStyleOverride,
 ): string => {
   const { text, bar } = PALETTE_COLORS[palette];
-  // Wrap font path in single quotes — the correct way to pass paths with ':' in FFmpeg 8.x drawtext.
-  // Forward slashes work on Windows in FFmpeg. arial.ttf is guaranteed on all Windows.
-  const FONT = "'C:/Windows/Fonts/arial.ttf'";
+  // Use fontconfig font name — avoids ANY path/colon escaping issue in FFmpeg 8.x drawtext.
+  // FFmpeg is compiled with --enable-fontconfig so 'font=Arial' works on all Windows systems.
+  const FONT = 'font=Arial';
   const t = esc(caption);
 
   switch (template) {
@@ -58,7 +58,7 @@ const buildVf = (
         'format=rgba',
         `colorchannelmixer=aa=0`,
         `drawbox=x=0:y=840:w=1920:h=240:color=${bar}@0.92:t=fill`,
-        `drawtext=fontfile=${FONT}:text='${t}':fontsize=54:fontcolor=${text}:x=(w-text_w)/2:y=910:bordercolor=0x000000:borderw=2`,
+        `drawtext=${FONT}:text='${t}':fontsize=54:fontcolor=${text}:x=(w-text_w)/2:y=910:bordercolor=0x000000:borderw=2`,
       ].join(',');
 
     case 'avatar_close_crop':
@@ -67,7 +67,7 @@ const buildVf = (
         'format=rgba',
         `colorchannelmixer=aa=0`,
         `drawbox=x=60:y=920:w=1800:h=120:color=${bar}@0.88:t=fill`,
-        `drawtext=fontfile=${FONT}:text='${t}':fontsize=38:fontcolor=${text}:x=100:y=940:bordercolor=0x000000:borderw=1`,
+        `drawtext=${FONT}:text='${t}':fontsize=38:fontcolor=${text}:x=100:y=940:bordercolor=0x000000:borderw=1`,
       ].join(',');
 
     case 'caption_focus':
@@ -76,7 +76,7 @@ const buildVf = (
         'format=rgba',
         `colorchannelmixer=aa=0`,
         `drawbox=x=160:y=440:w=1600:h=200:color=${bar}@0.90:t=fill`,
-        `drawtext=fontfile=${FONT}:text='${t}':fontsize=56:fontcolor=${text}:x=(w-text_w)/2:y=490:bordercolor=0x000000:borderw=2`,
+        `drawtext=${FONT}:text='${t}':fontsize=56:fontcolor=${text}:x=(w-text_w)/2:y=490:bordercolor=0x000000:borderw=2`,
       ].join(',');
 
     case 'avatar_side_panel':
@@ -85,7 +85,7 @@ const buildVf = (
         'format=rgba',
         `colorchannelmixer=aa=0`,
         `drawbox=x=1380:y=0:w=540:h=1080:color=${bar}@0.88:t=fill`,
-        `drawtext=fontfile=${FONT}:text='${t}':fontsize=34:fontcolor=${text}:x=1410:y=(h-text_h)/2:bordercolor=0x000000:borderw=1`,
+        `drawtext=${FONT}:text='${t}':fontsize=34:fontcolor=${text}:x=1410:y=(h-text_h)/2:bordercolor=0x000000:borderw=1`,
       ].join(',');
 
     default:
@@ -93,7 +93,7 @@ const buildVf = (
         'format=rgba',
         `colorchannelmixer=aa=0`,
         `drawbox=x=0:y=880:w=1920:h=200:color=${bar}@0.90:t=fill`,
-        `drawtext=fontfile=${FONT}:text='${t}':fontsize=46:fontcolor=${text}:x=(w-text_w)/2:y=930:bordercolor=0x000000:borderw=2`,
+        `drawtext=${FONT}:text='${t}':fontsize=46:fontcolor=${text}:x=(w-text_w)/2:y=930:bordercolor=0x000000:borderw=2`,
       ].join(',');
   }
 };

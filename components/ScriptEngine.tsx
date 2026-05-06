@@ -1462,7 +1462,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const parseExternalScriptSections = (text: string) => {
-    const normalized = text.replace(/\r\n/g, '\n').trim();
+    const normalized = text.replace(/\n/g, '\n').trim();
     if (!normalized) return [];
 
     const explicitSections = normalized
@@ -1479,7 +1479,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const segmentExternalScriptForBlocks = (text: string, targetCount: number) => {
-    const normalized = text.replace(/\r\n/g, '\n').trim();
+    const normalized = text.replace(/\n/g, '\n').trim();
     if (!normalized) return [];
 
     const sections = parseExternalScriptSections(normalized);
@@ -2075,7 +2075,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         '',
         ':: 3. Mudando de diretorio e apontando pro pipeline local',
         `set "PYTHON_DIR=${pythonDir}"`,
-        'if not exist "%PYTHON_DIR%\\renderizar_textos.py" (',
+        'if not exist "%PYTHON_DIR%\enderizar_textos.py" (',
         '    color 0C',
         '    echo ERRO CRITICO: Conector principal renderizar_textos.py nao mapeado!',
         '    echo Local esperado: "%PYTHON_DIR%"',
@@ -2104,7 +2104,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         'echo --- TUDO PRONTO! Renderizacao em lote completa.',
         'pause',
       ];
-      const batContent = batLines.join('\r\n');
+      const batContent = batLines.join('\n');
       
       downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       
@@ -2129,8 +2129,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';
-      const csvRowOffset = externalSrtPipeline.rows.length;
-      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, csvRowOffset);
+      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, externalSrtPipeline.rows);
       if (batSfx) {
         setTimeout(() => {
           downloadTextArtifact(
@@ -2653,11 +2652,32 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const sfxEntries = parseSfxTimelineEntries(sfxTimelineTxt);
     if (!sfxEntries.length) return baseCsvContent;
 
-    // Convert MM:SS or HH:MM:SS timestamp to SRT format 00:MM:SS,000
-    const toSrtTime = (ts: string) => {
-      const parts = ts.split(':').map((p) => p.padStart(2, '0'));
-      const formatted = parts.length === 2 ? `00:${parts[0]}:${parts[1]}` : `${parts[0]}:${parts[1]}:${parts[2] || '00'}`;
-      return `${formatted},000`;
+    // Get SRT rows for snapping timestamps
+    const srtRows = externalSrtPipeline?.rows || [];
+
+    // Convert AI timestamp to seconds for nearest-match
+    const toSec = (ts: string): number => {
+      const clean = ts.replace(',', '.');
+      const parts = clean.split(':').map(Number);
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    };
+
+    // Snap to nearest SRT row start time
+    const snapTs = (aiTs: string): string => {
+      if (!srtRows.length) {
+        const parts = aiTs.split(':').map((p: string) => p.padStart(2, '0'));
+        const formatted = parts.length === 2 ? `00:${parts[0]}:${parts[1]}` : `${parts[0]}:${parts[1]}:${parts[2] || '00'}`;
+        return `${formatted},000`;
+      }
+      const aiSec = toSec(aiTs);
+      let best = srtRows[0];
+      let bestDiff = Math.abs(toSec(best.startTime) - aiSec);
+      for (const row of srtRows) {
+        const diff = Math.abs(toSec(row.startTime) - aiSec);
+        if (diff < bestDiff) { bestDiff = diff; best = row; }
+      }
+      return best.startTime;
     };
 
     const csvEsc = (v: string) => {
@@ -2666,11 +2686,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     };
 
     const sfxLines = sfxEntries.map((entry) => {
-      const srtTs = toSrtTime(entry.timestamp);
+      const exactTs = snapTs(entry.timestamp);
       const promptSummary = [entry.effect, entry.purpose, entry.notes].filter((x) => x && x !== '—').join(' | ');
       return [
-        csvEsc(srtTs),
-        csvEsc(srtTs),
+        csvEsc(exactTs),
+        csvEsc(exactTs),
         csvEsc(entry.excerpt !== '—' ? entry.excerpt : ''),
         'sfx',
         csvEsc(promptSummary),
@@ -2683,7 +2703,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const parseSfxTimelineEntries = (value: string) => {
-    const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
+    const normalized = String(value || '').replace(/\n/g, '\n').trim();
     if (!normalized) return [];
 
     const blockRegex = /(?:^|\n)\s*(?:\*\*)?\[?(\d{2}:\d{2}(?::\d{2})?)\]?(?:\*\*)?[\s\S]*?(?=(?:\n\s*(?:\*\*)?\[?\d{2}:\d{2}(?::\d{2})?\]?(?:\*\*)?)|$)/g;
@@ -2720,7 +2740,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const parseSeoDescriptionSections = (value: string) => {
-    const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
+    const normalized = String(value || '').replace(/\n/g, '\n').trim();
     if (!normalized) {
       return {
         intro: '',

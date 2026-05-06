@@ -1,4 +1,4 @@
-import { sanitizeDownloadFileStem } from './srt-asset-pipeline';
+import { sanitizeDownloadFileStem, type SrtAssetRow } from './srt-asset-pipeline';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,11 +146,30 @@ const resolveRecipe = (effectName: string): FfmpegRecipe => {
 const timestampToSeed = (ts: string): number =>
   ts.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000;
 
-const safeTs = (ts: string) => ts.replace(/:/g, '-');
+const safeTs = (ts: string) => ts.replace(/:/g, '-').replace(',', '-');
+
+const toSeconds = (ts: string): number => {
+  const clean = ts.replace(',', '.');
+  const parts = clean.split(':').map(Number);
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+};
+
+const snapToSrtRow = (aiTs: string, rows: SrtAssetRow[]): { startTime: string; rowNumber: number } | null => {
+  if (!rows.length) return null;
+  const aiSec = toSeconds(aiTs);
+  let best = rows[0];
+  let bestDiff = Math.abs(toSeconds(best.startTime) - aiSec);
+  for (const row of rows) {
+    const diff = Math.abs(toSeconds(row.startTime) - aiSec);
+    if (diff < bestDiff) { bestDiff = diff; best = row; }
+  }
+  return { startTime: best.startTime, rowNumber: best.rowNumber };
+};
 
 // ─── BAT builder ──────────────────────────────────────────────────────────────
 
-export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string, csvRowOffset: number = 0): string => {
+export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string, srtRows: SrtAssetRow[] = []): string => {
   const safeStem  = sanitizeDownloadFileStem(stem);
   const entries   = parseSfxTimelineForBat(sfxTimelineTxt);
   if (!entries.length) return '';
@@ -201,13 +220,15 @@ export const buildSfxBatFromTimeline = (sfxTimelineTxt: string, stem: string, cs
     const seed    = timestampToSeed(entry.timestamp);
     const dur     = recipe.duration;
     const { src, af } = recipe.buildFn(seed, dur);
-    const csvRow  = csvRowOffset + i + 1;
-    const outName = `${String(csvRow).padStart(3, '0')}_sfx_${safeTs(entry.timestamp)}_${recipe.label.replace(/\s+/g, '_')}.mp3`;
+    const snapped = snapToSrtRow(entry.timestamp, srtRows);
+    const exactTs = snapped ? snapped.startTime : entry.timestamp;
+    const csvRow  = snapped ? snapped.rowNumber : (i + 1);
+    const outName = `${String(csvRow).padStart(3, '0')}_sfx_${safeTs(exactTs)}_${recipe.label.replace(/\s+/g, '_')}.mp3`;
 
     commands.push(
-      `:: --- [${i + 1}/${entries.length}] ${entry.timestamp} | ${entry.effect} ---`,
+      `:: --- [${i + 1}/${entries.length}] ${entry.timestamp} -> SRT ${exactTs} | ${entry.effect} ---`,
       `echo [${i + 1}/${entries.length}] ${entry.effect} -- ${entry.purpose}`,
-      `echo     Tempo  : ${entry.timestamp}`,
+      `echo     IA: ${entry.timestamp} -- SRT: ${exactTs}`,
       `echo     Output : ${outName}`,
       `ffmpeg -y -f lavfi -i "${src}" -af "${af}" -ar 44100 -ac 1 -ab 192k "%OUT_DIR%\\${outName}"`,
       'if %errorlevel% neq 0 (',

@@ -1,105 +1,250 @@
-import { normalizeAssetType, parseSrtTimeToMs, sanitizeDownloadFileStem, type SrtAssetRow, type SrtAssetType } from './srt-asset-pipeline';
+import { sanitizeDownloadFileStem } from './srt-asset-pipeline';
 
-// ─── SFX type mapping ─────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type SfxType = 'ting' | 'whoosh' | 'whoosh_out' | 'impact' | 'rise';
-
-interface SfxEvent {
-  rowNumber: number;
-  startTime: string;
-  sfxType:   SfxType;
-  rowSeed:   number;
+export interface SfxTimelineEntry {
+  timestamp: string; // MM:SS or HH:MM:SS
+  effect:    string; // e.g. "Digital Glitch"
+  purpose:   string; // e.g. "Abertura da narrativa"
+  excerpt:   string; // script snippet
+  notes:     string;
 }
 
-const TRANSITION_MAP: Partial<Record<`${SrtAssetType}->${SrtAssetType}`, SfxType>> = {
-  'avatar->texto':       'ting',
-  'texto->avatar':       'whoosh_out',
-  'avatar->hyperframe':  'impact',
-  'hyperframe->avatar':  'whoosh_out',
-  'avatar->imagem':      'whoosh',
-  'imagem->avatar':      'whoosh_out',
-  'avatar->vídeo':       'whoosh',
-  'vídeo->avatar':       'whoosh_out',
+// ─── FFmpeg lavfi synthesis recipes ──────────────────────────────────────────
+//
+// Each recipe is a self-contained `ffmpeg -f lavfi -i <filter> ...` command.
+// All outputs are MP3, mono, 44100 Hz, ~3 s unless the effect has a natural length.
+//
+// Parameters exposed per recipe:
+//   DURATION  – seconds (float) from the entry duration window (or 3.0)
+//   SEED      – numeric seed derived from timestamp for subtle variation
+
+type FfmpegRecipe = {
+  label:       string;
+  duration:    number;       // default duration in seconds
+  filterFn:    (seed: number, dur: number) => string; // lavfi filter string
 };
 
-// ─── Seed helpers ─────────────────────────────────────────────────────────────
+// Small deterministic "wobble" helper so each instance sounds slightly different
+const w = (seed: number, range: number, base: number): number =>
+  Number((base + ((seed % 100) / 100) * range - range / 2).toFixed(3));
 
-const stemToProjectSeed = (stem: string): number =>
-  stem.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000;
+const RECIPES: Record<string, FfmpegRecipe> = {
 
-const rowSeed = (projectSeed: number, rowNumber: number): number =>
-  (projectSeed + rowNumber * 37) % 1000;
+  'Digital Glitch': {
+    label: 'Digital Glitch',
+    duration: 1.5,
+    filterFn: (seed, dur) => {
+      // Sine-modulated noise bursts + pitch envelope → glitchy digital crunch
+      const freq  = w(seed, 200, 900);
+      const mod   = w(seed, 5, 12);
+      return [
+        `sine=f=${freq}:r=44100:d=${dur}[s1]`,
+        `anoisesrc=r=44100:a=0.08:c=white:d=${dur}[n1]`,
+        `[s1][n1]amix=inputs=2:weights=0.4 0.6[mix]`,
+        `[mix]tremolo=f=${mod}:d=0.9[tr]`,
+        `[tr]afade=t=out:st=${Math.max(0, dur - 0.3)}:d=0.3`,
+      ].join(',');
+    },
+  },
 
-// ─── Transition detector ──────────────────────────────────────────────────────
+  'Low Rumble': {
+    label: 'Low Rumble',
+    duration: 3.0,
+    filterFn: (seed, dur) => {
+      const freq = w(seed, 10, 50);
+      return [
+        `sine=f=${freq}:r=44100:d=${dur}[sub]`,
+        `anoisesrc=r=44100:a=0.06:c=pink:d=${dur}[pnk]`,
+        `[sub][pnk]amix=inputs=2:weights=0.7 0.3[mix]`,
+        `[mix]lowpass=f=120[lp]`,
+        `[lp]afade=t=in:st=0:d=0.4,afade=t=out:st=${Math.max(0, dur - 0.6)}:d=0.6`,
+      ].join(',');
+    },
+  },
 
-const detectSfxEvents = (rows: SrtAssetRow[], projectSeed: number): SfxEvent[] => {
-  const events: SfxEvent[] = [];
+  'Cinematic Whoosh': {
+    label: 'Cinematic Whoosh',
+    duration: 2.0,
+    filterFn: (seed, dur) => {
+      const startF = w(seed, 100, 200);
+      const endF   = w(seed, 200, 2200);
+      return [
+        `sine=f=${startF}:r=44100:d=${dur}[sw]`,
+        `anoisesrc=r=44100:a=0.35:c=white:d=${dur}[nw]`,
+        `[sw][nw]amix=inputs=2:weights=0.2 0.8[raw]`,
+        `[raw]aeval=val(0)*sin(PI*t/${dur})|val(0)*sin(PI*t/${dur}):c=same[env]`,
+        `[env]highpass=f=${startF},lowpass=f=${endF}[hp]`,
+        `[hp]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, dur - 0.2)}:d=0.2`,
+      ].join(',');
+    },
+  },
 
-  // Prevent SFX flooding: minimum gap between consecutive SFX (15 s) + max 15 events per project
-  const SFX_COOLDOWN_MS = 15_000;
-  const SFX_MAX_EVENTS  = 15;
-  let lastSfxEndMs = -Infinity;
+  'Tension Riser': {
+    label: 'Tension Riser',
+    duration: 4.0,
+    filterFn: (seed, dur) => {
+      const startF = w(seed, 30, 120);
+      const endF   = w(seed, 100, 1800);
+      return [
+        `anoisesrc=r=44100:a=0.5:c=pink:d=${dur}[pnk]`,
+        `sine=f=${startF}:r=44100:d=${dur}[tone]`,
+        `[pnk][tone]amix=inputs=2:weights=0.75 0.25[mix]`,
+        `[mix]highpass=f=${startF},lowpass=f=${endF}[hp]`,
+        `[hp]aeval=val(0)*(t/${dur})|val(0)*(t/${dur}):c=same[ramp]`,
+        `[ramp]afade=t=out:st=${Math.max(0, dur - 0.4)}:d=0.4`,
+      ].join(',');
+    },
+  },
 
-  for (let i = 0; i < rows.length - 1; i++) {
-    if (events.length >= SFX_MAX_EVENTS) break;
+  'Metallic Impact': {
+    label: 'Metallic Impact',
+    duration: 1.2,
+    filterFn: (seed, dur) => {
+      const freq = w(seed, 300, 1200);
+      return [
+        `sine=f=${freq}:r=44100:d=${dur}[s1]`,
+        `anoisesrc=r=44100:a=0.9:c=white:d=0.05[burst]`,
+        `[s1][burst]amix=inputs=2:weights=0.3 0.7[mix]`,
+        `[mix]highpass=f=600,bandpass=f=${freq}:width_type=o:w=3[bp]`,
+        `[bp]afade=t=out:st=${Math.max(0, dur * 0.15)}:d=${(dur * 0.85).toFixed(2)}`,
+      ].join(',');
+    },
+  },
 
-    const from = normalizeAssetType(rows[i].asset);
-    const to   = normalizeAssetType(rows[i + 1].asset);
+  'Keyboard Clicks': {
+    label: 'Keyboard Clicks',
+    duration: 2.0,
+    filterFn: (seed, dur) => {
+      const clickHz = w(seed, 2, 6);
+      return [
+        `anoisesrc=r=44100:a=0.6:c=white:d=${dur}[n]`,
+        `[n]highpass=f=3000,bandpass=f=5000:width_type=o:w=2[hp]`,
+        `[hp]tremolo=f=${clickHz}:d=0.95[tr]`,
+        `[tr]afade=t=in:st=0:d=0.05,afade=t=out:st=${Math.max(0, dur - 0.2)}:d=0.2`,
+      ].join(',');
+    },
+  },
 
-    if (!from || !to || from === to) continue;
+  'Notification Ping': {
+    label: 'Notification Ping',
+    duration: 0.8,
+    filterFn: (seed, dur) => {
+      const freq = w(seed, 200, 1200);
+      return [
+        `sine=f=${freq}:r=44100:d=${dur}[s1]`,
+        `sine=f=${w(seed * 2, 100, freq * 1.5)}:r=44100:d=${dur}[s2]`,
+        `[s1][s2]amix=inputs=2[mix]`,
+        `[mix]afade=t=out:st=${Math.max(0, dur * 0.2)}:d=${(dur * 0.8).toFixed(2)}`,
+      ].join(',');
+    },
+  },
 
-    const key = `${from}->${to}` as `${SrtAssetType}->${SrtAssetType}`;
-    const sfxType = TRANSITION_MAP[key];
+  'Ambient Room Tone': {
+    label: 'Ambient Room Tone',
+    duration: 4.0,
+    filterFn: (seed, dur) => {
+      const freq = w(seed, 50, 400);
+      return [
+        `anoisesrc=r=44100:a=0.15:c=brown:d=${dur}[brn]`,
+        `sine=f=${freq}:r=44100:d=${dur}[pad]`,
+        `[brn][pad]amix=inputs=2:weights=0.8 0.2[mix]`,
+        `[mix]lowpass=f=800[lp]`,
+        `[lp]afade=t=in:st=0:d=0.8,afade=t=out:st=${Math.max(0, dur - 0.8)}:d=0.8`,
+      ].join(',');
+    },
+  },
 
-    if (!sfxType) continue;
+  'Sub Bass Pulse': {
+    label: 'Sub Bass Pulse',
+    duration: 2.0,
+    filterFn: (seed, dur) => {
+      const freq = w(seed, 15, 45);
+      const mod  = w(seed, 1, 3);
+      return [
+        `sine=f=${freq}:r=44100:d=${dur}[sub]`,
+        `[sub]tremolo=f=${mod}:d=0.7[tr]`,
+        `[tr]lowpass=f=100[lp]`,
+        `[lp]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, dur - 0.3)}:d=0.3`,
+      ].join(',');
+    },
+  },
 
-    // Enforce minimum cooldown between SFX events
-    const startMs = parseSrtTimeToMs(rows[i + 1].startTime);
-    if (startMs - lastSfxEndMs < SFX_COOLDOWN_MS) continue;
-    lastSfxEndMs = parseSrtTimeToMs(rows[i + 1].endTime || rows[i + 1].startTime);
+  'Reverse Whoosh': {
+    label: 'Reverse Whoosh',
+    duration: 2.0,
+    filterFn: (seed, dur) => {
+      const startF = w(seed, 200, 2400);
+      const endF   = w(seed, 100, 200);
+      return [
+        `anoisesrc=r=44100:a=0.45:c=white:d=${dur}[n]`,
+        `sine=f=${startF}:r=44100:d=${dur}[s]`,
+        `[n][s]amix=inputs=2:weights=0.8 0.2[mix]`,
+        `[mix]highpass=f=${endF},lowpass=f=${startF}[hp]`,
+        `[hp]aeval=val(0)*(1-t/${dur})|val(0)*(1-t/${dur}):c=same[ramp]`,
+        `[ramp]afade=t=in:st=0:d=0.1`,
+      ].join(',');
+    },
+  },
 
-    events.push({
-      rowNumber: rows[i + 1].rowNumber,
-      startTime: rows[i + 1].startTime,
-      sfxType,
-      rowSeed:   rowSeed(projectSeed, rows[i + 1].rowNumber),
-    });
+  // Generic fallback
+  'Cinematic Accent Hit': {
+    label: 'Cinematic Accent Hit',
+    duration: 1.5,
+    filterFn: (seed, dur) => {
+      const freq = w(seed, 400, 800);
+      return [
+        `sine=f=${freq}:r=44100:d=${dur}[s]`,
+        `anoisesrc=r=44100:a=0.5:c=white:d=0.08[burst]`,
+        `[s][burst]amix=inputs=2:weights=0.25 0.75[mix]`,
+        `[mix]highpass=f=300[hp]`,
+        `[hp]afade=t=out:st=${Math.max(0, dur * 0.1)}:d=${(dur * 0.9).toFixed(2)}`,
+      ].join(',');
+    },
+  },
+};
+
+// Resolve which recipe to use, falling back gracefully
+const resolveRecipe = (effectName: string): FfmpegRecipe => {
+  // Exact match first
+  if (RECIPES[effectName]) return RECIPES[effectName];
+
+  // Fuzzy: check if effectName contains any key word
+  const lower = effectName.toLowerCase();
+  for (const [key, recipe] of Object.entries(RECIPES)) {
+    if (lower.includes(key.toLowerCase())) return recipe;
   }
 
-  return events;
+  return RECIPES['Cinematic Accent Hit'];
 };
 
-// ─── BAT content builder ──────────────────────────────────────────────────────
+// Numeric seed from timestamp string
+const timestampToSeed = (ts: string): number =>
+  ts.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000;
 
-const SKILL_PATH =
-  'D:\\onedrive\\Downloads\\Produção em Massa\\1-ContentFlow\\avatar-hyperframes-editor-skill';
+// Safe filename from timestamp: "02:09" → "02-09"
+const safeTs = (ts: string) => ts.replace(/:/g, '-').replace(',', '-');
 
-const RENDER_SFX_SCRIPT = `${SKILL_PATH}\\render_sfx.py`;
-
-const safeTime = (t: string) => t.replace(/:/g, '-').replace(',', '-');
-
-const SFX_LABELS: Record<SfxType, string> = {
-  ting:       'Bell/Ting   (destaque de texto)',
-  whoosh:     'Whoosh In   (asset entrando)',
-  whoosh_out: 'Whoosh Out  (asset saindo)',
-  impact:     'Impact      (virada narrativa)',
-  rise:       'Rise        (tensao/capitulo)',
-};
+// ─── BAT builder ──────────────────────────────────────────────────────────────
 
 /**
- * Builds the content of the _3_sfx.bat file.
- * Detects asset transitions in the CSV rows and generates one SFX MP3
- * per transition at the exact startTime of the destination row.
+ * Builds the content of the _3_sfx.bat file from the AI-generated SFX timeline.
  *
- * Uses a double seed (project + row) so every SFX sounds slightly different
- * from others in the same project, and different projects generate different sets.
+ * Each named effect (Digital Glitch, Tension Riser, …) is synthesized entirely
+ * via FFmpeg's lavfi (virtual device) — no Python, no external audio files.
+ *
+ * @param sfxTimelineTxt  The sfxTimelineTxt string from postScriptPackage
+ * @param stem            Project artifact stem (used for naming)
  */
-export const buildSfxBat = (rows: SrtAssetRow[], stem: string): string => {
-  const safeStem    = sanitizeDownloadFileStem(stem);
-  const projectSeed = stemToProjectSeed(safeStem);
-  const events      = detectSfxEvents(rows, projectSeed);
+export const buildSfxBatFromTimeline = (
+  sfxTimelineTxt: string,
+  stem: string,
+): string => {
+  const safeStem = sanitizeDownloadFileStem(stem);
 
-  if (!events.length) return '';
+  // Parse the SFX timeline text into entries
+  const entries = parseSfxTimelineForBat(sfxTimelineTxt);
+  if (!entries.length) return '';
 
   const header = [
     '@echo off',
@@ -107,12 +252,12 @@ export const buildSfxBat = (rows: SrtAssetRow[], stem: string): string => {
     'color 0A',
     '',
     ':: ================================================================',
-    ':: ETAPA 3 — SFX Generator',
+    ':: ETAPA 3 — SFX Generator (FFmpeg lavfi — sem Python)',
     `:: Projeto : ${safeStem}`,
-    `:: Eventos : ${events.length} transi\u00e7\u00e3o(oes) de asset detectada(s)`,
+    `:: Efeitos : ${entries.length} ponto(s) da timeline da IA`,
     '::',
-    ':: Gera efeitos sonoros sincronizados com as transicoes do CSV.',
-    ':: Roda em paralelo com os Bats 1 e 2. Nao precisa do avatar.mp4.',
+    ':: Sintetiza cada efeito localmente via FFmpeg.',
+    ':: Roda em paralelo com os Bats 1 e 2.',
     ':: ================================================================',
     '',
     ':: [1] FFmpeg disponivel?',
@@ -121,69 +266,46 @@ export const buildSfxBat = (rows: SrtAssetRow[], stem: string): string => {
     '    color 0C',
     '    echo.',
     '    echo ERRO: FFmpeg nao encontrado no PATH.',
-    '    echo Baixe em https://ffmpeg.org/download.html',
+    '    echo Baixe em https://ffmpeg.org/download.html e adicione ao PATH.',
     '    echo.',
     '    echo Pressione qualquer tecla para fechar...',
     '    pause >nul',
     '    exit /b 1',
     ')',
     '',
-    ':: [2] Python disponivel?',
-    'python --version >nul 2>&1',
-    'if %errorlevel% neq 0 (',
-    '    color 0C',
-    '    echo.',
-    '    echo ERRO: Python nao encontrado no PATH.',
-    '    echo.',
-    '    echo Pressione qualquer tecla para fechar...',
-    '    pause >nul',
-    '    exit /b 1',
-    ')',
-    '',
-    ':: [3] Script de render disponivel?',
-    `set "RENDER_SCRIPT=${RENDER_SFX_SCRIPT}"`,
-    'if not exist "%RENDER_SCRIPT%" (',
-    '    color 0C',
-    '    echo.',
-    '    echo ERRO: render_sfx.py nao encontrado.',
-    `    echo Local esperado: "${RENDER_SFX_SCRIPT}"`,
-    '    echo.',
-    '    echo Pressione qualquer tecla para fechar...',
-    '    pause >nul',
-    '    exit /b 1',
-    ')',
-    '',
-    ':: [4] Criando pasta de output',
+    ':: [2] Criando pasta de output',
     'set "OUT_DIR=%~dp0sfx_overlays"',
     'if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"',
     '',
     'echo.',
-    'echo --- SFX GENERATOR ---',
+    'echo --- SFX GENERATOR (FFmpeg lavfi) ---',
     `echo Projeto : ${safeStem}`,
-    `echo Seed    : ${projectSeed} ^(variacao unica por projeto^)`,
-    `echo Eventos : ${events.length} transicoes de asset`,
+    `echo Efeitos : ${entries.length} ponto(s) da timeline`,
     'echo Output  : %OUT_DIR%',
     'echo.',
     '',
   ];
 
-  const sfxCommands: string[] = [];
-  events.forEach((ev, i) => {
-    const outName  = `sfx_${String(i + 1).padStart(3, '0')}_${safeTime(ev.startTime)}_${ev.sfxType}.mp3`;
-    const label    = SFX_LABELS[ev.sfxType];
+  const commands: string[] = [];
 
-    sfxCommands.push(
-      `:: --- [${i + 1}/${events.length}] row ${ev.rowNumber} | ${ev.startTime} | ${ev.sfxType} ---`,
-      `echo [${i + 1}/${events.length}] ${label}`,
-      `echo     Tempo  : ${ev.startTime}`,
+  entries.forEach((entry, i) => {
+    const recipe  = resolveRecipe(entry.effect);
+    const seed    = timestampToSeed(entry.timestamp);
+    const dur     = recipe.duration;
+    const filter  = recipe.filterFn(seed, dur);
+    const outName = `sfx_${String(i + 1).padStart(3, '0')}_${safeTs(entry.timestamp)}_${safeStem.slice(0, 20)}.mp3`;
+    const label   = entry.effect;
+    const purpose = entry.purpose !== '—' ? entry.purpose : '';
+
+    commands.push(
+      `:: --- [${i + 1}/${entries.length}] ${entry.timestamp} | ${label} ---`,
+      `echo [${i + 1}/${entries.length}] ${label}${purpose ? ` — ${purpose}` : ''}`,
+      `echo     Tempo  : ${entry.timestamp}`,
       `echo     Output : ${outName}`,
-      'python "%RENDER_SCRIPT%" ^',
-      `  --type ${ev.sfxType} ^`,
-      `  --seed ${ev.rowSeed} ^`,
-      `  --output "%OUT_DIR%\\${outName}"`,
+      `ffmpeg -y -f lavfi -i "${filter}" -ar 44100 -ac 1 -ab 192k "%OUT_DIR%\\${outName}" >nul 2>&1`,
       'if %errorlevel% neq 0 (',
       '    color 0E',
-      `    echo AVISO: Falha ao gerar SFX ${i + 1}. Continue.`,
+      `    echo AVISO: Falha ao gerar SFX ${i + 1}. Verifique a versao do FFmpeg (>= 4.4).`,
       '    color 0A',
       ') else (',
       `    echo     OK!`,
@@ -196,19 +318,58 @@ export const buildSfxBat = (rows: SrtAssetRow[], stem: string): string => {
     ':: ================================================================',
     'color 0A',
     'echo.',
-    `echo --- PRONTO! ${events.length} efeito(s) gerado(s) em:`,
+    `echo --- PRONTO! ${entries.length} efeito(s) gerado(s) em:`,
     'echo %OUT_DIR%',
     'echo.',
     'echo Como usar no editor:',
     'echo   1. Importe a pasta sfx_overlays no seu projeto',
     'echo   2. O tempo de entrada esta no nome do arquivo',
-    'echo      ex: sfx_003_00-05-44-000_impact.mp3',
-    'echo          significa: inicia em 00:05:44 do video',
+    'echo      ex: sfx_006_12-14_Eliminando.mp3',
+    'echo          significa: insira em 12:14 do video',
     'echo   3. Coloque cada .mp3 em uma faixa de audio dedicada',
     'echo   4. Ajuste o volume conforme necessario (sugerido: -12dB)',
     'echo.',
     'pause',
   ];
 
-  return [...header, ...sfxCommands, ...footer].join('\r\n');
+  return [...header, ...commands, ...footer].join('\r\n');
+};
+
+// ─── Timeline parser (local copy — avoids importing ScriptEngine internals) ───
+
+/**
+ * Parses the sfxTimelineTxt string into SfxTimelineEntry objects.
+ * Mirrors the parseSfxTimelineEntries logic in ScriptEngine.tsx.
+ */
+export const parseSfxTimelineForBat = (value: string): SfxTimelineEntry[] => {
+  const normalized = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+
+  const blockRegex = /(?:^|\n)\s*(?:\*\*)?\[?(\d{2}:\d{2}(?::\d{2})?)\]?(?:\*\*)?[\s\S]*?(?=(?:\n\s*(?:\*\*)?\[?\d{2}:\d{2}(?::\d{2})?\]?(?:\*\*)?)|$)/g;
+  const matches = normalized.match(blockRegex);
+  if (!matches) return [];
+
+  return matches
+    .map((match, index) => {
+      const entry = match.trim();
+      if (!entry) return null;
+
+      const tsMatch      = entry.match(/(?:\*\*)?\[?(\d{2}:\d{2}(?::\d{2})?)\]?(?:\*\*)?/);
+      const effectMatch  = entry.match(/EFEITO:\s*([^\n]+)/i);
+      const purposeMatch = entry.match(/FUNC(?:A|Ã)O:\s*([^\n]+)/i);
+      const excerptMatch = entry.match(/TRECHO:\s*([^\n]+)/i);
+      const notesMatch   = entry.match(/OBS:\s*([^\n]+)/i);
+
+      const clean = (s: string | undefined) =>
+        s ? s.trim().replace(/\*\*|["']/g, '') : '—';
+
+      return {
+        timestamp: tsMatch ? tsMatch[1] : `00:${String(index).padStart(2, '0')}`,
+        effect:    clean(effectMatch?.[1]),
+        purpose:   clean(purposeMatch?.[1]),
+        excerpt:   clean(excerptMatch?.[1]),
+        notes:     clean(notesMatch?.[1]),
+      } as SfxTimelineEntry;
+    })
+    .filter((e): e is SfxTimelineEntry => e !== null && e.timestamp !== '');
 };

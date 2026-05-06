@@ -18,7 +18,7 @@ import {
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
 import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
-import { buildSfxBat } from '@/lib/sfx-generator';
+import { buildSfxBatFromTimeline } from '@/lib/sfx-generator';
 import {
   buildPostScriptTimelineContext,
   buildSeoChapterPlan,
@@ -2128,8 +2128,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }, 1000);
       }
 
-      // Bat 3 — SFX overlays (asset transition-based, always generated if transitions exist)
-      const batSfx = buildSfxBat(externalSrtPipeline.rows, srtArtifactStem);
+      // Bat 3 — SFX overlays (IA timeline from postScriptPackage, synthesized via FFmpeg lavfi)
+      const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';
+      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem);
       if (batSfx) {
         setTimeout(() => {
           downloadTextArtifact(

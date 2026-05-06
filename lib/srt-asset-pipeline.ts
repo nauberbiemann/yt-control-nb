@@ -1,4 +1,4 @@
-export type SrtAssetType = '' | 'texto' | 'vídeo' | 'imagem' | 'avatar';
+export type SrtAssetType = '' | 'texto' | 'vídeo' | 'imagem' | 'avatar' | 'hyperframe';
 
 export interface SrtAssetRow {
   rowNumber: number;
@@ -17,6 +17,7 @@ export interface SrtAssetStats {
   avatar: number;
   video: number;
   image: number;
+  hyperframe: number;
 }
 
 export interface SrtTextRenderInfo {
@@ -58,6 +59,7 @@ export const normalizeAssetType = (value: string): SrtAssetType => {
   if (normalized === 'avatar') return 'avatar';
   if (normalized === 'imagem') return 'imagem';
   if (normalized === 'video' || normalized === 'vídeo' || normalized === 'vã­deo') return 'vídeo';
+  if (normalized === 'hyperframe') return 'hyperframe';
   return '';
 };
 
@@ -260,7 +262,175 @@ export const buildAssetStats = (rows: SrtAssetRow[]): SrtAssetStats => ({
   avatar: rows.filter((row) => normalizeAssetType(row.asset) === 'avatar').length,
   video: rows.filter((row) => normalizeAssetType(row.asset) === 'vídeo').length,
   image: rows.filter((row) => normalizeAssetType(row.asset) === 'imagem').length,
+  hyperframe: rows.filter((row) => normalizeAssetType(row.asset) === 'hyperframe').length,
 });
+
+/**
+ * Enforces a minimum cooldown between consecutive 'texto' rows.
+ * When multiple short-text rows cluster together (e.g. 5 punchy phrases in 15s),
+ * only the first passes; the rest revert to 'avatar' (first-wins rule).
+ * Those reverted rows become candidates for applyHyperframeRules.
+ */
+export const enforceTextoCooldown = (
+  rows: SrtAssetRow[],
+  cooldownMs = 20_000,
+): SrtAssetRow[] => {
+  let lastTextoEndMs = -Infinity;
+
+  return rows.map((row) => {
+    if (normalizeAssetType(row.asset) !== 'texto') return row;
+
+    const startMs = parseSrtTimeToMs(row.startTime);
+    if (startMs - lastTextoEndMs >= cooldownMs) {
+      lastTextoEndMs = parseSrtTimeToMs(row.endTime);
+      return row;
+    }
+
+    // Within cooldown window — revert to avatar
+    return { ...row, asset: 'avatar' as SrtAssetType };
+  });
+};
+
+// ─── HyperFrame narrative rules ──────────────────────────────────────────────
+
+const HF_TEMPLATES = {
+  chapterBreak: 'chapter_break_no_avatar',
+  closeCrop:    'avatar_close_crop',
+  captionFocus: 'caption_focus',
+  sidePanel:    'avatar_side_panel',
+} as const;
+
+/** Returns index of the avatar row closest to targetRatio (0–1) of total rows,
+ *  excluding the protected first/last 10% and already-used rows. */
+const findClosestAvatarRow = (
+  rows: SrtAssetRow[],
+  targetRatio: number,
+  usedIndices: Set<number>,
+): number => {
+  const total = rows.length;
+  const guardStart = Math.floor(total * 0.10);
+  const guardEnd   = Math.ceil(total * 0.90);
+  const target     = Math.round(targetRatio * total);
+
+  let bestIdx = -1;
+  let bestDist = Infinity;
+
+  for (let i = guardStart; i < guardEnd; i++) {
+    if (usedIndices.has(i)) continue;
+    if (normalizeAssetType(rows[i].asset) !== 'avatar') continue;
+    const dist = Math.abs(i - target);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+
+  return bestIdx;
+};
+
+/**
+ * Injects up to 4 'hyperframe' rows into the classified asset array.
+ * Only acts on 'avatar' rows — never overrides texto, imagem, or vídeo.
+ * Each hyperframe row has its template stored in the prompt field (prefix hf:).
+ *
+ * Rules (narrative positions):
+ *  1. ~52% — chapter_break_no_avatar  (narrative midpoint reset)
+ *  2. ~17% — avatar_close_crop        (post-hook camera reframe)
+ *  3. ~82% — caption_focus            (pre-CTA emphasis, short text preferred)
+ *  4. midpoint of longest avatar block — avatar_side_panel (visual rhythm break)
+ */
+export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
+  const result = rows.map((r) => ({ ...r }));
+  const used   = new Set<number>();
+
+  const mark = (idx: number, template: string) => {
+    if (idx < 0) return;
+    result[idx] = {
+      ...result[idx],
+      asset: 'hyperframe' as SrtAssetType,
+      prompt: `hf:${template}`,
+    };
+    used.add(idx);
+  };
+
+  // Rule 1 — Narrative midpoint: chapter break at ~52%
+  mark(findClosestAvatarRow(result, 0.52, used), HF_TEMPLATES.chapterBreak);
+
+  // Rule 2 — Post-hook reframe at ~17% (prefer rows with longer text)
+  (() => {
+    const total      = result.length;
+    const guardStart = Math.floor(total * 0.10);
+    const guardEnd   = Math.ceil(total * 0.90);
+    const target     = Math.round(0.17 * total);
+    let bestIdx      = -1;
+    let bestDist     = Infinity;
+
+    for (let i = guardStart; i < guardEnd; i++) {
+      if (used.has(i)) continue;
+      if (normalizeAssetType(result[i].asset) !== 'avatar') continue;
+      const wordCount = result[i].texto.trim().split(/\s+/).length;
+      if (wordCount <= 8) continue; // prefer longer sentences for close_crop
+      const dist = Math.abs(i - target);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+
+    // Fallback: accept any avatar row near target
+    if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.17, used);
+    mark(bestIdx, HF_TEMPLATES.closeCrop);
+  })();
+
+  // Rule 3 — Pre-CTA emphasis at ~82% (prefer short punchy text ≤ 12 words)
+  (() => {
+    const total      = result.length;
+    const guardStart = Math.floor(total * 0.10);
+    const guardEnd   = Math.ceil(total * 0.90);
+    const target     = Math.round(0.82 * total);
+    let bestIdx      = -1;
+    let bestDist     = Infinity;
+
+    for (let i = guardStart; i < guardEnd; i++) {
+      if (used.has(i)) continue;
+      if (normalizeAssetType(result[i].asset) !== 'avatar') continue;
+      const wordCount = result[i].texto.trim().split(/\s+/).length;
+      if (wordCount > 12) continue; // prefer short phrases for caption_focus
+      const dist = Math.abs(i - target);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+
+    if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.82, used);
+    mark(bestIdx, HF_TEMPLATES.captionFocus);
+  })();
+
+  // Rule 4 — Break the longest consecutive avatar block at its midpoint
+  (() => {
+    const total      = result.length;
+    const guardStart = Math.floor(total * 0.10);
+    const guardEnd   = Math.ceil(total * 0.90);
+
+    let longestStart = -1;
+    let longestLen   = 0;
+    let curStart     = -1;
+    let curLen       = 0;
+
+    for (let i = guardStart; i < guardEnd; i++) {
+      if (normalizeAssetType(result[i].asset) === 'avatar' && !used.has(i)) {
+        if (curStart < 0) curStart = i;
+        curLen++;
+        if (curLen > longestLen) { longestLen = curLen; longestStart = curStart; }
+      } else {
+        curStart = -1;
+        curLen   = 0;
+      }
+    }
+
+    if (longestStart >= 0 && longestLen >= 4) {
+      const midIdx = longestStart + Math.floor(longestLen / 2);
+      if (!used.has(midIdx)) mark(midIdx, HF_TEMPLATES.sidePanel);
+    }
+  })();
+
+  return result;
+};
 
 export const buildPipelineResult = (
   rows: SrtAssetRow[],

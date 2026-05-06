@@ -7,7 +7,9 @@ import { immutableInsert, upsertScriptExecution, getScriptExecution } from '@/li
 import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText } from 'lucide-react';
 import {
   applyAssetRules,
+  applyHyperframeRules,
   buildAssetStats,
+  enforceTextoCooldown,
   parseSrtToRows,
   sanitizeDownloadFileStem,
   buildPipelineResult,
@@ -15,6 +17,8 @@ import {
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
+import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
+import { buildSfxBat } from '@/lib/sfx-generator';
 import {
   buildPostScriptTimelineContext,
   buildSeoChapterPlan,
@@ -1752,18 +1756,20 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       updateSrtObserverStep('csv', 'done', `${parsedRows.length} linha(s) derivadas do .srt e prontas para o CSV base.`);
       setSrtPipelineStatus('CSV base derivado. Aplicando a heuristica de marcacao de assets...');
 
-      updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video ou imagem...');
-      const assetRows = applyAssetRules(parsedRows, videoFormat);
-      const assetStats = buildAssetStats(assetRows);
-      const assetDesc = videoFormat === 'faceless'
+      updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video, imagem ou hyperframe...');
+      const assetRows   = applyAssetRules(parsedRows, videoFormat);
+      const cooledRows  = enforceTextoCooldown(assetRows);      // fix: cooldown 20s entre textos
+      const finalRows   = applyHyperframeRules(cooledRows);     // injeta até 4 hyperframes narrativos
+      const assetStats  = buildAssetStats(finalRows);
+      const assetDesc   = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
-        : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video e ${assetStats.image} imagem.`;
+        : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`;
       updateSrtObserverStep('assets', 'done', assetDesc);
       setSrtPipelineStatus('Assets marcados. Enviando as linhas elegiveis para gerar prompts visuais...');
 
       updateSrtObserverStep('prompts', 'running', 'Aguardando o envio do primeiro lote...');
 
-      const promptItems = assetRows.flatMap((row, index) => {
+      const promptItems = finalRows.flatMap((row, index) => {
         const type = normalizeAssetType(row.asset);
         const isEligible = type === 'vídeo' || type === 'imagem' || (type === 'texto' && textStyleMode === 'auto');
         if (!isEligible) return [];
@@ -1839,7 +1845,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         });
       }
 
-      const rowsWithPrompts = assetRows.map((row) => {
+      const rowsWithPrompts = finalRows.map((row) => {
         let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;
         if (normalizeAssetType(row.asset) === 'texto' && textStyleMode !== 'auto') {
           finalPrompt = textStyleMode === 'custom' ? customTextStyle : textStyleMode;
@@ -2091,8 +2097,37 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       
       setTimeout(() => {
-        downloadTextArtifact(srtArtifactStem, 'renderizar', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
+      downloadTextArtifact(srtArtifactStem, '1_renderizar_textos', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
       }, 500);
+
+      // Bat 2 — HyperFrames overlays (only if hyperframe rows exist)
+      const hfRows = externalSrtPipeline.rows.filter(
+        (r) => normalizeAssetType(r.asset) === 'hyperframe',
+      );
+      if (hfRows.length > 0) {
+        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem);
+        setTimeout(() => {
+          downloadTextArtifact(
+            srtArtifactStem,
+            '2_hyperframes',
+            batHyperframes,
+            { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
+          );
+        }, 1000);
+      }
+
+      // Bat 3 — SFX overlays (asset transition-based, always generated if transitions exist)
+      const batSfx = buildSfxBat(externalSrtPipeline.rows, srtArtifactStem);
+      if (batSfx) {
+        setTimeout(() => {
+          downloadTextArtifact(
+            srtArtifactStem,
+            '3_sfx',
+            batSfx,
+            { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
+          );
+        }, 1500);
+      }
 
       const persistedAt = new Date().toISOString();
       const pipelineResult = { ...externalSrtPipeline, generatedAt: persistedAt };

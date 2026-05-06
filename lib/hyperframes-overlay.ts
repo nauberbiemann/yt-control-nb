@@ -42,9 +42,9 @@ const extractTemplate = (prompt: string): string => {
   return 'avatar_full_clean';
 };
 
-// Caminho do render_hyperframes.py no skill
-const RENDER_SCRIPT_PATH =
-  'D:\\onedrive\\Downloads\\Produção em Massa\\1-ContentFlow\\avatar-hyperframes-editor-skill\\render_hyperframes.py';
+// Diretório do skill (separado do nome do script para usar cd /d)
+const SKILL_DIR =
+  'D:\\onedrive\\Downloads\\Produção em Massa\\1-ContentFlow\\avatar-hyperframes-editor-skill';
 
 // ─── BAT Builder ──────────────────────────────────────────────────────────────
 
@@ -114,22 +114,17 @@ export const buildHyperframesBat = (
     '    exit /b 1',
     ')',
     '',
-    ':: [4] Script de render disponivel?',
-    `set "RENDER_SCRIPT=${RENDER_SCRIPT_PATH}"`,
-    'if not exist "%RENDER_SCRIPT%" (',
+    `:: [4] Mudando de diretorio e apontando pro pipeline local`,
+    `set "SKILL_DIR=${SKILL_DIR}"`,
+    'if not exist "%SKILL_DIR%\\render_hyperframes.py" (',
     '    color 0C',
-    '    echo.',
-    '    echo ERRO: render_hyperframes.py nao encontrado.',
-    `    echo Local esperado:`,
-    `    echo "${RENDER_SCRIPT_PATH}"`,
-    '    echo.',
-    '    echo Verifique se o avatar-hyperframes-editor-skill esta instalado.',
-    '    echo.',
+    '    echo ERRO CRITICO: render_hyperframes.py nao mapeado!',
+    '    echo Local esperado: "%SKILL_DIR%"',
     '    pause',
     '    exit /b 1',
     ')',
     '',
-    ':: [5] Criando pasta de output',
+    ':: [5] Criando pasta de output (ANTES do cd)',
     'set "OUT_DIR=%~dp0hyperframes_overlays"',
     'if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"',
     '',
@@ -144,6 +139,9 @@ export const buildHyperframesBat = (
     `set "PALETTE=${variation.palette}"`,
     `set "MOTION=${variation.motion}"`,
     `set "ENTRY=${variation.entry}"`,
+    '',
+    ':: Mudando para o diretorio do skill (cd /d aceita paths nativos do sistema)',
+    'cd /d "%SKILL_DIR%"',
     '',
   ];
 
@@ -192,7 +190,7 @@ export const buildHyperframesBat = (
     overlayCommands.push(
       `:: --- [${i + 1}/${hfRows.length}] row ${row.rowNumber} | ${row.startTime} | ${template} ---`,
       `echo [${i + 1}/${hfRows.length}] Gerando: ${outName}`,
-      `python "%RENDER_SCRIPT%" ${pyArgs}`,
+      `python render_hyperframes.py ${pyArgs}`,
       'if %errorlevel% neq 0 (',
       '    color 0E',
       `    echo AVISO: Falha ao gerar overlay ${row.rowNumber}. Continue e ajuste manualmente.`,

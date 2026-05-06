@@ -29,14 +29,13 @@ const resolveVariation = (stem: string, override?: HfStyleOverride) => {
 
 const safeStartTime = (t: string) => t.replace(/:/g, '-').replace(',', '-');
 
-// Escape text for FFmpeg drawtext: colons, backslashes, single quotes, CMD special chars
+// Escape text for FFmpeg drawtext (value wrapped in single quotes in the filter).
+// Inside single-quoted FFmpeg option values: only ' and % need special handling.
 const esc = (text: string): string =>
   text
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/:/g, '\\:')
-    .replace(/[%]/g, '%%')
-    .replace(/[<>|&^"]/g, '')
+    .replace(/'/g, '')       // remove apostrophes (would break single-quote delimiters)
+    .replace(/[%]/g, '%%')   // CMD: %% → literal %
+    .replace(/[<>|&^"]/g, '') // strip CMD special chars
     .trim()
     .slice(0, 55);
 
@@ -47,7 +46,9 @@ const buildVf = (
   palette: HfStyleOverride,
 ): string => {
   const { text, bar } = PALETTE_COLORS[palette];
-  const FONT = 'C\\:/Windows/Fonts/segoeui.ttf';
+  // Wrap font path in single quotes — the correct way to pass paths with ':' in FFmpeg 8.x drawtext.
+  // Forward slashes work on Windows in FFmpeg. arial.ttf is guaranteed on all Windows.
+  const FONT = "'C:/Windows/Fonts/arial.ttf'";
   const t = esc(caption);
 
   switch (template) {

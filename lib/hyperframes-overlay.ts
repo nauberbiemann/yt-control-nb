@@ -1,12 +1,6 @@
 import { normalizeAssetType, sanitizeDownloadFileStem, type SrtAssetRow } from './srt-asset-pipeline';
 
-// ─── Style system ─────────────────────────────────────────────────────────────
-
 export type HfStyleOverride = 'dark' | 'light' | 'brand-warm' | 'brand-cool';
-
-const PALETTES: HfStyleOverride[] = ['dark', 'light', 'brand-warm', 'brand-cool'];
-const MOTIONS  = ['smooth', 'punchy', 'subtle'] as const;
-const ENTRIES  = ['left', 'right', 'up', 'fade'] as const;
 
 const STYLE_LABELS: Record<HfStyleOverride, string> = {
   'dark':       'Dark (fundo escuro, texto claro)',
@@ -15,54 +9,99 @@ const STYLE_LABELS: Record<HfStyleOverride, string> = {
   'brand-cool': 'Brand Cool (tons frios, azul/ciano)',
 };
 
-/**
- * Derives a deterministic numeric seed from the project stem string.
- * Same stem → same seed → same visual variation every time.
- * Different stems → statistically different visuals.
- */
+// Palette → FFmpeg colors (bg RGBA hex, text color)
+const PALETTE_COLORS: Record<HfStyleOverride, { bg: string; text: string; bar: string }> = {
+  'dark':       { bg: '0x000000', text: '0xFFFFFF', bar: '0x111111' },
+  'light':      { bg: '0xFFFFFF', text: '0x111111', bar: '0xF0F0F0' },
+  'brand-warm': { bg: '0x1A0A00', text: '0xFFD700', bar: '0x2A1200' },
+  'brand-cool': { bg: '0x00101A', text: '0x00E5FF', bar: '0x001525' },
+};
+
 const stemToSeed = (stem: string): number =>
   stem.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000;
 
-interface HfVariation {
-  seed:    number;
-  palette: HfStyleOverride;
-  motion:  typeof MOTIONS[number];
-  entry:   typeof ENTRIES[number];
-  label:   string;
-}
-
-const resolveVariation = (stem: string, override?: HfStyleOverride): HfVariation => {
+const resolveVariation = (stem: string, override?: HfStyleOverride) => {
   const seed    = stemToSeed(stem);
+  const PALETTES: HfStyleOverride[] = ['dark', 'light', 'brand-warm', 'brand-cool'];
   const palette = override ?? PALETTES[Math.floor(seed / 10) % PALETTES.length];
-  const motion  = MOTIONS[seed % MOTIONS.length];
-  const entry   = ENTRIES[Math.floor(seed / 100) % ENTRIES.length];
-  return { seed, palette, motion, entry, label: STYLE_LABELS[palette] };
+  return { seed, palette, label: STYLE_LABELS[palette] };
 };
 
-// ─── BAT content builder ──────────────────────────────────────────────────────
-
-const HYPERFRAMES_SKILL_PATH =
-  'D:\\onedrive\\Downloads\\Produção em Massa\\1-ContentFlow\\avatar-hyperframes-editor-skill';
-
-const RENDER_SCRIPT_PATH = `${HYPERFRAMES_SKILL_PATH}\\render_hyperframes.py`;
-
 const safeStartTime = (t: string) => t.replace(/:/g, '-').replace(',', '-');
+
+// Escape text for FFmpeg drawtext: colons, backslashes, single quotes, CMD special chars
+const esc = (text: string): string =>
+  text
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .replace(/[%]/g, '%%')
+    .replace(/[<>|&^"]/g, '')
+    .trim()
+    .slice(0, 55);
+
+// Build the -vf filter string for each template type
+const buildVf = (
+  template: string,
+  caption: string,
+  palette: HfStyleOverride,
+): string => {
+  const { text, bar } = PALETTE_COLORS[palette];
+  const FONT = 'C\\:/Windows/Fonts/segoeui.ttf';
+  const t = esc(caption);
+
+  switch (template) {
+    case 'chapter_break_no_avatar':
+      // Bold bar at bottom
+      return [
+        'format=rgba',
+        `colorchannelmixer=aa=0`,
+        `drawbox=x=0:y=840:w=1920:h=240:color=${bar}@0.92:t=fill`,
+        `drawtext=fontfile=${FONT}:text='${t}':fontsize=54:fontcolor=${text}:x=(w-text_w)/2:y=910:bordercolor=0x000000:borderw=2`,
+      ].join(',');
+
+    case 'avatar_close_crop':
+      // Lower-third bar
+      return [
+        'format=rgba',
+        `colorchannelmixer=aa=0`,
+        `drawbox=x=60:y=920:w=1800:h=120:color=${bar}@0.88:t=fill`,
+        `drawtext=fontfile=${FONT}:text='${t}':fontsize=38:fontcolor=${text}:x=100:y=940:bordercolor=0x000000:borderw=1`,
+      ].join(',');
+
+    case 'caption_focus':
+      // Centered emphasis
+      return [
+        'format=rgba',
+        `colorchannelmixer=aa=0`,
+        `drawbox=x=160:y=440:w=1600:h=200:color=${bar}@0.90:t=fill`,
+        `drawtext=fontfile=${FONT}:text='${t}':fontsize=56:fontcolor=${text}:x=(w-text_w)/2:y=490:bordercolor=0x000000:borderw=2`,
+      ].join(',');
+
+    case 'avatar_side_panel':
+      // Right side vertical panel
+      return [
+        'format=rgba',
+        `colorchannelmixer=aa=0`,
+        `drawbox=x=1380:y=0:w=540:h=1080:color=${bar}@0.88:t=fill`,
+        `drawtext=fontfile=${FONT}:text='${t}':fontsize=34:fontcolor=${text}:x=1410:y=(h-text_h)/2:bordercolor=0x000000:borderw=1`,
+      ].join(',');
+
+    default:
+      return [
+        'format=rgba',
+        `colorchannelmixer=aa=0`,
+        `drawbox=x=0:y=880:w=1920:h=200:color=${bar}@0.90:t=fill`,
+        `drawtext=fontfile=${FONT}:text='${t}':fontsize=46:fontcolor=${text}:x=(w-text_w)/2:y=930:bordercolor=0x000000:borderw=2`,
+      ].join(',');
+  }
+};
 
 const extractTemplate = (prompt: string): string => {
   if (prompt.startsWith('hf:')) return prompt.slice(3);
   return 'avatar_full_clean';
 };
 
-const escapeCaption = (text: string): string =>
-  text.replace(/"/g, "'").replace(/[<>|&^]/g, '').slice(0, 120);
-
-/**
- * Builds the content of the _2_hyperframes.bat file.
- *
- * @param rows         All pipeline rows (function filters for asset === 'hyperframe')
- * @param stem         Project artifact stem (used for naming + seed)
- * @param styleOverride Optional manual style override from app dropdown
- */
 export const buildHyperframesBat = (
   rows: SrtAssetRow[],
   stem: string,
@@ -71,7 +110,6 @@ export const buildHyperframesBat = (
   const safeStem  = sanitizeDownloadFileStem(stem);
   const hfRows    = rows.filter((r) => normalizeAssetType(r.asset) === 'hyperframe');
   const variation = resolveVariation(safeStem, styleOverride);
-  const csvName   = `${safeStem}_pipeline_assets.csv`;
 
   if (!hfRows.length) return '';
 
@@ -81,44 +119,16 @@ export const buildHyperframesBat = (
     'color 0A',
     '',
     ':: ================================================================',
-    ':: ETAPA 2 -- HyperFrames Overlay Generator',
+    ':: ETAPA 2 -- HyperFrames Overlay Generator (FFmpeg -- sem Python)',
     `:: Projeto : ${safeStem}`,
     `:: Estilo  : ${variation.label}`,
     `:: Overlays: ${hfRows.length} cena(s) identificada(s)`,
     '::',
-    ':: Gera overlays WebM com fundo transparente (canal alpha).',
-    ':: Execute ANTES de abrir o editor. Nao precisa do avatar.mp4.',
+    ':: Gera overlays WebM com fundo transparente via FFmpeg.',
+    ':: Requisito: FFmpeg no PATH (https://ffmpeg.org)',
     ':: ================================================================',
     '',
-    ':: [1] Python disponivel?',
-    'python --version >nul 2>&1',
-    'if %errorlevel% neq 0 (',
-    '    color 0C',
-    '    echo.',
-    '    echo ERRO: Python nao encontrado no PATH.',
-    '    echo Instale em https://www.python.org e marque "Add to PATH".',
-    '    echo.',
-    '    pause',
-    '    exit /b 1',
-    ')',
-    '',
-    ':: [2] Pillow instalado? (instala automaticamente se ausente)',
-    'python -c "import PIL" >nul 2>&1',
-    'if %errorlevel% neq 0 (',
-    '    color 0E',
-    '    echo Instalando Pillow (necessario apenas uma vez)...',
-    '    python -m pip install pillow',
-    '    if %errorlevel% neq 0 (',
-    '        color 0C',
-    '        echo.',
-    '        echo ERRO: Falha ao instalar Pillow.',
-    '        echo.',
-    '        pause',
-    '        exit /b 1',
-    '    )',
-    ')',
-    '',
-    ':: [3] FFmpeg disponivel?',
+    ':: [1] FFmpeg disponivel?',
     'ffmpeg -version >nul 2>&1',
     'if %errorlevel% neq 0 (',
     '    color 0C',
@@ -130,96 +140,59 @@ export const buildHyperframesBat = (
     '    exit /b 1',
     ')',
     '',
-    ':: [4] Script de render disponivel?',
-    `set "RENDER_SCRIPT=${RENDER_SCRIPT_PATH}"`,
-    'if not exist "%RENDER_SCRIPT%" (',
-    '    color 0C',
-    '    echo.',
-    '    echo ERRO: render_hyperframes.py nao encontrado.',
-    `    echo Local esperado: ${RENDER_SCRIPT_PATH}`,
-    '    echo.',
-    '    echo Verifique se o avatar-hyperframes-editor-skill esta instalado.',
-    '    echo.',
-    '    pause',
-    '    exit /b 1',
-    ')',
+    ':: [2] Verificando fonte do sistema',
+    'set "FONT=C:\\Windows\\Fonts\\segoeui.ttf"',
+    'if not exist "%FONT%" set "FONT=C:\\Windows\\Fonts\\arial.ttf"',
     '',
-    ':: [5] Criando pasta de output',
+    ':: [3] Criando pasta de output',
     'set "OUT_DIR=%~dp0hyperframes_overlays"',
     'if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"',
     '',
     'echo.',
     'echo --- HYPERFRAMES OVERLAY GENERATOR ---',
     `echo Projeto : ${safeStem}`,
-    `echo Estilo  : ${variation.label} ^(seed: ${variation.seed}^)`,
+    `echo Estilo  : ${variation.label}`,
     `echo Overlays: ${hfRows.length} cena(s)`,
     'echo Output  : %OUT_DIR%',
     'echo.',
-    `set "PROJECT_STEM=${safeStem}"`,
-    `set "SEED=${variation.seed}"`,
-    `set "PALETTE=${variation.palette}"`,
-    `set "MOTION=${variation.motion}"`,
-    `set "ENTRY=${variation.entry}"`,
-    '',
   ];
 
-  const overlayCommands: string[] = [];
+  const commands: string[] = [];
+
   hfRows.forEach((row, i) => {
-    const template  = extractTemplate(row.prompt);
-    const caption   = escapeCaption(row.texto);
-    const startSafe = safeStartTime(row.startTime);
-    const endMs     = row.endTime
+    const template    = extractTemplate(row.prompt);
+    const startSafe   = safeStartTime(row.startTime);
+    const endMs       = row.endTime
       ? (() => {
           const [h, m, se] = row.endTime.split(':');
-          const [s, ms]    = se.split(',');
-          return (
-            (Number(h) * 3_600_000) +
-            (Number(m) * 60_000) +
-            (Number(s) * 1_000) +
-            Number(ms)
-          );
+          const [s, ms] = se.split(',');
+          return (Number(h) * 3_600_000) + (Number(m) * 60_000) + (Number(s) * 1_000) + Number(ms);
         })()
       : 3000;
-    const startMs = (() => {
+    const startMs     = (() => {
       const [h, m, se] = row.startTime.split(':');
       const [s, ms]    = se.split(',');
-      return (
-        (Number(h) * 3_600_000) +
-        (Number(m) * 60_000) +
-        (Number(s) * 1_000) +
-        Number(ms)
-      );
+      return (Number(h) * 3_600_000) + (Number(m) * 60_000) + (Number(s) * 1_000) + Number(ms);
     })();
-    const durationSec = ((endMs - startMs) / 1000).toFixed(2);
-    const outName = `hf_${String(row.rowNumber).padStart(3, '0')}_${startSafe}_${template}.webm`;
+    const dur         = Math.max(1.0, (endMs - startMs) / 1000).toFixed(2);
+    const outName     = `hf_${String(row.rowNumber).padStart(3, '0')}_${startSafe}_${template}.webm`;
+    const vf          = buildVf(template, row.texto, variation.palette);
 
-    // Build single-line python call — avoids ^ continuation + errorlevel issues
-    const pyArgs = [
-      `--template ${template}`,
-      `--caption "${caption}"`,
-      `--duration ${durationSec}`,
-      '--seed %SEED%',
-      '--palette %PALETTE%',
-      '--motion %MOTION%',
-      '--entry %ENTRY%',
-      `--output "%OUT_DIR%\\${outName}"`,
-    ].join(' ');
-
-    overlayCommands.push(
+    commands.push(
       `:: --- [${i + 1}/${hfRows.length}] row ${row.rowNumber} | ${row.startTime} | ${template} ---`,
-      `echo [${i + 1}/${hfRows.length}] Gerando: ${outName}`,
-      `python "%RENDER_SCRIPT%" ${pyArgs}`,
+      `echo [${i + 1}/${hfRows.length}] ${template} -- ${row.startTime}`,
+      `echo     Output : ${outName}`,
+      `ffmpeg -y -f lavfi -i "color=c=0x000000:s=1920x1080:r=30:d=${dur}" -vf "${vf}" -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 33 -an "%OUT_DIR%\\${outName}"`,
       'if %errorlevel% neq 0 (',
       '    color 0E',
-      `    echo AVISO: Falha ao gerar overlay ${row.rowNumber}. Continue e ajuste manualmente.`,
+      `    echo AVISO: Falha ao gerar overlay ${row.rowNumber}. Verifique a versao do FFmpeg.`,
       '    color 0A',
       ') else (',
-      `    echo OK: ${outName}`,
+      `    echo     OK!`,
       ')',
       'echo.',
     );
   });
-
 
   const footer = [
     ':: ================================================================',
@@ -228,16 +201,14 @@ export const buildHyperframesBat = (
     `echo --- PRONTO! ${hfRows.length} overlay(s) gerado(s) em:`,
     'echo %OUT_DIR%',
     'echo.',
-    'echo Como usar no editor (DaVinci / Premiere / etc):',
-    'echo   1. Importe a pasta hyperframes_overlays no seu projeto',
-    'echo   2. O tempo de entrada de cada arquivo esta no nome:',
-    'echo      ex: hf_004_00-00-40-000_chapter_break_no_avatar.webm',
-    'echo          significa: inicia em 00:00:40 do video',
-    'echo   3. Coloque cada .webm em uma faixa ACIMA do avatar.mp4',
-    'echo   4. Os arquivos tem fundo transparente (canal alpha WebM)',
+    'echo Como usar no editor (DaVinci / Premiere):',
+    'echo   1. Importe a pasta hyperframes_overlays',
+    'echo   2. O tempo esta no nome do arquivo',
+    'echo   3. Coloque cada .webm ACIMA do avatar.mp4',
+    'echo   4. Os arquivos tem fundo transparente (canal alpha)',
     'echo.',
     'pause',
   ];
 
-  return [...header, ...overlayCommands, ...footer].join('\r\n');
+  return [...header, ...commands, ...footer].join('\r\n');
 };

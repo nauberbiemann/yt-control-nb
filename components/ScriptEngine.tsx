@@ -18,6 +18,7 @@ import {
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
 import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
+import { downloadTemplateZip } from '@/lib/template-studio-zip';
 import { buildSfxBatFromTimeline } from '@/lib/sfx-generator';
 import {
   buildPostScriptTimelineContext,
@@ -241,6 +242,14 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [isRegeneratingFallbacks, setIsRegeneratingFallbacks] = useState(false);
+  // Template Studio
+  const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
+  const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
+  const [templatePrimaryColor, setTemplatePrimaryColor] = useState('#00C8FF');
+  const [templateSecondaryColor, setTemplateSecondaryColor] = useState('#00FF88');
+  const [templateFontFamily, setTemplateFontFamily] = useState('Inter');
+  const [templateStyleProfile, setTemplateStyleProfile] = useState('Tech');
+  const [templateGenResult, setTemplateGenResult] = useState<{ total: number; missing: string[] } | null>(null);
   const [isValidatingTitles, setIsValidatingTitles] = useState(false);
   const [titleValidations, setTitleValidations] = useState<(TitleValidationResult | null)[] | null>(null);
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
@@ -4462,6 +4471,203 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             </div>
           </div>
         )}
+
+        {/* ═══════════════════════════════════════════════════════ TEMPLATE STUDIO ═══ */}
+        <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-purple-500/15 bg-purple-500/[0.025] overflow-hidden shadow-[0_0_40px_rgba(168,85,247,0.05)]">
+          <div
+            onClick={() => setIsTemplateStudioExpanded(!isTemplateStudioExpanded)}
+            className="flex items-center justify-between p-6 xl:p-8 cursor-pointer hover:bg-purple-500/5 transition-colors select-none group"
+          >
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors mt-1">
+                <Layout size={24} className="text-purple-400" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.38em] text-purple-300">Template Studio</p>
+                <h4 className="text-xl font-black text-white mt-1 group-hover:text-purple-100 transition-colors">Gerar templates com identidade do canal</h4>
+                <p className="text-[11px] leading-6 text-white/50 mt-1 max-w-2xl">
+                  Configure as cores, fonte e estilo do canal. O app gera e baixa os 10 templates HTML prontos para salvar na pasta <span className="font-black text-purple-200">Canal/Template HTML/</span>.
+                </p>
+              </div>
+            </div>
+            <div className="hidden xl:flex items-center gap-4">
+              <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isTemplateStudioExpanded ? 'rotate-180' : ''}`}>
+                <ChevronDown size={20} />
+              </div>
+            </div>
+          </div>
+
+          <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isTemplateStudioExpanded ? 'grid-rows-[1fr] opacity-100 px-6 pb-6 xl:px-8 xl:pb-8 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="min-h-0 space-y-6 pt-6">
+
+              {/* Color + Font config */}
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Identidade Visual</p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Cor Primária</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={templatePrimaryColor}
+                          onChange={(e) => setTemplatePrimaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={templatePrimaryColor}
+                          onChange={(e) => setTemplatePrimaryColor(e.target.value)}
+                          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] font-mono text-white/80 outline-none focus:border-purple-400/40"
+                          maxLength={7}
+                          placeholder="#RRGGBB"
+                        />
+                      </div>
+                      <p className="text-[9px] text-white/30">Títulos e acentos principais</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Cor Secundária</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={templateSecondaryColor}
+                          onChange={(e) => setTemplateSecondaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={templateSecondaryColor}
+                          onChange={(e) => setTemplateSecondaryColor(e.target.value)}
+                          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] font-mono text-white/80 outline-none focus:border-purple-400/40"
+                          maxLength={7}
+                          placeholder="#RRGGBB"
+                        />
+                      </div>
+                      <p className="text-[9px] text-white/30">Métricas, glow e destaques</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Fonte</label>
+                      <select
+                        value={templateFontFamily}
+                        onChange={(e) => setTemplateFontFamily(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[12px] text-white/80 outline-none focus:border-purple-400/40"
+                      >
+                        <option value="Inter">Inter (padrão)</option>
+                        <option value="Outfit">Outfit (moderno)</option>
+                        <option value="Space Grotesk">Space Grotesk (tech)</option>
+                        <option value="Sora">Sora (suave)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Perfil de Estilo</label>
+                      <select
+                        value={templateStyleProfile}
+                        onChange={(e) => setTemplateStyleProfile(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[12px] text-white/80 outline-none focus:border-purple-400/40"
+                      >
+                        <option value="Tech">Tech / IA</option>
+                        <option value="Business">Business / Negócios</option>
+                        <option value="Education">Educação / Cursos</option>
+                        <option value="Lifestyle">Lifestyle / Motivação</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview swatch */}
+                <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Preview de Cores</p>
+                  <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: '#0a0a14' }}>
+                    <div className="p-6 space-y-3">
+                      <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: templatePrimaryColor }}>CANAL · INSIGHT PRINCIPAL</div>
+                      <div className="text-2xl font-black text-white" style={{ fontFamily: `'${templateFontFamily}', Arial, sans-serif` }}>Título do Vídeo</div>
+                      <div className="text-sm text-white/60">Subtítulo de contexto e informação</div>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black" style={{ background: `${templatePrimaryColor}18`, border: `1px solid ${templatePrimaryColor}44`, color: templatePrimaryColor }}>
+                        ◆ <span style={{ color: templateSecondaryColor }}>+340%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-white/30">Prévia aproximada. O resultado final é renderizado pelo Playwright.</p>
+                </div>
+              </div>
+
+              {/* Generate button */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  disabled={isGeneratingTemplates}
+                  onClick={async () => {
+                    setIsGeneratingTemplates(true);
+                    setTemplateGenResult(null);
+                    try {
+                      const res = await fetch('/api/template-studio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          primaryColor: templatePrimaryColor,
+                          secondaryColor: templateSecondaryColor,
+                          fontFamily: templateFontFamily,
+                          styleProfile: templateStyleProfile,
+                          channelName: activeProject?.name || activeProject?.project_name || 'Canal',
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      await downloadTemplateZip(data.templates, data.meta);
+                      setTemplateGenResult({ total: data.meta.total, missing: data.missing || [] });
+                      showToast(`${data.meta.total} templates gerados e baixados!`);
+                    } catch (err: any) {
+                      showToast(`Erro: ${err.message || 'Falha ao gerar templates.'}`);
+                    } finally {
+                      setIsGeneratingTemplates(false);
+                    }
+                  }}
+                  className="w-full rounded-2xl border border-purple-400/30 bg-purple-500/15 px-6 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-purple-200 transition-all hover:border-purple-300/40 hover:bg-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGeneratingTemplates ? (
+                    <span className="flex items-center justify-center gap-3">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-400" />
+                      </span>
+                      GERANDO TEMPLATES...
+                    </span>
+                  ) : '⬇ GERAR E BAIXAR TEMPLATES DO CANAL'}
+                </button>
+
+                {templateGenResult && (
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 px-5 py-4 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
+                      ✓ {templateGenResult.total} template{templateGenResult.total !== 1 ? 's' : ''} gerado{templateGenResult.total !== 1 ? 's' : ''} com sucesso
+                    </p>
+                    <p className="text-[10px] text-white/50">
+                      Extraia o ZIP em <span className="font-black text-white/70">[Canal]/Template HTML/</span> e o .bat vai encontrá-los automaticamente no próximo processamento.
+                    </p>
+                    {templateGenResult.missing.length > 0 && (
+                      <p className="text-[10px] text-amber-300">
+                        ⚠️ Não encontrados: {templateGenResult.missing.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3 space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Instrução pós-download</p>
+                  <p className="text-[10px] leading-5 text-white/45">
+                    1. Extraia o ZIP · 2. Mova para <span className="font-mono text-white/60">[Canal]/Template HTML/</span> · 3. O .bat vai usar seus templates automaticamente
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+        {/* ══════════════════════════════════════════════════════════════════════════════ */}
 
         <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 xl:p-8 flex flex-col gap-8 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
           {scriptBlocks.length > 0 && (

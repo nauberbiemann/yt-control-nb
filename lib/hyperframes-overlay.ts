@@ -112,7 +112,14 @@ export const buildHyperframesBat = (
   const hfRows    = rows.filter((r) => normalizeAssetType(r.asset) === 'hyperframe');
   const variation = resolveVariation(safeStem, styleOverride);
 
-  if (!hfRows.length) return '';
+  if (hfRows.length === 0) {
+    return [
+      '@echo off',
+      'chcp 65001 >nul',
+      'echo Nenhum HyperFrame detectado neste SRT.',
+      'pause',
+    ].join('\r\n');
+  }
 
   const header = [
     '@echo off',
@@ -120,13 +127,13 @@ export const buildHyperframesBat = (
     'color 0A',
     '',
     ':: ================================================================',
-    ':: ETAPA 2 -- HyperFrames Overlay Generator (HTML + Playwright + ProRes)',
-    `:: Projeto : ${safeStem}`,
-    `:: Overlays: ${hfRows.length} cenas identificadas`,
+    `:: ETAPA 2 -- HyperFrames Overlay Generator`,
+    `:: Projeto  : ${safeStem}`,
+    `:: Overlays : ${hfRows.length} cena(s)`,
+    `:: Estilo   : ${variation.label}`,
     '::',
-    ':: Gera overlays MOV ProRes 4444 com canal alpha transparente.',
-    ':: inject_and_render.py injeta variaveis nos templates HTML,',
-    ':: Playwright captura frame-a-frame, FFmpeg codifica em ProRes.',
+    ':: Gera arquivos .MOV transparentes (ProRes 4444) via Playwright.',
+    ':: Requisito: Python no PATH + pip install playwright + playwright install chromium',
     ':: ================================================================',
     '',
     ':: [1] Python disponivel?',
@@ -135,52 +142,22 @@ export const buildHyperframesBat = (
     '    color 0C',
     '    echo.',
     '    echo ERRO: Python nao encontrado no PATH.',
-    '    echo Instale em https://www.python.org e marque "Add to PATH".',
+    '    echo Instale em https://www.python.org e marque "Add Python to PATH".',
     '    echo.',
     '    pause',
     '    exit /b 1',
     ')',
     '',
-    ':: [2] Playwright instalado?',
-    'python -c "from playwright.async_api import async_playwright" >nul 2>&1',
-    'if %errorlevel% neq 0 (',
-    '    color 0E',
-    '    echo Instalando Playwright -- necessario apenas uma vez...',
-    '    python -m pip install playwright',
-    '    python -m playwright install chromium',
-    '    if %errorlevel% neq 0 (',
-    '        color 0C',
-    '        echo.',
-    '        echo ERRO: Falha ao instalar Playwright.',
-    '        echo.',
-    '        pause',
-    '        exit /b 1',
-    '    )',
-    ')',
-    '',
-    ':: [3] FFmpeg disponivel?',
-    'ffmpeg -version >nul 2>&1',
-    'if %errorlevel% neq 0 (',
-    '    color 0C',
-    '    echo.',
-    '    echo ERRO: FFmpeg nao encontrado no PATH.',
-    '    echo Baixe em https://ffmpeg.org/download.html e adicione ao PATH.',
-    '    echo.',
-    '    pause',
-    '    exit /b 1',
-    ')',
-    '',
-    ':: [4] Verificando pipeline local',
+    ':: [2] Script principal existe?',
     `set "SKILL_DIR=${SKILL_DIR}"`,
     'if not exist "%SKILL_DIR%\\inject_and_render.py" (',
     '    color 0C',
-    '    echo ERRO CRITICO: inject_and_render.py nao encontrado!',
-    '    echo Local esperado: "%SKILL_DIR%"',
+    '    echo ERRO: inject_and_render.py nao encontrado em %SKILL_DIR%',
     '    pause',
     '    exit /b 1',
     ')',
     '',
-    ':: [5] Pasta de templates (2 niveis acima do BAT → nivel do canal)',
+    ':: [3] Pasta de templates do canal',
     'set "TEMPLATES_DIR=%~dp0..\\..\\Template HTML"',
     'if not exist "%TEMPLATES_DIR%" (',
     '    color 0E',
@@ -307,12 +284,19 @@ export const buildHyperframesBat = (
   return [...header, ...overlayCommands, ...footer].join('\r\n');
 };
 
-// ─── Background Prompts Exporter ───────────────────────────────────────────────────
+// ─── Background Prompts Exporter ──────────────────────────────────────────────
 
 /**
- * Generates a plain-text file with AI image/video generation prompts for
- * each HyperFrame position. The editor picks which ones to generate.
- * Compatible with Midjourney, Kling, RunwayML, Sora, etc.
+ * Generates a plain-text file matching the same format as image_prompts.txt,
+ * prefixed with "HF" + SRT row number instead of just the row number.
+ * Format: HF{rowNumber}: {bgPrompt}
+ *
+ * When bgPrompt is available (requires regenerating the post-script-package
+ * after the bgPrompt field was added to the AI schema), the prompt is output
+ * directly. When not available, a structured placeholder with the SRT context
+ * is shown so the editor can complete it quickly.
+ *
+ * Compatible with: Midjourney, Kling, RunwayML, Sora, Adobe Firefly, etc.
  */
 export const buildHfBackgroundPromptsTxt = (
   hfRows: SrtAssetRow[],
@@ -320,47 +304,32 @@ export const buildHfBackgroundPromptsTxt = (
   hfContextTitles: HfContext[] = [],
 ): string => {
   const safeStem = sanitizeDownloadFileStem(stem);
-  const lines: string[] = [
+
+  const header = [
     `# HyperFrame Background Prompts — ${safeStem}`,
-    '# Gerado automaticamente pelo ContentOS',
-    '# Use estes prompts em: Midjourney, Kling, RunwayML, Sora, ou qualquer gerador de imagem/video.',
-    '# O editor decide quais gerar e como usar no CapCut (camada abaixo do avatar).',
-    '#',
-    `# Total de HyperFrames: ${hfRows.length}`,
-    '',
-    '='.repeat(70),
+    `# Total: ${hfRows.length} posicoes | Use em: Midjourney, Kling, RunwayML, Sora`,
+    `# Formato: HF[linha]: [prompt] — cole direto no gerador de sua preferencia`,
+    `# Camada no CapCut: abaixo do avatar, ajuste opacidade se necessario`,
     '',
   ];
 
-  hfRows.forEach((row, i) => {
-    const context    = findHfContext(hfContextTitles, row.startTime);
-    const state      = context?.visualState ?? 'hf_focus';
-    const headline   = context?.headline ?? truncateToWords(row.texto, 6);
-    const bgPrompt   = context?.bgPrompt ?? '';
-    const isFace     = state === 'hf_face_top' || state === 'hf_face_bottom';
-    const isDoc      = state === 'hf_documentary';
-    const needsBg    = isFace || isDoc;
-
-    lines.push(
-      `[${i + 1}/${hfRows.length}] ${row.startTime} | ${state}`,
-      `HEADLINE : ${headline}`,
-      `TEMPLATE : ${state}${needsBg ? ' ⚠️ RECOMENDA fundo (avatar fica num canto)' : ''}`,
-    );
+  const promptLines = hfRows.map((row) => {
+    const context  = findHfContext(hfContextTitles, row.startTime);
+    const bgPrompt = context?.bgPrompt?.trim();
+    const label    = `HF${row.rowNumber}`;
 
     if (bgPrompt) {
-      lines.push(`PROMPT   : ${bgPrompt}`);
-    } else {
-      lines.push('PROMPT   : [Nao gerado pela IA — adicione manualmente se necessario]');
+      // AI generated a context-aware background prompt — use it directly
+      return `${label}: ${bgPrompt}`;
     }
 
-    lines.push(
-      'FORMATO  : Imagem 16:9 (foto/render) ou video 3-5s sem corte brusco',
-      '',
-    );
+    // No bgPrompt yet: show structured placeholder with SRT context
+    // so the editor can paste into an AI tool and complete it quickly
+    const headline = context?.headline ?? truncateToWords(row.texto, 6);
+    const state    = context?.visualState ?? 'hf_focus';
+    const excerpt  = truncateToWords(row.texto, 10);
+    return `${label}: [REGERAR POS-ROTEIRO] ${state} | Headline: "${headline}" | Trecho: "${excerpt}"`;
   });
 
-  lines.push('='.repeat(70));
-  lines.push('# Dica: filtre por "⚠️ RECOMENDA fundo" para priorizar os templates que mais precisam.');
-
-  return lines.join('\r\n');
+  return [...header, ...promptLines].join('\r\n');
 };

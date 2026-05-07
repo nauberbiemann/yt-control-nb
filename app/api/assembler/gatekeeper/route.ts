@@ -131,10 +131,12 @@ Respond ONLY with raw JSON (no markdown, no explanation), using this exact struc
       const supportsTemp = !isReasoningModel(model || '');
       const requestBody: any = {
         model: apiModel,
-        messages: [{ role: 'system', content: gatekeeperPrompt }],
-        response_format: { type: 'json_object' },
+        messages: [{ role: supportsTemp ? 'system' : 'developer', content: gatekeeperPrompt }],
       };
-      if (supportsTemp) requestBody.temperature = 0.4;
+      if (supportsTemp) {
+        requestBody.temperature = 0.4;
+        requestBody.response_format = { type: 'json_object' };
+      }
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -152,8 +154,9 @@ Respond ONLY with raw JSON (no markdown, no explanation), using this exact struc
         return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: reason }, { status: 200 });
       }
       const text = raw?.choices?.[0]?.message?.content || '{}';
+      const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
       try {
-        responseData = JSON.parse(text);
+        responseData = JSON.parse(cleanText);
       } catch (e) {
         console.warn('[Gatekeeper OpenAI] Invalid JSON returned. Using fallback.', { text });
         const fallback = localGatekeeperFallback(theme, projectDNA);

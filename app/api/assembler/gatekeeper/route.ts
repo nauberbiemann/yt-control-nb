@@ -151,16 +151,16 @@ Respond ONLY with raw JSON (no markdown, no explanation), using this exact struc
         console.warn('[Gatekeeper OpenAI] API returned error:', response.status, JSON.stringify(raw).slice(0, 300));
         const reason = response.status === 401 || response.status === 403 ? 'no_key' : 'parse_error';
         const fallback = localGatekeeperFallback(theme, projectDNA);
-        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: reason }, { status: 200 });
+        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: reason, fallbackMessage: raw?.error?.message || 'Erro desconhecido da OpenAI' }, { status: 200 });
       }
       const text = raw?.choices?.[0]?.message?.content || '{}';
       const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
       try {
         responseData = JSON.parse(cleanText);
-      } catch (e) {
+      } catch (e: any) {
         console.warn('[Gatekeeper OpenAI] Invalid JSON returned. Using fallback.', { text });
         const fallback = localGatekeeperFallback(theme, projectDNA);
-        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'parse_error' }, { status: 200 });
+        return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'parse_error', fallbackMessage: `Parse error. OpenAI text: ${text.slice(0, 150)}` }, { status: 200 });
       }
     }
 

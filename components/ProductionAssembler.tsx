@@ -34,6 +34,7 @@ interface GatekeeperResult {
   reasoning?: string;
   isFallback: boolean;
   fallbackReason?: 'no_key' | 'parse_error';
+  fallbackMessage?: string;
 }
 
 interface AssemblerBlock {
@@ -1191,9 +1192,11 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                   Analise Simplificada ({gatekeeperResult.fallbackReason === 'parse_error' ? 'Falha no Motor IA' : 'Sem Chave de API'})
                 </p>
                 <p className="text-xs text-yellow-300/60 leading-relaxed">
-                  {gatekeeperResult.fallbackReason === 'parse_error'
-                    ? 'A Inteligencia Artificial retornou dados em um formato invalido. O Gatekeeper aplicou a analise algoritmica local como plano de seguranca.'
-                    : 'Nenhuma chave de API detectada. O Gatekeeper utilizou analise local baseada em palavras-chave. Configure sua chave em Configuracoes para validacao com IA.'}
+                  {gatekeeperResult.fallbackMessage 
+                    ? `Erro da API: ${gatekeeperResult.fallbackMessage}`
+                    : gatekeeperResult.fallbackReason === 'parse_error'
+                      ? 'A Inteligencia Artificial retornou dados em um formato invalido. O Gatekeeper aplicou a analise algoritmica local como plano de seguranca.'
+                      : 'Nenhuma chave de API detectada. O Gatekeeper utilizou analise local baseada em palavras-chave. Configure sua chave em Configuracoes para validacao com IA.'}
                 </p>
               </div>
             </div>

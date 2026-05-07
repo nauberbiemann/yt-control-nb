@@ -8,6 +8,7 @@ import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDow
 import {
   applyAssetRules,
   applyHyperframeRules,
+  applyHyperframeExclusionZone,
   buildAssetStats,
   enforceTextoCooldown,
   parseSrtToRows,
@@ -1794,11 +1795,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setSrtPipelineStatus('CSV base derivado. Aplicando a heuristica de marcacao de assets...');
 
       updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video, imagem ou hyperframe...');
-      const assetRows   = applyAssetRules(parsedRows, videoFormat);
-      const cooledRows  = enforceTextoCooldown(assetRows);      // fix: cooldown 20s entre textos
-      const finalRows   = applyHyperframeRules(cooledRows);     // injeta até 4 hyperframes narrativos
-      const assetStats  = buildAssetStats(finalRows);
-      const assetDesc   = videoFormat === 'faceless'
+      const assetRows      = applyAssetRules(parsedRows, videoFormat);
+      const cooledRows     = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
+      const hfRows         = applyHyperframeRules(cooledRows);            // injeta até 6 hyperframes narrativos
+      const finalRows      = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
+      const assetStats     = buildAssetStats(finalRows);
+      const assetDesc      = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
         : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`;
       updateSrtObserverStep('assets', 'done', assetDesc);

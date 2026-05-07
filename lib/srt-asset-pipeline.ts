@@ -294,10 +294,12 @@ export const enforceTextoCooldown = (
 // ─── HyperFrame narrative rules ──────────────────────────────────────────────
 
 const HF_TEMPLATES = {
-  chapterBreak: 'chapter_break_no_avatar',
-  closeCrop:    'avatar_close_crop',
-  captionFocus: 'caption_focus',
-  sidePanel:    'avatar_side_panel',
+  chapterBreak: 'hf_break',       // ~52% narrative midpoint reset
+  closeCrop:    'hf_face_top',    // ~17% post-hook camera reframe
+  captionFocus: 'hf_focus',       // ~82% pre-CTA emphasis
+  sidePanel:    'hf_double',      // longest avatar block midpoint
+  midEarly:     'hf_floating',    // ~33% list/concepts mid-first-half
+  midLate:      'hf_vertical',    // ~67% technical/analysis mid-second-half
 } as const;
 
 /** Returns index of the avatar row closest to targetRatio (0–1) of total rows,
@@ -429,7 +431,47 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     }
   })();
 
+  // Rule 5 — ~33% first-half inflection: floating/list moment
+  mark(findClosestAvatarRow(result, 0.33, used), HF_TEMPLATES.midEarly);
+
+  // Rule 6 — ~67% second-half analysis: vertical/technical moment
+  mark(findClosestAvatarRow(result, 0.67, used), HF_TEMPLATES.midLate);
+
   return result;
+};
+
+/**
+ * Enforces mutual exclusion between HyperFrames and text overlays.
+ * Any 'texto' row within EXCLUSION_RADIUS_MS of a 'hyperframe' row is reverted
+ * to 'avatar' — the animated HyperFrame already provides visual richness at
+ * that moment and a simultaneous text overlay would compete for attention.
+ */
+const HF_EXCLUSION_RADIUS_MS = 30_000; // 30 seconds
+
+export const applyHyperframeExclusionZone = (
+  rows: SrtAssetRow[],
+  radiusMs = HF_EXCLUSION_RADIUS_MS,
+): SrtAssetRow[] => {
+  // Collect all HyperFrame timestamps in milliseconds
+  const hfTimestamps: number[] = rows
+    .filter((r) => normalizeAssetType(r.asset) === 'hyperframe')
+    .map((r) => parseSrtTimeToMs(r.startTime));
+
+  if (hfTimestamps.length === 0) return rows;
+
+  return rows.map((row) => {
+    if (normalizeAssetType(row.asset) !== 'texto') return row;
+
+    const rowMs = parseSrtTimeToMs(row.startTime);
+    const tooCloseToHf = hfTimestamps.some(
+      (hfMs) => Math.abs(rowMs - hfMs) < radiusMs,
+    );
+
+    if (tooCloseToHf) {
+      return { ...row, asset: 'avatar' as SrtAssetType };
+    }
+    return row;
+  });
 };
 
 export const buildPipelineResult = (

@@ -2143,7 +2143,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         'echo --- TUDO PRONTO! Renderizacao em lote completa.',
         'pause',
       ];
-      const batContent = batLines.join('\n');
+      const batContent = batLines.join('\r\n');
       
       downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       

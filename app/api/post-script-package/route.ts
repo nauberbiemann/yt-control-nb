@@ -27,6 +27,7 @@ Return only valid JSON with this exact shape:
   "hfContextTitles": [
     {
       "timestamp": "[MM:SS]",
+      "visualState": "hf_focus",
       "headline": "...",
       "subtitle": "...",
       "metrics": "..."
@@ -76,8 +77,19 @@ Rules:
   TRECHO: ...
   OBS: ...
 - For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
-  1. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
-  2. "subtitle": Contextual phrase (max 15 words).
+  1. "visualState": Choose the most appropriate visual state based on the narrative moment:
+     - "hf_focus"       → Apresentação de tópico principal, ideia central, abertura de bloco.
+     - "hf_vertical"    → Explicação técnica, conceito complexo, IA, produtividade.
+     - "hf_face_bottom" → Momento emocional forte, storytelling, conexão humana.
+     - "hf_face_top"    → Análise profunda, reação, comentário reflexivo.
+     - "hf_double"      → Dados, comparações, números, contraste entre ideias.
+     - "hf_floating"    → Listas ("3 erros...", "5 passos..."), múltiplos pontos simultâneos.
+     - "hf_break"       → Pausa dramática, impacto emocional, quebra de ritmo.
+     - "hf_documentary" → Contexto histórico, investigação, mistério, casos reais.
+     - "hf_holo"        → CTA, momento premium, encerramento, insight final.
+     - "hf_dynamic"     → Alta intensidade, ritmo acelerado, múltiplas ideias em sequência.
+  2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
+  3. "subtitle": Contextual phrase (max 15 words).
   3. "metrics": Optional support metrics (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
 - Do not include markdown fences.
 - Do not explain the process.

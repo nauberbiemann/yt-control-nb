@@ -1,0 +1,223 @@
+{
+  "id": "08124252-c007-48ee-81ba-d075e26a41ab",
+  "name": "DevZen",
+  "description": "O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.",
+  "puc": "O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.",
+  "visual_style": "Cinematic",
+  "accent_color": "#3b82f6",
+  "target_persona": {
+    "audience": "Desenvolvedor Sênior (35-45 anos), Arquiteto ou Tech Lead. Frequentemente com família e sentindo o peso do \"sistema legado\" pessoal.",
+    "pain_point": "Thermal throttling mental constante e a percepção de que o hardware biológico não suporta mais o ritmo do software."
+  },
+  "ai_engine_rules": {
+    "metaphors": [
+      "Memory Leak de Atenção",
+      "Dívida Técnica Biológica",
+      "Thermal Throttling Mental\nSync Error Familiar: O descompasso entre estar presente no corpo",
+      "mas com a mente no deploy.\n\nFirewall de Prioridades: O protocolo de segurança para dizer \"não\" e proteger o tempo de foco.\n\nSingle Point of Failure (SPOF) Humano: O risco de ser o herói indispensável que trava o time.\n\nEstado de Kernel: O nível máximo de equilíbrio entre performance e paz mental.\n\nRefactoring de Rotina: O processo constante de reescrever hábitos obsoletos."
+    ],
+    "prohibited": [
+      "Incrível",
+      "Segredo",
+      "Chocado",
+      "Milagroso",
+      "Coach",
+      "Sucesso Fácil",
+      "\"O que ninguém te conta\"",
+      "Rápido",
+      "Simples",
+      "Grátis."
+    ]
+  },
+  "playlists": {
+    "t1": "Atrair atenção com dor clara-Atração pela dor do \"Thermal Throttling\".",
+    "t2": "Aprofundar com mecanismo e prova-Retenção pelo mecanismo técnico do \"Refactoring de Rotina\".",
+    "t3": "Converter com convite e confiança-Conversão para o \"Estado de Kernel\" (Mentoria).",
+    "t1_title": "Topo de Funil",
+    "t2_title": "Meio de Funil",
+    "t3_title": "Fundo de Funil",
+    "tactical_journey": [
+      {
+        "id": "t1",
+        "label": "T1",
+        "title": "Topo de Funil",
+        "value": "Atrair atenção com dor clara-Atração pela dor do \"Thermal Throttling\".",
+        "isFixed": true
+      },
+      {
+        "id": "t2",
+        "label": "T2",
+        "title": "Meio de Funil",
+        "value": "Aprofundar com mecanismo e prova-Retenção pelo mecanismo técnico do \"Refactoring de Rotina\".",
+        "isFixed": true
+      },
+      {
+        "id": "t3",
+        "label": "T3",
+        "title": "Fundo de Funil",
+        "value": "Converter com convite e confiança-Conversão para o \"Estado de Kernel\" (Mentoria).",
+        "isFixed": true
+      }
+    ]
+  },
+  "phd_strategy": {
+    "skill": "Minha autoridade vem da Arquitetura de Conteúdo Assistida por IA e da vivência real no 'front' da tecnologia. Domino o uso de agentes (Gemini, GPT-5, Trae) para acelerar entregas e possuo a habilidade única de criar metáforas de engenharia (Dívida Técnica Humana, Thermal Throttling) que geram autoridade imediata e conexão profunda com o público sênior.",
+    "demand": "O público de Desenvolvedores 35+, Tech Leads e Gestores exaustos. É uma demanda de alta urgência: profissionais com alto poder aquisitivo, mas tempo zero, que buscam desesperadamente um 'refactoring' de vida. É um nicho que o YouTube negligencia com autoajuda genérica e que clama por uma abordagem técnica e pragmática (Sinceridade Radical).",
+    "passion": "Minha paixão é a Longevidade Técnica. Me move o desejo de impedir que desenvolvedores brilhantes sejam tratados como hardware descartável pela indústria. Quero provar que é possível ser um sênior de alta performance sem queimar o kernel, traduzindo a lógica de sistemas que tanto amamos para o caos do comportamento humano."
+  },
+  "persona_matrix": {
+    "language": "Técnica, pragmática, cética e baseada em logs/metáforas de sistemas (Sinceridade Radical).",
+    "demographics": "Desenvolvedor Sênior (35-45 anos), Arquiteto ou Tech Lead. Frequentemente com família e sentindo o peso do \"sistema legado\" pessoal.",
+    "proof_points": "Alta renda, trabalho remoto, setup de alta performance",
+    "pain_alignment": "Thermal throttling mental constante e a percepção de que o hardware biológico não suporta mais o ritmo do software.",
+    "desired_outcome": "Migrar do modo \"Hotfix\" constante para o Estado de Kernel: Alta performance sustentável e previsibilidade de vida."
+  },
+  "editorial_line": {
+    "pillars": [
+      "Identificação de bugs comportamentais, thermal throttling mental e análise de logs de estresse.",
+      "Implementação de ferramentas práticas como o Firewall de Prioridades e gestão de energia.",
+      "Consolidação do \"Estado de Kernel\" e design de uma carreira sustentável aos 40+.",
+      "Como o sênior se posiciona para evitar o SPOF (Single Point of Failure) humano e delegar com eficiência.",
+      "O uso de ferramentas modernas para ganhar tempo e o impacto da biologia na performance técnica."
+    ],
+    "positioning_angle": "A Engenharia da Existência: Enquanto outros canais falam de produtividade com \"dicas de agenda\", o DevZen trata a vida como um sistema complexo que exige arquitetura, refatoração constante e respeito aos limites do hardware biológico.",
+    "content_boundaries": "Entra: Metáforas técnicas reais, dados biológicos, ceticismo pragmático e soluções de engenharia para problemas humanos.\n\nNão entra: Papo de \"coach\" motivacional, positividade tóxica, tutoriais técnicos para iniciantes (nível Júnior) ou apologia ao hustle culture (trabalhar até o colapso)."
+  },
+  "narrative_voice": {
+    "atmosphere": [
+      "Técnico",
+      "Reflexivo",
+      "Storyteller",
+      "Cético"
+    ],
+    "positioning": "Você não é o oráculo inalcançável, nem o \"coach\" motivacional. Você é o parceiro sênior que já crashou o próprio sistema, fez o post-mortem e agora compartilha a documentação técnica para que outros não cometam o mesmo erro."
+  },
+  "detailed_sop": {
+    "duration": "",
+    "overlays": "Apenas palavras-chave",
+    "blocks_max": 13,
+    "blocks_min": 8,
+    "cut_rhythm": "3s",
+    "soundtrack": "Epic",
+    "zoom_style": "Dynamic",
+    "asset_types": [
+      "IA Images",
+      "Stock Video",
+      "Code Snippets",
+      "B-Roll",
+      "Avatar"
+    ],
+    "text_styles": "Tech Neon, Cyber Terminal, Minimal Sage, Monospace Glow, Dark Slate Professional, Glitch Console",
+    "duration_max": 28,
+    "duration_min": 18,
+    "art_direction": "Cinematic",
+    "visual_identity": "Estética Tech-noir cinematográfica com iluminação dramática (low-key). Cores predominantes: Midnight Blue (#0A0E14) e Sage Green (#9DB0A0). Ambientes: Home office escuro, minimalista e organizado. Shots: Close-ups do avatar 'O Arquiteto' e planos médios com profundidade de campo rasa. Para conceitos técnicos, prefira visualizações 3D abstratas de snippets de código brilhantes, hologramas de métricas e dashboards degradados. Evite iluminação quente, cores vibrantes ou ambientes genéricos e claros de escritório.",
+    "blocks_variation": "",
+    "measurement_focus": "Retention curve (analisar drop-off em blocos técnicos), CTR per Title Structure (S1-S5) and conversion readiness to Mentoria/Community."
+  },
+  "thumb_strategy": {
+    "layout": "Rosto+Texto",
+    "layouts": [
+      "Rosto+Texto"
+    ],
+    "description": "Paleta de Cores: Fundo Midnight Blue (#0A0E14) com acentos em Sage Green (#9DB0A0) para o \"Zen\" e Alerta Vermelho/Laranja para os \"Erros\".\n\nTipografia: Archivo Black ou Montserrat Extra Bold. Texto em caixa alta (ALL CAPS) para passar peso e autoridade técnica.\n\nElementos de Contraste: Uso de elementos de UI (glowing code snippets, hologramas de erros, medidores de bateria) para criar camadas de profundidade.",
+    "consistency_rules": "Estilo: Cinematográfico, hiper-realista (estilo \"Tech-noir\"), com iluminação dramática que destaca o rosto do avatar.\n\nEnquadramento: Plano médio (Medium Close-up), com o avatar levemente deslocado para um dos lados, deixando espaço para o texto e elementos de UI.\n\nO que evitar: Expressões exageradas (\"YouTube Face\"), fundos claros e genéricos, cores vibrantes demais (estilo infantil/gamer) e fontes serifadas ou \"brincadonas\"."
+  },
+  "metaphor_library": "Memory Leak de Atenção, Dívida Técnica Biológica, Thermal Throttling Mental\nSync Error Familiar: O descompasso entre estar presente no corpo, mas com a mente no deploy.\n\nFirewall de Prioridades: O protocolo de segurança para dizer \"não\" e proteger o tempo de foco.\n\nSingle Point of Failure (SPOF) Humano: O risco de ser o herói indispensável que trava o time.\n\nEstado de Kernel: O nível máximo de equilíbrio entre performance e paz mental.\n\nRefactoring de Rotina: O processo constante de reescrever hábitos obsoletos.",
+  "prohibited_terms": "Incrível, Segredo, Chocado, Milagroso, Coach, Sucesso Fácil, \"O que ninguém te conta\", Rápido, Simples, Grátis.",
+  "base_system_instruction": null,
+  "schedules": null,
+  "status": "active",
+  "created_at": "2026-04-16T23:37:53.256946+00:00",
+  "updated_at": "2026-04-28T14:03:05.022+00:00",
+  "editing_sop": {
+    "duration": "",
+    "overlays": "Apenas palavras-chave",
+    "blocks_max": 13,
+    "blocks_min": 8,
+    "cut_rhythm": "3s",
+    "soundtrack": "Epic",
+    "zoom_style": "Dynamic",
+    "asset_types": [
+      "IA Images",
+      "Stock Video",
+      "Code Snippets",
+      "B-Roll",
+      "Avatar"
+    ],
+    "text_styles": "Tech Neon, Cyber Terminal, Minimal Sage, Monospace Glow, Dark Slate Professional, Glitch Console",
+    "duration_max": 28,
+    "duration_min": 18,
+    "art_direction": "Cinematic",
+    "visual_identity": "Estética Tech-noir cinematográfica com iluminação dramática (low-key). Cores predominantes: Midnight Blue (#0A0E14) e Sage Green (#9DB0A0). Ambientes: Home office escuro, minimalista e organizado. Shots: Close-ups do avatar 'O Arquiteto' e planos médios com profundidade de campo rasa. Para conceitos técnicos, prefira visualizações 3D abstratas de snippets de código brilhantes, hologramas de métricas e dashboards degradados. Evite iluminação quente, cores vibrantes ou ambientes genéricos e claros de escritório.",
+    "blocks_variation": "",
+    "measurement_focus": "Retention curve (analisar drop-off em blocos técnicos), CTR per Title Structure (S1-S5) and conversion readiness to Mentoria/Community."
+  },
+  "project_name": "DevZen",
+  "puc_promise": "O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.",
+  "traceability_summary": [
+    "PUC: O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.",
+    "Persona: Desenvolvedor Sênior (35-45 anos), Arquiteto ou Tech Lead. Frequentemente com família e sentindo o peso do \"sistema legado\" pessoal. | Linguagem: Técnica, pragmática, cética e baseada em logs/metáforas de sistemas (Sinceridade Radical).",
+    "Dor central: Thermal throttling mental constante e a percepção de que o hardware biológico não suporta mais o ritmo do software.",
+    "Transformação desejada: Migrar do modo \"Hotfix\" constante para o Estado de Kernel: Alta performance sustentável e previsibilidade de vida.",
+    "Pilares: Identificação de bugs comportamentais, thermal throttling mental e análise de logs de estresse., Implementação de ferramentas práticas como o Firewall de Prioridades e gestão de energia., Consolidação do \"Estado de Kernel\" e design de uma carreira sustentável aos 40+., Como o sênior se posiciona para evitar o SPOF (Single Point of Failure) humano e delegar com eficiência., O uso de ferramentas modernas para ganhar tempo e o impacto da biologia na performance técnica.",
+    "Metáforas: Memory Leak de Atenção, Dívida Técnica Biológica, Thermal Throttling Mental\nSync Error Familiar: O descompasso entre estar presente no corpo, mas com a mente no deploy.\n\nFirewall de Prioridades: O protocolo de segurança para dizer \"não\" e proteger o tempo de foco.\n\nSingle Point of Failure (SPOF) Humano: O risco de ser o herói indispensável que trava o time.\n\nEstado de Kernel: O nível máximo de equilíbrio entre performance e paz mental.\n\nRefactoring de Rotina: O processo constante de reescrever hábitos obsoletos.",
+    "Thumb: Rosto+Texto",
+    "SOP foco: Retention curve (analisar drop-off em blocos técnicos), CTR per Title Structure (S1-S5) and conversion readiness to Mentoria/Community."
+  ],
+  "traceability_sources": {
+    "puc": "O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.",
+    "persona": {
+      "language": "Técnica, pragmática, cética e baseada em logs/metáforas de sistemas (Sinceridade Radical).",
+      "demographics": "Desenvolvedor Sênior (35-45 anos), Arquiteto ou Tech Lead. Frequentemente com família e sentindo o peso do \"sistema legado\" pessoal.",
+      "proof_points": "Alta renda, trabalho remoto, setup de alta performance",
+      "pain_alignment": "Thermal throttling mental constante e a percepção de que o hardware biológico não suporta mais o ritmo do software.",
+      "desired_outcome": "Migrar do modo \"Hotfix\" constante para o Estado de Kernel: Alta performance sustentável e previsibilidade de vida."
+    },
+    "editing_sop": {
+      "duration": "",
+      "overlays": "Apenas palavras-chave",
+      "blocks_max": 13,
+      "blocks_min": 8,
+      "cut_rhythm": "3s",
+      "soundtrack": "Epic",
+      "zoom_style": "Dynamic",
+      "asset_types": [
+        "IA Images",
+        "Stock Video",
+        "Code Snippets",
+        "B-Roll",
+        "Avatar"
+      ],
+      "text_styles": "Tech Neon, Cyber Terminal, Minimal Sage, Monospace Glow, Dark Slate Professional, Glitch Console",
+      "duration_max": 28,
+      "duration_min": 18,
+      "art_direction": "Cinematic",
+      "visual_identity": "Estética Tech-noir cinematográfica com iluminação dramática (low-key). Cores predominantes: Midnight Blue (#0A0E14) e Sage Green (#9DB0A0). Ambientes: Home office escuro, minimalista e organizado. Shots: Close-ups do avatar 'O Arquiteto' e planos médios com profundidade de campo rasa. Para conceitos técnicos, prefira visualizações 3D abstratas de snippets de código brilhantes, hologramas de métricas e dashboards degradados. Evite iluminação quente, cores vibrantes ou ambientes genéricos e claros de escritório.",
+      "blocks_variation": "",
+      "measurement_focus": "Retention curve (analisar drop-off em blocos técnicos), CTR per Title Structure (S1-S5) and conversion readiness to Mentoria/Community."
+    },
+    "editorial_line": {
+      "pillars": [
+        "Identificação de bugs comportamentais, thermal throttling mental e análise de logs de estresse.",
+        "Implementação de ferramentas práticas como o Firewall de Prioridades e gestão de energia.",
+        "Consolidação do \"Estado de Kernel\" e design de uma carreira sustentável aos 40+.",
+        "Como o sênior se posiciona para evitar o SPOF (Single Point of Failure) humano e delegar com eficiência.",
+        "O uso de ferramentas modernas para ganhar tempo e o impacto da biologia na performance técnica."
+      ],
+      "positioning_angle": "A Engenharia da Existência: Enquanto outros canais falam de produtividade com \"dicas de agenda\", o DevZen trata a vida como um sistema complexo que exige arquitetura, refatoração constante e respeito aos limites do hardware biológico.",
+      "content_boundaries": "Entra: Metáforas técnicas reais, dados biológicos, ceticismo pragmático e soluções de engenharia para problemas humanos.\n\nNão entra: Papo de \"coach\" motivacional, positividade tóxica, tutoriais técnicos para iniciantes (nível Júnior) ou apologia ao hustle culture (trabalhar até o colapso)."
+    },
+    "thumb_strategy": {
+      "layout": "Rosto+Texto",
+      "layouts": [
+        "Rosto+Texto"
+      ],
+      "description": "Paleta de Cores: Fundo Midnight Blue (#0A0E14) com acentos em Sage Green (#9DB0A0) para o \"Zen\" e Alerta Vermelho/Laranja para os \"Erros\".\n\nTipografia: Archivo Black ou Montserrat Extra Bold. Texto em caixa alta (ALL CAPS) para passar peso e autoridade técnica.\n\nElementos de Contraste: Uso de elementos de UI (glowing code snippets, hologramas de erros, medidores de bateria) para criar camadas de profundidade.",
+      "consistency_rules": "Estilo: Cinematográfico, hiper-realista (estilo \"Tech-noir\"), com iluminação dramática que destaca o rosto do avatar.\n\nEnquadramento: Plano médio (Medium Close-up), com o avatar levemente deslocado para um dos lados, deixando espaço para o texto e elementos de UI.\n\nO que evitar: Expressões exageradas (\"YouTube Face\"), fundos claros e genéricos, cores vibrantes demais (estilo infantil/gamer) e fontes serifadas ou \"brincadonas\"."
+    },
+    "metaphor_library": "Memory Leak de Atenção, Dívida Técnica Biológica, Thermal Throttling Mental\nSync Error Familiar: O descompasso entre estar presente no corpo, mas com a mente no deploy.\n\nFirewall de Prioridades: O protocolo de segurança para dizer \"não\" e proteger o tempo de foco.\n\nSingle Point of Failure (SPOF) Humano: O risco de ser o herói indispensável que trava o time.\n\nEstado de Kernel: O nível máximo de equilíbrio entre performance e paz mental.\n\nRefactoring de Rotina: O processo constante de reescrever hábitos obsoletos."
+  },
+  "user_id": "f279d976-d735-4f1d-b5d1-03b6238be72d",
+  "default_execution_mode": "external"
+}

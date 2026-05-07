@@ -20,6 +20,7 @@ export interface PostScriptPackage {
   sfxTimelineTxt: string;
   hfContextTitles?: Array<{
     timestamp: string;
+    visualState: string;
     headline: string;
     subtitle: string;
     metrics: string;

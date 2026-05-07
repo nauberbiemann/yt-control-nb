@@ -38,6 +38,40 @@ const escapeCaption = (text: string): string =>
     .trim()
     .slice(0, 75);
 
+// ─── Timestamp matching ───────────────────────────────────────────────────────
+// AI returns timestamps as "[MM:SS]" while SRT rows use "HH:MM:SS,mmm".
+// This fuzzy match converts both to seconds and finds the nearest context
+// within a tolerance window, preventing the silent fallback to row.texto.
+
+const tsToSec = (ts: string): number => {
+  const clean = ts.replace(/[\[\]]/g, '').replace(',', '.').trim();
+  const parts = clean.split(':').map(Number);
+  if (parts.length === 2) return parts[0] * 60 + (parts[1] || 0);
+  if (parts.length === 3) return parts[0] * 3_600 + parts[1] * 60 + (parts[2] || 0);
+  return 0;
+};
+
+type HfContext = { timestamp: string; visualState?: string; headline: string; subtitle?: string; metrics?: string };
+
+const findHfContext = (list: HfContext[], startTime: string, toleranceSec = 12): HfContext | undefined => {
+  if (!list?.length) return undefined;
+  const rowSec = tsToSec(startTime);
+  let best: HfContext | undefined;
+  let bestDiff = Infinity;
+  for (const c of list) {
+    const diff = Math.abs(tsToSec(c.timestamp) - rowSec);
+    if (diff < bestDiff) { bestDiff = diff; best = c; }
+  }
+  return bestDiff <= toleranceSec ? best : undefined;
+};
+
+// Truncate long fallback text to N words so it fits in overlay templates
+const truncateToWords = (text: string, maxWords = 8): string => {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text.trim();
+  return words.slice(0, maxWords).join(' ') + '...';
+};
+
 // Maps visualState → template filename
 const TEMPLATE_MAP: Record<string, string> = {
   hf_focus:       'hf_focus.html',
@@ -72,7 +106,7 @@ export const buildHyperframesBat = (
   rows: SrtAssetRow[],
   stem: string,
   styleOverride?: HfStyleOverride,
-  hfContextTitles?: Array<{ timestamp: string; visualState?: string; headline: string; subtitle?: string; metrics?: string }>
+  hfContextTitles?: HfContext[]
 ): string => {
   const safeStem  = sanitizeDownloadFileStem(stem);
   const hfRows    = rows.filter((r) => normalizeAssetType(r.asset) === 'hyperframe');
@@ -176,7 +210,8 @@ export const buildHyperframesBat = (
 
   const overlayCommands: string[] = [];
   hfRows.forEach((row, i) => {
-    const context     = (hfContextTitles || []).find((c) => c.timestamp === row.startTime);
+    // Fuzzy-match by nearest timestamp (AI uses [MM:SS], SRT uses HH:MM:SS,mmm)
+    const context     = findHfContext(hfContextTitles || [], row.startTime);
     const visualState = context?.visualState;
     const templateFile = resolveTemplate(visualState, row.prompt);
     const stateName   = visualState ?? 'hf_focus';
@@ -217,7 +252,8 @@ export const buildHyperframesBat = (
       if (context.subtitle && context.subtitle !== '—') subtitleArg = `--subtitle "${escapeCaption(context.subtitle)}"`;
       if (context.metrics  && context.metrics  !== '—') metricsArg  = `--metrics "${escapeCaption(context.metrics)}"`;
     } else {
-      titleArg = `--title "${escapeCaption(row.texto)}"`;
+      // Fallback: truncate SRT text to max 8 words so it fits the overlay
+      titleArg = `--title "${escapeCaption(truncateToWords(row.texto, 8))}"`;
     }
 
     // Instruction comment for templates that need manual CapCut work

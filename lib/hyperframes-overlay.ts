@@ -51,7 +51,7 @@ const tsToSec = (ts: string): number => {
   return 0;
 };
 
-type HfContext = { timestamp: string; visualState?: string; headline: string; subtitle?: string; metrics?: string };
+type HfContext = { timestamp: string; visualState?: string; headline: string; subtitle?: string; metrics?: string; bgPrompt?: string };
 
 const findHfContext = (list: HfContext[], startTime: string, toleranceSec = 12): HfContext | undefined => {
   if (!list?.length) return undefined;
@@ -305,4 +305,62 @@ export const buildHyperframesBat = (
   ];
 
   return [...header, ...overlayCommands, ...footer].join('\r\n');
+};
+
+// ─── Background Prompts Exporter ───────────────────────────────────────────────────
+
+/**
+ * Generates a plain-text file with AI image/video generation prompts for
+ * each HyperFrame position. The editor picks which ones to generate.
+ * Compatible with Midjourney, Kling, RunwayML, Sora, etc.
+ */
+export const buildHfBackgroundPromptsTxt = (
+  hfRows: SrtAssetRow[],
+  stem: string,
+  hfContextTitles: HfContext[] = [],
+): string => {
+  const safeStem = sanitizeDownloadFileStem(stem);
+  const lines: string[] = [
+    `# HyperFrame Background Prompts — ${safeStem}`,
+    '# Gerado automaticamente pelo ContentOS',
+    '# Use estes prompts em: Midjourney, Kling, RunwayML, Sora, ou qualquer gerador de imagem/video.',
+    '# O editor decide quais gerar e como usar no CapCut (camada abaixo do avatar).',
+    '#',
+    `# Total de HyperFrames: ${hfRows.length}`,
+    '',
+    '='.repeat(70),
+    '',
+  ];
+
+  hfRows.forEach((row, i) => {
+    const context    = findHfContext(hfContextTitles, row.startTime);
+    const state      = context?.visualState ?? 'hf_focus';
+    const headline   = context?.headline ?? truncateToWords(row.texto, 6);
+    const bgPrompt   = context?.bgPrompt ?? '';
+    const isFace     = state === 'hf_face_top' || state === 'hf_face_bottom';
+    const isDoc      = state === 'hf_documentary';
+    const needsBg    = isFace || isDoc;
+
+    lines.push(
+      `[${i + 1}/${hfRows.length}] ${row.startTime} | ${state}`,
+      `HEADLINE : ${headline}`,
+      `TEMPLATE : ${state}${needsBg ? ' ⚠️ RECOMENDA fundo (avatar fica num canto)' : ''}`,
+    );
+
+    if (bgPrompt) {
+      lines.push(`PROMPT   : ${bgPrompt}`);
+    } else {
+      lines.push('PROMPT   : [Nao gerado pela IA — adicione manualmente se necessario]');
+    }
+
+    lines.push(
+      'FORMATO  : Imagem 16:9 (foto/render) ou video 3-5s sem corte brusco',
+      '',
+    );
+  });
+
+  lines.push('='.repeat(70));
+  lines.push('# Dica: filtre por "⚠️ RECOMENDA fundo" para priorizar os templates que mais precisam.');
+
+  return lines.join('\r\n');
 };

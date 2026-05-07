@@ -30,7 +30,8 @@ Return only valid JSON with this exact shape:
       "visualState": "hf_focus",
       "headline": "...",
       "subtitle": "...",
-      "metrics": "..."
+      "metrics": "...",
+      "bgPrompt": "..."
     }
   ]
 }
@@ -90,7 +91,13 @@ Rules:
      - "hf_dynamic"     → Alta intensidade, ritmo acelerado, múltiplas ideias em sequência.
   2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
   3. "subtitle": Contextual phrase (max 15 words).
-  3. "metrics": Optional support metrics (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
+  4. "metrics": Optional support metrics (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
+  5. "bgPrompt": A cinematic image/video generation prompt in English for the background behind the avatar.
+     - Must be visually descriptive, environment-based, and match the emotional tone of that specific narrative moment.
+     - Do NOT describe the person or avatar. Describe only the scene, setting, textures, and atmosphere.
+     - Examples: "Soft morning light filtering through kitchen window, organic produce on marble counter, shallow depth of field", "Dark laboratory with glowing chemical flasks, blue neon reflections on glass surfaces, cinematic wide shot"
+     - Write 1-2 sentences. Maximum 200 characters.
+     - This prompt will be used with AI image/video generators (Midjourney, Kling, RunwayML). Make it generator-ready.
 - Do not include markdown fences.
 - Do not explain the process.
 `.trim();

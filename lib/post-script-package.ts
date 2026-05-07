@@ -24,6 +24,7 @@ export interface PostScriptPackage {
     headline: string;
     subtitle: string;
     metrics: string;
+    bgPrompt?: string;
   }>;
   chapterAnchors: PostScriptChapterAnchor[];
   timelineSource: 'srt' | 'estimated';

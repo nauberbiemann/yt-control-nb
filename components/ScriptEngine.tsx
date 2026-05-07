@@ -18,7 +18,7 @@ import {
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
-import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
+import { buildHyperframesBat, buildHfBackgroundPromptsTxt } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
 import { buildSfxBatFromTimeline } from '@/lib/sfx-generator';
 import {
@@ -2165,6 +2165,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
           );
         }, 1000);
+
+        // Download background prompts for the editor to choose which ones to generate
+        const bgPromptsTxt = buildHfBackgroundPromptsTxt(hfRows, srtArtifactStem, postScriptPackage?.hfContextTitles ?? []);
+        setTimeout(() => {
+          downloadTextArtifact(
+            srtArtifactStem,
+            '2_hf_background_prompts',
+            bgPromptsTxt,
+            { extension: 'txt', mimeType: 'text/plain;charset=utf-8' },
+          );
+        }, 1250);
       }
 
       const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';

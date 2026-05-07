@@ -18,7 +18,7 @@ import {
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
-import { buildHyperframesBat, buildHfBackgroundPromptsTxt } from '@/lib/hyperframes-overlay';
+import { buildHyperframesBat, buildHfBackgroundPromptsTxt, enrichImagePromptsTxt } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
 import { buildSfxBatFromTimeline } from '@/lib/sfx-generator';
 import {
@@ -2165,17 +2165,6 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
           );
         }, 1000);
-
-        // Download background prompts for the editor to choose which ones to generate
-        const bgPromptsTxt = buildHfBackgroundPromptsTxt(hfRows, srtArtifactStem, postScriptPackage?.hfContextTitles ?? []);
-        setTimeout(() => {
-          downloadTextArtifact(
-            srtArtifactStem,
-            '2_hf_background_prompts',
-            bgPromptsTxt,
-            { extension: 'txt', mimeType: 'text/plain;charset=utf-8' },
-          );
-        }, 1250);
       }
 
       const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';
@@ -4035,20 +4024,20 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem</p>
-                              <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_imagem.txt`.</p>
+                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem + HyperFrames</p>
+                              <p className="text-[10px] text-white/40 mt-1">Imagens b-roll + fundos HF (prefixo <code>HF</code>). Arquivo `_prompts_imagem.txt`.</p>
                             </div>
                             <div className="flex gap-2">
                               <button
                                 type="button"
-                                onClick={() => copyTextToClipboard(externalSrtPipeline.imagePromptsTxt, 'Prompts de imagem copiados.')}
+                                onClick={() => copyTextToClipboard(enrichImagePromptsTxt(externalSrtPipeline.imagePromptsTxt, externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe'), postScriptPackage?.hfContextTitles ?? []), 'Prompts de imagem copiados.')}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <Copy size={12} className="inline mr-2" /> Copiar
                               </button>
                               <button
                                 type="button"
-                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_imagem', externalSrtPipeline.imagePromptsTxt)}
+                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_imagem', enrichImagePromptsTxt(externalSrtPipeline.imagePromptsTxt, externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe'), postScriptPackage?.hfContextTitles ?? []))}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <FileText size={12} className="inline mr-2" /> TXT
@@ -4057,7 +4046,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           </div>
                           <textarea
                             readOnly
-                            value={externalSrtPipeline.imagePromptsTxt || 'Nenhum prompt de imagem foi gerado para este SRT.'}
+                            value={enrichImagePromptsTxt(externalSrtPipeline.imagePromptsTxt, externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe'), postScriptPackage?.hfContextTitles ?? []) || 'Nenhum prompt de imagem foi gerado para este SRT.'}
                             className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />
                         </div>

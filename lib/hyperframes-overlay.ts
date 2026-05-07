@@ -72,6 +72,55 @@ const truncateToWords = (text: string, maxWords = 8): string => {
   return words.slice(0, maxWords).join(' ') + '...';
 };
 
+// ─── Local bgPrompt generator ────────────────────────────────────────────────────────
+// Generates a photorealistic scene prompt from the SRT texto + visualState.
+// Does NOT rely on the AI — works immediately for every HyperFrame row.
+// When the AI returns a bgPrompt in hfContextTitles, that takes priority.
+
+const STATE_SCENE: Record<string, string> = {
+  hf_face_top:    'Cinematic wide shot, soft window light, blurred neutral background, elegant setting',
+  hf_face_bottom: 'Warm intimate environment, shallow depth of field, natural textured background',
+  hf_documentary: 'High contrast documentary lighting, architectural or historical setting, moody shadows',
+  hf_double:      'Clean split composition, structured modern environment, data-inspired visual',
+  hf_floating:    'Bright open space, airy minimal setting, ambient studio light',
+  hf_break:       'Dramatic pause, deep shadow contrast, single subject spotlight, cinematic wide',
+  hf_holo:        'Premium minimal set, subtle blue holographic glow, dark glass surfaces',
+  hf_dynamic:     'High energy environment, fast-motion blur elements, vivid saturated palette',
+  hf_vertical:    'Technical workspace, monitors and code or data, cool blue-white tones',
+  hf_focus:       'Professional environment, directional soft light, shallow focus, clean composition',
+};
+
+export const generateHfBgPrompt = (texto: string, visualState: string, aiPrompt?: string): string => {
+  // AI-generated prompt always wins when available
+  if (aiPrompt?.trim()) return aiPrompt.trim();
+  const scene    = STATE_SCENE[visualState] ?? STATE_SCENE['hf_focus'];
+  const subject  = truncateToWords(texto, 10);
+  return `Photorealistic still image: ${subject}. ${scene}. 16:9, no people.`;
+};
+
+/**
+ * Appends HyperFrame background prompts to the existing imagePromptsTxt.
+ * Format: HF{rowNumber}: {prompt} — identical to image prompts (Print 2 style).
+ * Rows with AI-generated bgPrompt use that; others auto-generate from texto.
+ */
+export const enrichImagePromptsTxt = (
+  baseImagePromptsTxt: string,
+  hfRows: SrtAssetRow[],
+  hfContextTitles: HfContext[] = [],
+): string => {
+  if (!hfRows.length) return baseImagePromptsTxt;
+
+  const hfLines = hfRows.map((row) => {
+    const context    = findHfContext(hfContextTitles, row.startTime);
+    const visualState = context?.visualState ?? 'hf_focus';
+    const prompt     = generateHfBgPrompt(row.texto, visualState, context?.bgPrompt);
+    return `HF${row.rowNumber}: ${prompt}`;
+  });
+
+  const separator = baseImagePromptsTxt.trim() ? '\n' : '';
+  return `${baseImagePromptsTxt}${separator}\n${hfLines.join('\n')}`;
+};
+
 // Maps visualState → template filename
 const TEMPLATE_MAP: Record<string, string> = {
   hf_focus:       'hf_focus.html',

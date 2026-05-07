@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: 'Inter', Arial, sans-serif; }
+    #root { position: relative; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+
+    /* Dark vignette overlay for documentary mood */
+    .vignette {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 90% 90% at 50% 50%, transparent 40%, rgba(0,0,0,0.70) 100%);
+      opacity: 0; will-change: opacity;
+    }
+
+    /* Top bar — timestamp + location */
+    .top-bar {
+      position: absolute; top: 40px; left: 60px; right: 60px;
+      display: flex; justify-content: space-between; align-items: center;
+      opacity: 0; will-change: opacity, transform;
+    }
+    .tb-timestamp {
+      font-size: 20px; font-weight: 700; letter-spacing: 0.14em;
+      color: rgba(255,255,255,0.70); font-variant-numeric: tabular-nums;
+    }
+    .tb-tag {
+      padding: 8px 22px; border-radius: 6px;
+      background: rgba(255,50,50,0.85);
+      font-size: 16px; font-weight: 900; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #FFFFFF;
+    }
+
+    /* Bottom caption bar */
+    .caption-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 0 80px 52px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+      opacity: 0; will-change: opacity, transform;
+    }
+    .cb-label {
+      font-size: 16px; font-weight: 900; letter-spacing: 0.22em;
+      text-transform: uppercase; color: rgba(255,80,80,0.80);
+      margin-bottom: 16px;
+    }
+    .cb-headline {
+      font-size: 68px; font-weight: 900; line-height: 1.0;
+      letter-spacing: -0.04em; color: #FFFFFF; margin-bottom: 16px;
+    }
+    .cb-headline .word { display: inline-block; margin-right: 0.1em; }
+    .cb-subtitle {
+      font-size: 26px; font-weight: 400; color: rgba(255,255,255,0.72); line-height: 1.4;
+    }
+
+    /* Left side data overlay */
+    .left-data {
+      position: absolute; left: 60px; top: 50%;
+      transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 18px;
+      opacity: 0; will-change: opacity, transform;
+    }
+    .ld-item {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .ld-key   { font-size: 13px; font-weight: 900; letter-spacing: 0.20em; text-transform: uppercase; color: rgba(255,255,255,0.40); }
+    .ld-value { font-size: 28px; font-weight: 900; color: #FFFFFF; }
+
+    /* Small avatar frame — right middle */
+    .avatar-frame {
+      position: absolute; right: 60px; top: 50%;
+      transform: translateY(-50%);
+      width: 280px; height: 280px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      opacity: 0; will-change: opacity, transform;
+    }
+    .corner { position: absolute; width: 16px; height: 16px; border-color: rgba(255,255,255,0.55); border-style: solid; }
+    .c-tl { top:-1px;left:-1px; border-width:2px 0 0 2px; }
+    .c-tr { top:-1px;right:-1px; border-width:2px 2px 0 0; }
+    .c-bl { bottom:-1px;left:-1px; border-width:0 0 2px 2px; }
+    .c-br { bottom:-1px;right:-1px; border-width:0 2px 2px 0; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="vignette" id="vignette"></div>
+
+    <div class="top-bar" id="top-bar">
+      <div class="tb-timestamp" id="ts">00:00:00 · ARQUIVO</div>
+      <div class="tb-tag">DOCUMENTO</div>
+    </div>
+
+    <div class="left-data" id="left-data">
+      <div class="ld-item">
+        <span class="ld-key">DADO</span>
+        <span class="ld-value" id="ld-metrics">{{METRICS}}</span>
+      </div>
+      <div class="ld-item">
+        <span class="ld-key">STATUS</span>
+        <span class="ld-value" style="font-size:18px;color:rgba(255,255,255,0.6)">● VERIFICADO</span>
+      </div>
+    </div>
+
+    <div class="avatar-frame" id="avatar-frame">
+      <div class="corner c-tl"></div>
+      <div class="corner c-tr"></div>
+      <div class="corner c-bl"></div>
+      <div class="corner c-br"></div>
+    </div>
+
+    <div class="caption-bar" id="caption-bar">
+      <div class="cb-label">INVESTIGAÇÃO</div>
+      <div class="cb-headline" id="headline"></div>
+      <div class="cb-subtitle" id="subtitle">{{SUBTITLE}}</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      const headlineEl = document.getElementById('headline');
+      const words = (data.title || '{{TITLE}}').split(' ');
+      headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
+
+      // Timestamp style
+      const now = new Date();
+      const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')} · ARQUIVO`;
+      document.getElementById('ts').textContent = ts;
+
+      if (!data.subtitle || data.subtitle === '—') document.getElementById('subtitle').style.display = 'none';
+      if (!data.metrics  || data.metrics  === '—') document.getElementById('left-data').style.display = 'none';
+      else document.getElementById('ld-metrics').textContent = data.metrics;
+
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to('#vignette', { opacity: 1, duration: 0.6, ease: 'power2.out' }, 0);
+      tl.fromTo('#top-bar', { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'expo.out' }, 0.2);
+      tl.fromTo('#left-data', { x: -20, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: 'expo.out' }, 0.35);
+      tl.fromTo('#avatar-frame', { scale: 0.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(1.2)' }, 0.35);
+      tl.fromTo('#caption-bar', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'expo.out' }, 0.4);
+      tl.fromTo('.word', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power2.out', stagger: 0.07 }, 0.55);
+      tl.fromTo('#subtitle', { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: 'power2.out' }, 0.78);
+
+      window.__timelines['hf_documentary'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

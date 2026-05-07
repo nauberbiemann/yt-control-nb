@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: 'Inter', Arial, sans-serif; }
+    #root { position: relative; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+
+    /* Viewfinder overlay — animated crop frames */
+    .vf-frame {
+      position: absolute;
+      border: 2px solid rgba(255,255,255,0.55);
+      border-radius: 4px;
+      opacity: 0; will-change: opacity, transform, left, top, width, height;
+    }
+    /* Corner decorators */
+    .vf-corner { position: absolute; width: 18px; height: 18px; border-color: #FFFFFF; border-style: solid; }
+    .vf-tl { top:-1px;left:-1px; border-width:3px 0 0 3px; }
+    .vf-tr { top:-1px;right:-1px; border-width:3px 3px 0 0; }
+    .vf-bl { bottom:-1px;left:-1px; border-width:0 0 3px 3px; }
+    .vf-br { bottom:-1px;right:-1px; border-width:0 3px 3px 0; }
+
+    /* Rule-of-thirds grid */
+    .grid-line {
+      position: absolute; background: rgba(255,255,255,0.07);
+      opacity: 0; will-change: opacity;
+    }
+    .gl-v { top:0; bottom:0; width:1px; }
+    .gl-h { left:0; right:0; height:1px; }
+    .gl-v1 { left: 33.33%; }
+    .gl-v2 { left: 66.66%; }
+    .gl-h1 { top: 33.33%; }
+    .gl-h2 { top: 66.66%; }
+
+    /* Bottom info strip */
+    .info-strip {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 20px 80px 40px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.75) 0%, transparent 100%);
+      opacity: 0; will-change: opacity, transform;
+    }
+    .is-headline {
+      font-size: 56px; font-weight: 900; line-height: 1.0;
+      letter-spacing: -0.04em; color: #FFFFFF; margin-bottom: 10px;
+    }
+    .is-headline .word { display: inline-block; margin-right: 0.1em; }
+    .is-sub { font-size: 24px; font-weight: 400; color: rgba(255,255,255,0.65); }
+
+    /* Top-right indicator */
+    .crop-indicator {
+      position: absolute; top: 40px; right: 60px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px; border-radius: 8px;
+      background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.18);
+      font-size: 16px; font-weight: 900; letter-spacing: 0.12em;
+      text-transform: uppercase; color: rgba(255,255,255,0.70);
+      opacity: 0; will-change: opacity;
+    }
+    .ci-dot { width: 8px; height: 8px; border-radius: 50%; background: #FF5050; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <!-- Rule of thirds grid -->
+    <div class="grid-line gl-v gl-v1" id="gl1"></div>
+    <div class="grid-line gl-v gl-v2" id="gl2"></div>
+    <div class="grid-line gl-h gl-h1" id="gl3"></div>
+    <div class="grid-line gl-h gl-h2" id="gl4"></div>
+
+    <!-- Main viewfinder frame (full area guide) -->
+    <div class="vf-frame" id="vf-main" style="top:60px;left:60px;right:60px;bottom:160px;">
+      <div class="vf-corner vf-tl"></div>
+      <div class="vf-corner vf-tr"></div>
+      <div class="vf-corner vf-bl"></div>
+      <div class="vf-corner vf-br"></div>
+    </div>
+
+    <!-- Close-up frame hint (center-ish) -->
+    <div class="vf-frame" id="vf-close" style="top:200px;left:660px;width:600px;height:500px;border-color:rgba(255,180,0,0.5);border-style:dashed;">
+      <div class="vf-corner vf-tl" style="border-color:rgba(255,180,0,0.8)"></div>
+      <div class="vf-corner vf-tr" style="border-color:rgba(255,180,0,0.8)"></div>
+      <div class="vf-corner vf-bl" style="border-color:rgba(255,180,0,0.8)"></div>
+      <div class="vf-corner vf-br" style="border-color:rgba(255,180,0,0.8)"></div>
+    </div>
+
+    <div class="crop-indicator" id="crop-indicator">
+      <div class="ci-dot" id="ci-dot"></div>
+      <span>DYNAMIC CUT</span>
+    </div>
+
+    <div class="info-strip" id="info-strip">
+      <div class="is-headline" id="headline"></div>
+      <div class="is-sub" id="subtitle">{{SUBTITLE}}</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      const headlineEl = document.getElementById('headline');
+      const words = (data.title || '{{TITLE}}').split(' ');
+      headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
+
+      if (!data.subtitle || data.subtitle === '—') document.getElementById('subtitle').style.display = 'none';
+
+      const tl = gsap.timeline({ paused: true });
+
+      // Grid appears
+      tl.to(['.grid-line'], { opacity: 1, duration: 0.4, ease: 'power2.out', stagger: 0.05 }, 0);
+
+      // Main frame
+      tl.fromTo('#vf-main', { scale: 1.04, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: 'expo.out' }, 0.1);
+
+      // Close-up frame dashes in
+      tl.fromTo('#vf-close', { scale: 0.95, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(1.2)' }, 0.35);
+
+      // Crop indicator
+      tl.fromTo('#crop-indicator', { y: -10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'expo.out' }, 0.3);
+
+      // Info strip
+      tl.fromTo('#info-strip', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'expo.out' }, 0.4);
+      tl.fromTo('.word', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power2.out', stagger: 0.07 }, 0.55);
+      tl.fromTo('#subtitle', { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: 'power2.out' }, 0.78);
+
+      // Close frame pulses to guide editor
+      tl.to('#vf-close', { scale: 1.01, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1 }, 1.0);
+
+      // Dot blink
+      tl.to('#ci-dot', { opacity: 0.3, duration: 0.5, ease: 'sine.inOut', yoyo: true, repeat: -1 }, 0.8);
+
+      window.__timelines['hf_dynamic'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

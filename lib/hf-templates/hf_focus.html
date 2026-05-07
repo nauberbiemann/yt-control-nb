@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    /* ── Panel de informação (direita) ─────────────────────────── */
+    .info-panel {
+      position: absolute;
+      right: 5%;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 580px;
+      padding: 52px 48px;
+      border-radius: 28px;
+      background: rgba(10, 10, 10, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      box-shadow:
+        0 40px 100px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      /* GSAP: começa fora da tela */
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    /* Label de categoria */
+    .panel-eyebrow {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #00FF88;
+      margin-bottom: 22px;
+    }
+
+    /* Linha divisora */
+    .panel-divider {
+      width: 48px;
+      height: 3px;
+      background: linear-gradient(90deg, #00FF88, transparent);
+      border-radius: 2px;
+      margin-bottom: 28px;
+    }
+
+    /* Headline */
+    .panel-headline {
+      font-size: 54px;
+      font-weight: 900;
+      line-height: 1.0;
+      letter-spacing: -0.04em;
+      color: #FFFFFF;
+      margin-bottom: 20px;
+    }
+
+    /* Subtítulo */
+    .panel-subtitle {
+      font-size: 26px;
+      font-weight: 400;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.70);
+      margin-bottom: 32px;
+    }
+
+    /* Métricas */
+    .panel-metrics {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      border-radius: 14px;
+      background: rgba(0, 255, 136, 0.09);
+      border: 1px solid rgba(0, 255, 136, 0.22);
+    }
+
+    .panel-metrics-icon {
+      font-size: 22px;
+    }
+
+    .panel-metrics-text {
+      font-size: 28px;
+      font-weight: 800;
+      color: #00FF88;
+      letter-spacing: -0.02em;
+    }
+
+    /* Linha vertical divisória (esquerda do painel) */
+    .panel-accent-line {
+      position: absolute;
+      right: calc(5% + 580px + 28px);
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 0;  /* GSAP anima para 320px */
+      background: linear-gradient(180deg, transparent, #00FF88 40%, transparent);
+      border-radius: 2px;
+      will-change: height;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="panel-accent-line" id="accent-line"></div>
+
+    <div class="info-panel" id="info-panel">
+      <div class="panel-eyebrow">DESTAQUE</div>
+      <div class="panel-divider"></div>
+      <div class="panel-headline" id="hf-title">{{TITLE}}</div>
+      <div class="panel-subtitle" id="hf-subtitle">{{SUBTITLE}}</div>
+      <div class="panel-metrics" id="hf-metrics" style="display: none;">
+        <span class="panel-metrics-icon">▲</span>
+        <span class="panel-metrics-text" id="hf-metrics-text">{{METRICS}}</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+
+      // Lê dados injetados pelo inject_and_render.py
+      const data = {{HF_DATA_JSON}};
+
+      // Popula os elementos ({{TITLE}} etc. já foram substituídos,
+      // mas o JSON garante consistência e permite lógica condicional)
+      const metricsEl = document.getElementById('hf-metrics');
+      if (data.metrics && data.metrics.trim() && data.metrics !== '—') {
+        metricsEl.style.display = 'flex';
+      }
+
+      const subtitleEl = document.getElementById('hf-subtitle');
+      if (!data.subtitle || data.subtitle === '—') {
+        subtitleEl.style.display = 'none';
+      }
+
+      // ── GSAP Timeline ─────────────────────────────────────────
+      const tl = gsap.timeline({ paused: true });
+
+      const panel    = document.getElementById('info-panel');
+      const line     = document.getElementById('accent-line');
+
+      // T=0: linha cresce de cima para baixo
+      tl.to(line, {
+        height: 320,
+        duration: 0.45,
+        ease: 'power2.out',
+      }, 0);
+
+      // T=0.15: painel desliza da direita + blur entry
+      gsap.set(panel, { x: 60, opacity: 0, filter: 'blur(12px)' });
+      tl.to(panel, {
+        x: 0,
+        opacity: 1,
+        filter: 'blur(0px)',
+        duration: 0.55,
+        ease: 'expo.out',
+      }, 0.15);
+
+      // T=0.5: elementos internos aparecem em stagger
+      const innerEls = panel.querySelectorAll(
+        '.panel-eyebrow, .panel-divider, .panel-headline, .panel-subtitle, .panel-metrics'
+      );
+      gsap.set(innerEls, { y: 12, opacity: 0 });
+      tl.to(innerEls, {
+        y: 0,
+        opacity: 1,
+        duration: 0.30,
+        ease: 'power2.out',
+        stagger: 0.07,
+      }, 0.50);
+
+      // T=1.0: leve breathing no painel (premium feel)
+      tl.to(panel, {
+        y: -4,
+        duration: 1.5,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      }, 1.0);
+
+      window.__timelines['hf_focus'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

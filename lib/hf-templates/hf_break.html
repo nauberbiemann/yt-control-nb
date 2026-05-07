@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: 'Inter', Arial, sans-serif; }
+    #root { position: relative; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+
+    /* Full-screen gradient backdrop */
+    .bg-layer {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 120% 100% at 50% 0%, rgba(0,180,255,0.12) 0%, transparent 60%),
+                  linear-gradient(160deg, #050810 0%, #08101a 50%, #030608 100%);
+      opacity: 0;
+      will-change: opacity;
+    }
+
+    /* Particle dots (CSS-only) */
+    .particles { position: absolute; inset: 0; overflow: hidden; }
+    .particle {
+      position: absolute; border-radius: 50%;
+      background: rgba(0, 180, 255, 0.6);
+      will-change: transform, opacity;
+    }
+
+    /* Kinetic text block */
+    .break-content {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 36px; padding: 0 220px;
+      text-align: center;
+    }
+
+    .break-eyebrow {
+      font-size: 22px; font-weight: 900; letter-spacing: 0.28em;
+      text-transform: uppercase; color: #00B4FF;
+      opacity: 0; will-change: transform, opacity;
+    }
+
+    .break-headline {
+      font-size: 108px; font-weight: 900; line-height: 0.92;
+      letter-spacing: -0.05em; color: #FFFFFF;
+      opacity: 0; will-change: transform, opacity;
+    }
+
+    .break-headline .word { display: inline-block; margin-right: 0.12em; }
+
+    .break-subtitle {
+      font-size: 36px; font-weight: 400; line-height: 1.4;
+      color: rgba(255,255,255,0.65); max-width: 1100px;
+      opacity: 0; will-change: transform, opacity;
+    }
+
+    /* Horizontal accent line */
+    .break-line {
+      position: absolute; bottom: 0; left: 0;
+      width: 0; height: 4px;
+      background: linear-gradient(90deg, transparent, #00B4FF 40%, #00FF88 100%);
+      border-radius: 2px;
+      will-change: width;
+    }
+
+    /* Metrics badge */
+    .break-metrics {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 18px 36px; border-radius: 50px;
+      background: rgba(0,180,255,0.12); border: 1px solid rgba(0,180,255,0.30);
+      font-size: 38px; font-weight: 900; color: #00B4FF;
+      opacity: 0; will-change: transform, opacity;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="bg-layer" id="bg"></div>
+    <div class="particles" id="particles"></div>
+    <div class="break-line" id="break-line"></div>
+
+    <div class="break-content">
+      <div class="break-eyebrow" id="eyebrow">MOMENTO CHAVE</div>
+      <div class="break-headline" id="headline"></div>
+      <div class="break-subtitle" id="subtitle">{{SUBTITLE}}</div>
+      <div class="break-metrics" id="metrics" style="display:none">
+        <span>▲</span><span id="metrics-text">{{METRICS}}</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      // Split headline into words for stagger animation
+      const headlineEl = document.getElementById('headline');
+      const words = (data.title || '{{TITLE}}').split(' ');
+      headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
+
+      if (!data.subtitle || data.subtitle === '—') document.getElementById('subtitle').style.display = 'none';
+      if (data.metrics && data.metrics !== '—') {
+        document.getElementById('metrics').style.display = 'inline-flex';
+        document.getElementById('metrics-text').textContent = data.metrics;
+      }
+
+      // Particles
+      const particlesEl = document.getElementById('particles');
+      for (let i = 0; i < 18; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = 3 + (i % 5) * 2;
+        p.style.cssText = `width:${size}px;height:${size}px;left:${(i * 57) % 100}%;top:${(i * 37 + 20) % 80}%;opacity:0`;
+        particlesEl.appendChild(p);
+      }
+
+      const tl = gsap.timeline({ paused: true });
+
+      // Bg fade in
+      tl.to('#bg', { opacity: 1, duration: 0.5, ease: 'power2.out' }, 0);
+
+      // Bottom line grows
+      tl.to('#break-line', { width: '100%', duration: 0.6, ease: 'expo.out' }, 0.1);
+
+      // Eyebrow
+      tl.fromTo('#eyebrow', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.2);
+
+      // Words stagger
+      tl.fromTo('.word', { y: 80, opacity: 0, rotationX: -45 }, {
+        y: 0, opacity: 1, rotationX: 0,
+        duration: 0.5, ease: 'expo.out', stagger: 0.08,
+      }, 0.35);
+
+      // Subtitle
+      tl.fromTo('#subtitle', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.65);
+
+      // Metrics
+      tl.fromTo('#metrics', { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(1.5)' }, 0.78);
+
+      // Particles float
+      tl.to('.particle', {
+        y: '-=30', opacity: 0.5, duration: 2, ease: 'sine.inOut',
+        yoyo: true, repeat: -1, stagger: 0.15,
+      }, 0.5);
+
+      window.__timelines['hf_break'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

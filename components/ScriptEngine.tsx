@@ -250,6 +250,34 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [templateFontFamily, setTemplateFontFamily] = useState('Inter');
   const [templateStyleProfile, setTemplateStyleProfile] = useState('Tech');
   const [templateGenResult, setTemplateGenResult] = useState<{ total: number; missing: string[] } | null>(null);
+
+  // Load Template Studio settings from localStorage
+  useEffect(() => {
+    if (activeProject?.id) {
+      const saved = localStorage.getItem(`template_studio_${activeProject.id}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.primaryColor) setTemplatePrimaryColor(parsed.primaryColor);
+          if (parsed.secondaryColor) setTemplateSecondaryColor(parsed.secondaryColor);
+          if (parsed.fontFamily) setTemplateFontFamily(parsed.fontFamily);
+          if (parsed.styleProfile) setTemplateStyleProfile(parsed.styleProfile);
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }, [activeProject?.id]);
+
+  // Save Template Studio settings to localStorage
+  useEffect(() => {
+    if (activeProject?.id && templatePrimaryColor) {
+      localStorage.setItem(`template_studio_${activeProject.id}`, JSON.stringify({
+        primaryColor: templatePrimaryColor,
+        secondaryColor: templateSecondaryColor,
+        fontFamily: templateFontFamily,
+        styleProfile: templateStyleProfile,
+      }));
+    }
+  }, [templatePrimaryColor, templateSecondaryColor, templateFontFamily, templateStyleProfile, activeProject?.id]);
   const [isValidatingTitles, setIsValidatingTitles] = useState(false);
   const [titleValidations, setTitleValidations] = useState<(TitleValidationResult | null)[] | null>(null);
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
@@ -4552,29 +4580,35 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Fonte</label>
-                      <select
-                        value={templateFontFamily}
-                        onChange={(e) => setTemplateFontFamily(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[12px] text-white/80 outline-none focus:border-purple-400/40"
-                      >
-                        <option value="Inter">Inter (padrão)</option>
-                        <option value="Outfit">Outfit (moderno)</option>
-                        <option value="Space Grotesk">Space Grotesk (tech)</option>
-                        <option value="Sora">Sora (suave)</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={templateFontFamily}
+                          onChange={(e) => setTemplateFontFamily(e.target.value)}
+                          className="w-full appearance-none rounded-xl border border-white/10 bg-[#12121a] px-3 py-2.5 text-[12px] text-white/90 outline-none focus:border-purple-400/40 hover:border-white/20 transition-colors cursor-pointer"
+                        >
+                          <option value="Inter" className="bg-[#12121a] text-white">Inter (padrão)</option>
+                          <option value="Outfit" className="bg-[#12121a] text-white">Outfit (moderno)</option>
+                          <option value="Space Grotesk" className="bg-[#12121a] text-white">Space Grotesk (tech)</option>
+                          <option value="Sora" className="bg-[#12121a] text-white">Sora (suave)</option>
+                        </select>
+                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Perfil de Estilo</label>
-                      <select
-                        value={templateStyleProfile}
-                        onChange={(e) => setTemplateStyleProfile(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[12px] text-white/80 outline-none focus:border-purple-400/40"
-                      >
-                        <option value="Tech">Tech / IA</option>
-                        <option value="Business">Business / Negócios</option>
-                        <option value="Education">Educação / Cursos</option>
-                        <option value="Lifestyle">Lifestyle / Motivação</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={templateStyleProfile}
+                          onChange={(e) => setTemplateStyleProfile(e.target.value)}
+                          className="w-full appearance-none rounded-xl border border-white/10 bg-[#12121a] px-3 py-2.5 text-[12px] text-white/90 outline-none focus:border-purple-400/40 hover:border-white/20 transition-colors cursor-pointer"
+                        >
+                          <option value="Tech" className="bg-[#12121a] text-white">Tech / IA</option>
+                          <option value="Business" className="bg-[#12121a] text-white">Business / Negócios</option>
+                          <option value="Education" className="bg-[#12121a] text-white">Educação / Cursos</option>
+                          <option value="Lifestyle" className="bg-[#12121a] text-white">Lifestyle / Motivação</option>
+                        </select>
+                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4582,7 +4616,13 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                 {/* Preview swatch */}
                 <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
                   <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Preview de Cores</p>
-                  <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: '#0a0a14' }}>
+                  
+                  {/* Dynamic font injection for preview */}
+                  <style dangerouslySetInnerHTML={{__html: `
+                    @import url('https://fonts.googleapis.com/css2?family=${templateFontFamily.replace(/ /g, '+')}:wght@400;700;800;900&display=swap');
+                  `}} />
+
+                  <div className="rounded-2xl overflow-hidden border border-white/10 relative" style={{ background: '#0a0a14' }}>
                     <div className="p-6 space-y-3">
                       <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: templatePrimaryColor }}>CANAL · INSIGHT PRINCIPAL</div>
                       <div className="text-2xl font-black text-white" style={{ fontFamily: `'${templateFontFamily}', Arial, sans-serif` }}>Título do Vídeo</div>

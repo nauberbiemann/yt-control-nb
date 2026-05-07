@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: 'Inter', Arial, sans-serif; }
+    #root { position: relative; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+
+    /* Floating card base */
+    .f-card {
+      position: absolute;
+      background: rgba(10, 12, 18, 0.88);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07);
+      padding: 36px 40px;
+      opacity: 0; will-change: transform, opacity;
+    }
+
+    /* Main card — headline */
+    #card-main {
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 700px; text-align: center;
+    }
+    .card-main-eyebrow {
+      font-size: 16px; font-weight: 900; letter-spacing: 0.22em;
+      text-transform: uppercase; color: #00FF88; margin-bottom: 16px;
+    }
+    .card-main-title {
+      font-size: 58px; font-weight: 900; line-height: 1.0;
+      letter-spacing: -0.04em; color: #FFFFFF;
+    }
+    .card-main-title .word { display: inline-block; margin-right: 0.1em; }
+
+    /* Side cards */
+    #card-left {
+      left: 4%; top: 50%; transform: translateY(-50%);
+      width: 340px;
+    }
+    #card-right {
+      right: 4%; top: 50%; transform: translateY(-50%);
+      width: 340px;
+    }
+    #card-bottom {
+      bottom: 8%; left: 50%; transform: translateX(-50%);
+      width: 580px;
+    }
+
+    .side-card-label {
+      font-size: 13px; font-weight: 900; letter-spacing: 0.2em;
+      text-transform: uppercase; color: rgba(0,255,136,0.7);
+      margin-bottom: 12px;
+    }
+    .side-card-text {
+      font-size: 26px; font-weight: 700; line-height: 1.3;
+      color: #FFFFFF;
+    }
+    .side-card-sub {
+      font-size: 18px; font-weight: 400; color: rgba(255,255,255,0.55);
+      margin-top: 8px; line-height: 1.4;
+    }
+
+    /* Subtitle/metrics bottom card */
+    #card-bottom { text-align: center; }
+    .bottom-text {
+      font-size: 28px; font-weight: 400; color: rgba(255,255,255,0.70);
+      line-height: 1.5;
+    }
+    .bottom-metric {
+      font-size: 42px; font-weight: 900; color: #00FF88;
+      margin-top: 10px;
+    }
+
+    /* Orbit lines (decorative) */
+    .orbit {
+      position: absolute; top: 50%; left: 50%;
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 50%; transform: translate(-50%, -50%);
+      will-change: opacity;
+    }
+    #orbit1 { width: 820px; height: 820px; }
+    #orbit2 { width: 1200px; height: 1200px; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="orbit" id="orbit1"></div>
+    <div class="orbit" id="orbit2"></div>
+
+    <!-- Main headline card (center) -->
+    <div class="f-card" id="card-main">
+      <div class="card-main-eyebrow">DESTAQUE</div>
+      <div class="card-main-title" id="main-title"></div>
+    </div>
+
+    <!-- Side cards -->
+    <div class="f-card" id="card-left">
+      <div class="side-card-label">PONTO 1</div>
+      <div class="side-card-text" id="side-left-text">{{SUBTITLE}}</div>
+    </div>
+
+    <div class="f-card" id="card-right">
+      <div class="side-card-label">IMPACTO</div>
+      <div class="side-card-text" id="side-right-text">{{METRICS}}</div>
+    </div>
+
+    <!-- Bottom metrics card -->
+    <div class="f-card" id="card-bottom">
+      <div class="bottom-text" id="bottom-sub">{{SUBTITLE}}</div>
+      <div class="bottom-metric" id="bottom-metric" style="display:none">{{METRICS}}</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      const titleEl = document.getElementById('main-title');
+      const words = (data.title || '{{TITLE}}').split(' ');
+      titleEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
+
+      const hasSubtitle = data.subtitle && data.subtitle !== '—';
+      const hasMetrics  = data.metrics  && data.metrics  !== '—';
+
+      if (!hasSubtitle) {
+        document.getElementById('card-left').style.display  = 'none';
+        document.getElementById('card-bottom').style.display = 'none';
+      } else {
+        document.getElementById('side-left-text').textContent = data.subtitle;
+        document.getElementById('bottom-sub').textContent     = data.subtitle;
+      }
+      if (!hasMetrics) {
+        document.getElementById('card-right').style.display  = 'none';
+      } else {
+        document.getElementById('side-right-text').textContent = data.metrics;
+        document.getElementById('bottom-metric').style.display = 'block';
+        document.getElementById('bottom-metric').textContent   = data.metrics;
+      }
+
+      const tl = gsap.timeline({ paused: true });
+
+      // Orbits fade in subtly
+      tl.fromTo(['.orbit'], { opacity: 0 }, { opacity: 1, duration: 0.8, ease: 'power2.out' }, 0);
+
+      // Main card pops in
+      tl.fromTo('#card-main', { scale: 0.85, opacity: 0, filter: 'blur(10px)' },
+        { scale: 1, opacity: 1, filter: 'blur(0px)', duration: 0.55, ease: 'back.out(1.3)' }, 0.1);
+
+      // Word stagger inside main
+      tl.fromTo('.word', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power2.out', stagger: 0.07 }, 0.4);
+
+      // Side cards fly in from sides
+      tl.fromTo('#card-left',  { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'expo.out' }, 0.5);
+      tl.fromTo('#card-right', { x:  60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'expo.out' }, 0.55);
+      tl.fromTo('#card-bottom',{ y:  50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'expo.out' }, 0.62);
+
+      // Idle float
+      tl.to('#card-main', { y: -8, duration: 2, ease: 'sine.inOut', yoyo: true, repeat: -1 }, 1.0);
+      tl.to('#card-left', { y:  6, duration: 2.3, ease: 'sine.inOut', yoyo: true, repeat: -1 }, 1.1);
+      tl.to('#card-right',{ y: -6, duration: 1.9, ease: 'sine.inOut', yoyo: true, repeat: -1 }, 1.2);
+
+      window.__timelines['hf_floating'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: 'Inter', Arial, sans-serif; }
+    #root { position: relative; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+
+    /* Dark ambient bg */
+    .holo-bg {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 80% at 20% 50%, rgba(0,100,255,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 60% at 80% 50%, rgba(0,200,180,0.12) 0%, transparent 60%),
+        linear-gradient(140deg, rgba(3,9,18,0.7) 0%, rgba(5,13,26,0.8) 50%, rgba(2,6,9,0.85) 100%);
+      opacity: 0; will-change: opacity;
+    }
+
+    /* Slow particles */
+    .holo-particle {
+      position: absolute; border-radius: 50%;
+      background: rgba(0, 160, 255, 0.45);
+      filter: blur(1px);
+      will-change: transform, opacity;
+    }
+
+    /* Holographic panel */
+    .holo-panel {
+      position: absolute;
+      background: rgba(0, 20, 40, 0.72);
+      border: 1px solid rgba(0, 200, 255, 0.20);
+      border-radius: 20px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow:
+        0 0 40px rgba(0, 180, 255, 0.08),
+        0 24px 60px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(0, 200, 255, 0.15);
+      opacity: 0; will-change: transform, opacity;
+    }
+
+    /* Main panel (right) */
+    #panel-main {
+      right: 5%; top: 50%; transform: translateY(-50%);
+      width: 620px; padding: 52px 48px;
+    }
+    .holo-eyebrow {
+      font-size: 15px; font-weight: 900; letter-spacing: 0.28em;
+      text-transform: uppercase; color: #00C8FF;
+      margin-bottom: 20px;
+    }
+    .holo-headline {
+      font-size: 56px; font-weight: 900; line-height: 1.0;
+      letter-spacing: -0.04em; color: #FFFFFF; margin-bottom: 22px;
+    }
+    .holo-headline .word { display: inline-block; margin-right: 0.1em; }
+    .holo-subtitle {
+      font-size: 24px; font-weight: 400; line-height: 1.5;
+      color: rgba(255,255,255,0.62); margin-bottom: 30px;
+    }
+    .holo-metrics {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 28px; border-radius: 12px;
+      background: rgba(0, 200, 255, 0.10);
+      border: 1px solid rgba(0, 200, 255, 0.22);
+      font-size: 36px; font-weight: 900; color: #00C8FF;
+    }
+
+    /* Top panel (detail) */
+    #panel-top {
+      left: 5%; top: 6%; width: 480px; padding: 28px 36px;
+    }
+    .panel-top-label { font-size: 13px; font-weight: 900; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(0,200,255,0.6); margin-bottom: 10px; }
+    .panel-top-text  { font-size: 22px; font-weight: 700; color: #FFFFFF; }
+
+    /* Bottom panel */
+    #panel-bottom {
+      left: 5%; bottom: 6%; width: 520px; padding: 24px 36px;
+    }
+    .panel-bottom-value { font-size: 52px; font-weight: 900; color: #00C8FF; }
+    .panel-bottom-label { font-size: 18px; font-weight: 400; color: rgba(255,255,255,0.50); margin-top: 4px; }
+
+    /* Scan line effect */
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,200,255,0.3), transparent);
+      top: 0; opacity: 0; will-change: top, opacity;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="holo-bg" id="holo-bg"></div>
+    <div class="scan-line" id="scan"></div>
+
+    <div class="holo-panel" id="panel-top">
+      <div class="panel-top-label">CONTEXTO</div>
+      <div class="panel-top-text" id="top-text">{{SUBTITLE}}</div>
+    </div>
+
+    <div class="holo-panel" id="panel-main">
+      <div class="holo-eyebrow">INSIGHT PRINCIPAL</div>
+      <div class="holo-headline" id="headline"></div>
+      <div class="holo-subtitle" id="subtitle">{{SUBTITLE}}</div>
+      <div class="holo-metrics" id="metrics" style="display:none">
+        <span>◆</span><span id="metrics-text">{{METRICS}}</span>
+      </div>
+    </div>
+
+    <div class="holo-panel" id="panel-bottom">
+      <div class="panel-bottom-value" id="bottom-value">{{METRICS}}</div>
+      <div class="panel-bottom-label">resultado mensurado</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      const headlineEl = document.getElementById('headline');
+      const words = (data.title || '{{TITLE}}').split(' ');
+      headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
+
+      const hasSubtitle = data.subtitle && data.subtitle !== '—';
+      const hasMetrics  = data.metrics  && data.metrics  !== '—';
+
+      if (!hasSubtitle) {
+        document.getElementById('panel-top').style.display  = 'none';
+        document.getElementById('subtitle').style.display   = 'none';
+      } else {
+        document.getElementById('top-text').textContent   = data.subtitle;
+        document.getElementById('subtitle').textContent   = data.subtitle;
+      }
+      if (!hasMetrics) {
+        document.getElementById('panel-bottom').style.display = 'none';
+      } else {
+        document.getElementById('metrics').style.display = 'inline-flex';
+        document.getElementById('metrics-text').textContent = data.metrics;
+        document.getElementById('bottom-value').textContent = data.metrics;
+      }
+
+      // Add particles
+      for (let i = 0; i < 12; i++) {
+        const p = document.createElement('div');
+        p.className = 'holo-particle';
+        const s = 2 + (i % 4) * 2;
+        p.style.cssText = `width:${s}px;height:${s}px;left:${10 + (i * 47) % 80}%;top:${10 + (i * 31) % 80}%;opacity:0`;
+        document.getElementById('root').appendChild(p);
+      }
+
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to('#holo-bg', { opacity: 1, duration: 0.6, ease: 'power2.out' }, 0);
+
+      // Scan line sweeps down
+      tl.fromTo('#scan', { top: '0%', opacity: 0.8 }, { top: '100%', opacity: 0, duration: 1.0, ease: 'none' }, 0);
+
+      tl.fromTo('#panel-top',    { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, ease: 'expo.out' }, 0.3);
+      tl.fromTo('#panel-main',   { x:  60, opacity: 0, filter: 'blur(8px)' }, { x: 0, opacity: 1, filter: 'blur(0px)', duration: 0.55, ease: 'expo.out' }, 0.4);
+      tl.fromTo('#panel-bottom', { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'expo.out' }, 0.52);
+
+      tl.fromTo('.word', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power2.out', stagger: 0.07 }, 0.6);
+      tl.fromTo('#metrics', { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(1.4)' }, 0.82);
+
+      tl.to('.holo-particle', { opacity: 0.5, y: '-=20', duration: 2.5, ease: 'sine.inOut', yoyo: true, repeat: -1, stagger: 0.2 }, 0.5);
+
+      window.__timelines['hf_holo'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

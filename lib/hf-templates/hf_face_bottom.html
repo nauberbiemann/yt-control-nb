@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: 'Inter', Arial, sans-serif; }
+    #root { position: relative; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+
+    /* Bottom-left avatar frame */
+    .avatar-frame {
+      position: absolute; left: 60px; bottom: 60px;
+      width: 340px; height: 340px; border-radius: 28px;
+      border: 2px solid rgba(255,255,255,0.18);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(0,200,255,0.08);
+      opacity: 0; will-change: transform, opacity;
+      /* Avatar placed here in CapCut */
+    }
+    .hud-corner { position: absolute; width: 20px; height: 20px; border-color: rgba(0,200,255,0.7); border-style: solid; }
+    .hud-tl { top: -1px; left: -1px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .hud-tr { top: -1px; right: -1px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .hud-bl { bottom: -1px; left: -1px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+    .hud-br { bottom: -1px; right: -1px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+    /* Label on frame */
+    .frame-label {
+      position: absolute; bottom: -36px; left: 0; right: 0;
+      text-align: center; font-size: 13px; font-weight: 900;
+      letter-spacing: 0.2em; text-transform: uppercase;
+      color: rgba(0,200,255,0.7);
+    }
+
+    /* Main content area (top) */
+    .main-content {
+      position: absolute; top: 0; left: 0; right: 0;
+      bottom: 460px;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 60px 120px;
+      opacity: 0; will-change: opacity, transform;
+    }
+
+    .mc-label { font-size: 16px; font-weight: 900; letter-spacing: 0.25em; text-transform: uppercase; color: #00C8FF; margin-bottom: 22px; }
+    .mc-headline { font-size: 82px; font-weight: 900; line-height: 0.95; letter-spacing: -0.04em; color: #FFFFFF; margin-bottom: 24px; }
+    .mc-headline .word { display: inline-block; margin-right: 0.1em; }
+    .mc-subtitle { font-size: 30px; font-weight: 400; color: rgba(255,255,255,0.65); line-height: 1.4; max-width: 1200px; }
+
+    /* Bottom info strip (right of frame) */
+    .bottom-strip {
+      position: absolute; left: 460px; bottom: 60px; right: 80px;
+      display: flex; flex-direction: column; justify-content: center; gap: 14px;
+      opacity: 0; will-change: opacity, transform;
+    }
+    .bs-metric { font-size: 52px; font-weight: 900; color: #00C8FF; }
+    .bs-desc   { font-size: 22px; font-weight: 400; color: rgba(255,255,255,0.55); }
+
+    /* Horizontal accent */
+    .h-accent {
+      position: absolute; left: 120px; bottom: 440px; height: 2px;
+      width: 0; background: linear-gradient(90deg, #00C8FF, transparent);
+      border-radius: 1px; will-change: width;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="h-accent" id="h-accent"></div>
+
+    <div class="main-content" id="main-content">
+      <div class="mc-label">ANÁLISE</div>
+      <div class="mc-headline" id="headline"></div>
+      <div class="mc-subtitle" id="subtitle">{{SUBTITLE}}</div>
+    </div>
+
+    <div class="avatar-frame" id="avatar-frame">
+      <div class="hud-corner hud-tl"></div>
+      <div class="hud-corner hud-tr"></div>
+      <div class="hud-corner hud-bl"></div>
+      <div class="hud-corner hud-br"></div>
+      <div class="frame-label">APRESENTADOR</div>
+    </div>
+
+    <div class="bottom-strip" id="bottom-strip">
+      <div class="bs-metric" id="metric-val">{{METRICS}}</div>
+      <div class="bs-desc">resultado mensurado</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      const headlineEl = document.getElementById('headline');
+      const words = (data.title || '{{TITLE}}').split(' ');
+      headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
+
+      if (!data.subtitle || data.subtitle === '—') document.getElementById('subtitle').style.display = 'none';
+      if (!data.metrics  || data.metrics  === '—') {
+        document.getElementById('bottom-strip').style.display = 'none';
+      } else {
+        document.getElementById('metric-val').textContent = data.metrics;
+      }
+
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to('#h-accent', { width: 600, duration: 0.5, ease: 'expo.out' }, 0);
+      tl.fromTo('#main-content', { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'expo.out' }, 0.15);
+      tl.fromTo('.word', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out', stagger: 0.07 }, 0.3);
+      tl.fromTo('#subtitle', { y: 14, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: 'power2.out' }, 0.6);
+      tl.fromTo('#avatar-frame', { scale: 0.9, y: 20, opacity: 0 }, { scale: 1, y: 0, opacity: 1, duration: 0.5, ease: 'back.out(1.3)' }, 0.45);
+      tl.fromTo('#bottom-strip', { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: 'expo.out' }, 0.65);
+
+      window.__timelines['hf_face_bottom'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

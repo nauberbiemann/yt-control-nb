@@ -174,6 +174,9 @@ const buildUserPrompt = ({
     JSON.stringify(chapterAnchors, null, 2),
     '',
     'HYPERFRAME ANCHORS (Gere um hfContextTitles para CADA um destes timestamps exatos):',
+    '-- Para cada anchor abaixo, o campo "bgPrompt" DEVE retratar visualmente o que esta sendo falado no campo "texto".',
+    '-- O bgPrompt e um prompt cinematic em ingles para gerador de imagem/video (Midjourney, Kling, etc.).',
+    '-- Descreva o CENARIO, AMBIENTE, LUZ e TEXTURA — nunca a pessoa ou avatar.',
     hfAnchors.length > 0 ? JSON.stringify(hfAnchors, null, 2) : 'Nenhum hyperframe detectado neste roteiro.',
     '',
     'PLANO DE SFX (obrigatorio seguir a logica abaixo):',
@@ -208,6 +211,7 @@ const buildUserPrompt = ({
     '- Use the three decision layers: structural anchors, semantic anchors and rhythmic anchors.',
     '- Do not create SFX events closer than 25 seconds from each other.',
     '- IMPORTANT: You MUST generate SFX events spanning the ENTIRE video duration, from the first anchor to the very last anchor. Do not stop early. Process all proposed anchors.',
+    '- CRITICAL: Every hfContextTitles entry MUST include a non-empty "bgPrompt" field. This field must visually translate the "texto" excerpt of that anchor into a cinematic scene description in English. It must describe only environment, setting, light, and texture — never the person or avatar. Length: 1-2 sentences, max 200 chars.',
   ].join('\n');
 };
 

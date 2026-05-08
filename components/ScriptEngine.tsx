@@ -95,7 +95,7 @@ interface ExecutionSnapshot {
   externalSrtPipeline: SrtAssetPipelineResult | null;
   externalSrtObserver: SrtPipelineObserverStep[];
   postScriptPackage: PostScriptPackage | null;
-  hfBgPrompts: Array<{ rowNumber: number; prompt: string }> | null;
+  hfBgPrompts?: Array<{ rowNumber: number; prompt: string }> | null;
   _themeId?: string; // stable ID to find the theme even after a title rename
 }
 

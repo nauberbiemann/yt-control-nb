@@ -883,11 +883,16 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       loadHeavyAssets();
 
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
-      // Restore HF background prompts (valid ones only — filter out error sentinels)
-      if (Array.isArray(snapshot?.hfBgPrompts) && snapshot.hfBgPrompts.length > 0) {
-        const validHf = snapshot.hfBgPrompts.filter((p: any) => p.rowNumber > 0 && p.prompt);
-        if (validHf.length > 0) setHfBgPrompts(validHf);
-      }
+      // Restore HF background prompts — dedicated key is primary, snapshot is fallback
+      try {
+        const hfKey = `yt_hf_bg_${executionStorageKey}`;
+        const hfRaw = localStorage.getItem(hfKey);
+        const hfSource = hfRaw ? JSON.parse(hfRaw) : snapshot?.hfBgPrompts;
+        if (Array.isArray(hfSource) && hfSource.length > 0) {
+          const validHf = hfSource.filter((p: any) => p.rowNumber > 0 && p.prompt);
+          if (validHf.length > 0) setHfBgPrompts(validHf);
+        }
+      } catch { /* ignore */ }
       
       if (pendingData && pendingData.approvedTheme) {
         onClearPending?.();
@@ -929,6 +934,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSrtPipeline,
     externalSrtObserver,
     postScriptPackage,
+    hfBgPrompts,
   ]);
 
   // Check storage usage on mount so the badge shows immediately if already high
@@ -4080,7 +4086,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                     if (!res.ok || data?.error) throw new Error(data?.error || `Erro ${res.status}`);
                                     if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
                                     setHfBgPrompts(data.prompts);
-                                    persistExecutionSnapshotLocally({ hfBgPrompts: data.prompts });
+                                    // Dedicated key — independent of snapshot to avoid race conditions
+                                    try { localStorage.setItem(`yt_hf_bg_${executionStorageKey}`, JSON.stringify(data.prompts)); } catch { /* ignore */ }
                                   } catch (err: any) {
                                     setHfBgPrompts([{ rowNumber: -1, prompt: err?.message || 'Falha desconhecida' }]);
                                   } finally {

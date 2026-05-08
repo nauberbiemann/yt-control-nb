@@ -108,8 +108,9 @@ export async function POST(req: NextRequest) {
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: userPrompt },
           ],
-          response_format: { type: 'json_object' },
-          temperature: 0.85,
+          // o-series models (o1, o3, o4-mini, etc.) don't support temperature or response_format
+          ...(!model.startsWith('o') && { response_format: { type: 'json_object' } }),
+          ...(!model.startsWith('o') && { temperature: 0.85 }),
         }),
       });
       const data = await res.json();

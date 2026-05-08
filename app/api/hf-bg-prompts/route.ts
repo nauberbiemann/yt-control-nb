@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 
-// ─── System prompt ─────────────────────────────────────────────────────────────
+export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `
-You are a visual prompt engineer for AI image and video generators (Midjourney, Kling, RunwayML, Sora).
+// ─── Reuses the same battle-tested functions from srt-pipeline ─────────────────
+// We send HF rows as 'image' batchItems with a special videoContext that instructs
+// the AI to generate cinematic backgrounds instead of generic b-roll.
 
-Your task: Given a Portuguese video excerpt and the visual template type being used at that moment,
-write a cinematic English scene description to use as a background image/video behind an avatar presenter.
-
-Rules:
-- Output in English only.
-- Do NOT describe people, faces, bodies, or the avatar itself.
-- Describe only: setting, environment, objects, lighting, texture, color palette, atmosphere.
-- The scene must visually reflect the THEME and EMOTION of the excerpt, not just repeat its words.
-- Each prompt must be 1-2 sentences. Maximum 200 characters.
-- Style: photorealistic, cinematic, high production value.
-- Use rich visual language: "shallow depth of field", "soft window light", "high contrast shadows", etc.
-- The prompt must be generator-ready — paste directly into Midjourney or Kling.
+const SYSTEM_INSTRUCTIONS = `
+You generate production-ready visual prompts for AI image and video generators (Midjourney, Kling, RunwayML).
+Return only valid JSON.
+Write every prompt in English.
+Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI overlays.
+Keep prompts concise, vivid, and generator-friendly.
 `.trim();
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface HfBgRow {
   rowNumber: number;
@@ -36,111 +30,104 @@ interface RouteBody {
   hfRows: HfBgRow[];
 }
 
-// ─── Response parser ───────────────────────────────────────────────────────────
-
-const parseJsonResponse = (raw: string): { prompts: Array<{ rowNumber: number; prompt: string }> } => {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('IA não retornou JSON válido para os prompts de fundo HF.');
-    return JSON.parse(match[0]);
+const parseJsonResponse = (raw: string): { prompts: Array<{ row_number?: number; rowNumber?: number; prompt: string }> } => {
+  try { return JSON.parse(raw); }
+  catch {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('IA não retornou JSON válido.');
+    return JSON.parse(m[0]);
   }
 };
 
-// ─── Route handler ─────────────────────────────────────────────────────────────
+const generateWithOpenAI = async (apiKey: string, model: string, userPrompt: string): Promise<string> => {
+  const requestBody: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: 'user', content: userPrompt },
+    ],
+    response_format: { type: 'json_object' },
+  };
+  if (!isReasoningModel(model)) {
+    requestBody.temperature = 0.7;
+  }
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || 'Falha OpenAI.');
+  return data?.choices?.[0]?.message?.content || '';
+};
+
+const generateWithGemini = async (apiKey: string, model: string, userPrompt: string): Promise<string> => {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: [SYSTEM_INSTRUCTIONS, userPrompt].join('\n\n') }] }],
+        generationConfig: { temperature: 0.7, response_mime_type: 'application/json' },
+      }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || 'Falha Gemini.');
+  return data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
+};
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RouteBody;
-    const { engine, model, apiKeyOverwrite, theme, hfRows } = body;
+    const { engine, model: rawModel, apiKeyOverwrite, theme, hfRows } = body;
 
     if (!hfRows?.length) {
       return NextResponse.json({ error: 'Nenhum HyperFrame fornecido.' }, { status: 400 });
     }
 
-    let apiKey = '';
-    if (engine === 'openai') {
-      apiKey = apiKeyOverwrite || process.env.OPENAI_API_KEY || '';
-    } else {
-      apiKey = apiKeyOverwrite || process.env.GEMINI_API_KEY || '';
-    }
+    const apiKey = (apiKeyOverwrite || (engine === 'openai' ? process.env.OPENAI_API_KEY : process.env.GEMINI_API_KEY) || '').trim();
+    if (!apiKey) return NextResponse.json({ error: `API Key para ${engine} não configurada.` }, { status: 401 });
 
-    if (!apiKey || apiKey === 'sua_chave_aqui') {
-      return NextResponse.json({ error: `API Key para ${engine} não configurada.` }, { status: 401 });
-    }
+    const model = resolveModel(rawModel);
 
-    // Build focused user prompt
     const rowLines = hfRows.map((r) =>
-      `[HF${r.rowNumber}] ${r.startTime} | template: ${r.visualState}\nExcerpt: "${r.texto}"`
-    ).join('\n\n');
+      `{"row_number": ${r.rowNumber}, "asset": "image", "template": "${r.visualState}", "excerpt": "${r.texto.replace(/"/g, "'")}"}`
+    ).join(',\n');
 
     const userPrompt = [
       `Video theme: "${theme}"`,
       '',
-      'For each HyperFrame below, generate a cinematic English background scene description.',
-      'The scene must visually interpret the theme and emotion of the excerpt — not just describe its words.',
+      'For each HyperFrame below, generate a cinematic English BACKGROUND scene description.',
+      'The background will appear BEHIND an avatar presenter in the video — so:',
+      '- Do NOT describe people, faces, or the avatar.',
+      '- Describe ONLY: setting, environment, objects, lighting, texture, atmosphere.',
+      '- The scene must visually interpret the THEME and EMOTION of the excerpt.',
+      '- Start every prompt with "Photorealistic still image of".',
+      '- 1-2 sentences, max 180 characters each.',
       '',
-      rowLines,
+      `Items: [${rowLines}]`,
       '',
-      'Return ONLY valid JSON in this exact shape:',
-      '{',
-      '  "prompts": [',
-      '    { "rowNumber": <number>, "prompt": "<English scene description>" },',
-      '    ...',
-      '  ]',
-      '}',
-      'Do not include markdown fences. Do not explain.',
+      'Return ONLY valid JSON: {"prompts":[{"row_number": <number>, "prompt": "<scene>"}]}',
     ].join('\n');
 
-    let rawContent = '';
-
-    if (engine === 'openai') {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          // o-series models (o1, o3, o4-mini, etc.) don't support temperature or response_format
-          ...(!model.startsWith('o') && { response_format: { type: 'json_object' } }),
-          ...(!model.startsWith('o') && { temperature: 0.85 }),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || 'Falha na chamada OpenAI.');
-      rawContent = data?.choices?.[0]?.message?.content || '';
-    } else {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: [SYSTEM_PROMPT, userPrompt].join('\n\n') }] }],
-            generationConfig: { temperature: 0.85, response_mime_type: 'application/json' },
-          }),
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || 'Falha na chamada Gemini.');
-      rawContent = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
-    }
+    const rawContent = engine === 'openai'
+      ? await generateWithOpenAI(apiKey, model, userPrompt)
+      : await generateWithGemini(apiKey, model, userPrompt);
 
     if (!rawContent) throw new Error('IA respondeu sem conteúdo.');
     const parsed = parseJsonResponse(rawContent);
 
-    if (!parsed?.prompts?.length) {
-      throw new Error('IA não retornou prompts válidos para os HyperFrames.');
-    }
+    // Normalize row_number → rowNumber
+    const prompts = (parsed.prompts || []).map(p => ({
+      rowNumber: Number(p.row_number ?? p.rowNumber),
+      prompt: String(p.prompt || '').trim(),
+    })).filter(p => p.rowNumber > 0 && p.prompt);
 
-    return NextResponse.json({ prompts: parsed.prompts });
+    if (!prompts.length) throw new Error('IA não retornou prompts válidos para os HyperFrames.');
+
+    return NextResponse.json({ prompts });
   } catch (err: any) {
     console.error('[hf-bg-prompts]', err);
     return NextResponse.json({ error: err?.message || 'Falha ao gerar prompts de fundo HF.' }, { status: 500 });

@@ -4028,17 +4028,20 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem</p>
-                              <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_imagem.txt`.</p>
+                              <p className="text-[10px] text-white/40 mt-1">
+                                Saida equivalente ao arquivo `_prompts_imagem.txt`.{' '}
+                                {(() => { const n = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe').length; return n > 0 ? <span className="text-violet-400">{n} HF detectado{n > 1 ? 's' : ''}</span> : <span className="text-white/20">0 HF</span>; })()}
+                              </p>
                             </div>
                             <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  if (!externalSrtPipeline) return;
-                                  const hfRows = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe');
-                                  if (!hfRows.length) { showToast('Nenhum HyperFrame detectado neste SRT.'); return; }
                                   setIsGeneratingHfBg(true);
+                                  setHfBgPrompts(null);
                                   try {
+                                    const hfRows = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe');
+                                    if (!hfRows.length) throw new Error('Nenhum HyperFrame encontrado. Processe o pipeline (Etapa 4) primeiro.');
                                     const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
                                     const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-4.1';
                                     const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
@@ -4054,30 +4057,40 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                           rowNumber: r.rowNumber,
                                           startTime: r.startTime,
                                           texto: r.texto,
-                                          visualState: postScriptPackage?.hfContextTitles?.find(c => c.timestamp && Math.abs((() => { const p = c.timestamp.replace(/[\[\]]/g,'').split(':').map(Number); return p.length === 2 ? p[0]*60+p[1] : p[0]*3600+p[1]*60+(p[2]||0); })() - (() => { const [h,m,s] = r.startTime.split(':'); const [sc] = s.split(','); return Number(h)*3600+Number(m)*60+Number(sc); })()) <= 12)?.visualState || 'hf_focus',
+                                          visualState: postScriptPackage?.hfContextTitles?.find(c => {
+                                            if (!c?.timestamp) return false;
+                                            const clean = c.timestamp.replace(/[\[\]]/g,'');
+                                            const parts = clean.split(':').map(Number);
+                                            const cSec = parts.length === 2 ? parts[0]*60+parts[1] : parts[0]*3600+parts[1]*60+(parts[2]||0);
+                                            const [rh,rm,rs] = r.startTime.split(':');
+                                            const rSec = Number(rh)*3600 + Number(rm)*60 + Number((rs||'0').split(',')[0]);
+                                            return Math.abs(cSec - rSec) <= 12;
+                                          })?.visualState || 'hf_focus',
                                         })),
                                       }),
                                     });
                                     const data = await res.json();
-                                    if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao gerar prompts.');
+                                    if (!res.ok || data?.error) throw new Error(data?.error || `Erro ${res.status}`);
+                                    if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
                                     setHfBgPrompts(data.prompts);
-                                    showToast(`✅ ${data.prompts.length} prompt(s) de fundo gerado(s)!`);
                                   } catch (err: any) {
-                                    showToast(`❌ ${err?.message || 'Falha ao gerar prompts de fundo HF.'}`);
+                                    setHfBgPrompts([{ rowNumber: -1, prompt: err?.message || 'Falha desconhecida' }]);
                                   } finally {
                                     setIsGeneratingHfBg(false);
                                   }
                                 }}
-                                disabled={isGeneratingHfBg || !externalSrtPipeline}
-                                className="rounded-xl border border-violet-500/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-violet-300 hover:border-violet-400/60 hover:text-violet-200 disabled:opacity-40"
+                                disabled={isGeneratingHfBg}
+                                className="rounded-xl border border-violet-500/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-violet-300 hover:border-violet-400/60 hover:text-violet-200 disabled:opacity-50 transition-all"
                               >
-                                {isGeneratingHfBg ? '...' : '⚡ Fundos HF'}
+                                {isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF'}
                               </button>
+                              <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const hfLines = hfBgPrompts ? ('\n' + hfBgPrompts.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
-                                  copyTextToClipboard(externalSrtPipeline.imagePromptsTxt + hfLines, 'Prompts de imagem copiados.');
+                                  const validHf = (hfBgPrompts || []).filter(p => p.rowNumber !== -1);
+                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
+                                  copyTextToClipboard(externalSrtPipeline.imagePromptsTxt + hfLines, 'Prompts copiados.');
                                 }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
@@ -4086,20 +4099,34 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const hfLines = hfBgPrompts ? ('\n' + hfBgPrompts.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
+                                  const validHf = (hfBgPrompts || []).filter(p => p.rowNumber !== -1);
+                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
                                   downloadTextArtifact(srtArtifactStem, 'prompts_imagem', externalSrtPipeline.imagePromptsTxt + hfLines);
                                 }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <FileText size={12} className="inline mr-2" /> TXT
                               </button>
+                              </div>
                             </div>
                           </div>
+                          {/* Inline error banner */}
+                          {hfBgPrompts?.[0]?.rowNumber === -1 && (
+                            <div className="rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-[11px] text-red-300">
+                              ❌ {hfBgPrompts[0].prompt}
+                            </div>
+                          )}
+                          {/* Success banner */}
+                          {hfBgPrompts && hfBgPrompts[0]?.rowNumber !== -1 && (
+                            <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-2 text-[11px] text-violet-300">
+                              ✅ {hfBgPrompts.length} fundo(s) gerado(s) — veja abaixo no textarea
+                            </div>
+                          )}
                           <textarea
                             readOnly
                             value={[
                               externalSrtPipeline.imagePromptsTxt,
-                              ...(hfBgPrompts ? hfBgPrompts.map(p => `HF${p.rowNumber}: ${p.prompt}`) : []),
+                              ...((hfBgPrompts || []).filter(p => p.rowNumber !== -1).map(p => `HF${p.rowNumber}: ${p.prompt}`)),
                             ].filter(Boolean).join('\n') || 'Nenhum prompt de imagem foi gerado para este SRT.'}
                             className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />

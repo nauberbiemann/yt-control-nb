@@ -95,6 +95,7 @@ interface ExecutionSnapshot {
   externalSrtPipeline: SrtAssetPipelineResult | null;
   externalSrtObserver: SrtPipelineObserverStep[];
   postScriptPackage: PostScriptPackage | null;
+  hfBgPrompts: Array<{ rowNumber: number; prompt: string }> | null;
   _themeId?: string; // stable ID to find the theme even after a title rename
 }
 
@@ -532,6 +533,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSrtPipeline,
     externalSrtObserver,
     postScriptPackage,
+    hfBgPrompts,
     ...overrides,
   });
 
@@ -881,6 +883,11 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       loadHeavyAssets();
 
       if (Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0) setExternalSrtObserver(snapshot.externalSrtObserver);
+      // Restore HF background prompts (valid ones only — filter out error sentinels)
+      if (Array.isArray(snapshot?.hfBgPrompts) && snapshot.hfBgPrompts.length > 0) {
+        const validHf = snapshot.hfBgPrompts.filter((p: any) => p.rowNumber > 0 && p.prompt);
+        if (validHf.length > 0) setHfBgPrompts(validHf);
+      }
       
       if (pendingData && pendingData.approvedTheme) {
         onClearPending?.();
@@ -4073,6 +4080,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                     if (!res.ok || data?.error) throw new Error(data?.error || `Erro ${res.status}`);
                                     if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
                                     setHfBgPrompts(data.prompts);
+                                    persistExecutionSnapshotLocally({ hfBgPrompts: data.prompts });
                                   } catch (err: any) {
                                     setHfBgPrompts([{ rowNumber: -1, prompt: err?.message || 'Falha desconhecida' }]);
                                   } finally {

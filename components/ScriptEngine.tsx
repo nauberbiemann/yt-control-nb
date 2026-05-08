@@ -18,7 +18,7 @@ import {
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
 } from '@/lib/srt-asset-pipeline';
-import { buildHyperframesBat, buildHfBackgroundPromptsTxt, enrichImagePromptsTxt } from '@/lib/hyperframes-overlay';
+import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
 import { buildSfxBatFromTimeline } from '@/lib/sfx-generator';
 import {
@@ -243,6 +243,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isRenderingTextAssets, setIsRenderingTextAssets] = useState(false);
   const [isGeneratingPostScriptPackage, setIsGeneratingPostScriptPackage] = useState(false);
   const [isRegeneratingFallbacks, setIsRegeneratingFallbacks] = useState(false);
+  // HyperFrame Background Prompts
+  const [hfBgPrompts, setHfBgPrompts] = useState<Array<{ rowNumber: number; prompt: string }> | null>(null);
+  const [isGeneratingHfBg, setIsGeneratingHfBg] = useState(false);
   // Template Studio
   const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
@@ -4024,20 +4027,68 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem + HyperFrames</p>
-                              <p className="text-[10px] text-white/40 mt-1">Imagens b-roll + fundos HF (prefixo <code>HF</code>). Arquivo `_prompts_imagem.txt`.</p>
+                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem</p>
+                              <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_imagem.txt`.</p>
                             </div>
                             <div className="flex gap-2">
                               <button
                                 type="button"
-                                onClick={() => copyTextToClipboard(enrichImagePromptsTxt(externalSrtPipeline.imagePromptsTxt, externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe'), postScriptPackage?.hfContextTitles ?? []), 'Prompts de imagem copiados.')}
+                                onClick={async () => {
+                                  if (!externalSrtPipeline) return;
+                                  const hfRows = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe');
+                                  if (!hfRows.length) { showToast('Nenhum HyperFrame detectado neste SRT.'); return; }
+                                  setIsGeneratingHfBg(true);
+                                  try {
+                                    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+                                    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-4.1';
+                                    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+                                    const res = await fetch('/api/hf-bg-prompts', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        engine,
+                                        model,
+                                        apiKeyOverwrite: apiKey,
+                                        theme: approvedTheme || externalSrtFileName || 'video',
+                                        hfRows: hfRows.map(r => ({
+                                          rowNumber: r.rowNumber,
+                                          startTime: r.startTime,
+                                          texto: r.texto,
+                                          visualState: postScriptPackage?.hfContextTitles?.find(c => c.timestamp && Math.abs((() => { const p = c.timestamp.replace(/[\[\]]/g,'').split(':').map(Number); return p.length === 2 ? p[0]*60+p[1] : p[0]*3600+p[1]*60+(p[2]||0); })() - (() => { const [h,m,s] = r.startTime.split(':'); const [sc] = s.split(','); return Number(h)*3600+Number(m)*60+Number(sc); })()) <= 12)?.visualState || 'hf_focus',
+                                        })),
+                                      }),
+                                    });
+                                    const data = await res.json();
+                                    if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao gerar prompts.');
+                                    setHfBgPrompts(data.prompts);
+                                    showToast(`✅ ${data.prompts.length} prompt(s) de fundo gerado(s)!`);
+                                  } catch (err: any) {
+                                    showToast(`❌ ${err?.message || 'Falha ao gerar prompts de fundo HF.'}`);
+                                  } finally {
+                                    setIsGeneratingHfBg(false);
+                                  }
+                                }}
+                                disabled={isGeneratingHfBg || !externalSrtPipeline}
+                                className="rounded-xl border border-violet-500/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-violet-300 hover:border-violet-400/60 hover:text-violet-200 disabled:opacity-40"
+                              >
+                                {isGeneratingHfBg ? '...' : '⚡ Fundos HF'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const hfLines = hfBgPrompts ? ('\n' + hfBgPrompts.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
+                                  copyTextToClipboard(externalSrtPipeline.imagePromptsTxt + hfLines, 'Prompts de imagem copiados.');
+                                }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <Copy size={12} className="inline mr-2" /> Copiar
                               </button>
                               <button
                                 type="button"
-                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_imagem', enrichImagePromptsTxt(externalSrtPipeline.imagePromptsTxt, externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe'), postScriptPackage?.hfContextTitles ?? []))}
+                                onClick={() => {
+                                  const hfLines = hfBgPrompts ? ('\n' + hfBgPrompts.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
+                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', externalSrtPipeline.imagePromptsTxt + hfLines);
+                                }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <FileText size={12} className="inline mr-2" /> TXT
@@ -4046,7 +4097,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           </div>
                           <textarea
                             readOnly
-                            value={enrichImagePromptsTxt(externalSrtPipeline.imagePromptsTxt, externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe'), postScriptPackage?.hfContextTitles ?? []) || 'Nenhum prompt de imagem foi gerado para este SRT.'}
+                            value={[
+                              externalSrtPipeline.imagePromptsTxt,
+                              ...(hfBgPrompts ? hfBgPrompts.map(p => `HF${p.rowNumber}: ${p.prompt}`) : []),
+                            ].filter(Boolean).join('\n') || 'Nenhum prompt de imagem foi gerado para este SRT.'}
                             className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />
                         </div>

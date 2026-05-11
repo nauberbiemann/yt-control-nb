@@ -9,6 +9,7 @@ export interface SrtAssetRow {
   prompt: string;
   caminho: string;
   isFallback?: boolean;
+  texto_adicional?: string;
 }
 
 export interface SrtAssetStats {
@@ -176,6 +177,7 @@ export const parseCsvToRows = (csvContent: string): SrtAssetRow[] => {
       asset: normalizeAssetType(row[headerMap.get('asset') ?? -1] || ''),
       prompt: row[headerMap.get('prompt') ?? -1] || '',
       caminho: row[headerMap.get('caminho') ?? -1] || '',
+      texto_adicional: row[headerMap.get('texto_adicional') ?? -1] || '',
     }));
 };
 
@@ -240,7 +242,7 @@ const csvEscape = (value: string) => {
 };
 
 export const serializeRowsToCsv = (rows: SrtAssetRow[]) => {
-  const headers = ['start time', 'end time', 'texto', 'asset', 'prompt', 'caminho'];
+  const headers = ['start time', 'end time', 'texto', 'asset', 'prompt', 'caminho', 'texto_adicional'];
   const lines = [
     headers.join(','),
     ...rows.map((row) => [
@@ -250,6 +252,7 @@ export const serializeRowsToCsv = (rows: SrtAssetRow[]) => {
       csvEscape(normalizeAssetType(row.asset)),
       csvEscape(row.prompt),
       csvEscape(row.caminho),
+      csvEscape(row.texto_adicional ?? ''),
     ].join(',')),
   ];
 

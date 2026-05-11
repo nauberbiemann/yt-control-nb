@@ -12,7 +12,7 @@ import {
 
 const BATCH_SIZE_DEFAULT = 4;
 const BATCH_SIZE_REASONING = 2; // Reasoning models handle smaller batches more reliably
-const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto']);
+const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
 
 export const maxDuration = 60;
 
@@ -51,6 +51,18 @@ Rules for asset types:
   - Your prompt MUST ONLY be the EXACT name of the chosen style as written in the list. Do not add any other words.
   - Vary your choices across the sequence to create visual diversity. Do not use the same style for every text entry.
   - Style guidance: Neon = tech/hacker/matrix energy. Clean = calm/reflective/minimal. Impact = urgency/alarm/strong statements. Frost = futuristic/analytical/cool. Gold = elegant/important/prestigious.
+- asset == "hyperframe":
+  - The template_name specifies the layout schema required.
+  - Do NOT generate a visual prompt. Instead, extract the key message from the subtitle text and generate structured JSON for the layout.
+  - Return the structured JSON inside the 'texto_adicional' property. The 'prompt' property should just echo the template_name.
+  - Schemas:
+    - hf_break: {"titulo": "Main Idea (max 3 words)", "pontos": ["Point 1", "Point 2", "Point 3"]}
+    - hf_face_top: {"headline": "Impactful statement (max 6 words)"}
+    - hf_focus: {"titulo": "Focus Word", "subtitulo": "Supporting context"}
+    - hf_double: {"painel_esquerdo": "Left concept", "painel_direito": "Right concept"}
+    - hf_floating: {"elementos": ["Keyword 1", "Keyword 2", "Keyword 3", "Keyword 4"]}
+    - hf_vertical: {"texto_vertical": "VERTICAL IMPACT", "rodape": "Conclusion"}
+  - Write all generated text in the exact language of the subtitle text (usually Portuguese).
 
 Context rules:
 - Use the current subtitle text as the main source of meaning.
@@ -63,7 +75,8 @@ Context rules:
 
 interface PromptBatchItem {
   row_number: number;
-  asset: 'video' | 'image' | 'text';
+  asset: 'video' | 'image' | 'text' | 'hyperframe';
+  template_name?: string;
   text: string;
   start_time: string;
   end_time: string;
@@ -76,6 +89,7 @@ interface PromptResponseShape {
   prompts?: Array<{
     row_number?: number;
     prompt?: string;
+    texto_adicional?: any;
   }>;
 }
 
@@ -117,7 +131,8 @@ const buildPromptItems = (rows: SrtAssetRow[]) =>
 
     return [{
       row_number: row.rowNumber,
-      asset: normalizeAssetType(row.asset) === 'texto' ? ('text' as const) : (normalizeAssetType(row.asset) === 'vídeo' ? ('video' as const) : ('image' as const)),
+      asset: normalizeAssetType(row.asset) === 'texto' ? ('text' as const) : (normalizeAssetType(row.asset) === 'hyperframe' ? ('hyperframe' as const) : (normalizeAssetType(row.asset) === 'vídeo' ? ('video' as const) : ('image' as const))),
+      template_name: normalizeAssetType(row.asset) === 'hyperframe' ? row.prompt.replace('hf:', '') : undefined,
       text: row.texto.trim(),
       start_time: row.startTime,
       end_time: row.endTime,
@@ -144,13 +159,13 @@ const fallbackRows = new Set<number>();
 
 const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseShape) => {
   const expectedRows = new Set(items.map((item) => item.row_number));
-  const promptMap = new Map<number, string>();
+  const promptMap = new Map<number, { prompt: string; texto_adicional?: any }>();
 
   for (const promptItem of payload.prompts || []) {
     const rowNumber = Number(promptItem?.row_number);
     const prompt = sanitizePrompt(promptItem?.prompt || '');
-    if (!expectedRows.has(rowNumber) || !prompt) continue;
-    promptMap.set(rowNumber, prompt);
+    if (!expectedRows.has(rowNumber) || (!prompt && promptItem.texto_adicional === undefined)) continue;
+    promptMap.set(rowNumber, { prompt, texto_adicional: promptItem.texto_adicional });
   }
 
   // If the AI returned fewer prompts than expected, fill missing ones with a safe fallback
@@ -164,10 +179,12 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
         const fallback =
           item.asset === 'text'
             ? 'Clean'
+            : item.asset === 'hyperframe'
+            ? item.template_name || 'hf_break'
             : item.asset === 'image'
             ? `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`
             : `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
-        promptMap.set(item.row_number, fallback);
+        promptMap.set(item.row_number, { prompt: fallback });
         fallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
       }
     }
@@ -212,7 +229,7 @@ const generateBatchWithOpenAI = async ({
       {
         role: 'user',
         content: [
-          'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
+          'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
           `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
           `Available Text Styles: ${textStyles}`,
@@ -279,7 +296,7 @@ const generateBatchWithGemini = async ({
           parts: [{
             text: [
               SYSTEM_INSTRUCTIONS,
-              'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"..."}]}.',
+              'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
               `Available Text Styles: ${textStyles}`,
@@ -341,6 +358,7 @@ const generatePromptMap = async ({
 
   const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
   const promptMap = new Map<number, string>();
+  const textoAdicionalMap = new Map<number, any>();
 
   // Faceless mode: suppress character entirely and request full-screen compositions
   const facelessHint = videoFormat === 'faceless'
@@ -353,12 +371,15 @@ const generatePromptMap = async ({
       : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint });
 
     const validatedBatch = validatePromptBatch(batch, payload);
-    validatedBatch.forEach((prompt, rowNumber) => {
-      promptMap.set(rowNumber, prompt);
+    validatedBatch.forEach((val, rowNumber) => {
+      promptMap.set(rowNumber, val.prompt);
+      if (val.texto_adicional) {
+        textoAdicionalMap.set(rowNumber, val.texto_adicional);
+      }
     });
   }
 
-  return promptMap;
+  return { promptMap, textoAdicionalMap };
 };
 
 export async function POST(req: NextRequest) {
@@ -382,7 +403,7 @@ export async function POST(req: NextRequest) {
       }
 
       const promptItems = body.batchItems as PromptBatchItem[];
-      const promptMap = await generatePromptMap({
+      const { promptMap, textoAdicionalMap } = await generatePromptMap({
         engine,
         model,
         apiKey,
@@ -398,6 +419,7 @@ export async function POST(req: NextRequest) {
         prompt: item.asset === 'video'
           ? enforceVideoPromptGuards(promptMap.get(item.row_number) || '', characterDescription)
           : promptMap.get(item.row_number) || '',
+        texto_adicional: textoAdicionalMap.get(item.row_number),
         isFallback: fallbackRows.has(item.row_number), // 🏷️ Let UI know which rows need regeneration
       }));
 
@@ -433,7 +455,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const promptMap = await generatePromptMap({
+      const { promptMap, textoAdicionalMap } = await generatePromptMap({
         engine,
         model,
         apiKey,
@@ -448,6 +470,7 @@ export async function POST(req: NextRequest) {
         prompt: normalizeAssetType(row.asset) === 'vídeo'
           ? enforceVideoPromptGuards(promptMap.get(row.rowNumber) || row.prompt, characterDescription)
           : promptMap.get(row.rowNumber) || row.prompt,
+        texto_adicional: textoAdicionalMap.get(row.rowNumber),
       }));
     }
 

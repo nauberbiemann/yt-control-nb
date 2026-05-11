@@ -1826,7 +1826,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const promptItems = finalRows.flatMap((row, index) => {
         const type = normalizeAssetType(row.asset);
-        const isEligible = type === 'vídeo' || type === 'imagem' || (type === 'texto' && textStyleMode === 'auto');
+        const isEligible = type === 'vídeo' || type === 'imagem' || type === 'hyperframe' || (type === 'texto' && textStyleMode === 'auto');
         if (!isEligible) return [];
 
         const previousText = assetRows[index - 1]?.texto?.trim() || '';
@@ -1837,7 +1837,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   
         return [{
           row_number: row.rowNumber,
-          asset: type === 'texto' ? 'text' : (type === 'vídeo' ? 'video' : 'image'),
+          asset: type === 'texto' ? 'text' : (type === 'hyperframe' ? 'hyperframe' : (type === 'vídeo' ? 'video' : 'image')),
+          template_name: type === 'hyperframe' ? row.prompt.replace('hf:', '') : undefined,
           text: row.texto.trim(),
           start_time: row.startTime,
           end_time: row.endTime,
@@ -1848,6 +1849,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       });
 
       const promptMap = new Map<number, string>();
+      const textoAdicionalMap = new Map<number, string>();
       const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
       const chunkSize = 2;
       const chunks = [];
@@ -1892,9 +1894,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           throw new Error(data?.error || `Falha ao processar lote ${i + 1} do SRT.`);
         }
 
-        (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean }) => {
+        (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean; texto_adicional?: string }) => {
           if (p.rowNumber && p.prompt) {
             promptMap.set(p.rowNumber, p.prompt);
+            if (p.texto_adicional) {
+              textoAdicionalMap.set(p.rowNumber, typeof p.texto_adicional === 'string' ? p.texto_adicional : JSON.stringify(p.texto_adicional));
+            }
             if (p.isFallback) fallbackRowNumbers.add(p.rowNumber);
           }
         });
@@ -1908,6 +1913,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         return {
           ...row,
           prompt: finalPrompt,
+          texto_adicional: textoAdicionalMap.get(row.rowNumber) || row.texto_adicional,
           isFallback: fallbackRowNumbers.has(row.rowNumber), // 🏷️ Used for regeneration UI
         };
       });

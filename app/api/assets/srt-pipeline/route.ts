@@ -31,13 +31,13 @@ Rules for asset types:
 - asset == "video":
   - First, identify what is being described in the subtitle text: a concept, feeling, process, place, or personal moment.
   - CRITICAL: The recurring character is OPTIONAL. Only include the character if the subtitle text explicitly references a PERSONAL, SUBJECTIVE, or FIRST-PERSON experience (memory, personal decision, emotional moment, first-person narrative using "I", "my", "me", or clearly describing the narrator's own experience).
-  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (brain chemistry, code architecture, attention mechanisms, cognitive load, data structures, invisible processes, team dynamics as metaphor): ALWAYS use 3D technical animation WITHOUT the character. The prompt must begin with "3D technical animation of".
-  - If the text describes an ENVIRONMENT or SITUATION (workplace, meeting, nature, specific place) WITHOUT personal reference: visualize that specific environment WITHOUT the character.
+  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (brain chemistry, code architecture, attention mechanisms, cognitive load, data structures, invisible processes, team dynamics as metaphor): ALWAYS use 3D technical animation WITHOUT the character. The prompt must begin with "3D technical animation of". CRITICAL: do NOT mention any person, human, man, woman, or character of any kind in these prompts — not even generically (e.g. NEVER write "a person in their forties" or "a human figure"). The scene must be purely conceptual, mechanical, or abstract.
+  - If the text describes an ENVIRONMENT or SITUATION (workplace, meeting, nature, specific place) WITHOUT personal reference: visualize that specific environment WITHOUT the character. Do NOT mention any generic person or human in these prompts.
   - If the text is narrative/conceptual ("the team starts to...", "when a system...", "engineers know..."): do NOT include the character — use abstract or environmental visuals instead.
   - Only use the character for clear first-person moments ("I believed...", "I had a process...", "When I collapsed...", "I arrived home...").
-  - For live-action prompts WITH character: begin with "Realistic cinematic video of" and include the recurring character. Always add ambient sound only, no dialogue, no voice-over.
+  - For live-action prompts WITH character: begin with "Realistic cinematic video of" and include the recurring character. CRITICAL: when including the character, copy the exact character description provided under 'Recurring character reference' word for word — do NOT paraphrase, summarize, or substitute with generic terms like "a person", "a woman", or "someone". Always add ambient sound only, no dialogue, no voice-over.
   - For 3D/abstract prompts WITHOUT character: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
-  - NEVER force the character into a technical or conceptual scene. NEVER default to a generic scene of "person at desk" when the content is conceptual.
+  - NEVER force the character into a technical or conceptual scene. NEVER default to a generic scene of "person at desk" when the content is conceptual. NEVER leak any part of the character description (age, gender, profession) into prompts where the character is absent.
 - asset == "image":
   - Always create a realistic still image prompt.
   - The image must directly illustrate the SPECIFIC concept, object, emotion, or situation described in the subtitle text.

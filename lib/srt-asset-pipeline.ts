@@ -302,8 +302,12 @@ const HF_TEMPLATES = {
   midLate:      'hf_vertical',    // ~67% technical/analysis mid-second-half
 } as const;
 
+// Phase B (editor-hyperframes): minimum scene duration to guarantee GSAP animations complete fully
+const MIN_HF_DURATION_MS = 5_000;
+
 /** Returns index of the avatar row closest to targetRatio (0–1) of total rows,
- *  excluding the protected first/last 10% and already-used rows. */
+ *  excluding the protected first/last 10%, already-used rows, and rows shorter
+ *  than MIN_HF_DURATION_MS (Phase B: GSAP animations need at least 5s to play). */
 const findClosestAvatarRow = (
   rows: SrtAssetRow[],
   targetRatio: number,
@@ -320,6 +324,9 @@ const findClosestAvatarRow = (
   for (let i = guardStart; i < guardEnd; i++) {
     if (usedIndices.has(i)) continue;
     if (normalizeAssetType(rows[i].asset) !== 'avatar') continue;
+    // Phase B: skip rows too short for the HyperFrame animation to complete
+    const durationMs = parseSrtTimeToMs(rows[i].endTime) - parseSrtTimeToMs(rows[i].startTime);
+    if (durationMs < MIN_HF_DURATION_MS) continue;
     const dist = Math.abs(i - target);
     if (dist < bestDist) {
       bestDist = dist;
@@ -331,7 +338,7 @@ const findClosestAvatarRow = (
 };
 
 /**
- * Injects up to 4 'hyperframe' rows into the classified asset array.
+ * Injects up to 6 'hyperframe' rows into the classified asset array.
  * Only acts on 'avatar' rows — never overrides texto, imagem, or vídeo.
  * Each hyperframe row has its template stored in the prompt field (prefix hf:).
  *
@@ -340,19 +347,36 @@ const findClosestAvatarRow = (
  *  2. ~17% — avatar_close_crop        (post-hook camera reframe)
  *  3. ~82% — caption_focus            (pre-CTA emphasis, short text preferred)
  *  4. midpoint of longest avatar block — avatar_side_panel (visual rhythm break)
+ *  5. ~33% — floating/list moment (mid-first-half)
+ *  6. ~67% — vertical/technical moment (mid-second-half)
+ *
+ * Phase B: only rows with >= 5s duration are eligible (GSAP animations need time).
+ * Phase C: anti-repetition — if preferred template was already assigned, picks next unused from pool.
  */
 export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
   const result = rows.map((r) => ({ ...r }));
-  const used   = new Set<number>();
+  const used          = new Set<number>();
+  const usedTemplates = new Set<string>(); // Phase C: track assigned template names
+
+  // Phase C (editor-hyperframes): if preferred template was already used, pick the
+  // next unused one from the full pool — prevents visual repetition across HF slots.
+  const templatePool = Object.values(HF_TEMPLATES);
+  const resolveTemplate = (preferred: string): string => {
+    if (!usedTemplates.has(preferred)) return preferred;
+    const fallback = templatePool.find((t) => !usedTemplates.has(t));
+    return fallback ?? preferred; // graceful degradation: repeat only when pool is exhausted
+  };
 
   const mark = (idx: number, template: string) => {
     if (idx < 0) return;
+    const resolved = resolveTemplate(template); // Phase C: anti-repetition
     result[idx] = {
       ...result[idx],
       asset: 'hyperframe' as SrtAssetType,
-      prompt: `hf:${template}`,
+      prompt: `hf:${resolved}`,
     };
     used.add(idx);
+    usedTemplates.add(resolved); // Phase C: register as used
   };
 
   // Rule 1 — Narrative midpoint: chapter break at ~52%
@@ -370,6 +394,9 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     for (let i = guardStart; i < guardEnd; i++) {
       if (used.has(i)) continue;
       if (normalizeAssetType(result[i].asset) !== 'avatar') continue;
+      // Phase B: skip rows too short for the HyperFrame animation to complete
+      const durMs2 = parseSrtTimeToMs(result[i].endTime) - parseSrtTimeToMs(result[i].startTime);
+      if (durMs2 < MIN_HF_DURATION_MS) continue;
       const wordCount = result[i].texto.trim().split(/\s+/).length;
       if (wordCount <= 8) continue; // prefer longer sentences for close_crop
       const dist = Math.abs(i - target);
@@ -393,6 +420,9 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     for (let i = guardStart; i < guardEnd; i++) {
       if (used.has(i)) continue;
       if (normalizeAssetType(result[i].asset) !== 'avatar') continue;
+      // Phase B: skip rows too short for the HyperFrame animation to complete
+      const durMs3 = parseSrtTimeToMs(result[i].endTime) - parseSrtTimeToMs(result[i].startTime);
+      if (durMs3 < MIN_HF_DURATION_MS) continue;
       const wordCount = result[i].texto.trim().split(/\s+/).length;
       if (wordCount > 12) continue; // prefer short phrases for caption_focus
       const dist = Math.abs(i - target);

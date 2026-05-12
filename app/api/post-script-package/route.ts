@@ -27,83 +27,24 @@ Return only valid JSON with this exact shape:
   "hfContextTitles": [
     {
       "timestamp": "[02:15]",
-      "visualState": "hf_focus",
       "headline": "Custo Invisível",
       "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
       "metrics": "—",
       "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
     },
     {
-      "timestamp": "[04:30]",
-      "visualState": "hf_vertical",
-      "headline": "Sistema Inteligente",
-      "subtitle": "A lógica por trás de processos que funcionam sozinhos.",
-      "metrics": "—",
-      "bgPrompt": "Server room with glowing blue racks, cool neon light on metal surfaces, wide angle, futuristic atmosphere."
-    },
-    {
-      "timestamp": "[06:45]",
-      "visualState": "hf_face_bottom",
+      "timestamp": "[07:30]",
       "headline": "Esgotamento Silencioso",
       "subtitle": "O que seu corpo tenta te dizer antes do colapso.",
       "metrics": "—",
       "bgPrompt": "Warm amber light in an empty living room at dusk, soft bokeh, emotional and intimate atmosphere."
     },
     {
-      "timestamp": "[08:10]",
-      "visualState": "hf_face_top",
-      "headline": "A Pergunta Certa",
-      "subtitle": "Por que poucos se fazem essa pergunta antes de agir.",
-      "metrics": "—",
-      "bgPrompt": "Quiet library at golden hour, books out of focus, single reading lamp, contemplative mood, shallow depth of field."
-    },
-    {
-      "timestamp": "[09:50]",
-      "visualState": "hf_double",
-      "headline": "Antes e Depois",
-      "subtitle": "Os números que provam a diferença de uma mudança simples.",
-      "metrics": "+340%",
-      "bgPrompt": "Split-tone composition, left side dark and cold, right side warm and bright, abstract geometric shapes."
-    },
-    {
-      "timestamp": "[11:20]",
-      "visualState": "hf_floating",
-      "headline": "3 Erros Fatais",
-      "subtitle": "Padrões que repetem em quem nunca consegue escalar.",
-      "metrics": "—",
-      "bgPrompt": "Floating geometric panels in a dark void, glowing outlines, sci-fi minimalist, purple ambient glow."
-    },
-    {
       "timestamp": "[13:05]",
-      "visualState": "hf_break",
       "headline": "Virada de Chave",
       "subtitle": "O momento que separa quem avança de quem estagna.",
       "metrics": "3x",
       "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
-    },
-    {
-      "timestamp": "[14:40]",
-      "visualState": "hf_documentary",
-      "headline": "O Caso Real",
-      "subtitle": "O que a história de uma empresa revela sobre decisões.",
-      "metrics": "—",
-      "bgPrompt": "Old newspaper archive room, documentary lighting, grainy texture, muted amber tones, investigative atmosphere."
-    },
-    {
-      "timestamp": "[16:00]",
-      "visualState": "hf_holo",
-      "headline": "Sua Próxima Ação",
-      "subtitle": "O passo concreto para você começar hoje, não amanhã.",
-      "metrics": "—",
-      "bgPrompt": "Holographic interface floating in dark space, cyan and white light particles, premium futuristic feel."
-    },
-    {
-      "timestamp": "[17:30]",
-      "visualState": "hf_dynamic",
-      "headline": "Momentum Total",
-      "subtitle": "Quando tudo se alinha e os resultados explodem.",
-      "metrics": "10x",
-      "bgPrompt": "High-speed motion blur of city lights at night, kinetic energy, streaks of color, cinematic wide shot."
     }
   ]
 }
@@ -150,22 +91,12 @@ Rules:
   TRECHO: ...
   OBS: ...
 - For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
-  CRITICAL: You MUST use DIFFERENT visualState values across the array. NEVER repeat the same visualState for more than 2 consecutive entries. Aim for maximum variety — spread templates evenly across narrative arc (opening, development, climax, close).
-  1. "visualState": Choose the most appropriate visual state based on the narrative moment:
-     - "hf_focus"       → Apresentação de tópico principal, ideia central, abertura de bloco.
-     - "hf_vertical"    → Explicação técnica, conceito complexo, IA, produtividade.
-     - "hf_face_bottom" → Momento emocional forte, storytelling, conexão humana.
-     - "hf_face_top"    → Análise profunda, reação, comentário reflexivo.
-     - "hf_double"      → Dados, comparações, números, contraste entre ideias.
-     - "hf_floating"    → Listas ("3 erros...", "5 passos..."), múltiplos pontos simultâneos.
-     - "hf_break"       → Pausa dramática, impacto emocional, quebra de ritmo.
-     - "hf_documentary" → Contexto histórico, investigação, mistério, casos reais.
-     - "hf_holo"        → CTA, momento premium, encerramento, insight final.
-     - "hf_dynamic"     → Alta intensidade, ritmo acelerado, múltiplas ideias em sequência.
-  DISTRIBUTION GUIDE (apply when there are 5-6 anchors): open with hf_focus, then alternate between emotional (hf_face_bottom/hf_break), analytical (hf_vertical/hf_double/hf_documentary), and close with hf_holo or hf_dynamic.
+  DO NOT include a "visualState" field — the template is assigned automatically by the app.
+  For each anchor generate ONLY:
+  1. "timestamp": The anchor timestamp in [MM:SS] format.
   2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
-  3. "subtitle": Contextual phrase (max 15 words).
-  4. "metrics": Optional support metrics (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
+  3. "subtitle": Contextual phrase (max 15 words) that reflects what is being said at that moment.
+  4. "metrics": Optional support metric (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
   5. "bgPrompt": A cinematic image/video generation prompt in English for the background behind the avatar.
      - Must be visually descriptive, environment-based, and match the emotional tone of that specific narrative moment.
      - Do NOT describe the person or avatar. Describe only the scene, setting, textures, and atmosphere.

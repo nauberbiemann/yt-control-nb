@@ -2613,40 +2613,33 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
 
-      // ── Garantia client-side de hfContextTitles ─────────────────────────────
-      // Ordem narrativa determinística (10 templates, 1 por posição)
+      // ── Atribuição determinística de visualState (igual ao André) ────────────
+      // O template é sempre atribuído pelo cliente por posição — a IA só gera texto.
       const HF_NARRATIVE_ORDER = [
         'hf_focus', 'hf_face_bottom', 'hf_vertical', 'hf_double', 'hf_break',
         'hf_documentary', 'hf_floating', 'hf_face_top', 'hf_dynamic', 'hf_holo',
       ] as const;
       const hfSrtRows = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe');
       const aiCtx: any[] = nextPackage.hfContextTitles ?? [];
-      // Se a IA devolveu menos entradas do que o esperado, completa com fallback das linhas SRT
       const guaranteed = hfSrtRows.map((row: any, i: number) => {
         const ai = aiCtx[i] ?? {};
-        const deterministicState = HF_NARRATIVE_ORDER[i % HF_NARRATIVE_ORDER.length];
         return {
-          timestamp:   ai.timestamp   || row.startTime || '',
-          visualState: ai.visualState || deterministicState,
-          headline:    ai.headline    || row.texto?.split(/\s+/).slice(0, 4).join(' ') || 'Destaque',
-          subtitle:    ai.subtitle    || row.texto    || '',
-          metrics:     ai.metrics     || '—',
-          bgPrompt:    ai.bgPrompt    || '',
+          timestamp:   ai.timestamp || row.startTime || '',
+          visualState: HF_NARRATIVE_ORDER[i % HF_NARRATIVE_ORDER.length], // sempre determinístico
+          headline:    ai.headline  || row.texto?.split(/\s+/).slice(0, 4).join(' ') || 'Destaque',
+          subtitle:    ai.subtitle  || row.texto || '',
+          metrics:     ai.metrics   || '—',
+          bgPrompt:    ai.bgPrompt  || '',
         };
       });
-      // Forçar variedade: se IA repetiu o mesmo template em tudo, redistribui
-      const allSameState = guaranteed.length > 1 && guaranteed.every((c: any) => c.visualState === guaranteed[0].visualState);
-      if (allSameState) {
-        guaranteed.forEach((c: any, i: number) => { c.visualState = HF_NARRATIVE_ORDER[i % HF_NARRATIVE_ORDER.length]; });
-      }
       const enrichedPackage = guaranteed.length > 0
         ? { ...nextPackage, hfContextTitles: guaranteed }
         : nextPackage;
 
       setPostScriptPackage(enrichedPackage);
-      _postScriptResultRef.current = enrichedPackage; // captura para pipeline orquestrado
+      _postScriptResultRef.current = enrichedPackage;
       if (_isPipelineMode.current) {
-        setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro ✓ — ${guaranteed.length} hfContextTitles (IA: ${aiCtx.length}, fallback: ${Math.max(0, guaranteed.length - aiCtx.length)})`);
+        setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro ✓ — ${guaranteed.length} HFs (IA: ${aiCtx.length} entradas de texto)`);
       }
       setTitleValidations(null);
       persistExecutionSnapshotLocally({

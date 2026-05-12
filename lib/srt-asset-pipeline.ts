@@ -297,12 +297,18 @@ export const enforceTextoCooldown = (
 // ─── HyperFrame narrative rules ──────────────────────────────────────────────
 
 const HF_TEMPLATES = {
-  chapterBreak: 'hf_break',       // ~52% narrative midpoint reset
-  closeCrop:    'hf_face_top',    // ~17% post-hook camera reframe
-  captionFocus: 'hf_focus',       // ~82% pre-CTA emphasis
-  sidePanel:    'hf_double',      // longest avatar block midpoint
-  midEarly:     'hf_floating',    // ~33% list/concepts mid-first-half
-  midLate:      'hf_vertical',    // ~67% technical/analysis mid-second-half
+  // ── Narrative anchor points (rules 1–6) ──────────────────────────────────
+  chapterBreak: 'hf_break',        // ~52% narrative midpoint reset — full-screen kinetic
+  closeCrop:    'hf_face_top',     // ~17% post-hook camera reframe — avatar top-right
+  captionFocus: 'hf_focus',        // ~82% pre-CTA emphasis — right-side info panel
+  sidePanel:    'hf_double',       // longest avatar block midpoint — split 35/65
+  midEarly:     'hf_floating',     // ~33% list/concepts moment — floating cards
+  midLate:      'hf_vertical',     // ~67% technical/analysis moment — side cut
+  // ── Anti-repetition fallback pool (used when primary template is taken) ──
+  holoRoom:     'hf_holo',         // holographic multi-panel — blue teal
+  documentary:  'hf_documentary',  // Netflix-style documentary frame — red accent
+  dynamicCrop:  'hf_dynamic',      // viewfinder + rule-of-thirds — white HUD
+  faceBottom:   'hf_face_bottom',  // avatar bottom-left — cyan accent
 } as const;
 
 // Phase B (editor-hyperframes): minimum scene duration to guarantee GSAP animations complete fully

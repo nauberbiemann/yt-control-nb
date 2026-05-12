@@ -96,12 +96,22 @@
       window.__timelines = window.__timelines || {};
       const data = {{HF_DATA_JSON}};
 
-      // Split headline into words for stagger animation
+      // Robust title resolution — supports old schema (titulo) and new (title)
       const headlineEl = document.getElementById('headline');
-      const words = (data.title || '{{TITLE}}').split(' ');
+      const titleText = data.title || data.titulo || data.headline || data.subtitle || 'Destaque';
+      const words = String(titleText).split(' ').filter(Boolean);
       headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
 
-      if (!data.subtitle || data.subtitle === '—') document.getElementById('subtitle').style.display = 'none';
+      // Subtitle: hide if empty/dash/same as title
+      const subtitleEl = document.getElementById('subtitle');
+      const subtitleText = data.subtitle || '—';
+      if (!data.subtitle || data.subtitle === '—' || data.subtitle === titleText) {
+        subtitleEl.style.display = 'none';
+      } else {
+        subtitleEl.textContent = data.subtitle;
+      }
+
+      // Metrics badge
       if (data.metrics && data.metrics !== '—') {
         document.getElementById('metrics').style.display = 'inline-flex';
         document.getElementById('metrics-text').textContent = data.metrics;

@@ -124,7 +124,8 @@
       const data = {{HF_DATA_JSON}};
 
       const titleEl = document.getElementById('main-title');
-      const words = (data.title || '{{TITLE}}').split(' ');
+      const titleText = data.title || data.titulo || data.headline || data.subtitle || 'Destaque';
+      const words = String(titleText).split(' ').filter(Boolean);
       titleEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
 
       const hasSubtitle = data.subtitle && data.subtitle !== '—';

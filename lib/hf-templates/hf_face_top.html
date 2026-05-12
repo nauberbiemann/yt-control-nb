@@ -102,7 +102,8 @@
       const data = {{HF_DATA_JSON}};
 
       const headlineEl = document.getElementById('headline');
-      const words = (data.title || '{{TITLE}}').split(' ');
+      const titleText = data.title || data.titulo || data.headline || data.subtitle || 'Em Análise';
+      const words = String(titleText).split(' ').filter(Boolean);
       headlineEl.innerHTML = words.map(w => `<span class="word">${w}</span>`).join('');
 
       if (!data.subtitle || data.subtitle === '—') document.getElementById('subtitle').style.display = 'none';

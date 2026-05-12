@@ -142,16 +142,31 @@
       // Lê dados injetados pelo inject_and_render.py
       const data = {{HF_DATA_JSON}};
 
-      // Popula os elementos ({{TITLE}} etc. já foram substituídos,
-      // mas o JSON garante consistência e permite lógica condicional)
-      const metricsEl = document.getElementById('hf-metrics');
-      if (data.metrics && data.metrics.trim() && data.metrics !== '—') {
-        metricsEl.style.display = 'flex';
+      // Popula o título via JSON (campo correto: title; compatibilidade: titulo, headline)
+      const titleEl = document.getElementById('hf-title');
+      const titleText = data.title || data.titulo || data.headline || data.subtitle || 'Destaque';
+      if (titleEl) titleEl.textContent = titleText;
+
+      // Popula o subtítulo via JSON
+      const subtitleEl = document.getElementById('hf-subtitle');
+      const subtitleText = data.subtitle || data.subtitulo || '';
+      if (!subtitleText || subtitleText === '—') {
+        if (subtitleEl) subtitleEl.style.display = 'none';
+      } else if (subtitleEl) {
+        subtitleEl.textContent = subtitleText;
       }
 
-      const subtitleEl = document.getElementById('hf-subtitle');
-      if (!data.subtitle || data.subtitle === '—') {
-        subtitleEl.style.display = 'none';
+      // Popula e exibe métricas condicionalmente
+      const metricsEl = document.getElementById('hf-metrics');
+      const metricsText = data.metrics || data.kpi || '';
+      if (metricsEl) {
+        if (metricsText && metricsText.trim() && metricsText !== '—') {
+          metricsEl.style.display = 'flex';
+          const metricsTextEl = document.getElementById('hf-metrics-text');
+          if (metricsTextEl) metricsTextEl.textContent = metricsText;
+        } else {
+          metricsEl.style.display = 'none';
+        }
       }
 
       // ── GSAP Timeline ─────────────────────────────────────────

@@ -26,7 +26,7 @@ Return only valid JSON with this exact shape:
   "sfxTimelineTxt": "...",
   "hfContextTitles": [
     {
-      "timestamp": "[03:29]",
+      "timestamp": "[02:15]",
       "visualState": "hf_focus",
       "headline": "Custo Invisível",
       "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
@@ -34,7 +34,15 @@ Return only valid JSON with this exact shape:
       "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
     },
     {
-      "timestamp": "[07:08]",
+      "timestamp": "[04:30]",
+      "visualState": "hf_vertical",
+      "headline": "Sistema Inteligente",
+      "subtitle": "A lógica por trás de processos que funcionam sozinhos.",
+      "metrics": "—",
+      "bgPrompt": "Server room with glowing blue racks, cool neon light on metal surfaces, wide angle, futuristic atmosphere."
+    },
+    {
+      "timestamp": "[06:45]",
       "visualState": "hf_face_bottom",
       "headline": "Esgotamento Silencioso",
       "subtitle": "O que seu corpo tenta te dizer antes do colapso.",
@@ -42,12 +50,60 @@ Return only valid JSON with this exact shape:
       "bgPrompt": "Warm amber light in an empty living room at dusk, soft bokeh, emotional and intimate atmosphere."
     },
     {
-      "timestamp": "[10:55]",
+      "timestamp": "[08:10]",
+      "visualState": "hf_face_top",
+      "headline": "A Pergunta Certa",
+      "subtitle": "Por que poucos se fazem essa pergunta antes de agir.",
+      "metrics": "—",
+      "bgPrompt": "Quiet library at golden hour, books out of focus, single reading lamp, contemplative mood, shallow depth of field."
+    },
+    {
+      "timestamp": "[09:50]",
+      "visualState": "hf_double",
+      "headline": "Antes e Depois",
+      "subtitle": "Os números que provam a diferença de uma mudança simples.",
+      "metrics": "+340%",
+      "bgPrompt": "Split-tone composition, left side dark and cold, right side warm and bright, abstract geometric shapes."
+    },
+    {
+      "timestamp": "[11:20]",
+      "visualState": "hf_floating",
+      "headline": "3 Erros Fatais",
+      "subtitle": "Padrões que repetem em quem nunca consegue escalar.",
+      "metrics": "—",
+      "bgPrompt": "Floating geometric panels in a dark void, glowing outlines, sci-fi minimalist, purple ambient glow."
+    },
+    {
+      "timestamp": "[13:05]",
       "visualState": "hf_break",
       "headline": "Virada de Chave",
       "subtitle": "O momento que separa quem avança de quem estagna.",
       "metrics": "3x",
       "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
+    },
+    {
+      "timestamp": "[14:40]",
+      "visualState": "hf_documentary",
+      "headline": "O Caso Real",
+      "subtitle": "O que a história de uma empresa revela sobre decisões.",
+      "metrics": "—",
+      "bgPrompt": "Old newspaper archive room, documentary lighting, grainy texture, muted amber tones, investigative atmosphere."
+    },
+    {
+      "timestamp": "[16:00]",
+      "visualState": "hf_holo",
+      "headline": "Sua Próxima Ação",
+      "subtitle": "O passo concreto para você começar hoje, não amanhã.",
+      "metrics": "—",
+      "bgPrompt": "Holographic interface floating in dark space, cyan and white light particles, premium futuristic feel."
+    },
+    {
+      "timestamp": "[17:30]",
+      "visualState": "hf_dynamic",
+      "headline": "Momentum Total",
+      "subtitle": "Quando tudo se alinha e os resultados explodem.",
+      "metrics": "10x",
+      "bgPrompt": "High-speed motion blur of city lights at night, kinetic energy, streaks of color, cinematic wide shot."
     }
   ]
 }

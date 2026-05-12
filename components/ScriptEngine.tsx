@@ -2613,21 +2613,26 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
 
-      // ── Atribuição determinística de visualState (igual ao André) ────────────
-      // O template é sempre atribuído pelo cliente por posição — a IA só gera texto.
+      // ── Diagnóstico: o que a IA realmente devolveu? ──────────────────────────
+      const aiCtx: any[] = nextPackage.hfContextTitles ?? [];
+      console.log('[HF] hfContextTitles da IA:', JSON.stringify(aiCtx, null, 2));
+      if (_isPipelineMode.current) {
+        setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro ✓ — IA devolveu ${aiCtx.length} hfContextTitles (esperado: ${hfCount})`);
+      }
+
+      // ── visualState determinístico por posição; texto sempre da IA ───────────
       const HF_NARRATIVE_ORDER = [
         'hf_focus', 'hf_face_bottom', 'hf_vertical', 'hf_double', 'hf_break',
         'hf_documentary', 'hf_floating', 'hf_face_top', 'hf_dynamic', 'hf_holo',
       ] as const;
       const hfSrtRows = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe');
-      const aiCtx: any[] = nextPackage.hfContextTitles ?? [];
       const guaranteed = hfSrtRows.map((row: any, i: number) => {
         const ai = aiCtx[i] ?? {};
         return {
           timestamp:   ai.timestamp || row.startTime || '',
-          visualState: HF_NARRATIVE_ORDER[i % HF_NARRATIVE_ORDER.length], // sempre determinístico
-          headline:    ai.headline  || row.texto?.split(/\s+/).slice(0, 4).join(' ') || 'Destaque',
-          subtitle:    ai.subtitle  || row.texto || '',
+          visualState: HF_NARRATIVE_ORDER[i % HF_NARRATIVE_ORDER.length],
+          headline:    ai.headline  || '',   // nunca texto bruto do SRT
+          subtitle:    ai.subtitle  || '',   // nunca texto bruto do SRT
           metrics:     ai.metrics   || '—',
           bgPrompt:    ai.bgPrompt  || '',
         };
@@ -2638,9 +2643,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       setPostScriptPackage(enrichedPackage);
       _postScriptResultRef.current = enrichedPackage;
-      if (_isPipelineMode.current) {
-        setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro ✓ — ${guaranteed.length} HFs (IA: ${aiCtx.length} entradas de texto)`);
-      }
+
       setTitleValidations(null);
       persistExecutionSnapshotLocally({
         postScriptPackage: nextPackage,

@@ -2567,7 +2567,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
 
-    const srtRows = externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []);
+    // Em pipeline mode, usa _pipelineResultRef para evitar stale closure (externalSrtPipeline ainda null)
+    const srtRows = (_isPipelineMode.current && _pipelineResultRef.current?.rows)
+      ? _pipelineResultRef.current.rows
+      : (externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []));
     const timelineContext = buildPostScriptTimelineContext({
       scriptBlocks: sourceBlocks,
       estimatedDuration: approvedBriefing?.estimatedDuration,

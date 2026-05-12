@@ -2178,6 +2178,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const activePipeline = (_isPipelineMode.current && _pipelineResultRef.current)
       ? _pipelineResultRef.current
       : externalSrtPipeline;
+    // Mesmo padrão para postScriptPackage (stale closure)
+    const activePackage = (_isPipelineMode.current && _postScriptResultRef.current)
+      ? _postScriptResultRef.current
+      : postScriptPackage;
 
     if (!activePipeline?.rows?.length) {
       if (_isPipelineMode.current) throw new Error('Pipeline: SRT não processado corretamente. Verifique a Etapa 1.');
@@ -2249,7 +2253,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       ];
       const batContent = batLines.join('\r\n');
       
-      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(activePipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
+      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(activePipeline.csvContent, activePackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       
       setTimeout(() => {
       downloadTextArtifact(srtArtifactStem, '1_renderizar_textos', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
@@ -2260,7 +2264,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         (r: any) => normalizeAssetType(r.asset) === 'hyperframe',
       );
       if (hfRows.length > 0) {
-        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, postScriptPackage?.hfContextTitles);
+        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, activePackage?.hfContextTitles);
         setTimeout(() => {
           downloadTextArtifact(
             srtArtifactStem,
@@ -2271,7 +2275,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }, 1000);
       }
 
-      const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';
+      const sfxTimeline = activePackage?.sfxTimelineTxt || '';
       const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, activePipeline.rows);
       if (batSfx) {
         setTimeout(() => {

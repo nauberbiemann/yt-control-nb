@@ -247,6 +247,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   // HyperFrame Background Prompts
   const [hfBgPrompts, setHfBgPrompts] = useState<Array<{ rowNumber: number; prompt: string }> | null>(null);
   const [isGeneratingHfBg, setIsGeneratingHfBg] = useState(false);
+  // Pipeline orquestrado (botão único)
+  const [isPipelineRunning, setIsPipelineRunning] = useState(false);
+  const [pipelineCurrentStep, setPipelineCurrentStep] = useState<string | null>(null);
+  const _isPipelineMode = useRef(false);          // quando true, handlers lancam erro em vez de alert()
+  const _pipelineResultRef  = useRef<any>(null);  // captura pipeline SRT entre setState assíncronos
+  const _postScriptResultRef = useRef<any>(null); // captura pacote pós-roteiro entre setState assíncronos
   // Template Studio
   const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
@@ -1792,6 +1798,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
     const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
 
+    setHfBgPrompts(null);           // limpa fundos HF do tema anterior (bug fix contaminação)
+    _pipelineResultRef.current = null;
     setIsProcessingSrtPipeline(true);
     setSrtPipelineStatus('Lendo o .srt anexado e preparando a timeline base...');
     updateSrtObserverStep('upload', 'done', externalSrtFileName ? `Arquivo ${externalSrtFileName} pronto para processamento.` : 'Arquivo .srt anexado e pronto para processamento.');
@@ -1932,6 +1940,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         generatedAt: persistedAt,
       };
       setExternalSrtPipeline(pipelineResult);
+      _pipelineResultRef.current = pipelineResult; // captura para uso no pipeline orquestrado
       setSrtPipelineStatus('Pipeline concluido. CSV base, marcacao de assets e prompts visuais atualizados.');
       const finalizedObserver: SrtPipelineObserverStep[] = [
         {
@@ -1995,6 +2004,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       updateSrtObserverStep('prompts', 'error', 'A geracao dos prompts falhou ou foi interrompida.');
       updateSrtObserverStep('persist', 'error', 'A execucao falhou antes de salvar o pipeline completo.');
       setSrtPipelineStatus('');
+      if (_isPipelineMode.current) throw error;
       alert(error instanceof Error ? error.message : 'Nao foi possivel processar o SRT anexado.');
     } finally {
       setIsProcessingSrtPipeline(false);
@@ -2320,6 +2330,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       updateSrtObserverStep('render', 'error', 'A etapa 5 falhou antes de devolver os caminhos dos assets de texto.');
       updateSrtObserverStep('persist', 'error', 'A execucao falhou antes de persistir o resultado da etapa 5.');
       setSrtPipelineStatus('');
+      if (_isPipelineMode.current) throw error;
       alert(error instanceof Error ? error.message : 'Nao foi possivel renderizar os assets de texto.');
     } finally {
       setIsRenderingTextAssets(false);
@@ -2521,6 +2532,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
       setPostScriptPackage(nextPackage);
+      _postScriptResultRef.current = nextPackage; // captura para pipeline orquestrado
       setTitleValidations(null);
       persistExecutionSnapshotLocally({
         postScriptPackage: nextPackage,
@@ -2533,12 +2545,116 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         console.warn('[ScriptEngine] Falha ao sincronizar o pacote pos-roteiro.', error);
       });
 
-      alert('Pacote pos-roteiro gerado e salvo nesta execucao.');
+      if (!_isPipelineMode.current) alert('Pacote pos-roteiro gerado e salvo nesta execucao.');
     } catch (error: any) {
       console.warn('[ScriptEngine] Falha ao gerar pacote pos-roteiro.', error);
+      if (_isPipelineMode.current) throw error;
       alert(`Erro ao gerar pacote pos-roteiro: ${error?.message || error}`);
     } finally {
       setIsGeneratingPostScriptPackage(false);
+    }
+  };
+
+  // ─── HF Background Prompts (extraído do inline onClick para uso no pipeline) ─
+  const generateHfBgPromptsInternal = async (pipelineOverride?: any): Promise<Array<{rowNumber: number; prompt: string}> | null> => {
+    const pipeline = pipelineOverride ?? externalSrtPipeline;
+    if (!pipeline) return null;
+    const hfRows = (pipeline.rows ?? []).filter((r: any) => normalizeAssetType(r.asset) === 'hyperframe');
+    if (!hfRows.length) return null;
+    setIsGeneratingHfBg(true);
+    setHfBgPrompts(null);
+    try {
+      const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+      const model  = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-4.1';
+      const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+      const res = await fetch('/api/hf-bg-prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine, model, apiKeyOverwrite: apiKey,
+          theme: approvedTheme || externalSrtFileName || 'video',
+          hfRows: hfRows.map((r: any) => ({
+            rowNumber: r.rowNumber,
+            startTime: r.startTime,
+            texto: r.texto,
+            visualState: postScriptPackage?.hfContextTitles?.find((c: any) => {
+              if (!c?.timestamp) return false;
+              const clean = c.timestamp.replace(/[\[\]]/g, '');
+              const parts = clean.split(':').map(Number);
+              const cSec = parts.length === 2 ? parts[0]*60+parts[1] : parts[0]*3600+parts[1]*60+(parts[2]||0);
+              const [rh, rm, rs] = r.startTime.split(':');
+              const rSec = Number(rh)*3600 + Number(rm)*60 + Number((rs||'0').split(',')[0]);
+              return Math.abs(cSec - rSec) <= 12;
+            })?.visualState || 'hf_focus',
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) throw new Error(data?.error || `Erro ${res.status}`);
+      if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
+      setHfBgPrompts(data.prompts);
+      try { localStorage.setItem(`yt_hf_bg_${executionStorageKey}`, JSON.stringify(data.prompts)); } catch { /* ignore */ }
+      return data.prompts;
+    } catch (err: any) {
+      setHfBgPrompts([{ rowNumber: -1, prompt: err?.message || 'Falha desconhecida' }]);
+      if (_isPipelineMode.current) throw err;
+      return null;
+    } finally {
+      setIsGeneratingHfBg(false);
+    }
+  };
+
+  // ─── Pipeline Orquestrado (botão único) ─────────────────────────────────────
+  const PIPELINE_STEP_LABELS: Record<string, string> = {
+    srt:        'Etapa 1 — SRT → Assets',
+    hf:         'Etapa 2 — Fundos HF',
+    postscript: 'Etapa 3 — Pacote Pós-Roteiro',
+    bats:       'Etapa 4 — Render + BATs',
+    done:       'Concluído!',
+  };
+
+  const runFullPipeline = async () => {
+    if (!canProcessPostScriptPackage) {
+      alert('O pipeline completo requer o roteiro.\n\nCarregue o arquivo .txt do roteiro ou finalize o roteiro no app antes de continuar.');
+      return;
+    }
+    if (!externalSrtText.trim()) { alert('Anexe um arquivo .srt antes de iniciar o pipeline.'); return; }
+    if (videoCharacterMode === 'custom' && !videoCharacterCustom.trim()) {
+      alert('Descreva o personagem personalizado antes de iniciar o pipeline.');
+      return;
+    }
+    setIsPipelineRunning(true);
+    _isPipelineMode.current   = true;
+    _pipelineResultRef.current   = null;
+    _postScriptResultRef.current = null;
+    try {
+      setPipelineCurrentStep('srt');
+      await processAttachedSrtAssets();
+      if (!_pipelineResultRef.current) throw new Error('Etapa SRT não retornou resultado. Verifique o arquivo .srt.');
+
+      setPipelineCurrentStep('hf');
+      const hfCount = (_pipelineResultRef.current.rows ?? [])
+        .filter((r: any) => normalizeAssetType(r.asset) === 'hyperframe').length;
+      if (hfCount > 0) await generateHfBgPromptsInternal(_pipelineResultRef.current);
+
+      setPipelineCurrentStep('postscript');
+      _postScriptResultRef.current = null;
+      await generatePostScriptPackage();
+      if (!_postScriptResultRef.current) throw new Error('Etapa Pacote Pós-Roteiro falhou. Verifique o roteiro e a API key.');
+
+      setPipelineCurrentStep('bats');
+      await renderTextAssetsFromPipeline();
+
+      setPipelineCurrentStep('done');
+      setSrtPipelineStatus('✅ Pipeline completo concluído com sucesso. BATs e CSV prontos.');
+    } catch (err: any) {
+      console.error('[Pipeline Completo]', err);
+      const stepLabel = PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? pipelineCurrentStep ?? '?';
+      alert(`Pipeline interrompido em "${stepLabel}":\n\n${err?.message || 'Erro desconhecido'}`);
+    } finally {
+      _isPipelineMode.current = false;
+      setIsPipelineRunning(false);
+      setTimeout(() => setPipelineCurrentStep(null), 4000);
     }
   };
 
@@ -3852,10 +3968,35 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       />
                     )}
                   </div>
+                  {/* ── BOTÃO PRINCIPAL: PIPELINE COMPLETO ────────────────── */}
+                  <button
+                    type="button"
+                    onClick={runFullPipeline}
+                    disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim()}
+                    className="w-full rounded-xl border border-emerald-400/30 bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 px-4 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:from-emerald-600/25 hover:to-cyan-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isPipelineRunning
+                      ? `⏳ ${PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? 'AGUARDANDO...'}`
+                      : pipelineCurrentStep === 'done'
+                        ? '✅ PIPELINE CONCLUÍDO'
+                        : '▶ INICIAR PIPELINE COMPLETO'}
+                  </button>
+                  <p className="text-[9px] text-white/25 text-center">
+                    {isPipelineRunning
+                      ? 'Pipeline em execução — aguarde a conclusão de cada etapa...'
+                      : 'Executa automaticamente: SRT → Fundos HF → Pacote Pós-Roteiro → BATs'}
+                  </p>
+                  {/* ── Divisor ───────────────────────────────────────────── */}
+                  <div className="flex items-center gap-2 my-1">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-[9px] text-white/25 uppercase tracking-widest">ou etapas individuais</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                  {/* ── Botão individual: só SRT ──────────────────────────── */}
                   <button
                     type="button"
                     onClick={processAttachedSrtAssets}
-                    disabled={isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
+                    disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
                     className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
@@ -3883,7 +4024,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <button
                       type="button"
                       onClick={renderTextAssetsFromPipeline}
-                      disabled={isProcessingSrtPipeline || isRenderingTextAssets || !postScriptPackage}
+                      disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !postScriptPackage}
                       className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isRenderingTextAssets ? 'GERANDO BATs...' : 'ETAPA 5 · GERAR BATs'}
@@ -3899,7 +4040,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <button
                       type="button"
                       onClick={generatePostScriptPackage}
-                      disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
+                      disabled={isPipelineRunning || isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
                       className="w-full rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isGeneratingPostScriptPackage ? 'PROCESSANDO PACOTE...' : postScriptPackage ? 'REPROCESSAR PACOTE POS-ROTEIRO' : 'PROCESSAR PACOTE POS-ROTEIRO'}

@@ -2613,6 +2613,38 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     done:       'Concluído!',
   };
 
+  // ─── Reset de Resultados (mantém .srt e roteiro, limpa outputs) ──────────────
+  const resetPipelineResults = () => {
+    setExternalSrtPipeline(null);
+    setPostScriptPackage(null);
+    setHfBgPrompts(null);
+    setExternalSrtObserver(buildInitialSrtObserver());
+    setSrtPipelineStatus('');
+    setPipelineCurrentStep(null);
+    _pipelineResultRef.current   = null;
+    _postScriptResultRef.current = null;
+    // Remove dados processados do snapshot local (mantém .srt e roteiro)
+    try {
+      if (executionStorageKey) {
+        const raw = localStorage.getItem(executionStorageKey);
+        if (raw) {
+          const snap = JSON.parse(raw);
+          const cleaned = {
+            ...snap,
+            externalSrtPipeline:  null,
+            postScriptPackage:    null,
+            externalSrtObserver:  buildInitialSrtObserver(),
+            hfBgPrompts:          null,
+          };
+          localStorage.setItem(executionStorageKey, JSON.stringify(cleaned));
+        }
+        // Remove HF bg prompts do storage dedicado
+        const hfKey = `yt_hf_bg_${executionStorageKey}`;
+        localStorage.removeItem(hfKey);
+      }
+    } catch { /* ignore */ }
+  };
+
   const runFullPipeline = async () => {
     if (!canProcessPostScriptPackage) {
       alert('O pipeline completo requer o roteiro.\n\nCarregue o arquivo .txt do roteiro ou finalize o roteiro no app antes de continuar.');
@@ -3969,18 +4001,35 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     )}
                   </div>
                   {/* ── BOTÃO PRINCIPAL: PIPELINE COMPLETO ────────────────── */}
-                  <button
-                    type="button"
-                    onClick={runFullPipeline}
-                    disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim()}
-                    className="w-full rounded-xl border border-emerald-400/30 bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 px-4 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:from-emerald-600/25 hover:to-cyan-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {isPipelineRunning
-                      ? `⏳ ${PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? 'AGUARDANDO...'}`
-                      : pipelineCurrentStep === 'done'
-                        ? '✅ PIPELINE CONCLUÍDO'
-                        : '▶ INICIAR PIPELINE COMPLETO'}
-                  </button>
+                  <div className="flex gap-2 items-stretch">
+                    <button
+                      type="button"
+                      onClick={runFullPipeline}
+                      disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim()}
+                      className="flex-1 rounded-xl border border-emerald-400/30 bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 px-4 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:from-emerald-600/25 hover:to-cyan-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isPipelineRunning
+                        ? `⏳ ${PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? 'AGUARDANDO...'}`
+                        : pipelineCurrentStep === 'done'
+                          ? '✅ PIPELINE CONCLUÍDO'
+                          : '▶ INICIAR PIPELINE COMPLETO'}
+                    </button>
+                    {(externalSrtPipeline || postScriptPackage || hfBgPrompts) && (
+                      <button
+                        type="button"
+                        title="Limpar resultados processados (mantém .srt e roteiro)"
+                        onClick={() => {
+                          if (confirm('Limpar todos os resultados processados?\n\nO arquivo .srt e o roteiro serão mantidos. Apenas assets, pacote pós-roteiro e fundos HF serão removidos.')) {
+                            resetPipelineResults();
+                          }
+                        }}
+                        disabled={isPipelineRunning}
+                        className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-300 transition-all hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                   <p className="text-[9px] text-white/25 text-center">
                     {isPipelineRunning
                       ? 'Pipeline em execução — aguarde a conclusão de cada etapa...'

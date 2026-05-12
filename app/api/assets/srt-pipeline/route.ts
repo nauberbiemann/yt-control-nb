@@ -53,16 +53,22 @@ Rules for asset types:
   - Style guidance: Neon = tech/hacker/matrix energy. Clean = calm/reflective/minimal. Impact = urgency/alarm/strong statements. Frost = futuristic/analytical/cool. Gold = elegant/important/prestigious.
 - asset == "hyperframe":
   - The template_name specifies the layout schema required.
-  - Do NOT generate a visual prompt. Instead, extract the key message from the subtitle text and generate structured JSON for the layout.
-  - Return the structured JSON inside the 'texto_adicional' property. The 'prompt' property should just echo the template_name.
-  - Schemas:
-    - hf_break: {"titulo": "Main Idea (max 3 words)", "pontos": ["Point 1", "Point 2", "Point 3"]}
-    - hf_face_top: {"headline": "Impactful statement (max 6 words)"}
-    - hf_focus: {"titulo": "Focus Word", "subtitulo": "Supporting context"}
-    - hf_double: {"painel_esquerdo": "Left concept", "painel_direito": "Right concept"}
-    - hf_floating: {"elementos": ["Keyword 1", "Keyword 2", "Keyword 3", "Keyword 4"]}
-    - hf_vertical: {"texto_vertical": "VERTICAL IMPACT", "rodape": "Conclusion"}
-  - Write all generated text in the exact language of the subtitle text (usually Portuguese).
+  - Do NOT generate a visual prompt. Instead, extract the key message from the subtitle text and return structured JSON.
+  - Return the JSON inside the 'texto_adicional' property. The 'prompt' property must echo just the template_name.
+  - CRITICAL: The HTML templates read the fields 'title', 'subtitle', and 'metrics' from the JSON. Use exactly these keys.
+  - ALL schemas must also include a 'background_prompt' field: a 1-sentence English image generation prompt for the background behind the overlay. This prompt MUST be aligned with the 'Channel Visual Identity' if provided, otherwise use a dark cinematic default. The background must be dark, have no readable text, and leave the overlay legible.
+  - Schemas (use exact field names shown):
+    - hf_break:       {"title": "2-3 word idea", "subtitle": "—", "metrics": "—", "background_prompt": "..."}
+    - hf_face_top:    {"title": "Impactful phrase max 6 words", "subtitle": "Brief context", "metrics": "KPI or —", "background_prompt": "..."}
+    - hf_focus:       {"title": "Focus keyword", "subtitle": "Supporting sentence", "metrics": "— or KPI", "background_prompt": "..."}
+    - hf_double:      {"title": "Main concept", "subtitle": "Analytical detail", "metrics": "— or data", "background_prompt": "..."}
+    - hf_floating:    {"title": "Central keyword", "subtitle": "Side point", "metrics": "Side impact or —", "background_prompt": "..."}
+    - hf_vertical:    {"title": "2-3 word insight", "subtitle": "Context", "metrics": "— or data", "background_prompt": "..."}
+    - hf_holo:        {"title": "Insight headline", "subtitle": "Analysis phrase", "metrics": "Numeric data or —", "background_prompt": "..."}
+    - hf_documentary: {"title": "Investigation theme", "subtitle": "Context phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
+    - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or short support", "metrics": "—", "background_prompt": "..."}
+    - hf_face_bottom: {"title": "Analytical headline", "subtitle": "Detail phrase", "metrics": "Measurable result or —", "background_prompt": "..."}
+  - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
 
 Context rules:
 - Use the current subtitle text as the main source of meaning.

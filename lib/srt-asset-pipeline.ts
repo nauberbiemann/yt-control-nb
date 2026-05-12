@@ -388,8 +388,21 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     usedTemplates.add(resolved); // Phase C: register as used
   };
 
-  // Rule 1 — Narrative midpoint: chapter break at ~52%
+  // ── Adaptive HyperFrame budget ────────────────────────────────────────────
+  // Scale the number of HyperFrames to the video length so short SRTs don't
+  // get 6 overlays crammed into 3 minutes of content.
+  const avatarCount = rows.filter((r) => normalizeAssetType(r.asset) === 'avatar').length;
+  const maxHF =
+    avatarCount <  20 ? 1 :
+    avatarCount <  40 ? 2 :
+    avatarCount <  70 ? 3 :
+    avatarCount < 110 ? 4 :
+    avatarCount < 150 ? 5 : 6;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Rule 1 — Narrative midpoint: chapter break at ~52% (always applies when budget ≥ 1)
   mark(findClosestAvatarRow(result, 0.52, used), HF_TEMPLATES.chapterBreak);
+  if (maxHF < 2) return result;
 
   // Rule 2 — Post-hook reframe at ~17% (prefer rows with longer text)
   (() => {
@@ -417,6 +430,8 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     mark(bestIdx, HF_TEMPLATES.closeCrop);
   })();
 
+  if (maxHF < 3) return result;
+
   // Rule 3 — Pre-CTA emphasis at ~82% (prefer short punchy text ≤ 12 words)
   (() => {
     const total      = result.length;
@@ -441,6 +456,8 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.82, used);
     mark(bestIdx, HF_TEMPLATES.captionFocus);
   })();
+
+  if (maxHF < 4) return result;
 
   // Rule 4 — Break the longest consecutive avatar block at its midpoint
   (() => {
@@ -470,8 +487,12 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     }
   })();
 
+  if (maxHF < 5) return result;
+
   // Rule 5 — ~33% first-half inflection: floating/list moment
   mark(findClosestAvatarRow(result, 0.33, used), HF_TEMPLATES.midEarly);
+
+  if (maxHF < 6) return result;
 
   // Rule 6 — ~67% second-half analysis: vertical/technical moment
   mark(findClosestAvatarRow(result, 0.67, used), HF_TEMPLATES.midLate);

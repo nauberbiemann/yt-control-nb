@@ -2257,7 +2257,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       // Bat 2 — HyperFrames overlays (only if hyperframe rows exist)
       const hfRows = activePipeline.rows.filter(
-        (r) => normalizeAssetType(r.asset) === 'hyperframe',
+        (r: any) => normalizeAssetType(r.asset) === 'hyperframe',
       );
       if (hfRows.length > 0) {
         const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, postScriptPackage?.hfContextTitles);

@@ -26,12 +26,28 @@ Return only valid JSON with this exact shape:
   "sfxTimelineTxt": "...",
   "hfContextTitles": [
     {
-      "timestamp": "[MM:SS]",
+      "timestamp": "[03:29]",
       "visualState": "hf_focus",
-      "headline": "...",
-      "subtitle": "...",
-      "metrics": "...",
-      "bgPrompt": "..."
+      "headline": "Custo Invisível",
+      "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
+      "metrics": "—",
+      "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
+    },
+    {
+      "timestamp": "[07:08]",
+      "visualState": "hf_face_bottom",
+      "headline": "Esgotamento Silencioso",
+      "subtitle": "O que seu corpo tenta te dizer antes do colapso.",
+      "metrics": "—",
+      "bgPrompt": "Warm amber light in an empty living room at dusk, soft bokeh, emotional and intimate atmosphere."
+    },
+    {
+      "timestamp": "[10:55]",
+      "visualState": "hf_break",
+      "headline": "Virada de Chave",
+      "subtitle": "O momento que separa quem avança de quem estagna.",
+      "metrics": "3x",
+      "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
     }
   ]
 }
@@ -78,6 +94,7 @@ Rules:
   TRECHO: ...
   OBS: ...
 - For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
+  CRITICAL: You MUST use DIFFERENT visualState values across the array. NEVER repeat the same visualState for more than 2 consecutive entries. Aim for maximum variety — spread templates evenly across narrative arc (opening, development, climax, close).
   1. "visualState": Choose the most appropriate visual state based on the narrative moment:
      - "hf_focus"       → Apresentação de tópico principal, ideia central, abertura de bloco.
      - "hf_vertical"    → Explicação técnica, conceito complexo, IA, produtividade.
@@ -89,6 +106,7 @@ Rules:
      - "hf_documentary" → Contexto histórico, investigação, mistério, casos reais.
      - "hf_holo"        → CTA, momento premium, encerramento, insight final.
      - "hf_dynamic"     → Alta intensidade, ritmo acelerado, múltiplas ideias em sequência.
+  DISTRIBUTION GUIDE (apply when there are 5-6 anchors): open with hf_focus, then alternate between emotional (hf_face_bottom/hf_break), analytical (hf_vertical/hf_double/hf_documentary), and close with hf_holo or hf_dynamic.
   2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
   3. "subtitle": Contextual phrase (max 15 words).
   4. "metrics": Optional support metrics (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.

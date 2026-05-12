@@ -253,6 +253,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const _isPipelineMode = useRef(false);          // quando true, handlers lancam erro em vez de alert()
   const _pipelineResultRef  = useRef<any>(null);  // captura pipeline SRT entre setState assíncronos
   const _postScriptResultRef = useRef<any>(null); // captura pacote pós-roteiro entre setState assíncronos
+  const [pipelineWarnings, setPipelineWarnings] = useState<string[]>([]); // avisos não-fatais
   // Template Studio
   const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
@@ -2107,8 +2108,79 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
+  // ─── Regeneração de Fallbacks para Pipeline (usa ref, não estado) ─────────────
+  const regenerateFallbacksForPipeline = async (): Promise<number> => {
+    const pipeline = _pipelineResultRef.current;
+    if (!pipeline?.rows?.length) return 0;
+    const fallbackRows = pipeline.rows.filter((r: any) => r.isFallback);
+    if (!fallbackRows.length) return 0;
+
+    const engine  = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model   = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey  = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+
+    const batchItems = fallbackRows.flatMap((row: any) => {
+      const type = normalizeAssetType(row.asset);
+      if (type !== 'vídeo' && type !== 'imagem' && type !== 'texto') return [];
+      const allRows = pipeline.rows;
+      const idx = allRows.findIndex((r: any) => r.rowNumber === row.rowNumber);
+      const startMs = parseSrtTimeToMs(row.startTime);
+      const endMs   = parseSrtTimeToMs(row.endTime);
+      return [{
+        row_number: row.rowNumber,
+        asset: type === 'texto' ? 'text' : (type === 'vídeo' ? 'video' : 'image'),
+        text: row.texto.trim(),
+        start_time: row.startTime,
+        end_time: row.endTime,
+        duration_seconds: Number(((endMs - startMs) / 1000).toFixed(3)),
+        previous_text: allRows[idx - 1]?.texto?.trim() || '',
+        next_text: allRows[idx + 1]?.texto?.trim() || '',
+      }];
+    });
+    if (!batchItems.length) return 0;
+
+    const res = await fetch('/api/assets/srt-pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchItems, engine, model, apiKeyOverwrite: apiKey,
+        projectConfig: activeProject,
+        videoContext: buildVideoContext(),
+        videoFormat,
+        characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao regenerar prompts incompletos.');
+
+    const newPromptMap = new Map<number, string>();
+    (data?.prompts || []).forEach((p: any) => {
+      if (p.rowNumber && p.prompt?.trim()) newPromptMap.set(p.rowNumber, p.prompt.trim());
+    });
+
+    // Merge resultado no ref (não depende de setState)
+    const updatedRows = pipeline.rows.map((row: any) => {
+      const np = newPromptMap.get(row.rowNumber);
+      return np ? { ...row, prompt: np, isFallback: false } : row;
+    });
+    const { buildPipelineResult: rebuild } = await import('@/lib/srt-asset-pipeline');
+    const updated = { ...rebuild(updatedRows), generatedAt: pipeline.generatedAt };
+    _pipelineResultRef.current = updated;
+    setExternalSrtPipeline(updated);
+    persistExecutionSnapshotLocally({ externalSrtPipeline: updated });
+
+    // Retorna quantos ainda estão incompletos
+    return updatedRows.filter((r: any) => r.isFallback).length;
+  };
+
   const renderTextAssetsFromPipeline = async () => {
-    if (!externalSrtPipeline?.rows?.length) {
+    // Em modo pipeline, usa _pipelineResultRef para evitar stale closure do estado React
+    const activePipeline = (_isPipelineMode.current && _pipelineResultRef.current)
+      ? _pipelineResultRef.current
+      : externalSrtPipeline;
+
+    if (!activePipeline?.rows?.length) {
+      if (_isPipelineMode.current) throw new Error('Pipeline: SRT não processado corretamente. Verifique a Etapa 1.');
       alert('Processe o SRT nas etapas 2, 3 e 4 antes de disparar a etapa 5.');
       return;
     }
@@ -2177,14 +2249,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       ];
       const batContent = batLines.join('\r\n');
       
-      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
+      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(activePipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
       
       setTimeout(() => {
       downloadTextArtifact(srtArtifactStem, '1_renderizar_textos', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
       }, 500);
 
       // Bat 2 — HyperFrames overlays (only if hyperframe rows exist)
-      const hfRows = externalSrtPipeline.rows.filter(
+      const hfRows = activePipeline.rows.filter(
         (r) => normalizeAssetType(r.asset) === 'hyperframe',
       );
       if (hfRows.length > 0) {
@@ -2200,7 +2272,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       const sfxTimeline = postScriptPackage?.sfxTimelineTxt || '';
-      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, externalSrtPipeline.rows);
+      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, activePipeline.rows);
       if (batSfx) {
         setTimeout(() => {
           downloadTextArtifact(
@@ -2213,7 +2285,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       const persistedAt = new Date().toISOString();
-      const pipelineResult = { ...externalSrtPipeline, generatedAt: persistedAt };
+      const pipelineResult = { ...activePipeline, generatedAt: persistedAt };
       setExternalSrtPipeline(pipelineResult);
       setSrtPipelineStatus('Etapa 5 (Nuvem) concluída. Os arquivos .bat e .csv foram baixados para execução manual.');
       
@@ -2251,7 +2323,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pipeline: externalSrtPipeline,
+          pipeline: activePipeline,
           themeTitle: approvedTheme,
           srtFileName: externalSrtFileName,
           artifactStem: srtArtifactStem,
@@ -2659,10 +2731,32 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     _isPipelineMode.current   = true;
     _pipelineResultRef.current   = null;
     _postScriptResultRef.current = null;
+    setPipelineWarnings([]);
     try {
       setPipelineCurrentStep('srt');
       await processAttachedSrtAssets();
       if (!_pipelineResultRef.current) throw new Error('Etapa SRT não retornou resultado. Verifique o arquivo .srt.');
+
+      // ── Auto-retry de prompts incompletos (até 2 tentativas) ─────────────────
+      let fallbackCount = (_pipelineResultRef.current.rows ?? []).filter((r: any) => r.isFallback).length;
+      if (fallbackCount > 0) {
+        for (let attempt = 1; attempt <= 2 && fallbackCount > 0; attempt++) {
+          setSrtPipelineStatus(`🔄 Regenerando ${fallbackCount} prompt(s) incompleto(s) — tentativa ${attempt}/2...`);
+          try {
+            fallbackCount = await regenerateFallbacksForPipeline();
+          } catch (retryErr: any) {
+            console.warn('[Pipeline] Falha ao regenerar fallbacks:', retryErr);
+            break; // Não bloqueia — continua o pipeline
+          }
+        }
+        if (fallbackCount > 0) {
+          const remaining = (_pipelineResultRef.current.rows ?? [])
+            .filter((r: any) => r.isFallback)
+            .map((r: any) => `Linha ${r.rowNumber} (${r.startTime.slice(0,8)}): ${r.texto.slice(0, 40)}...`);
+          setPipelineWarnings(remaining);
+          setSrtPipelineStatus(`⚠️ ${fallbackCount} prompt(s) permaneceram incompletos após 2 tentativas. Pipeline continua.`);
+        }
+      }
 
       setPipelineCurrentStep('hf');
       const hfCount = (_pipelineResultRef.current.rows ?? [])
@@ -4035,6 +4129,24 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       ? 'Pipeline em execução — aguarde a conclusão de cada etapa...'
                       : 'Executa automaticamente: SRT → Fundos HF → Pacote Pós-Roteiro → BATs'}
                   </p>
+                  {/* ── Warnings: prompts que não foram resolvidos mesmo após retry ── */}
+                  {pipelineWarnings.length > 0 && (
+                    <details className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 space-y-1">
+                      <summary className="cursor-pointer text-[9px] font-black uppercase tracking-widest text-amber-300 list-none flex items-center gap-2">
+                        <span>⚠️</span>
+                        <span>{pipelineWarnings.length} prompt{pipelineWarnings.length > 1 ? 's' : ''} incompleto{pipelineWarnings.length > 1 ? 's' : ''} após 2 tentativas</span>
+                        <span className="text-amber-500/50 ml-auto">▼ ver detalhes</span>
+                      </summary>
+                      <ul className="mt-2 space-y-1 pl-1">
+                        {pipelineWarnings.map((w, i) => (
+                          <li key={i} className="text-[8px] text-amber-200/70 font-mono leading-relaxed">{w}</li>
+                        ))}
+                      </ul>
+                      <p className="text-[8px] text-amber-400/50 mt-1">
+                        Use o botão &quot;REGENERAR ITEMS&quot; abaixo para tentar novamente manualmente.
+                      </p>
+                    </details>
+                  )}
                   {/* ── Divisor ───────────────────────────────────────────── */}
                   <div className="flex items-center gap-2 my-1">
                     <div className="flex-1 h-px bg-white/10" />

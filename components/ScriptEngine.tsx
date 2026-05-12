@@ -2571,6 +2571,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const srtRows = (_isPipelineMode.current && _pipelineResultRef.current?.rows)
       ? _pipelineResultRef.current.rows
       : (externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []));
+    const hfCount = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe').length;
+    if (_isPipelineMode.current) setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro — ${hfCount} anchors HF enviados à IA...`);
     const timelineContext = buildPostScriptTimelineContext({
       scriptBlocks: sourceBlocks,
       estimatedDuration: approvedBriefing?.estimatedDuration,
@@ -2612,6 +2614,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
       setPostScriptPackage(nextPackage);
       _postScriptResultRef.current = nextPackage; // captura para pipeline orquestrado
+      if (_isPipelineMode.current) {
+        const hfCtxCount = nextPackage.hfContextTitles?.length ?? 0;
+        setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro ✓ — ${hfCtxCount} hfContextTitles recebidos da IA (esperado: ${hfCount})`);
+      }
       setTitleValidations(null);
       persistExecutionSnapshotLocally({
         postScriptPackage: nextPackage,

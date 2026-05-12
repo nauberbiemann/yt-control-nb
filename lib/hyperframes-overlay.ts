@@ -244,7 +244,9 @@ export const buildHyperframesBat = (
   const overlayCommands: string[] = [];
   hfRows.forEach((row, i) => {
     // Fuzzy-match by nearest timestamp (AI uses [MM:SS], SRT uses HH:MM:SS,mmm)
-    const context     = findHfContext(hfContextTitles || [], row.startTime);
+    // Positional fallback: if timestamp matching fails (AI returned different TS), use hfContextTitles[i]
+    const context = findHfContext(hfContextTitles || [], row.startTime)
+      ?? (hfContextTitles && hfContextTitles.length > i ? hfContextTitles[i] : undefined);
     const visualState = context?.visualState;
     const templateFile = resolveTemplate(visualState, row.prompt);
     const stateName   = visualState ?? 'hf_focus';

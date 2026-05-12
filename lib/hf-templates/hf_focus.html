@@ -23,22 +23,21 @@
       overflow: hidden;
     }
 
-    /* ── Panel de informação (direita) ─────────────────────────── */
     .info-panel {
       position: absolute;
       right: 5%;
       top: 50%;
       transform: translateY(-50%);
-      width: 580px;
-      padding: 52px 48px;
+      width: 840px;
+      padding: 64px 60px;
       border-radius: 28px;
-      background: rgba(10, 10, 10, 0.82);
-      border: 1px solid rgba(255, 255, 255, 0.13);
+      background: rgba(6, 6, 10, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       box-shadow:
-        0 40px 100px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+        0 40px 120px rgba(0, 0, 0, 0.75),
+        inset 0 1px 0 rgba(255, 255, 255, 0.10);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
       /* GSAP: começa fora da tela */
       opacity: 0;
       will-change: transform, opacity;
@@ -46,12 +45,12 @@
 
     /* Label de categoria */
     .panel-eyebrow {
-      font-size: 18px;
+      font-size: 24px;
       font-weight: 900;
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: #00FF88;
-      margin-bottom: 22px;
+      margin-bottom: 24px;
     }
 
     /* Linha divisora */
@@ -65,21 +64,22 @@
 
     /* Headline */
     .panel-headline {
-      font-size: 54px;
+      font-size: 96px;
       font-weight: 900;
-      line-height: 1.0;
+      line-height: 0.95;
       letter-spacing: -0.04em;
       color: #FFFFFF;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      text-shadow: 0 2px 30px rgba(0,0,0,0.9), 0 0 60px rgba(0,0,0,0.5);
     }
 
     /* Subtítulo */
     .panel-subtitle {
-      font-size: 26px;
+      font-size: 34px;
       font-weight: 400;
       line-height: 1.45;
-      color: rgba(255, 255, 255, 0.70);
-      margin-bottom: 32px;
+      color: rgba(255, 255, 255, 0.78);
+      margin-bottom: 36px;
     }
 
     /* Métricas */
@@ -98,7 +98,7 @@
     }
 
     .panel-metrics-text {
-      font-size: 28px;
+      font-size: 36px;
       font-weight: 800;
       color: #00FF88;
       letter-spacing: -0.02em;
@@ -107,11 +107,11 @@
     /* Linha vertical divisória (esquerda do painel) */
     .panel-accent-line {
       position: absolute;
-      right: calc(5% + 580px + 28px);
+      right: calc(5% + 840px + 32px);
       top: 50%;
       transform: translateY(-50%);
-      width: 3px;
-      height: 0;  /* GSAP anima para 320px */
+      width: 4px;
+      height: 0;  /* GSAP anima para 360px */
       background: linear-gradient(180deg, transparent, #00FF88 40%, transparent);
       border-radius: 2px;
       will-change: height;
@@ -177,7 +177,7 @@
 
       // T=0: linha cresce de cima para baixo
       tl.to(line, {
-        height: 320,
+        height: 380,
         duration: 0.45,
         ease: 'power2.out',
       }, 0);

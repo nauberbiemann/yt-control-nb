@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-hf": "powershell -ExecutionPolicy Bypass -File scripts/sync-hf-templates.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.102.1",

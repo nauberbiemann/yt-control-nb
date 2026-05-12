@@ -53,7 +53,7 @@ const tsToSec = (ts: string): number => {
 
 type HfContext = { timestamp: string; visualState?: string; headline: string; subtitle?: string; metrics?: string; bgPrompt?: string };
 
-const findHfContext = (list: HfContext[], startTime: string, toleranceSec = 12): HfContext | undefined => {
+const findHfContext = (list: HfContext[], startTime: string, toleranceSec = 60): HfContext | undefined => {
   if (!list?.length) return undefined;
   const rowSec = tsToSec(startTime);
   let best: HfContext | undefined;

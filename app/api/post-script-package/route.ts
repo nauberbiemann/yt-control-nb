@@ -182,6 +182,7 @@ const buildUserPrompt = ({
     '-- Para cada anchor abaixo, o campo "bgPrompt" DEVE retratar visualmente o que esta sendo falado no campo "texto".',
     '-- O bgPrompt e um prompt cinematic em ingles para gerador de imagem/video (Midjourney, Kling, etc.).',
     '-- Descreva o CENARIO, AMBIENTE, LUZ e TEXTURA — nunca a pessoa ou avatar.',
+    '-- IMPORTANTE: use o timestamp exatamente como aparece abaixo (formato [MM:SS]) — nao converta nem abrevie.',
     hfAnchors.length > 0 ? JSON.stringify(hfAnchors, null, 2) : 'Nenhum hyperframe detectado neste roteiro.',
     '',
     'PLANO DE SFX (obrigatorio seguir a logica abaixo):',
@@ -358,11 +359,25 @@ export async function POST(req: NextRequest) {
       srtRows,
     });
 
+    // Formata timestamp SRT ("00:03:29,852") → "[03:29]" para que a IA
+    // devolva exatamente o mesmo formato que tsToSec() já sabe parsear.
+    const srtToMinSec = (t: string): string => {
+      if (!t) return '';
+      const parts = t.replace(',', '.').trim().split(':');
+      if (parts.length === 3) {
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) + h * 60;
+        const s = Math.floor(parseFloat(parts[2]));
+        return `[${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}]`;
+      }
+      return t;
+    };
+
     const hfAnchors = (srtRows || [])
       .filter((row) => (row as any).asset === 'hyperframe')
       .map((row) => ({
-        timestamp: row.startTime || '',
-        texto: row.texto || '',
+        timestamp: srtToMinSec((row as any).startTime || ''),
+        texto: (row as any).texto || '',
       }));
 
     const prompt = buildUserPrompt({

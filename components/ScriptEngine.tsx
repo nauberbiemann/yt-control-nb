@@ -2620,17 +2620,34 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro ✓ — IA devolveu ${aiCtx.length} hfContextTitles (esperado: ${hfCount})`);
       }
 
-      // ── visualState determinístico por posição; texto sempre da IA ───────────
-      const HF_NARRATIVE_ORDER = [
+      // ── Shuffle dos templates com seed do tema (Opção A) ─────────────────────
+      // Cada tema gera uma ordem única mas reproduzível dos 10 templates.
+      // Mesmo tema re-executado → mesma ordem. Tema diferente → ordem diferente.
+      const HF_ALL_TEMPLATES = [
         'hf_focus', 'hf_face_bottom', 'hf_vertical', 'hf_double', 'hf_break',
         'hf_documentary', 'hf_floating', 'hf_face_top', 'hf_dynamic', 'hf_holo',
-      ] as const;
+      ];
+      const themeSeed = (approvedTheme || 'default')
+        .split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+      const seededShuffle = (arr: string[], seed: number): string[] => {
+        const copy = [...arr];
+        let s = seed;
+        for (let i = copy.length - 1; i > 0; i--) {
+          s = ((s * 1664525 + 1013904223) & 0xffffffff) >>> 0;
+          const j = s % (i + 1);
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      };
+      const hfTemplateOrder = seededShuffle(HF_ALL_TEMPLATES, themeSeed);
+      console.log('[HF] ordem dos templates para este tema:', hfTemplateOrder);
+
       const hfSrtRows = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe');
       const guaranteed = hfSrtRows.map((row: any, i: number) => {
         const ai = aiCtx[i] ?? {};
         return {
           timestamp:   ai.timestamp || row.startTime || '',
-          visualState: HF_NARRATIVE_ORDER[i % HF_NARRATIVE_ORDER.length],
+          visualState: hfTemplateOrder[i % hfTemplateOrder.length],
           headline:    ai.headline  || '',   // nunca texto bruto do SRT
           subtitle:    ai.subtitle  || '',   // nunca texto bruto do SRT
           metrics:     ai.metrics   || '—',

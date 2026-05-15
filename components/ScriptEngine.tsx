@@ -2724,11 +2724,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       setTitleValidations(null);
       persistExecutionSnapshotLocally({
-        postScriptPackage: nextPackage,
+        postScriptPackage: enrichedPackage,
         scriptStage,
       });
       void syncApprovedThemeSnapshot({
-        postScriptPackage: nextPackage,
+        postScriptPackage: enrichedPackage,
         scriptStage,
       }).catch((error) => {
         console.warn('[ScriptEngine] Falha ao sincronizar o pacote pos-roteiro.', error);

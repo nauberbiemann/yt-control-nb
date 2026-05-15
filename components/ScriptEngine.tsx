@@ -1202,8 +1202,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       ];
 
       if (orchestratedBlock?.communityElement) {
-        // Inject the real community element text, not just a generic hint
-        blockLines.push(`Elemento de comunidade — referencia de identidade coletiva para este bloco: "${orchestratedBlock.communityElement}". Reinterprete sem copiar a formulacao literal; use como gatilho de pertencimento.`);
+        // Strip emojis and special symbols — this is a narration script, cannot be spoken
+        const communityText = orchestratedBlock.communityElement
+          .replace(/[\p{Emoji}]/gu, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+        blockLines.push(`Elemento de comunidade — referencia de identidade coletiva para este bloco: "${communityText}". Reinterprete sem copiar a formulacao literal; use como gatilho de pertencimento.`);
       }
 
       if (orchestratedBlock?.isNarrativeTwist) {
@@ -1354,6 +1358,7 @@ ${blockSpecifications.join('\n\n')}${midCtaSection ? `\n\n${midCtaSection}` : ''
 FORMATO DE SAIDA
 - Escreva o roteiro inteiro como texto corrido de narrador, sem nenhuma divisao visual.
 - Nao use cabecalhos, numeracao de blocos, titulos de secao, marcadores de markdown, colchetes ou qualquer elemento estrutural no texto entregue.
+- PROIBIDO: emojis, icones ou simbolos graficos de qualquer tipo (ex: 🟢 🔴 ✅ ⚠️). Este roteiro sera narrado em voz — apenas palavras escritas por extenso. Se quiser convidar o publico a reagir, descreva a acao por extenso ("responda com verde ou vermelho"), nunca com simbolo.
 - O roteiro deve fluir do inicio ao fim como uma unica fala continua. A ordem e funcao interna de cada bloco devem ser respeitadas, mas nao devem ser visiveis no texto final.
 - Nao adicione notas ao editor, indicacoes de tom, parenteses explicativos ou qualquer comentario fora da narracao.
 - O resultado deve ser um texto pronto para leitura de narrador, do primeiro ao ultimo caractere, sem nenhum ajuste adicional de formatacao.

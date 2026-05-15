@@ -1193,9 +1193,19 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         ...(curveStageForBlock
           ? [`Estagio atual da curva narrativa para este bloco: ${curveStageForBlock}`]
           : []),
-        // For block 0: reinforce the opening hook directive directly in the block spec
-        ...(index === 0 && (approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description)
-          ? [`PRIORIDADE DE ABERTURA (sobrepoe a voz dominante no primeiro paragrafo): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
+        // For block 0: translate the hook into a writing directive — orientation, not text to copy
+        ...(index === 0 && (approvedBriefing?.openingHook?.name || approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description)
+          ? (() => {
+              const hookName = approvedBriefing.openingHook?.name || '';
+              const hookRef = approvedBriefing.openingHook?.pattern || approvedBriefing.openingHook?.description || '';
+              const lines = [
+                `DIRETRIZ DE ENTRADA DO ROTEIRO — orienta apenas o primeiro paragrafo, sobrepoe a voz dominante nesse ponto:`,
+                `Ativo de abertura selecionado: "${hookName}"`,
+                hookRef ? `Orientacao funcional do ativo (bussola de escrita, nao texto a copiar): ${hookRef}` : '',
+                `Como aplicar: identifique a pessoa gramatical, o angulo de tensao e a sensacao concreta que o ativo evoca. Abra o roteiro com linguagem propria que capture essa mesma energia e esse ponto de entrada. O primeiro paragrafo deve soar como se esse ativo tivesse sido escrito especificamente para este tema — com palavras completamente diferentes.`,
+              ].filter(Boolean).join('\n');
+              return [lines];
+            })()
           : []),
         ...connectionLines,
         buildAlignedBridgeInstruction(nextBlock, nextNarrativeBlock),
@@ -1231,9 +1241,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
     const lockedCompositionSection = approvedBriefing?.diagnostics ? [
       `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
-      // Inject opening hook structural pattern so the writer knows HOW to open, not just the name
+      // Translate opening hook into a functional writing directive — orientation, not text to copy
       ...(approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description
-        ? [`Diretriz de abertura (como aplicar): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
+        ? [`Diretriz de abertura (orientacao funcional — nao copie, use como bussola de escrita): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
         : []),
       `Camada final de conversao selecionada: ${approvedBriefing?.selectedCta?.name || 'Nao definida'}`,
       `Estrutura selecionada: ${approvedBriefing?.selectedTitleStructure?.name || 'Nao definida'}`,

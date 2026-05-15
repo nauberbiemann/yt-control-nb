@@ -283,7 +283,9 @@ export const buildHyperframesBat = (
     let metricsArg  = '';
 
     if (context) {
-      if (context.headline)                             titleArg    = `--title "${escapeCaption(context.headline)}"`;
+      // --title é obrigatório: garante sempre um valor, mesmo que headline venha vazio da IA
+      const safeHeadline = context.headline || 'Destaque';
+      titleArg = `--title "${escapeCaption(safeHeadline)}"`;
       if (context.subtitle && context.subtitle !== '—') subtitleArg = `--subtitle "${escapeCaption(context.subtitle)}"`;
       if (context.metrics  && context.metrics  !== '—') metricsArg  = `--metrics "${escapeCaption(context.metrics)}"`;
     } else {

@@ -2709,8 +2709,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         return {
           timestamp:   ai.timestamp || row.startTime || '',
           visualState: hfTemplateOrder[i % hfTemplateOrder.length],
-          headline:    ai.headline  || '',   // nunca texto bruto do SRT
-          subtitle:    ai.subtitle  || '',   // nunca texto bruto do SRT
+          headline:    ai.headline  || 'Destaque',  // placeholder neutro se IA não retornar
+          subtitle:    ai.subtitle  || '',
           metrics:     ai.metrics   || '—',
           bgPrompt:    ai.bgPrompt  || '',
         };

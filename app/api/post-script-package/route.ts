@@ -23,7 +23,6 @@ Return only valid JSON with this exact shape:
   "seoDescription": "...",
   "sunoPrompt": "...",
   "sunoSuggestedTitle": "...",
-  "sfxTimelineTxt": "...",
   "hfContextTitles": [
     {
       "timestamp": "[02:15]",
@@ -46,7 +45,8 @@ Return only valid JSON with this exact shape:
       "metrics": "3x",
       "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
     }
-  ]
+  ],
+  "sfxTimelineTxt": "..."
 }
 
 Rules:

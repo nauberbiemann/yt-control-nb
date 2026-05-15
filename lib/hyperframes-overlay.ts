@@ -253,6 +253,24 @@ export const buildHyperframesBat = (
     const caption     = escapeCaption(row.texto);
     const startSafe   = safeStartTime(row.startTime);
 
+    // ── Fonte primária de texto: texto_adicional (mesmo dado do CSV, gerado na Etapa 2) ────────
+    // Formato esperado: { "title": "...", "subtitle": "...", "metrics": "—", "background_prompt": "..." }
+    // Fallback: campos headline/subtitle/metrics do hfContextTitles (Etapa 3)
+    let rowOverride: { headline?: string; subtitle?: string; metrics?: string } | undefined;
+    try {
+      const raw = (row as any).texto_adicional;
+      if (raw && typeof raw === 'string' && raw.trim()) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.title) {
+          rowOverride = {
+            headline: parsed.title   || undefined,
+            subtitle: parsed.subtitle || undefined,
+            metrics:  parsed.metrics  || undefined,
+          };
+        }
+      }
+    } catch { /* JSON malformado — ignora e usa fallback */ }
+
     const endMs = row.endTime
       ? (() => {
           const [h, m, se] = row.endTime.split(':');
@@ -282,14 +300,16 @@ export const buildHyperframesBat = (
     let subtitleArg = '';
     let metricsArg  = '';
 
-    if (context) {
-      // --title é obrigatório: garante sempre um valor, mesmo que headline venha vazio da IA
-      const safeHeadline = context.headline || 'Destaque';
+    if (rowOverride || context) {
+      // Prioridade: texto_adicional (CSV) > hfContextTitles (pós-roteiro)
+      const safeHeadline = rowOverride?.headline || context?.headline || 'Destaque';
       titleArg = `--title "${escapeCaption(safeHeadline)}"`;
-      if (context.subtitle && context.subtitle !== '—') subtitleArg = `--subtitle "${escapeCaption(context.subtitle)}"`;
-      if (context.metrics  && context.metrics  !== '—') metricsArg  = `--metrics "${escapeCaption(context.metrics)}"`;
+      const safeSubtitle = rowOverride?.subtitle || context?.subtitle;
+      if (safeSubtitle && safeSubtitle !== '—') subtitleArg = `--subtitle "${escapeCaption(safeSubtitle)}"`;
+      const safeMetrics  = rowOverride?.metrics  || context?.metrics;
+      if (safeMetrics  && safeMetrics  !== '—') metricsArg  = `--metrics "${escapeCaption(safeMetrics)}"`;
     } else {
-      // Fallback: truncate SRT text to max 8 words so it fits the overlay
+      // Fallback final: trunca o texto SRT para max 8 palavras
       titleArg = `--title "${escapeCaption(truncateToWords(row.texto, 8))}"`;
     }
 

@@ -1171,12 +1171,18 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       const orchestratedBlock = bodyBlocks[currentDevelopmentIndex];
       const nextNarrativeBlock = nextBlock ? bodyBlocks[currentDevelopmentIndex + 1] : null;
 
-      // Extract the SPECIFIC curve stage for this block, not the full arc
+      // Distribute curve stages proportionally across blocks (avoids repeating last stage)
       const curveStages = selectedNarrativeCurve?.pattern
         ? selectedNarrativeCurve.pattern.split(/\s*>\s*/).map((s: string) => s.trim()).filter(Boolean)
         : [];
       const curveStageForBlock = curveStages.length > 0
-        ? curveStages[Math.min(index, curveStages.length - 1)]
+        ? (() => {
+            const totalBlocks = promptBlocks.length;
+            const stageIndex = totalBlocks <= 1
+              ? 0
+              : Math.round((index / (totalBlocks - 1)) * (curveStages.length - 1));
+            return curveStages[Math.min(stageIndex, curveStages.length - 1)];
+          })()
         : null;
 
       const blockLines = [
@@ -1227,15 +1233,16 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       return blockLines.join('\n');
     });
 
+    const midCtaBlockNum = Number(approvedBriefing?.midCta?.position || 0) + 1;
     const midCtaSection = hasMidCta
       ? [
           'INTERVENCAO INTERMEDIARIA OBRIGATORIA',
-          `Insercao: embuta esta microchamada na passagem apos o bloco de desenvolvimento ${Number(approvedBriefing?.midCta?.position || 0) + 1}, sem criar um novo bloco numerado.`,
+          `Insercao: esta microchamada DEVE aparecer imediatamente apos a ultima frase do bloco de desenvolvimento ${midCtaBlockNum}. Nao crie um bloco separado. Nao omita esta instrucao. Nao mova para outro ponto do roteiro. O texto deve fluir como continuacao natural do bloco ${midCtaBlockNum} e transicao organica para o bloco ${midCtaBlockNum + 1}.`,
           `Meta de caracteres: ${formatCharsLabel(midCtaChars)}`,
           'Mapa de tensao: Media | Papel: Aplicacao | Transicao: Alivio',
           `Funcao narrativa: inserir uma microchamada baseada no ativo "${approvedBriefing?.midCta?.name || 'CTA intermediario'}", curta, organica e sem soar comercial demais.`,
           `Referencia funcional: ${approvedBriefing?.midCta?.pattern || 'Nao definida'}`,
-          'Regra operacional: isso faz parte da engenharia do roteiro, mas nao conta como bloco adicional na numeracao final.',
+          'Regra operacional: esta intervencao e obrigatoria e nao pode ser omitida, resumida ou deslocada. Nao conta como bloco adicional na numeracao final.',
         ].join('\n')
       : '';
 
@@ -1371,6 +1378,7 @@ FORMATO DE SAIDA
 - PROIBIDO: emojis, icones ou simbolos graficos de qualquer tipo (ex: 🟢 🔴 ✅ ⚠️). Este roteiro sera narrado em voz — apenas palavras escritas por extenso. Se quiser convidar o publico a reagir, descreva a acao por extenso ("responda com verde ou vermelho"), nunca com simbolo.
 - O roteiro deve fluir do inicio ao fim como uma unica fala continua. A ordem e funcao interna de cada bloco devem ser respeitadas, mas nao devem ser visiveis no texto final.
 - Nao adicione notas ao editor, indicacoes de tom, parenteses explicativos ou qualquer comentario fora da narracao.
+- ENCERRAMENTO ABSOLUTO: o roteiro termina na ultima palavra da narracao. Nao adicione perguntas ao produtor ("Quer que eu ajuste..."), sugestoes de revisao, comentarios pos-roteiro ou qualquer texto apos o fechamento narrativo. O modelo nao deve comunicar nada ao leitor apos o fim do roteiro.
 - O resultado deve ser um texto pronto para leitura de narrador, do primeiro ao ultimo caractere, sem nenhum ajuste adicional de formatacao.
 - Respeite a meta total de ${formatCharsLabel(totalChars)} e a distribuicao de caracteres por bloco com tolerancia maxima de 8%.
 - Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.`;

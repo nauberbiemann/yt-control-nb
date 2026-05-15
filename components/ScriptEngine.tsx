@@ -1170,6 +1170,15 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       const currentDevelopmentIndex = developmentIndex++;
       const orchestratedBlock = bodyBlocks[currentDevelopmentIndex];
       const nextNarrativeBlock = nextBlock ? bodyBlocks[currentDevelopmentIndex + 1] : null;
+
+      // Extract the SPECIFIC curve stage for this block, not the full arc
+      const curveStages = selectedNarrativeCurve?.pattern
+        ? selectedNarrativeCurve.pattern.split(/\s*>\s*/).map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      const curveStageForBlock = curveStages.length > 0
+        ? curveStages[Math.min(index, curveStages.length - 1)]
+        : null;
+
       const blockLines = [
         `BLOCO ${index + 1} - DESENVOLVIMENTO`,
         `Titulo interno: ${block.title}`,
@@ -1180,9 +1189,13 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         buildExecutionPosture(orchestratedBlock?.voiceStyle, orchestratedBlock?.narrativeRole, selectedArgumentMode),
         `Diretriz estrutural: ${extractPrimaryDirective(block.content)}`,
         `SOP / entonacao: ${block.sop || 'Nao definido'}`,
-        // Map narrative curve stage to this specific block position
-        ...(selectedNarrativeCurve?.pattern
-          ? [`Estagio da curva "${selectedNarrativeCurve.name}" (bloco ${index + 1} de ${promptBlocks.length}): ${selectedNarrativeCurve.pattern}`]
+        // Inject only the specific stage for this block position
+        ...(curveStageForBlock
+          ? [`Estagio atual da curva narrativa para este bloco: ${curveStageForBlock}`]
+          : []),
+        // For block 0: reinforce the opening hook directive directly in the block spec
+        ...(index === 0 && (approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description)
+          ? [`PRIORIDADE DE ABERTURA (sobrepoe a voz dominante no primeiro paragrafo): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
           : []),
         ...connectionLines,
         buildAlignedBridgeInstruction(nextBlock, nextNarrativeBlock),

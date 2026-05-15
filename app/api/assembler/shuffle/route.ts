@@ -75,25 +75,25 @@ interface SelectionDiagnostics {
     voicePatternId: string;
   };
   blocked: {
-      titleStructureIds: string[];
-      curveIds: string[];
-      argumentModeIds: string[];
-      repetitionRuleIds: string[];
-      comboKeys: string[];
+    titleStructureIds: string[];
+    curveIds: string[];
+    argumentModeIds: string[];
+    repetitionRuleIds: string[];
+    comboKeys: string[];
     blockCounts: number[];
     durationMinutes: number[];
     voicePatternIds: string[];
   };
   recentUsage: {
-      hookIds: string[];
-      ctaIds: string[];
-      titleStructureIds: string[];
-      curveIds: string[];
-      argumentModeIds: string[];
-      repetitionRuleIds: string[];
-      blockCounts: number[];
-      durationMinutes: number[];
-      voicePatternIds: string[];
+    hookIds: string[];
+    ctaIds: string[];
+    titleStructureIds: string[];
+    curveIds: string[];
+    argumentModeIds: string[];
+    repetitionRuleIds: string[];
+    blockCounts: number[];
+    durationMinutes: number[];
+    voicePatternIds: string[];
     sourceBreakdown: {
       session: number;
       registered: number;
@@ -308,8 +308,8 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
 
   const ranked = (candidates.length > 0 ? candidates : hooks.flatMap((hook) =>
     ctas.flatMap((cta) =>
-        structures.flatMap((structure) =>
-          blockCounts.flatMap((blockCount) =>
+      structures.flatMap((structure) =>
+        blockCounts.flatMap((blockCount) =>
           durations.flatMap((durationMinutes) =>
             VOICE_PATTERNS.map((voicePattern) => ({
               hookId: hook.id,
@@ -328,7 +328,7 @@ function buildSelectionPlan(req: ShuffleRequest): SelectionPlan | null {
         )
       )
     )
-    ))
+  ))
     .sort((a, b) => b.noveltyScore - a.noveltyScore);
 
   if (ranked.length === 0) return null;
@@ -481,7 +481,7 @@ function enforceShufflePlan(
 
 function localShuffleFallback(req: ShuffleRequest) {
   const { theme, projectConfig, narrativeLibrary, metaphorLibrary, titleStructures, controlLog } = req;
-  const ctas  = narrativeLibrary.ctas;
+  const ctas = narrativeLibrary.ctas;
   const structures = titleStructures || [];
   const plan = buildSelectionPlan(req);
 
@@ -492,10 +492,10 @@ function localShuffleFallback(req: ShuffleRequest) {
   const totalMinutes = plan.durationMinutes;
   const diagnostics = buildSelectionDiagnostics(req, plan);
 
-  const totalChars    = totalMinutes * 1200;
-  const hookChars     = Math.floor(totalChars * 0.08);   // ~8%
+  const totalChars = totalMinutes * 1200;
+  const hookChars = Math.floor(totalChars * 0.08);   // ~8%
   const ctaFinalChars = Math.floor(totalChars * 0.06);   // ~6%
-  const bodyTotal     = totalChars - hookChars - ctaFinalChars;
+  const bodyTotal = totalChars - hookChars - ctaFinalChars;
   const charsPerBlock = Math.floor(bodyTotal / Math.max(plan.blockCount, 1));
   const midCtaPosition = Math.floor(plan.blockCount / 2);
 
@@ -534,14 +534,22 @@ function localShuffleFallback(req: ShuffleRequest) {
 
   const blocks = Array.from({ length: plan.blockCount }, (_, i) => {
     const voiceKey = plan.voiceSequence[i % plan.voiceSequence.length] as keyof typeof missionMap;
-    const missions    = missionMap[voiceKey];
+    const missions = missionMap[voiceKey];
     const metaphorName = shuffled.length > 0 ? shuffled[i % shuffled.length] : `Bloco ${i + 1}`;
-    const communityEl  = communityElements.length > 0 && i % 2 === 1
+    const communityEl = communityElements.length > 0 && i % 2 === 1
       ? communityElements[i % communityElements.length]?.content_pattern || undefined
       : undefined;
+
+    // Block 0 (opening): anchor the mission to the specific video theme so the
+    // writing model does NOT open all scripts with the same generic voice mission.
+    const baseMission = missions[Math.floor(Math.random() * missions.length)];
+    const missionNarrative = i === 0
+      ? `Abra o roteiro a partir do angulo especifico de "${theme}". ${baseMission}. O ponto de entrada deve ser ditado pelo tema — nao por uma formula de abertura padrao.`
+      : baseMission;
+
     return {
       name: metaphorName,
-      missionNarrative: missions[Math.floor(Math.random() * missions.length)],
+      missionNarrative,
       voiceStyle: voiceKey,
       isNarrativeTwist: i === twistIndex,
       blockChars: charsPerBlock,
@@ -557,7 +565,7 @@ function localShuffleFallback(req: ShuffleRequest) {
   return {
     title: theme,
     selectedHookId: plan.hookId,
-    selectedCtaId:  plan.ctaId,
+    selectedCtaId: plan.ctaId,
     selectedTitleStructureId: plan.titleStructureId,
     selectedCurveId: plan.curveId,
     selectedArgumentModeId: plan.argumentModeId,
@@ -585,15 +593,15 @@ function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan): string {
   const { minDuration, maxDuration, targetChars } = projectConfig;
 
   // Use center of duration range for char budget calculation
-  const midDuration        = Math.round((minDuration + maxDuration) / 2);
+  const midDuration = Math.round((minDuration + maxDuration) / 2);
   const computedTargetChars = targetChars || (midDuration * 1200);
-  const hookChars           = Math.floor(computedTargetChars * 0.08);
-  const ctaChars            = Math.floor(computedTargetChars * 0.06);
-  const bodyCharsTotal      = computedTargetChars - hookChars - ctaChars;
+  const hookChars = Math.floor(computedTargetChars * 0.08);
+  const ctaChars = Math.floor(computedTargetChars * 0.06);
+  const bodyCharsTotal = computedTargetChars - hookChars - ctaChars;
 
-  const hooksStr     = narrativeLibrary.hooks.map(h => `- [${h.id}] ${h.name}: "${h.content_pattern || ''}"`).join('\n');
-  const allCtas      = narrativeLibrary.ctas;
-  const ctasStr      = allCtas.map(c => `- [${c.id}] ${c.name}${c.is_soft ? ' [SOFT/INTERMEDIÃRIA]' : ' [HARD/FINAL]'}: "${c.content_pattern || ''}"`).join('\n');
+  const hooksStr = narrativeLibrary.hooks.map(h => `- [${h.id}] ${h.name}: "${h.content_pattern || ''}"`).join('\n');
+  const allCtas = narrativeLibrary.ctas;
+  const ctasStr = allCtas.map(c => `- [${c.id}] ${c.name}${c.is_soft ? ' [SOFT/INTERMEDIÃRIA]' : ' [HARD/FINAL]'}: "${c.content_pattern || ''}"`).join('\n');
   const communityStr = (narrativeLibrary.communityElements || []).map(e => `- [${e.id}] "${e.content_pattern || e.name}"`).join('\n') || 'Nenhum cadastrado ainda.';
   const narrativeCurvesStr = (narrativeLibrary.narrativeCurves || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhuma curva cadastrada ainda.';
   const argumentModesStr = (narrativeLibrary.argumentModes || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhum modo cadastrado ainda.';
@@ -603,9 +611,9 @@ function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan): string {
   const metaphorsStr = pureMetaphorsStr;
 
   const lastHookId = controlLog[0]?.selectedHookId || 'none';
-  const lastCtaId  = controlLog[0]?.selectedCtaId  || 'none';
+  const lastCtaId = controlLog[0]?.selectedCtaId || 'none';
   const lastTitleStructureId = controlLog[0]?.selectedTitleStructureId || 'none';
-  const lastCount  = controlLog[0]?.blockCount     || 0;
+  const lastCount = controlLog[0]?.blockCount || 0;
 
   return `You are the STRATEGIC NARRATIVE ARCHITECT V15 â€” TOTAL INTELLIGENCE. Produce a modular video briefing with mathematical precision, traceable brand identity, and absolute narrative flow.
 
@@ -621,27 +629,33 @@ PROJECT_CONFIG (âš ï¸ ALL values are MANDATORY â€” ignoring them mak
   â€¢ VALIDATION: sum of all blockChars + hookChars + ctaChars must equal ${computedTargetChars}
 
 NARRATIVE_LIBRARY â€” HOOKS (avoid last used: ${lastHookId}):
+  • Hook: ~${hookChars} chars (dense, short)
+  • CTA Final: ~${ctaChars} chars (concise conversion)
+  • Body blocks budget: ${bodyCharsTotal} chars total (distribute proportionally, central blocks heavier)
+  • VALIDATION: sum of all blockChars + hookChars + ctaChars must equal ${computedTargetChars}
+
+NARRATIVE_LIBRARY — HOOKS (avoid last used: ${lastHookId}):
 ${hooksStr}
 
-NARRATIVE_LIBRARY â€” CTAs (pick 1 SOFT/INTERMEDIÃRIA for mid + 1 HARD/FINAL for closing; avoid last: ${lastCtaId}):
+NARRATIVE_LIBRARY — CTAs (pick 1 SOFT/INTERMEDIÃ RIA for mid + 1 HARD/FINAL for closing; avoid last: ${lastCtaId}):
 ${ctasStr}
 
-ELEMENTOS DE COMUNIDADE (inject 2â€“3 organically into development blocks; display their ID for traceability):
+ELEMENTOS DE COMUNIDADE (inject 2–3 organically into development blocks; display their ID for traceability):
 ${communityStr}
 
-ASSET_LIBRARY â€” Metaphors & Concepts (use as ATOMIC block titles, max 8 words each):
+ASSET_LIBRARY — Metaphors & Concepts (use as ATOMIC block titles, max 8 words each):
 ${metaphorsStr}
 
-TITLE_STRUCTURES â€” Use these only to frame the title pattern for the current project:
+TITLE_STRUCTURES — Use these only to frame the title pattern for the current project:
 ${titleStructuresStr}
 
-WRITING_LIBRARY â€” Narrative Curves:
+WRITING_LIBRARY — Narrative Curves:
 ${narrativeCurvesStr}
 
-WRITING_LIBRARY â€” Argument Modes:
+WRITING_LIBRARY — Argument Modes:
 ${argumentModesStr}
 
-WRITING_LIBRARY â€” Repetition Rules:
+WRITING_LIBRARY — Repetition Rules:
 ${repetitionRulesStr}
 
 LOCKED_SELECTION (non-negotiable):
@@ -655,14 +669,14 @@ LOCKED_SELECTION (non-negotiable):
 - Voice rotation for body blocks: ${plan.voiceSequence.join(' -> ')}
 - Novelty score target: ${plan.noveltyScore}
 
-COMPOSITION PROTOCOL (V15 â€” TOTAL INTELLIGENCE):
+COMPOSITION PROTOCOL (V15 — TOTAL INTELLIGENCE):
 1. MATHEMATICAL SYNC: Total chars across all blocks (hook + body + ctaFinal) = ${computedTargetChars}. No exceptions.
 2. WEIGHT DISTRIBUTION: Hook & CTA Final = short/dense. Central body blocks carry more theoretical weight.
 3. ATOMICITY: Block names = metaphor/concept ONLY (no theme prefix). Max 8 words.
-4. VOICE ALTERNATION: Strict cycle â€” 'Desafio Direto' (2nd person), 'Vulnerabilidade' (1st person), 'DiagnÃ³stico TÃ©cnico' (3rd person). Never repeat consecutively.
-5. NARRATIVE TWIST: Exactly 1 central block marked isNarrativeTwist:true â€” must reveal a counter-intuitive truth.
-6. THE BRIDGE: Each block (except the last) MUST have a bridgeInstruction â€” a 1-sentence transition that plants a mental hook for the next block.
-7. COMMUNITY IDENTITY: Inject 2â€“3 community elements into development blocks as communityElement (include their ID).
+4. VOICE ALTERNATION: Strict cycle — 'Desafio Direto' (2nd person), 'Vulnerabilidade' (1st person), 'Diagnóstico Técnico' (3rd person). Never repeat consecutively.
+5. NARRATIVE TWIST: Exactly 1 central block marked isNarrativeTwist:true — must reveal a counter-intuitive truth.
+6. THE BRIDGE: Each block (except the last) MUST have a bridgeInstruction — a 1-sentence transition that plants a mental hook for the next block.
+7. COMMUNITY IDENTITY: Inject 2–3 community elements into development blocks as communityElement (include their ID).
 8. MULTI-CTA FLOW: 1 SOFT mid-CTA (engagement) + 1 HARD final-CTA (conversion).
 9. EXCLUSIVITY: Asset sequence must differ from previous composition logs.
 10. MACRO ORCHESTRATION: if a Narrative Curve is locked, use it as the macro progression of the body blocks.
@@ -734,7 +748,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'no_key' }, { status: 200 });
     }
 
-    const prompt   = buildShufflePrompt(body, selectionPlan);
+    const prompt = buildShufflePrompt(body, selectionPlan);
     const apiModel = resolveModel(model || 'gemini-2.0-flash');
 
     let responseData: Record<string, unknown>;
@@ -796,10 +810,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Enrich with estimatedChars â€” use AI value, or calculate from returned minutes, or random within range
-  const { minDuration, maxDuration } = body.projectConfig;
-  const aiMinutes = responseData.estimatedDurationMinutes;
-  const plannedMinutes = selectionPlan.durationMinutes;
-  const finalMinutes = plannedMinutes;
+    const { minDuration, maxDuration } = body.projectConfig;
+    const aiMinutes = responseData.estimatedDurationMinutes;
+    const plannedMinutes = selectionPlan.durationMinutes;
+    const finalMinutes = plannedMinutes;
     const estimatedChars = responseData.estimatedChars || (finalMinutes * 1200);
 
     const enforcedResponse = enforceShufflePlan(responseData, body, selectionPlan);

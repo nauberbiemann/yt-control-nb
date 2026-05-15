@@ -147,10 +147,11 @@ const describeNarrativeAssetReference = (
 ) => {
   if (!asset?.name && !asset?.description && !asset?.pattern) return '';
 
-  const supportText = asset?.description || '';
+  // Prefer content_pattern (structural template) over description (general summary)
+  const supportText = asset?.pattern || asset?.description || '';
   const assetName = asset?.name || label;
 
-  return `${label}: preserve a funcao estrategica do ativo "${assetName}" e reinterprete com formulacao propria. Nao reutilize frases, slogans, exemplos ou estruturas literais da biblioteca.${supportText ? ` Intencao-base: ${supportText}` : ''}`;
+  return `${label}: preserve a funcao estrategica do ativo "${assetName}" e reinterprete com formulacao propria. Nao reutilize frases, slogans, exemplos ou estruturas literais da biblioteca.${supportText ? ` Diretriz estrutural do ativo: ${supportText}` : ''}`;
 };
 
 const buildCommunityReferenceCatalog = (items: any[]) => {
@@ -1124,7 +1125,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
     const buildExecutionPosture = (
       voiceStyle?: string,
-      narrativeRole?: string
+      narrativeRole?: string,
+      argumentMode?: { name?: string; pattern?: string; description?: string } | null
     ) => {
       const voiceGuidance =
         voiceStyle === 'Desafio Direto'
@@ -1146,7 +1148,13 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                   ? 'converta o raciocinio em experimento, checklist, protocolo ou decisao executavel'
                   : 'sintetize, convoque e conclua com sensacao de fechamento natural';
 
-      return `Postura obrigatoria: ${voiceGuidance}; ${roleGuidance}.`;
+      // Inject argument mode pattern as active persuasion directive for this block
+      const argumentPattern = argumentMode?.pattern || argumentMode?.description || '';
+      const argumentGuidance = argumentPattern
+        ? ` Modo de persuasao ativo ("${argumentMode?.name || 'Argumento'}") — aplique neste bloco: ${argumentPattern}`
+        : '';
+
+      return `Postura obrigatoria: ${voiceGuidance}; ${roleGuidance}.${argumentGuidance}`;
     };
 
     let developmentIndex = 0;
@@ -1169,15 +1177,20 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         `Voz dominante: ${orchestratedBlock?.voiceStyle || approvedBriefing?.dominantVoice || 'Nao definida'}`,
         `Mapa de tensao: ${orchestratedBlock?.tensionLevel || 'Media'} | Papel: ${orchestratedBlock?.narrativeRole || 'Diagnostico'} | Transicao: ${orchestratedBlock?.transitionMode || 'Consequencia'}`,
         `Funcao narrativa: ${orchestratedBlock?.missionNarrative || block.content}`,
-        buildExecutionPosture(orchestratedBlock?.voiceStyle, orchestratedBlock?.narrativeRole),
+        buildExecutionPosture(orchestratedBlock?.voiceStyle, orchestratedBlock?.narrativeRole, selectedArgumentMode),
         `Diretriz estrutural: ${extractPrimaryDirective(block.content)}`,
         `SOP / entonacao: ${block.sop || 'Nao definido'}`,
+        // Map narrative curve stage to this specific block position
+        ...(selectedNarrativeCurve?.pattern
+          ? [`Estagio da curva "${selectedNarrativeCurve.name}" (bloco ${index + 1} de ${promptBlocks.length}): ${selectedNarrativeCurve.pattern}`]
+          : []),
         ...connectionLines,
         buildAlignedBridgeInstruction(nextBlock, nextNarrativeBlock),
       ];
 
       if (orchestratedBlock?.communityElement) {
-        blockLines.push('Elemento de comunidade: use apenas como gatilho de pertencimento e identificacao coletiva, sem repetir a formulacao literal da biblioteca.');
+        // Inject the real community element text, not just a generic hint
+        blockLines.push(`Elemento de comunidade — referencia de identidade coletiva para este bloco: "${orchestratedBlock.communityElement}". Reinterprete sem copiar a formulacao literal; use como gatilho de pertencimento.`);
       }
 
       if (orchestratedBlock?.isNarrativeTwist) {
@@ -1201,10 +1214,22 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
     const lockedCompositionSection = approvedBriefing?.diagnostics ? [
       `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
+      // Inject opening hook structural pattern so the writer knows HOW to open, not just the name
+      ...(approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description
+        ? [`Diretriz de abertura (como aplicar): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
+        : []),
       `Camada final de conversao selecionada: ${approvedBriefing?.selectedCta?.name || 'Nao definida'}`,
       `Estrutura selecionada: ${approvedBriefing?.selectedTitleStructure?.name || 'Nao definida'}`,
       `Curva selecionada: ${selectedNarrativeCurve?.name || 'Nao definida'}`,
+      // Inject curve pattern as macro progression directive
+      ...(selectedNarrativeCurve?.pattern
+        ? [`Progressao macro da curva (aplique nos blocos em sequencia): ${selectedNarrativeCurve.pattern}`]
+        : []),
       `Modo de argumentacao: ${selectedArgumentMode?.name || 'Nao definido'}`,
+      // Inject argument mode pattern as persuasion posture directive
+      ...(selectedArgumentMode?.pattern || selectedArgumentMode?.description
+        ? [`Diretriz do modo de argumentacao (postura dominante de persuasao): ${selectedArgumentMode.pattern || selectedArgumentMode.description}`]
+        : []),
       `Padrao de voz dominante: ${approvedBriefing?.diagnostics?.locked?.voicePatternId || 'Nao definido'}`,
       `Duracao alvo: ${approvedBriefing?.diagnostics?.locked?.durationMinutes || minutes || 'N/A'} min`,
       `Total de blocos na saida final: ${totalOutputBlocks || 'N/A'}`,

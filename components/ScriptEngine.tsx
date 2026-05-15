@@ -2633,6 +2633,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       ? _pipelineResultRef.current.rows
       : (externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []));
     const hfCount = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe').length;
+      console.log(`[HF] Enviando para API: ${hfCount} HF rows de ${(srtRows as any[]).length} total (fonte: ${_isPipelineMode.current ? 'pipeline' : 'externo'})`);
     if (_isPipelineMode.current) setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro — ${hfCount} anchors HF enviados à IA...`);
     const timelineContext = buildPostScriptTimelineContext({
       scriptBlocks: sourceBlocks,

@@ -263,9 +263,9 @@ export const buildHyperframesBat = (
         const parsed = JSON.parse(raw);
         if (parsed?.title) {
           rowOverride = {
-            headline: parsed.title   || undefined,
-            subtitle: parsed.subtitle || undefined,
-            metrics:  parsed.metrics  || undefined,
+            headline: parsed.title    ? String(parsed.title)    : undefined,
+            subtitle: parsed.subtitle ? String(parsed.subtitle) : undefined,
+            metrics:  parsed.metrics  ? String(parsed.metrics)  : undefined,
           };
         }
       }

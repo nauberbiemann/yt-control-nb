@@ -4498,7 +4498,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                           texto: r.texto,
                                           visualState: postScriptPackage?.hfContextTitles?.find(c => {
                                             if (!c?.timestamp) return false;
-                                            const clean = c.timestamp.replace(/[\[\]]/g,'');
+                                            const clean = String(c.timestamp).replace(/[\[\]]/g,'');
                                             const parts = clean.split(':').map(Number);
                                             const cSec = parts.length === 2 ? parts[0]*60+parts[1] : parts[0]*3600+parts[1]*60+(parts[2]||0);
                                             const [rh,rm,rs] = r.startTime.split(':');

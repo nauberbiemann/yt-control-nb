@@ -44,7 +44,7 @@ const escapeCaption = (text: string): string =>
 // within a tolerance window, preventing the silent fallback to row.texto.
 
 const tsToSec = (ts: string): number => {
-  const clean = ts.replace(/[\[\]]/g, '').replace(',', '.').trim();
+  const clean = String(ts || '').replace(/[\[\]]/g, '').replace(',', '.').trim();
   const parts = clean.split(':').map(Number);
   if (parts.length === 2) return parts[0] * 60 + (parts[1] || 0);
   if (parts.length === 3) return parts[0] * 3_600 + parts[1] * 60 + (parts[2] || 0);

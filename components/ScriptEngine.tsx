@@ -2835,6 +2835,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     } catch { /* ignore */ }
   };
 
+  const _pipelineStepRef = useRef<string>('?');
+
   const runFullPipeline = async () => {
     if (!canProcessPostScriptPackage) {
       alert('O pipeline completo requer o roteiro.\n\nCarregue o arquivo .txt do roteiro ou finalize o roteiro no app antes de continuar.');
@@ -2849,11 +2851,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     _isPipelineMode.current   = true;
     _pipelineResultRef.current   = null;
     _postScriptResultRef.current = null;
+    _pipelineStepRef.current = 'srt';
     setPipelineWarnings([]);
     try {
       setPipelineCurrentStep('srt');
-      await processAttachedSrtAssets();
-      if (!_pipelineResultRef.current) throw new Error('Etapa SRT não retornou resultado. Verifique o arquivo .srt.');
+      try {
+        await processAttachedSrtAssets();
+      } catch (err: any) {
+        throw new Error(`[Etapa 1 — SRT] ${err?.message || err}`);
+      }
+      if (!_pipelineResultRef.current) throw new Error('[Etapa 1 — SRT] Não retornou resultado. Verifique o arquivo .srt.');
 
       // ── Auto-retry de prompts incompletos (até 2 tentativas) ─────────────────
       let fallbackCount = (_pipelineResultRef.current.rows ?? []).filter((r: any) => r.isFallback).length;
@@ -2876,25 +2883,42 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }
       }
 
+      _pipelineStepRef.current = 'hf';
       setPipelineCurrentStep('hf');
       const hfCount = (_pipelineResultRef.current.rows ?? [])
         .filter((r: any) => normalizeAssetType(r.asset) === 'hyperframe').length;
-      if (hfCount > 0) await generateHfBgPromptsInternal(_pipelineResultRef.current);
+      if (hfCount > 0) {
+        try {
+          await generateHfBgPromptsInternal(_pipelineResultRef.current);
+        } catch (err: any) {
+          throw new Error(`[Etapa 2 — Fundos HF] ${err?.message || err}`);
+        }
+      }
 
+      _pipelineStepRef.current = 'postscript';
       setPipelineCurrentStep('postscript');
       _postScriptResultRef.current = null;
-      await generatePostScriptPackage();
-      if (!_postScriptResultRef.current) throw new Error('Etapa Pacote Pós-Roteiro falhou. Verifique o roteiro e a API key.');
+      try {
+        await generatePostScriptPackage();
+      } catch (err: any) {
+        throw new Error(`[Etapa 3 — Pós-Roteiro] ${err?.message || err}`);
+      }
+      if (!_postScriptResultRef.current) throw new Error('[Etapa 3 — Pós-Roteiro] Falhou. Verifique o roteiro e a API key.');
 
+      _pipelineStepRef.current = 'bats';
       setPipelineCurrentStep('bats');
-      await renderTextAssetsFromPipeline();
+      try {
+        await renderTextAssetsFromPipeline();
+      } catch (err: any) {
+        throw new Error(`[Etapa 4 — BATs] ${err?.message || err}`);
+      }
 
+      _pipelineStepRef.current = 'done';
       setPipelineCurrentStep('done');
       setSrtPipelineStatus('✅ Pipeline completo concluído com sucesso. BATs e CSV prontos.');
     } catch (err: any) {
       console.error('[Pipeline Completo]', err);
-      const stepLabel = PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? pipelineCurrentStep ?? '?';
-      alert(`Pipeline interrompido em "${stepLabel}":\n\n${err?.message || 'Erro desconhecido'}`);
+      alert(`Pipeline interrompido:\n\n${err?.message || 'Erro desconhecido'}`);
     } finally {
       _isPipelineMode.current = false;
       setIsPipelineRunning(false);

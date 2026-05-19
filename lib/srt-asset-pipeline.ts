@@ -50,7 +50,7 @@ const THIRD_SECTION_INTERVAL_MS = 60_000;
 // Faceless mode: shorter b-roll interval — editor stretches the previous media for gaps
 const FACELESS_INTERVAL_MS = 6_000;
 
-export const normalizeLineBreaks = (value: string) => value.replace(/\r\n/g, '\n');
+export const normalizeLineBreaks = (value: string) => String(value || '').replace(/\r\n/g, '\n');
 
 export const normalizeAssetType = (value: string): SrtAssetType => {
   const normalized = (value || '').trim().toLowerCase();
@@ -212,7 +212,7 @@ export const applyAssetRules = (rows: SrtAssetRow[], videoFormat: 'avatar' | 'fa
   });
 };
 
-export const sanitizePrompt = (prompt: string) => prompt.replace(/\s+/g, ' ').trim();
+export const sanitizePrompt = (prompt: string) => String(prompt || '').replace(/\s+/g, ' ').trim();
 
 export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
   const videoLines: string[] = [];

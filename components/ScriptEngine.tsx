@@ -3102,10 +3102,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
     // Convert AI timestamp to seconds for nearest-match
     const toSec = (ts: string): number => {
-      const clean = ts.replace(',', '.');
+      const clean = String(ts || '').replace(',', '.');
       const parts = clean.split(':').map(Number);
       if (parts.length === 2) return parts[0] * 60 + parts[1];
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      return parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
     };
 
     // Snap to nearest SRT row start time
@@ -3256,7 +3256,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   const srtArtifactStem =
     approvedBriefing?.title
     || approvedTheme
-    || externalSrtFileName.replace(/\.[^.]+$/, '')
+    || String(externalSrtFileName || '').replace(/\.[^.]+$/, '')
     || 'assets-srt';
 
   const generateThumbnailDirective = () => {
@@ -5167,7 +5167,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                   
                   {/* Dynamic font injection for preview */}
                   <style dangerouslySetInnerHTML={{__html: `
-                    @import url('https://fonts.googleapis.com/css2?family=${templateFontFamily.replace(/ /g, '+')}:wght@400;700;800;900&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=${String(templateFontFamily || '').replace(/ /g, '+')}:wght@400;700;800;900&display=swap');
                   `}} />
 
                   <div className="rounded-2xl overflow-hidden border border-white/10 relative" style={{ background: '#0a0a14' }}>

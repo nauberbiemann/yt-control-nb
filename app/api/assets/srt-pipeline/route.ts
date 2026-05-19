@@ -144,8 +144,8 @@ const buildPromptItems = (rows: SrtAssetRow[]) =>
     return [{
       row_number: row.rowNumber,
       asset: normalizeAssetType(row.asset) === 'texto' ? ('text' as const) : (normalizeAssetType(row.asset) === 'hyperframe' ? ('hyperframe' as const) : (normalizeAssetType(row.asset) === 'vídeo' ? ('video' as const) : ('image' as const))),
-      template_name: normalizeAssetType(row.asset) === 'hyperframe' ? row.prompt.replace('hf:', '') : undefined,
-      text: row.texto.trim(),
+      template_name: normalizeAssetType(row.asset) === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
+      text: (row.texto || '').trim(),
       start_time: row.startTime,
       end_time: row.endTime,
       duration_seconds: durationSeconds,

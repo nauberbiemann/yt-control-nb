@@ -36,7 +36,7 @@ const escapeCaption = (text: string): string =>
     .replace(/[()]/g, '')      // parens break CMD if blocks
     .replace(/[<>|&^]/g, '')
     .trim()
-    .slice(0, 75);
+    .slice(0, 90);
 
 // ─── Timestamp matching ───────────────────────────────────────────────────────
 // AI returns timestamps as "[MM:SS]" while SRT rows use "HH:MM:SS,mmm".

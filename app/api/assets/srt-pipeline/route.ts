@@ -57,17 +57,23 @@ Rules for asset types:
   - Return the JSON inside the 'texto_adicional' property. The 'prompt' property must echo just the template_name.
   - CRITICAL: The HTML templates read the fields 'title', 'subtitle', and 'metrics' from the JSON. Use exactly these keys.
   - ALL schemas must also include a 'background_prompt' field: a 1-sentence English image generation prompt for the background behind the overlay. This prompt MUST be aligned with the 'Channel Visual Identity' if provided, otherwise use a dark cinematic default. The background must be dark, have no readable text, and leave the overlay legible.
+  - CRITICAL TEXT RULES (apply to ALL schemas):
+    - NEVER copy the subtitle text verbatim into any field. Always reinterpret the idea in your own words.
+    - 'title' must be a short, punchy phrase (3-7 words max) that captures the CORE IDEA — not the literal subtitle.
+    - 'subtitle' must be a COMPLETE, standalone sentence that ADDS CONTEXT or REPHRASES the idea as a synonym. It must never be the same sentence as the subtitle text, never a fragment, and never end mid-word. Write at least one full verb-subject clause.
+    - 'metrics' must be a specific KPI, number, or "—" if no data is present. Never leave it empty.
+    - All text fields must be short enough to fit in one line of an overlay (title: max 40 chars, subtitle: max 80 chars, metrics: max 20 chars).
   - Schemas (use exact field names shown):
-    - hf_break:       {"title": "2-3 word idea", "subtitle": "—", "metrics": "—", "background_prompt": "..."}
-    - hf_face_top:    {"title": "Impactful phrase max 6 words", "subtitle": "Brief context", "metrics": "KPI or —", "background_prompt": "..."}
-    - hf_focus:       {"title": "Focus keyword", "subtitle": "Supporting sentence", "metrics": "— or KPI", "background_prompt": "..."}
-    - hf_double:      {"title": "Main concept", "subtitle": "Analytical detail", "metrics": "— or data", "background_prompt": "..."}
-    - hf_floating:    {"title": "Central keyword", "subtitle": "Side point", "metrics": "Side impact or —", "background_prompt": "..."}
-    - hf_vertical:    {"title": "2-3 word insight", "subtitle": "Context", "metrics": "— or data", "background_prompt": "..."}
-    - hf_holo:        {"title": "Insight headline", "subtitle": "Analysis phrase", "metrics": "Numeric data or —", "background_prompt": "..."}
-    - hf_documentary: {"title": "Investigation theme", "subtitle": "Context phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
-    - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or short support", "metrics": "—", "background_prompt": "..."}
-    - hf_face_bottom: {"title": "Analytical headline", "subtitle": "Detail phrase", "metrics": "Measurable result or —", "background_prompt": "..."}
+    - hf_break:       {"title": "2-3 word punchy idea", "subtitle": "—", "metrics": "—", "background_prompt": "..."}
+    - hf_face_top:    {"title": "Impactful phrase max 6 words", "subtitle": "Complete context sentence in own words", "metrics": "KPI or —", "background_prompt": "..."}
+    - hf_focus:       {"title": "Focus keyword or short phrase", "subtitle": "Complete supporting sentence rephrasing the idea", "metrics": "— or KPI", "background_prompt": "..."}
+    - hf_double:      {"title": "Main concept (noun phrase)", "subtitle": "Complete analytical sentence in own words", "metrics": "— or data", "background_prompt": "..."}
+    - hf_floating:    {"title": "Central keyword", "subtitle": "Complete side-point sentence as synonym", "metrics": "Side impact or —", "background_prompt": "..."}
+    - hf_vertical:    {"title": "2-3 word insight", "subtitle": "Complete context sentence rephrasing the idea", "metrics": "— or data", "background_prompt": "..."}
+    - hf_holo:        {"title": "Insight headline (noun phrase)", "subtitle": "Complete analysis sentence in own words", "metrics": "Numeric data or —", "background_prompt": "..."}
+    - hf_documentary: {"title": "Investigation theme", "subtitle": "Complete context sentence as synonym phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
+    - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or complete short support sentence", "metrics": "—", "background_prompt": "..."}
+    - hf_face_bottom: {"title": "Analytical headline (noun phrase)", "subtitle": "Complete detail sentence in own words", "metrics": "Measurable result or —", "background_prompt": "..."}
   - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
 
 Context rules:

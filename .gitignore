@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# arquivos locais/modelos que não sobem pro git
+Modelos/

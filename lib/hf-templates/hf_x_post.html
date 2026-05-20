@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .x-card {
+      width: 800px;
+      padding: 40px;
+      border-radius: 24px;
+      background: rgba(10, 10, 12, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 
+        0 30px 100px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      opacity: 0;
+      transform: scale(0.9);
+      will-change: transform, opacity;
+    }
+
+    .x-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .x-profile {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .x-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1DA1F2, #0077B5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      box-shadow: 0 0 20px rgba(29, 161, 242, 0.3);
+    }
+
+    .x-user-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .x-name {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .x-verified {
+      width: 20px;
+      height: 20px;
+      fill: #1DA1F2;
+    }
+
+    .x-handle {
+      font-size: 18px;
+      color: #8899A6;
+    }
+
+    .x-logo {
+      width: 32px;
+      height: 32px;
+      fill: #ffffff;
+      opacity: 0.8;
+    }
+
+    .x-body {
+      font-size: 28px;
+      line-height: 1.5;
+      color: #e1e8ed;
+      margin-bottom: 28px;
+      font-weight: 400;
+      word-wrap: break-word;
+    }
+
+    .x-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 20px;
+      color: #8899A6;
+      font-size: 16px;
+    }
+
+    .x-metric-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .x-icon {
+      width: 20px;
+      height: 20px;
+      fill: #8899A6;
+    }
+
+    .x-metric-value {
+      font-weight: 600;
+      color: #8899A6;
+    }
+
+    .x-icon-highlight:hover .x-icon,
+    .x-icon-highlight.active .x-icon {
+      fill: #1DA1F2;
+    }
+
+    .x-icon-highlight:hover .x-metric-value,
+    .x-icon-highlight.active .x-metric-value {
+      color: #1DA1F2;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="x-card" id="x-card">
+      <div class="x-header">
+        <div class="x-profile">
+          <div class="x-avatar" id="x-avatar">OS</div>
+          <div class="x-user-info">
+            <div class="x-name">
+              <span id="x-name-text">Content OS</span>
+              <svg class="x-verified" viewBox="0 0 24 24">
+                <path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.99-3.818-3.99-.48 0-.94.1-1.348.27C14.825 2.515 13.512 1.5 12 1.5s-2.825 1.015-3.422 2.28c-.407-.17-.867-.27-1.348-.27-2.108 0-3.818 1.78-3.818 3.99 0 .495.084.965.238 1.4-1.273.65-2.148 2.02-2.148 3.6 0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.71 3.99 3.818 3.99.48 0 .94-.1 1.348-.27.597 1.265 1.91 2.28 3.422 2.28s2.825-1.015 3.422-2.28c.407.17.867.27 1.348.27 2.108 0 3.818-1.78 3.818-3.99 0-.495-.084-.965-.238-1.4 1.273-.65 2.148-2.02 2.148-3.6zm-12.72 4.43l-3.91-3.91 1.42-1.41 2.49 2.48 5.76-5.76 1.42 1.42-7.18 7.18z"/>
+              </svg>
+            </div>
+            <div class="x-handle" id="x-handle-text">@content_os</div>
+          </div>
+        </div>
+        <svg class="x-logo" viewBox="0 0 24 24">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      </div>
+      <div class="x-body" id="x-tweet-body">
+        Carregando o pensamento do dia...
+      </div>
+      <div class="x-footer">
+        <div class="x-metric-item">
+          <svg class="x-icon" viewBox="0 0 24 24">
+            <path d="M1.75 1.75h20.5c.966 0 1.75.784 1.75 1.75v12.5c0 .966-.784 1.75-1.75 1.75h-5.25l-5 5-5-5H1.75C.784 17.75 0 16.966 0 16V3.5C0 2.534.784 1.75 1.75 1.75zm0 1.5v12.75h5.5l3.25 3.25 3.25-3.25h5.5V3.25H1.75z"/>
+          </svg>
+          <span class="x-metric-value">42</span>
+        </div>
+        <div class="x-metric-item x-icon-highlight">
+          <svg class="x-icon" viewBox="0 0 24 24">
+            <path d="M4.5 10.75h15c.414 0 .75-.336.75-.75V3.5c0-.414-.336-.75-.75-.75h-15c-.414 0-.75.336-.75.75v6.5c0 .414.336.75.75.75zm.75-6.5h13.5v5H5.25v-5zM2.25 15.5a5.25 5.25 0 0110.222-1.75h1.556a5.25 5.25 0 0110.222 1.75 5.25 5.25 0 01-10.222 1.75h-1.556A5.25 5.25 0 012.25 15.5zm5.25 2.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5zm11.25 0a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z"/>
+          </svg>
+          <span class="x-metric-value" id="x-reposts-val">1.2K</span>
+        </div>
+        <div class="x-metric-item x-icon-highlight active">
+          <svg class="x-icon" style="fill: #E0245E;" viewBox="0 0 24 24">
+            <path d="M12 21.638h-.014C9.403 21.59 1.95 14.856 1.95 8.478c0-3.064 2.525-5.754 5.403-5.754 2.29 0 3.83 1.58 4.646 2.73.814-1.148 2.353-2.73 4.644-2.73 2.88 0 5.404 2.69 5.404 5.755 0 6.375-7.454 13.11-10.037 13.157H12z"/>
+          </svg>
+          <span class="x-metric-value" style="color: #E0245E;" id="x-likes-val">10.5K</span>
+        </div>
+        <div class="x-metric-item">
+          <svg class="x-icon" viewBox="0 0 24 24">
+            <path d="M8.75 21V3h2v18h-2zM18 21V11h2v10h-2zM4 21V15h2v6H4z"/>
+          </svg>
+          <span class="x-metric-value">95.4K</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+
+      const data = {{HF_DATA_JSON}};
+
+      // Title -> Author Name
+      const nameEl = document.getElementById('x-name-text');
+      const titleVal = data.title || data.titulo || 'Content OS';
+      if (nameEl) nameEl.textContent = titleVal;
+
+      // Avatar letter
+      const avatarEl = document.getElementById('x-avatar');
+      if (avatarEl && titleVal) {
+        avatarEl.textContent = titleVal.slice(0, 2).toUpperCase();
+      }
+
+      // Subtitle -> Handle
+      const handleEl = document.getElementById('x-handle-text');
+      const handleVal = data.subtitle || data.subtitulo || '@content_os';
+      if (handleEl) {
+        handleEl.textContent = handleVal.startsWith('@') ? handleVal : '@' + handleVal;
+      }
+
+      // Subtitle can also serve as the content body when available
+      const bodyEl = document.getElementById('x-tweet-body');
+      // If we have separate post structure or plain subtitle text
+      const rawText = data.text || data.texto || data.content || data.tweet || '';
+      bodyEl.textContent = rawText || data.subtitle || 'Pensamento do dia...';
+
+      // Metrics -> Likes & Reposts
+      const likesEl = document.getElementById('x-likes-val');
+      const repostsEl = document.getElementById('x-reposts-val');
+      const metricsVal = data.metrics || '10.5K';
+      
+      if (metricsVal && metricsVal !== '—') {
+        likesEl.textContent = metricsVal;
+      }
+
+      // GSAP Animation
+      const tl = gsap.timeline({ paused: true });
+      const card = document.getElementById('x-card');
+
+      tl.to(card, {
+        opacity: 1,
+        scale: 1,
+        duration: 0.6,
+        ease: 'back.out(1.5)',
+      });
+
+      // Subtle breath floating
+      tl.to(card, {
+        y: -6,
+        duration: 2.0,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      }, 0.6);
+
+      window.__timelines['hf_x_post'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

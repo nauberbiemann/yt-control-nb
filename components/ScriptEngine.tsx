@@ -17,6 +17,7 @@ import {
   normalizeAssetType,
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
+  finalizeFacelessRows,
 } from '@/lib/srt-asset-pipeline';
 import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
@@ -1881,10 +1882,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setSrtPipelineStatus('CSV base derivado. Aplicando a heuristica de marcacao de assets...');
 
       updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video, imagem ou hyperframe...');
-      const assetRows      = applyAssetRules(parsedRows, videoFormat);
+      const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText);
       const cooledRows     = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
       const hfRows         = applyHyperframeRules(cooledRows);            // injeta até 6 hyperframes narrativos
-      const finalRows      = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
+      const excludedRows   = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
+      const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
       const assetStats     = buildAssetStats(finalRows);
       const assetDesc      = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`

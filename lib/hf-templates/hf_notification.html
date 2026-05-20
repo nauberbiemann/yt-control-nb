@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: transparent;
+    }
+
+    .notification-card {
+      position: absolute;
+      top: 60px;
+      right: 60px;
+      width: 520px;
+      padding: 24px 28px;
+      border-radius: 20px;
+      background: rgba(22, 22, 28, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      opacity: 0;
+      transform: translateX(120px);
+      will-change: transform, opacity;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .notification-icon-container {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #FF5E62, #FF9966);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(255, 94, 98, 0.3);
+      flex-shrink: 0;
+    }
+
+    .notification-icon {
+      width: 24px;
+      height: 24px;
+      fill: #ffffff;
+    }
+
+    .notification-content {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex-grow: 1;
+    }
+
+    .notification-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .notification-app-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+    }
+
+    .notification-time {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.4);
+      font-weight: 500;
+    }
+
+    .notification-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: #ffffff;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+    }
+
+    .notification-subtitle {
+      font-size: 16px;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: 400;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="notification-card" id="notif-card">
+      <div class="notification-icon-container" id="notif-icon-box">
+        <svg class="notification-icon" viewBox="0 0 24 24">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1-1.5-1s-1.5.17-1.5 1v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+        </svg>
+      </div>
+      <div class="notification-content">
+        <div class="notification-header">
+          <span class="notification-app-name" id="notif-app-name">System Alert</span>
+          <span class="notification-time" id="notif-time">agora</span>
+        </div>
+        <div class="notification-title" id="notif-title">Alerta Importante</div>
+        <div class="notification-subtitle" id="notif-subtitle">O fluxo de produção de vídeos premium foi otimizado para retenção extrema.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+
+      const data = {{HF_DATA_JSON}};
+
+      // App Name/Eyebrow or standard "ALERTA"
+      const appEl = document.getElementById('notif-app-name');
+      const titleText = data.title || data.titulo || 'Alerta';
+      if (appEl) appEl.textContent = titleText;
+
+      // Custom icon colors based on tone
+      const iconBox = document.getElementById('notif-icon-box');
+      if (iconBox && titleText) {
+        const toneLower = titleText.toLowerCase();
+        if (toneLower.includes('erro') || toneLower.includes('urgente') || toneLower.includes('alerta')) {
+          iconBox.style.background = 'linear-gradient(135deg, #FF5E62, #FF9966)';
+        } else if (toneLower.includes('sucesso') || toneLower.includes('concluido') || toneLower.includes('kpi')) {
+          iconBox.style.background = 'linear-gradient(135deg, #00FF88, #00B3FF)';
+          iconBox.style.boxShadow = '0 4px 15px rgba(0, 255, 136, 0.3)';
+        } else {
+          iconBox.style.background = 'linear-gradient(135deg, #00B3FF, #8A2387)';
+          iconBox.style.boxShadow = '0 4px 15px rgba(0, 179, 255, 0.3)';
+        }
+      }
+
+      // Title & Subtitle text mapping
+      const titleEl = document.getElementById('notif-title');
+      const subtitleEl = document.getElementById('notif-subtitle');
+      
+      const subVal = data.subtitle || data.subtitulo || '';
+      
+      if (titleEl) {
+        // If subtitle is long and title is short
+        titleEl.textContent = data.title || 'Informação';
+      }
+      
+      if (subtitleEl) {
+        subtitleEl.textContent = subVal || 'Verifique os novos parâmetros de performance.';
+      }
+
+      const timeEl = document.getElementById('notif-time');
+      const metricsText = data.metrics || data.kpi || 'agora';
+      if (timeEl && metricsText !== '—') {
+        timeEl.textContent = metricsText;
+      }
+
+      // GSAP Animation
+      const tl = gsap.timeline({ paused: true });
+      const card = document.getElementById('notif-card');
+
+      // T=0 Slide from right + fade in
+      tl.to(card, {
+        opacity: 1,
+        x: 0,
+        duration: 0.6,
+        ease: 'power3.out',
+      });
+
+      window.__timelines['hf_notification'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

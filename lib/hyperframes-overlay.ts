@@ -88,6 +88,10 @@ const STATE_SCENE: Record<string, string> = {
   hf_dynamic:     'High energy environment, fast-motion blur elements, vivid saturated palette',
   hf_vertical:    'Technical workspace, monitors and code or data, cool blue-white tones',
   hf_focus:       'Professional environment, directional soft light, shallow focus, clean composition',
+  hf_x_post:       'Clean dark workspace, subtle glass reflection, glowing ambient screen light, premium social card overlay',
+  hf_notification: 'Futuristic minimal desktop environment, subtle UI elements, clean modern interface design',
+  hf_world_map:    'High tech dark cybersecurity grid, glowing fiber optic connections, cyber neon maps',
+  hf_data_chart:   'Futuristic HUD financial interface, glowing neon blue grid lines, abstract network data charts',
 };
 
 export const generateHfBgPrompt = (texto: string, visualState: string, aiPrompt?: string): string => {
@@ -133,6 +137,10 @@ const TEMPLATE_MAP: Record<string, string> = {
   hf_documentary: 'hf_documentary.html',
   hf_holo:        'hf_holo.html',
   hf_dynamic:     'hf_dynamic.html',
+  hf_x_post:       'hf_x_post.html',
+  hf_notification: 'hf_notification.html',
+  hf_world_map:    'hf_world_map.html',
+  hf_data_chart:   'hf_data_chart.html',
 };
 
 const resolveTemplate = (visualState?: string, promptFallback?: string): string => {

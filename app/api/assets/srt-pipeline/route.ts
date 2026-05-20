@@ -8,6 +8,10 @@ import {
   parseSrtToRows,
   sanitizePrompt,
   type SrtAssetRow,
+  enforceTextoCooldown,
+  applyHyperframeRules,
+  applyHyperframeExclusionZone,
+  finalizeFacelessRows,
 } from '@/lib/srt-asset-pipeline';
 
 const BATCH_SIZE_DEFAULT = 4;
@@ -74,12 +78,17 @@ Rules for asset types:
     - hf_documentary: {"title": "Investigation theme", "subtitle": "Complete context sentence as synonym phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
     - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or complete short support sentence", "metrics": "—", "background_prompt": "..."}
     - hf_face_bottom: {"title": "Analytical headline (noun phrase)", "subtitle": "Complete detail sentence in own words", "metrics": "Measurable result or —", "background_prompt": "..."}
+    - hf_x_post:       {"title": "Author Name / Channel", "subtitle": "Twitter @handle", "text": "Short punchy tweet message (1-2 sentences)", "metrics": "Likes count (e.g. 10.5K) or —", "background_prompt": "..."}
+    - hf_notification: {"title": "App Name or Alert Type", "subtitle": "Notification bubble body message", "metrics": "Time (e.g. 'agora', '2m') or —", "background_prompt": "..."}
+    - hf_world_map:    {"title": "Global network headline", "subtitle": "Short description of global/geographical connection", "metrics": "KPI percentage (e.g. '+320%') or —", "background_prompt": "..."}
+    - hf_data_chart:   {"title": "Data / Growth title", "subtitle": "Analytical sentence describing the metric trend", "metrics": "Key metric value (e.g. '94.2% Eficiência') or —", "background_prompt": "..."}
   - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
 
 Context rules:
 - Use the current subtitle text as the main source of meaning.
 - Use previous and next subtitle lines only to disambiguate.
 - Avoid repeating the line literally.
+
 - Prefer concrete subjects, environments, actions, materials, and mood.
 - If 'Channel Visual Identity' is provided, align the visual style, atmosphere, and shot types with it.
 - If 'Video Context' is provided, use it to inform the specific theme and visual direction of ALL prompts in this batch.
@@ -449,10 +458,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nao foi possivel extrair blocos validos do .srt enviado.' }, { status: 400 });
     }
 
-    const markedRows = applyAssetRules(parsedRows);
-    const promptItems = buildPromptItems(markedRows);
+    const assetRows      = applyAssetRules(parsedRows, videoFormat, srtText);
+    const cooledRows     = enforceTextoCooldown(assetRows);
+    const hfRows         = applyHyperframeRules(cooledRows);
+    const excludedRows   = applyHyperframeExclusionZone(hfRows);
+    const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
+    const promptItems    = buildPromptItems(finalRows);
 
-    let rowsWithPrompts = markedRows;
+    let rowsWithPrompts = finalRows;
     if (promptItems.length > 0) {
       const apiKey = String(
         body?.apiKeyOverwrite
@@ -475,9 +488,10 @@ export async function POST(req: NextRequest) {
         items: promptItems,
         characterDescription,
         videoContext,
+        videoFormat,
       });
 
-      rowsWithPrompts = markedRows.map((row) => ({
+      rowsWithPrompts = finalRows.map((row) => ({
         ...row,
         prompt: normalizeAssetType(row.asset) === 'vídeo'
           ? enforceVideoPromptGuards(promptMap.get(row.rowNumber) || row.prompt, characterDescription)

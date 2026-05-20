@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: rgba(4, 4, 6, 0.4);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 100px;
+    }
+
+    /* Left Info Panel */
+    .info-container {
+      width: 600px;
+      padding: 50px;
+      border-radius: 24px;
+      background: rgba(10, 10, 14, 0.85);
+      border: 1px solid rgba(0, 191, 255, 0.2);
+      box-shadow: 
+        0 40px 100px rgba(0, 0, 0, 0.6),
+        0 0 40px rgba(0, 191, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      opacity: 0;
+      transform: translateX(-50px);
+      will-change: transform, opacity;
+      z-index: 10;
+    }
+
+    .eyebrow {
+      font-size: 20px;
+      font-weight: 800;
+      color: #00B3FF;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .headline {
+      font-size: 56px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      font-size: 22px;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 30px;
+      font-weight: 400;
+    }
+
+    .metric-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 22px;
+      border-radius: 12px;
+      background: rgba(0, 179, 255, 0.1);
+      border: 1px solid rgba(0, 179, 255, 0.3);
+    }
+
+    .metric-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #00B3FF;
+      letter-spacing: -0.01em;
+    }
+
+    /* Right Map Container */
+    .map-container {
+      width: 1000px;
+      height: 700px;
+      position: relative;
+      opacity: 0;
+      transform: scale(0.95);
+      will-change: transform, opacity;
+    }
+
+    .map-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .glow-dot {
+      fill: #00B3FF;
+      filter: drop-shadow(0 0 8px #00B3FF);
+    }
+
+    .route-line {
+      fill: none;
+      stroke: url(#route-gradient);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 6px rgba(0, 179, 255, 0.6));
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+    }
+
+    .ping-circle {
+      fill: none;
+      stroke: #00B3FF;
+      stroke-width: 2;
+      opacity: 0;
+      transform-origin: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="info-container" id="info-panel">
+      <div class="eyebrow">Conexão Global</div>
+      <div class="headline" id="hf-title">Rede Mundial</div>
+      <div class="subtitle" id="hf-subtitle">A infraestrutura global que suporta sistemas de alto desempenho.</div>
+      <div class="metric-box" id="hf-metric-container">
+        <span class="metric-value" id="hf-metrics">+320% nós ativos</span>
+      </div>
+    </div>
+
+    <div class="map-container" id="map-panel">
+      <svg class="map-svg" viewBox="0 0 1000 600">
+        <defs>
+          <linearGradient id="route-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#00FF88" />
+            <stop offset="50%" stop-color="#00B3FF" />
+            <stop offset="100%" stop-color="#8A2387" />
+          </linearGradient>
+        </defs>
+
+        <!-- Cyber Map Grid Background (minimalist dots representation of continents) -->
+        <g id="map-dots" opacity="0.3" fill="#ffffff">
+          <!-- North America -->
+          <circle cx="150" cy="150" r="3" />
+          <circle cx="170" cy="140" r="3" />
+          <circle cx="190" cy="130" r="3" />
+          <circle cx="210" cy="160" r="3" />
+          <circle cx="230" cy="180" r="3" />
+          <circle cx="250" cy="200" r="3" />
+          <!-- South America -->
+          <circle cx="300" cy="380" r="3" />
+          <circle cx="320" cy="410" r="3" />
+          <circle cx="340" cy="450" r="3" />
+          <circle cx="310" cy="350" r="3" />
+          <!-- Europe / Africa -->
+          <circle cx="500" cy="160" r="3" />
+          <circle cx="520" cy="180" r="3" />
+          <circle cx="540" cy="200" r="3" />
+          <circle cx="510" cy="280" r="3" />
+          <circle cx="530" cy="320" r="3" />
+          <circle cx="550" cy="360" r="3" />
+          <!-- Asia / Australia -->
+          <circle cx="700" cy="180" r="3" />
+          <circle cx="740" cy="190" r="3" />
+          <circle cx="780" cy="210" r="3" />
+          <circle cx="820" cy="230" r="3" />
+          <circle cx="850" cy="400" r="3" />
+          <circle cx="870" cy="430" r="3" />
+        </g>
+
+        <!-- Glow nodes for main cities -->
+        <!-- SP (320, 380), NY (230, 180), London (500, 160), Tokyo (780, 210) -->
+        <g id="map-nodes">
+          <circle id="node-sp" cx="320" cy="380" r="8" class="glow-dot" />
+          <circle id="ping-sp" cx="320" cy="380" r="8" class="ping-circle" />
+
+          <circle id="node-ny" cx="230" cy="180" r="8" class="glow-dot" />
+          <circle id="ping-ny" cx="230" cy="180" r="8" class="ping-circle" />
+
+          <circle id="node-ldn" cx="500" cy="160" r="8" class="glow-dot" />
+          <circle id="ping-ldn" cx="500" cy="160" r="8" class="ping-circle" />
+
+          <circle id="node-tky" cx="780" cy="210" r="8" class="glow-dot" />
+          <circle id="ping-tky" cx="780" cy="210" r="8" class="ping-circle" />
+        </g>
+
+        <!-- Route Connection Lines -->
+        <g id="map-routes">
+          <!-- SP to NY -->
+          <path id="route-sp-ny" d="M 320 380 Q 250 280 230 180" class="route-line" />
+          <!-- NY to London -->
+          <path id="route-ny-ldn" d="M 230 180 Q 365 130 500 160" class="route-line" />
+          <!-- London to Tokyo -->
+          <path id="route-ldn-tky" d="M 500 160 Q 640 120 780 210" class="route-line" />
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+
+      const data = {{HF_DATA_JSON}};
+
+      // Render Title & Subtitle
+      const titleEl = document.getElementById('hf-title');
+      if (titleEl) titleEl.textContent = data.title || 'Rede Global';
+
+      const subtitleEl = document.getElementById('hf-subtitle');
+      if (subtitleEl) subtitleEl.textContent = data.subtitle || 'Fluxo contínuo de informações estruturadas.';
+
+      const metricContainer = document.getElementById('hf-metric-container');
+      const metricsText = data.metrics || data.kpi || '';
+      if (metricContainer) {
+        if (metricsText && metricsText !== '—') {
+          metricContainer.style.display = 'inline-flex';
+          const metricVal = document.getElementById('hf-metrics');
+          if (metricVal) metricVal.textContent = metricsText;
+        } else {
+          metricContainer.style.display = 'none';
+        }
+      }
+
+      // GSAP Animation Timelines
+      const tl = gsap.timeline({ paused: true });
+      const infoPanel = document.getElementById('info-panel');
+      const mapPanel = document.getElementById('map-panel');
+
+      // T=0 Panels transition in
+      tl.to(infoPanel, {
+        opacity: 1,
+        x: 0,
+        duration: 0.6,
+        ease: 'power3.out',
+      }, 0);
+
+      tl.to(mapPanel, {
+        opacity: 1,
+        scale: 1,
+        duration: 0.8,
+        ease: 'power3.out',
+      }, 0.1);
+
+      // T=0.4 Animate routes path stroke
+      const routes = document.querySelectorAll('.route-line');
+      tl.to(routes, {
+        strokeDashoffset: 0,
+        duration: 1.5,
+        ease: 'power2.inOut',
+        stagger: 0.3,
+      }, 0.4);
+
+      // Node Ping animations
+      const pings = document.querySelectorAll('.ping-circle');
+      tl.to(pings, {
+        opacity: 0.8,
+        scale: 3.5,
+        duration: 1.2,
+        ease: 'sine.out',
+        repeat: -1,
+        stagger: 0.2,
+      }, 1.2);
+
+      window.__timelines['hf_world_map'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

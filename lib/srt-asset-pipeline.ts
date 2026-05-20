@@ -181,11 +181,52 @@ export const parseCsvToRows = (csvContent: string): SrtAssetRow[] => {
     }));
 };
 
-export const applyAssetRules = (rows: SrtAssetRow[], videoFormat: 'avatar' | 'faceless' = 'avatar') => {
+// Seeded pseudo-random generator (using a sinus-based hash spread)
+export class SeededRandom {
+  private seed: number;
+  constructor(seed: number) {
+    this.seed = seed;
+  }
+  next(): number {
+    const x = Math.sin(this.seed++) * 10000;
+    return x - Math.floor(x);
+  }
+  range(min: number, max: number): number {
+    return min + this.next() * (max - min);
+  }
+}
+
+export const calculateSrtSeed = (srtText: string): number => {
+  const content = srtText || '';
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0;
+  }
+  return Math.abs(hash);
+};
+
+export const applyAssetRules = (
+  rows: SrtAssetRow[],
+  videoFormat: 'avatar' | 'faceless' = 'avatar',
+  srtText = ''
+) => {
   if (!rows.length) return rows;
+
+  const combinedText = srtText || rows.map((r) => r.texto).join(' ');
+  const seed = calculateSrtSeed(combinedText);
+  const prng = new SeededRandom(seed);
 
   let lastBrollMarkerMs = 0;
   const totalRows = rows.length;
+
+  const rowEndsWithPunctuation = (text: string): boolean => {
+    const clean = text.trim();
+    if (clean.endsWith('...') || clean.endsWith('..')) return true;
+    const lastChar = clean[clean.length - 1];
+    return ['.', '!', '?', ',', ';', ':'].includes(lastChar);
+  };
 
   return rows.map((row, index) => {
     const text = row.texto.trim();
@@ -197,18 +238,75 @@ export const applyAssetRules = (rows: SrtAssetRow[], videoFormat: 'avatar' | 'fa
       return { ...row, asset: 'texto' as const };
     }
 
-    const intervalMs = videoFormat === 'faceless'
-      ? FACELESS_INTERVAL_MS
-      : getIntervalMs(index, totalRows);
+    let intervalMs = 0;
+    if (videoFormat === 'faceless') {
+      const progress = (index + 1) / totalRows;
+      if (progress <= 0.15) {
+        // Hook: fast cuts (3s to 5s)
+        intervalMs = Math.round(prng.range(3000, 5000));
+      } else if (progress <= 0.85) {
+        // Body: comfortable cuts (6s to 10s)
+        intervalMs = Math.round(prng.range(6000, 10000));
+      } else {
+        // CTA: stimulating cuts (5s to 7s)
+        intervalMs = Math.round(prng.range(5000, 7000));
+      }
+
+      // --- Alinhamento por Pontuação (Natural Cuts) ---
+      // Look ahead in a tolerance window of +/- 1.5 seconds (1500 ms) around ideal cut time
+      const idealCutMs = lastBrollMarkerMs + intervalMs;
+      const toleranceMs = 1500;
+      
+      let bestPunctuationRowIndex = -1;
+      let bestDiff = Infinity;
+
+      for (let j = index; j < totalRows; j++) {
+        const jStartMs = parseSrtTimeToMs(rows[j].startTime);
+        const jEndMs = parseSrtTimeToMs(rows[j].endTime);
+        
+        if (jStartMs > idealCutMs + toleranceMs) break;
+
+        if (rowEndsWithPunctuation(rows[j].texto)) {
+          const diff = Math.abs(jEndMs - idealCutMs);
+          if (diff <= toleranceMs && diff < bestDiff) {
+            bestDiff = diff;
+            bestPunctuationRowIndex = j;
+          }
+        }
+      }
+
+      if (bestPunctuationRowIndex !== -1) {
+        const pEndMs = parseSrtTimeToMs(rows[bestPunctuationRowIndex].endTime);
+        if (bestPunctuationRowIndex === index) {
+          lastBrollMarkerMs = Math.max(lastBrollMarkerMs + (pEndMs - startMs), startMs);
+          return { ...row, asset: getBrollAsset(startMs, endMs) };
+        }
+      }
+    } else {
+      intervalMs = getIntervalMs(index, totalRows);
+    }
 
     if (endMs - lastBrollMarkerMs >= intervalMs) {
       lastBrollMarkerMs = Math.max(lastBrollMarkerMs + intervalMs, startMs);
       return { ...row, asset: getBrollAsset(startMs, endMs) };
     }
 
-    // Avatar mode: fill gap with avatar presenter
-    // Faceless mode: leave blank — editor stretches the previous media until next marker
-    return { ...row, asset: (videoFormat === 'faceless' ? '' : 'avatar') as SrtAssetType };
+    // Gaps temporarily marked as avatar in both modes so that applyHyperframeRules can identify and convert them.
+    // We will clear the remaining ones afterwards for Faceless Mode using finalizeFacelessRows.
+    return { ...row, asset: 'avatar' as SrtAssetType };
+  });
+};
+
+export const finalizeFacelessRows = (
+  rows: SrtAssetRow[],
+  videoFormat: 'avatar' | 'faceless' = 'avatar'
+): SrtAssetRow[] => {
+  if (videoFormat !== 'faceless') return rows;
+  return rows.map((row) => {
+    if (normalizeAssetType(row.asset) === 'avatar') {
+      return { ...row, asset: '' as SrtAssetType };
+    }
+    return row;
   });
 };
 

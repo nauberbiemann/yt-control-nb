@@ -683,23 +683,65 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     }
   };
 
-  const openEdit = (theme: Theme) => {
-    setEditingTheme(theme);
+  const hydrateCompressedThemeIfNeeded = async (theme: Theme): Promise<Theme> => {
+    if (!theme?.production_assets?._compressed) {
+      return theme;
+    }
+
+    try {
+      console.log(`[ThemeBank] Tema "${theme.title}" está comprimido no cache local. Hidratando a partir da nuvem Supabase...`);
+      if (!supabase) throw new Error('Supabase não disponível para hidratação.');
+      
+      const { data, error } = await supabase
+        .from('themes')
+        .select('production_assets')
+        .eq('id', theme.id)
+        .single();
+      
+      if (error) throw error;
+      if (!data || !data.production_assets) {
+        throw new Error('Assets não encontrados na nuvem.');
+      }
+
+      const hydratedTheme: Theme = {
+        ...theme,
+        production_assets: data.production_assets
+      };
+
+      const updatedThemes = themes.map(t => t.id === theme.id ? hydratedTheme : t);
+      setThemes(updatedThemes);
+      
+      if (activeProject?.id) {
+        localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
+      }
+
+      console.log(`[ThemeBank] Tema "${theme.title}" hidratado com sucesso!`);
+      return hydratedTheme;
+    } catch (err: any) {
+      console.error(`[ThemeBank] Erro ao hidratar tema comprimido:`, err);
+      alert(`Aviso: Não foi possível obter os dados completos do tema a partir da nuvem. Detalhes: ${err.message || err}`);
+      return theme;
+    }
+  };
+
+  const openEdit = async (theme: Theme) => {
+    const hydratedTheme = await hydrateCompressedThemeIfNeeded(theme);
+    setEditingTheme(hydratedTheme);
     setForm({
-      title: theme.title,
-      description: theme.description || '',
-      editorial_pillar: theme.editorial_pillar || '',
-      status: theme.status,
-      title_structure: theme.title_structure || '',
-      selected_structure: theme.selected_structure || '',
-      title_structure_asset_id: theme.title_structure_asset_id || null,
-      pipeline_level: theme.pipeline_level || '',
-      is_demand_vetted: theme.is_demand_vetted || false,
-      is_persona_vetted: theme.is_persona_vetted || false,
-      refined_title: theme.refined_title || '',
-      priority: theme.priority,
-      notes: theme.notes || '',
-      target_publish_date: getThemePublishDate(theme),
+      title: hydratedTheme.title,
+      description: hydratedTheme.description || '',
+      editorial_pillar: hydratedTheme.editorial_pillar || '',
+      status: hydratedTheme.status,
+      title_structure: hydratedTheme.title_structure || '',
+      selected_structure: hydratedTheme.selected_structure || '',
+      title_structure_asset_id: hydratedTheme.title_structure_asset_id || null,
+      pipeline_level: hydratedTheme.pipeline_level || '',
+      is_demand_vetted: hydratedTheme.is_demand_vetted || false,
+      is_persona_vetted: hydratedTheme.is_persona_vetted || false,
+      refined_title: hydratedTheme.refined_title || '',
+      priority: hydratedTheme.priority,
+      notes: hydratedTheme.notes || '',
+      target_publish_date: getThemePublishDate(hydratedTheme),
     });
     setShowForm(true);
   };
@@ -711,12 +753,14 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   };
 
   const isScriptEngineTheme = (theme: Theme) =>
-    theme?.production_assets?.source === 'script_engine_manual_approval';
+    theme?.production_assets?.source === 'script_engine_manual_approval' ||
+    theme?.production_assets?._compressed === true;
 
-  const reopenInWriting = (theme: Theme) => {
+  const reopenInWriting = async (theme: Theme) => {
     if (!activeProject?.id) return;
 
-    let executionSnapshot = theme?.production_assets?.execution_snapshot;
+    const hydratedTheme = await hydrateCompressedThemeIfNeeded(theme);
+    let executionSnapshot = hydratedTheme?.production_assets?.execution_snapshot;
     if (!executionSnapshot) {
       alert('Este tema ainda nao tem um snapshot da Escrita Criativa para retomar.');
       return;

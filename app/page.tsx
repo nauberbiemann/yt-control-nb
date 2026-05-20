@@ -602,6 +602,37 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
+  // 🧹 Background Garbage Collector (Fase 3)
+  // Executa uma limpeza silenciosa de caches locais confirmados na nuvem
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Atraso de 15s para não competir com o bootstrap inicial da UI
+    const initialTimer = setTimeout(async () => {
+      try {
+        const { executeBackgroundGarbageCollection } = await import('@/lib/garbage-collector');
+        await executeBackgroundGarbageCollection();
+      } catch (err) {
+        console.warn('[ContentOS] Falha silenciosa no ciclo inicial do GC:', err);
+      }
+    }, 15_000);
+
+    // Executa periodicamente a cada 5 minutos
+    const interval = setInterval(async () => {
+      try {
+        const { executeBackgroundGarbageCollection } = await import('@/lib/garbage-collector');
+        await executeBackgroundGarbageCollection();
+      } catch (err) {
+        console.warn('[ContentOS] Falha silenciosa no ciclo recorrente do GC:', err);
+      }
+    }, 300_000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleUpdateAI = (config: AIConfig) => {
     setActiveAIConfig(config);
     localStorage.setItem('ws_ai_config', JSON.stringify(config));

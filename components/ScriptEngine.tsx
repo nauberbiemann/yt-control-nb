@@ -823,7 +823,61 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       }
 
       if (!snapshot) {
-        setExecutionHydrated(true);
+        if (supabase) {
+          const loadFromCloud = async () => {
+            try {
+              console.log(`[ScriptEngine] Nenhum snapshot local para o projeto ${activeProject.id}. Tentando carregar última execução da nuvem...`);
+              const { data, error } = await supabase
+                .from('script_executions')
+                .select('*')
+                .eq('project_id', activeProject.id)
+                .order('updated_at', { ascending: false })
+                .limit(1);
+              
+              if (error) throw error;
+              if (data && data[0] && data[0].execution_snapshot) {
+                const cloudSnapshot = data[0].execution_snapshot;
+                console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
+                
+                if (cloudSnapshot.approvedTheme) setApprovedTheme(cloudSnapshot.approvedTheme);
+                if (cloudSnapshot.approvedBriefing) setApprovedBriefing(cloudSnapshot.approvedBriefing);
+                const normalizedSnapshotBlocks = resolveSnapshotBlocks(cloudSnapshot);
+                if (normalizedSnapshotBlocks.length > 0) {
+                  setScriptBlocks(normalizedSnapshotBlocks);
+                }
+                setScriptStage(inferScriptStageFromSnapshot(cloudSnapshot));
+                if (typeof cloudSnapshot.assemblerActive === 'boolean') setAssemblerActive(cloudSnapshot.assemblerActive);
+                if (cloudSnapshot.thumbnailDirective) setThumbnailDirective(cloudSnapshot.thumbnailDirective);
+                if (typeof cloudSnapshot.showThumbnailPanel === 'boolean') setShowThumbnailPanel(cloudSnapshot.showThumbnailPanel);
+                if (typeof cloudSnapshot.thumbnailUrl === 'string') setThumbnailUrl(cloudSnapshot.thumbnailUrl);
+                if (cloudSnapshot.executionMode === 'external' || cloudSnapshot.executionMode === 'internal') setExecutionMode(cloudSnapshot.executionMode);
+                if (typeof cloudSnapshot.externalScriptText === 'string') setExternalScriptText(cloudSnapshot.externalScriptText);
+                if (typeof cloudSnapshot.externalScriptFileName === 'string') setExternalScriptFileName(cloudSnapshot.externalScriptFileName);
+                if (typeof cloudSnapshot.externalSourceLabel === 'string') setExternalSourceLabel(cloudSnapshot.externalSourceLabel);
+                if (typeof cloudSnapshot.externalSrtText === 'string') setExternalSrtText(cloudSnapshot.externalSrtText);
+                if (typeof cloudSnapshot.externalSrtFileName === 'string') setExternalSrtFileName(cloudSnapshot.externalSrtFileName);
+                if (['male', 'female', 'custom'].includes(cloudSnapshot.videoCharacterMode)) setVideoCharacterMode(cloudSnapshot.videoCharacterMode);
+                if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
+                if (cloudSnapshot.videoFormat === 'faceless' || cloudSnapshot.videoFormat === 'avatar') setVideoFormat(cloudSnapshot.videoFormat);
+                if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
+                
+                if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
+                if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
+                if (Array.isArray(cloudSnapshot.externalSrtObserver)) setExternalSrtObserver(cloudSnapshot.externalSrtObserver);
+                if (Array.isArray(cloudSnapshot.hfBgPrompts)) setHfBgPrompts(cloudSnapshot.hfBgPrompts);
+
+                localStorage.setItem(executionStorageKey, JSON.stringify(cloudSnapshot));
+              }
+            } catch (err) {
+              console.warn('[ScriptEngine] Falha ao tentar carregar última execução do Supabase:', err);
+            } finally {
+              setExecutionHydrated(true);
+            }
+          };
+          loadFromCloud();
+        } else {
+          setExecutionHydrated(true);
+        }
         return;
       }
       if (snapshot?.approvedTheme) setApprovedTheme(snapshot.approvedTheme);

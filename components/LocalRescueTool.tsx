@@ -2,7 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { HardDriveDownload, CloudUpload, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { 
+  HardDriveDownload, 
+  CloudUpload, 
+  Trash2, 
+  AlertTriangle, 
+  CheckCircle2,
+  ShieldCheck,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Database,
+  Sparkles,
+  Check,
+  Info,
+  Server,
+  Zap
+} from 'lucide-react';
+import { executeBackgroundGarbageCollection, getGCLog, GCLog } from '@/lib/garbage-collector';
 
 export function LocalRescueTool() {
   const [storageMB, setStorageMB] = useState(0);
@@ -13,7 +30,14 @@ export function LocalRescueTool() {
   const [hasDownloaded, setHasDownloaded] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
+  // Estados do Garbage Collector Seguro
+  const [gcLog, setGcLog] = useState<GCLog | null>(null);
+  const [isRunningGc, setIsRunningGc] = useState(false);
+  const [showGcLogs, setShowGcLogs] = useState(false);
+  const [gcActionFeedback, setGcActionFeedback] = useState<string | null>(null);
+
   const calculateStorage = () => {
+    if (typeof window === 'undefined') return;
     let total = 0;
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i) || '';
@@ -24,7 +48,13 @@ export function LocalRescueTool() {
 
   useEffect(() => {
     calculateStorage();
-    const interval = setInterval(calculateStorage, 5000);
+    setGcLog(getGCLog());
+
+    const interval = setInterval(() => {
+      calculateStorage();
+      setGcLog(getGCLog());
+    }, 5000);
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -200,89 +230,310 @@ export function LocalRescueTool() {
     }
   };
 
-  if (storageMB < 2 && uploadStatus !== 'success') return null; // Só aparece se tiver muito dado ou se a migração terminou com sucesso.
-
-  return (
-    <div className="w-full bg-slate-900 border-2 border-red-500/50 rounded-xl p-6 mb-8 shadow-2xl shadow-red-900/20 relative overflow-hidden animate-in fade-in zoom-in duration-500">
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500"></div>
+  const handleRunGcManually = async () => {
+    if (isRunningGc) return;
+    setIsRunningGc(true);
+    setGcActionFeedback("Validando backups no Supabase e comprimindo...");
+    try {
+      const log = await executeBackgroundGarbageCollection(true);
+      setGcLog(log);
+      calculateStorage();
       
-      <div className="flex flex-col md:flex-row gap-6 items-center">
-        <div className="flex-shrink-0 bg-red-500/10 p-4 rounded-full border border-red-500/20">
-          <AlertTriangle className="w-10 h-10 text-red-500 animate-pulse" />
-        </div>
-        
-        <div className="flex-1">
-          <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
-            ALERTA CRÍTICO DE ARMAZENAMENTO ({storageMB.toFixed(1)} MB Usados)
-          </h2>
-          <p className="text-slate-400 text-sm mt-2 leading-relaxed max-w-2xl">
-            Seu navegador atingiu o limite físico de memória e <b>vai começar a travar ou perder roteiros</b>. 
-            Siga os 3 passos abaixo nesta ordem exata para salvar seus arquivos em segurança para o banco de dados oficial (Supabase) e liberar a memória local.
-          </p>
-        </div>
-      </div>
+      if (log.status === 'success') {
+        const cleanedKB = (log.bytesCleaned / 1024).toFixed(1);
+        setGcActionFeedback(`Sucesso! ${cleanedKB} KB liberados em cache local.`);
+      } else {
+        setGcActionFeedback("Concluído. localStorage saudável, nenhum projeto precisou de compressão.");
+      }
+      setTimeout(() => setGcActionFeedback(null), 5000);
+    } catch (err: any) {
+      setGcActionFeedback(`Erro no coletor: ${err.message || err}`);
+      setTimeout(() => setGcActionFeedback(null), 5000);
+    } finally {
+      setIsRunningGc(false);
+    }
+  };
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+  const formatGCDate = (dateStr?: string) => {
+    if (!dateStr) return 'Nunca';
+    try {
+      return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch {
+      return 'Nunca';
+    }
+  };
+
+  // Cálculo da percentagem de espaço ocupado (limite de alerta 1.2MB)
+  const storagePercentage = Math.min((storageMB / 1.2) * 100, 100);
+
+  // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 2 MB) - RENDERIZA CARD DE AVISO DE EMERGÊNCIA
+  if (storageMB >= 2 || uploadStatus === 'success') {
+    return (
+      <div className="w-full bg-slate-900 border-2 border-red-500/50 rounded-xl p-6 mb-8 shadow-2xl shadow-red-900/20 relative overflow-hidden animate-in fade-in zoom-in duration-500">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500"></div>
         
-        {/* PASSO 1 */}
-        <div className="bg-slate-800/50 p-5 rounded-lg border border-slate-700 relative group">
-          <div className="absolute -top-3 -left-3 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-black border-4 border-slate-900 shadow-lg">1</div>
-          <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-            <HardDriveDownload className="w-5 h-5 text-blue-400" /> Baixar Backup Local
-          </h3>
-          <p className="text-xs text-slate-400 mb-4 h-10">Cria um arquivo .json físico no seu computador contendo todos os roteiros. Garantia total contra perda.</p>
-          <button 
-            onClick={handleDownloadBackup}
-            disabled={isDownloading}
-            className={`w-full py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-              hasDownloaded ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
-            }`}
+        <div className="flex flex-col md:flex-row gap-6 items-center">
+          <div className="flex-shrink-0 bg-red-500/10 p-4 rounded-full border border-red-500/20">
+            <AlertTriangle className="w-10 h-10 text-red-500 animate-pulse" />
+          </div>
+          
+          <div className="flex-1">
+            <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+              ALERTA CRÍTICO DE ARMAZENAMENTO ({storageMB.toFixed(1)} MB Usados)
+            </h2>
+            <p className="text-slate-400 text-sm mt-2 leading-relaxed max-w-2xl">
+              Seu navegador atingiu o limite físico de memória e <b>vai começar a travar ou perder roteiros</b>. 
+              Siga os 3 passos abaixo nesta ordem exata para salvar seus arquivos em segurança para o banco de dados oficial (Supabase) e liberar a memória local.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+          
+          {/* PASSO 1 */}
+          <div className="bg-slate-800/50 p-5 rounded-lg border border-slate-700 relative group">
+            <div className="absolute -top-3 -left-3 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-black border-4 border-slate-900 shadow-lg">1</div>
+            <h3 className="font-bold text-white mb-2 flex items-center gap-2">
+              <HardDriveDownload className="w-5 h-5 text-blue-400" /> Baixar Backup Local
+            </h3>
+            <p className="text-xs text-slate-400 mb-4 h-10">Cria um arquivo .json físico no seu computador contendo todos os roteiros. Garantia total contra perda.</p>
+            <button 
+              onClick={handleDownloadBackup}
+              disabled={isDownloading}
+              className={`w-full py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                hasDownloaded ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
+              }`}
+            >
+              {hasDownloaded ? <><CheckCircle2 className="w-4 h-4" /> Arquivo Baixado</> : 'Baixar .JSON Seguro'}
+            </button>
+          </div>
+
+          {/* PASSO 2 */}
+          <div className={`bg-slate-800/50 p-5 rounded-lg border border-slate-700 relative transition-all ${!hasDownloaded ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+            <div className="absolute -top-3 -left-3 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center font-black border-4 border-slate-900 text-slate-900 shadow-lg">2</div>
+            <h3 className="font-bold text-white mb-2 flex items-center gap-2">
+              <CloudUpload className="w-5 h-5 text-amber-400" /> Sincronizar Nuvem
+            </h3>
+            <p className="text-xs text-slate-400 mb-4 h-10">Copia silenciosamente seus {storageMB.toFixed(1)}MB para o banco de dados seguro do Supabase.</p>
+            <button 
+              onClick={handleUploadToCloud}
+              disabled={isUploading || uploadStatus === 'success'}
+              className={`w-full py-2.5 rounded-md text-sm font-bold transition-all relative overflow-hidden ${
+                uploadStatus === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg shadow-amber-500/20'
+              }`}
+            >
+              {isUploading && (
+                <div className="absolute top-0 left-0 h-full bg-black/10" style={{ width: `${uploadProgress}%` }}></div>
+              )}
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                {uploadStatus === 'success' ? <><CheckCircle2 className="w-4 h-4" /> 100% Sincronizado</> : 
+                 isUploading ? `Enviando... ${uploadProgress}%` : 'Sincronizar com Supabase'}
+              </span>
+            </button>
+          </div>
+
+          {/* PASSO 3 */}
+          <div className={`bg-slate-800/50 p-5 rounded-lg border border-red-500/30 relative transition-all ${uploadStatus !== 'success' ? 'opacity-40 grayscale pointer-events-none' : 'shadow-[0_0_20px_rgba(239,68,68,0.2)]'}`}>
+            <div className="absolute -top-3 -left-3 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center font-black border-4 border-slate-900 text-white shadow-lg">3</div>
+            <h3 className="font-bold text-white mb-2 flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-400" /> Expurgar Memória
+            </h3>
+            <p className="text-xs text-slate-400 mb-4 h-10">Libera os 10MB do seu navegador agora que seus dados estão seguros na nuvem.</p>
+            <button 
+              onClick={handlePurge}
+              disabled={isPurging}
+              className="w-full py-2.5 rounded-md text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
+            >
+              {isPurging ? 'Limpando...' : 'Expurgar e Recarregar'}
+            </button>
+          </div>
+
+        </div>
+
+        {/* SUB-SEÇÃO INFORMATIVA DO COLETOR AUTOMÁTICO SEGURO */}
+        <div className="mt-6 pt-4 border-t border-slate-800/60 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-950/20 p-4 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/30">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                Defesa Automática Ativa <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">Risco Zero</span>
+              </p>
+              <p className="text-[10px] text-slate-500">O Coletor de Lixo em background está ativo. Ele sincroniza tudo na nuvem antes de comprimir dados.</p>
+            </div>
+          </div>
+          <button
+            onClick={handleRunGcManually}
+            disabled={isRunningGc}
+            className="px-4 py-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-all text-xs font-bold flex items-center gap-2"
           >
-            {hasDownloaded ? <><CheckCircle2 className="w-4 h-4" /> Arquivo Baixado</> : 'Baixar .JSON Seguro'}
+            <RefreshCw className={`w-3.5 h-3.5 ${isRunningGc ? 'animate-spin text-blue-400' : ''}`} />
+            Forçar Coleta Segura
           </button>
         </div>
+      </div>
+    );
+  }
 
-        {/* PASSO 2 */}
-        <div className={`bg-slate-800/50 p-5 rounded-lg border border-slate-700 relative transition-all ${!hasDownloaded ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-          <div className="absolute -top-3 -left-3 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center font-black border-4 border-slate-900 text-slate-900 shadow-lg">2</div>
-          <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-            <CloudUpload className="w-5 h-5 text-amber-400" /> Sincronizar Nuvem
-          </h3>
-          <p className="text-xs text-slate-400 mb-4 h-10">Copia silenciosamente seus {storageMB.toFixed(1)}MB para o banco de dados seguro do Supabase.</p>
-          <button 
-            onClick={handleUploadToCloud}
-            disabled={isUploading || uploadStatus === 'success'}
-            className={`w-full py-2.5 rounded-md text-sm font-bold transition-all relative overflow-hidden ${
-              uploadStatus === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg shadow-amber-500/20'
-            }`}
-          >
-            {isUploading && (
-              <div className="absolute top-0 left-0 h-full bg-black/10" style={{ width: `${uploadProgress}%` }}></div>
-            )}
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              {uploadStatus === 'success' ? <><CheckCircle2 className="w-4 h-4" /> 100% Sincronizado</> : 
-               isUploading ? `Enviando... ${uploadProgress}%` : 'Sincronizar com Supabase'}
+  // SE O ARMAZENAMENTO ESTIVER SAUDÁVEL (ABAIXO DE 2 MB) - RENDERIZA PAINEL DISCRETO DE INFORMAÇÃO & SEGURANÇA
+  return (
+    <div className="w-full bg-slate-950/40 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 flex flex-col gap-4 shadow-xl hover:border-slate-700/80 transition-all duration-300 max-w-7xl animate-in fade-in slide-in-from-top-4 duration-300">
+      
+      {/* HEADER PRINCIPAL */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        
+        {/* Status com Indicador Pulsante */}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 shadow-inner">
+              <ShieldCheck className="w-5.5 h-5.5" />
+            </div>
+            {/* Ponto Pulsante */}
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-slate-950"></span>
             </span>
-          </button>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-black text-white uppercase tracking-tight">Coletor de Lixo em Background</h4>
+              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1 shadow-sm">
+                <Check className="w-2.5 h-2.5" /> Risco Zero
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-normal">
+              Seus projetos locais estão 100% protegidos contra perdas. Limpezas ocorrem apenas após confirmação e hash na nuvem.
+            </p>
+          </div>
         </div>
 
-        {/* PASSO 3 */}
-        <div className={`bg-slate-800/50 p-5 rounded-lg border border-red-500/30 relative transition-all ${uploadStatus !== 'success' ? 'opacity-40 grayscale pointer-events-none' : 'shadow-[0_0_20px_rgba(239,68,68,0.2)]'}`}>
-          <div className="absolute -top-3 -left-3 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center font-black border-4 border-slate-900 text-white shadow-lg">3</div>
-          <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-            <Trash2 className="w-5 h-5 text-red-400" /> Expurgar Memória
-          </h3>
-          <p className="text-xs text-slate-400 mb-4 h-10">Libera os 10MB do seu navegador agora que seus dados estão seguros na nuvem.</p>
-          <button 
-            onClick={handlePurge}
-            disabled={isPurging}
-            className="w-full py-2.5 rounded-md text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
-          >
-            {isPurging ? 'Limpando...' : 'Expurgar e Recarregar'}
-          </button>
+        {/* Informações de Métricas + Ação */}
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-slate-800/50 pt-3 md:pt-0">
+          
+          {/* Métrica: Espaço Local */}
+          <div className="text-left md:text-right pr-2">
+            <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Armazenamento Local</p>
+            <p className="text-xs font-black text-slate-300">
+              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 1.20 MB máx</span>
+            </p>
+          </div>
+
+          {/* Métrica: Poupado */}
+          <div className="text-left md:text-right px-2 border-l md:border-r border-slate-800/80">
+            <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Espaço Poupado</p>
+            <p className="text-xs font-black text-emerald-400">
+              {gcLog ? `${(gcLog.bytesCleaned / 1024).toFixed(1)} KB` : '0.0 KB'}
+            </p>
+          </div>
+
+          {/* Ação manual discreta */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRunGcManually}
+              disabled={isRunningGc}
+              title="Executa a verificação e compressão manual dos dados sincronizados"
+              className="px-3 py-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 transition-all text-xs font-extrabold flex items-center gap-2 shadow-sm disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${isRunningGc ? 'animate-spin text-blue-400' : ''}`} />
+              {isRunningGc ? 'Analisando...' : 'Rodar Limpeza'}
+            </button>
+
+            {/* Expandir logs */}
+            <button
+              onClick={() => setShowGcLogs(!showGcLogs)}
+              className="p-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-all"
+              title="Visualizar logs detalhados do coletor"
+            >
+              {showGcLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
         </div>
 
       </div>
+
+      {/* FEEDBACK DE AÇÃO DIRECTA */}
+      {gcActionFeedback && (
+        <div className="text-xs font-bold text-blue-400 bg-blue-500/5 border border-blue-500/20 px-3 py-2 rounded-lg flex items-center gap-2 animate-pulse">
+          <Info className="w-4 h-4 flex-shrink-0" />
+          {gcActionFeedback}
+        </div>
+      )}
+
+      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 1.2MB) */}
+      <div className="w-full">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-[9px] font-bold text-slate-500 uppercase">Uso do Armazenamento</span>
+          <span className="text-[10px] font-bold text-slate-400">{storagePercentage.toFixed(0)}% saudável</span>
+        </div>
+        <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800/40">
+          <div 
+            className={`h-full rounded-full transition-all duration-500 ${
+              storageMB > 1.0 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'
+            }`}
+            style={{ width: `${storagePercentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* DETALHES EXPANDÍVEIS E TERMINAL DE LOGS */}
+      {showGcLogs && (
+        <div className="mt-2 pt-3 border-t border-slate-800/50 flex flex-col gap-3 animate-in slide-in-from-top-2 duration-300">
+          
+          {/* Informações detalhadas da última execução */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-900 flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Server className="w-3.5 h-3.5 text-slate-400" /> Diagnóstico do Coletor
+              </span>
+              <p className="text-slate-300"><b>Último Ciclo:</b> {formatGCDate(gcLog?.lastRun)}</p>
+              <p className="text-slate-300"><b>Status:</b> {
+                gcLog?.status === 'success' ? <span className="text-emerald-400 font-bold">Sucesso</span> :
+                gcLog?.status === 'error' ? <span className="text-red-400 font-bold">Erro de Execução</span> :
+                <span className="text-slate-400">Aguardando Limpeza</span>
+              }</p>
+            </div>
+            
+            {/* Informações de Risco Zero */}
+            <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-900 flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Certificado de Integridade
+              </span>
+              <p className="text-[11px] text-slate-400 leading-normal">
+                Todas as operações no cache local são precedidas por um upload e verificação de integridade no Supabase. 
+                Os identificadores de temas, roteiros e logs de BI são salvos de forma redundante e rehidratados sob demanda (lazy loading) instantaneamente.
+              </p>
+            </div>
+          </div>
+
+          {/* Terminal de Logs */}
+          <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-900 font-mono text-[10px] text-slate-400 max-h-48 overflow-y-auto flex flex-col gap-1 shadow-inner relative">
+            <div className="absolute top-2 right-2 text-[9px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-500 select-none">
+              Console de Sincronização
+            </div>
+            <p className="text-emerald-500 font-bold mb-1">// COLETOR DE LIXO SEGURO - LOGS DE EXECUÇÃO EM BACKGROUND</p>
+            {gcLog && gcLog.details && gcLog.details.length > 0 ? (
+              gcLog.details.map((detail, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="text-slate-600 select-none">[{idx + 1}]</span>
+                  <span className={
+                    detail.includes('[ERRO]') ? 'text-red-400' :
+                    detail.includes('[GC]') && detail.includes('sincronizado') ? 'text-blue-300' :
+                    detail.includes('comprimido') || detail.includes('removido') ? 'text-emerald-400/90' :
+                    'text-slate-300'
+                  }>{detail}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-500 italic">Nenhum log gravado no cache local até o momento.</p>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+

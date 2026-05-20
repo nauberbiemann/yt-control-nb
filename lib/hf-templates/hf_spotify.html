@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .spotify-card {
+      width: 680px;
+      padding: 30px;
+      border-radius: 20px;
+      background: rgba(10, 10, 12, 0.9);
+      border: 1px solid rgba(30, 215, 96, 0.2);
+      box-shadow: 
+        0 30px 80px rgba(0, 0, 0, 0.7),
+        0 0 35px rgba(30, 215, 96, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      opacity: 0;
+      transform: translateY(40px);
+      will-change: transform, opacity;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      position: relative;
+    }
+
+    .spotify-cover {
+      width: 120px;
+      height: 120px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #1ED760, #191414);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #ffffff;
+      font-size: 28px;
+      box-shadow: 0 8px 25px rgba(30, 215, 96, 0.25);
+      flex-shrink: 0;
+    }
+
+    .spotify-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-grow: 1;
+    }
+
+    .spotify-tag {
+      font-size: 14px;
+      font-weight: 800;
+      color: #1ED760;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 2px;
+    }
+
+    .spotify-track {
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+
+    .spotify-artist {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 500;
+    }
+
+    .spotify-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .spotify-progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .spotify-progress-active {
+      width: 0%;
+      height: 100%;
+      background: #1ED760;
+      border-radius: 9999px;
+      box-shadow: 0 0 10px #1ED760;
+    }
+
+    .spotify-wave {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 36px;
+      position: absolute;
+      right: 30px;
+      top: 30px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      height: 4px;
+      background: #1ED760;
+      border-radius: 9999px;
+      will-change: height;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="spotify-card" id="spotify-card">
+      <div class="spotify-cover" id="spotify-cover">♫</div>
+      <div class="spotify-info">
+        <span class="spotify-tag">Ouvindo Agora</span>
+        <div class="spotify-track" id="spotify-track">Trilha Sonora</div>
+        <div class="spotify-artist" id="spotify-artist">Artista</div>
+        <div class="spotify-controls">
+          <div class="spotify-progress-bar">
+            <div class="spotify-progress-active" id="spotify-progress"></div>
+          </div>
+        </div>
+      </div>
+      <div class="spotify-wave" id="spotify-wave">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+
+      const data = {{HF_DATA_JSON}};
+
+      // Render info
+      const trackEl = document.getElementById('spotify-track');
+      const artistEl = document.getElementById('spotify-artist');
+      const coverEl = document.getElementById('spotify-cover');
+
+      const trackVal = data.title || data.titulo || 'Trilha Sonora';
+      if (trackEl) trackEl.textContent = trackVal;
+
+      if (coverEl && trackVal) {
+        coverEl.textContent = trackVal.slice(0, 1).toUpperCase();
+      }
+
+      const artistVal = data.subtitle || data.subtitulo || 'Artista Estratégico';
+      if (artistEl) artistEl.textContent = artistVal;
+
+      // GSAP Timelines
+      const tl = gsap.timeline({ paused: true });
+      const card = document.getElementById('spotify-card');
+      const progress = document.getElementById('spotify-progress');
+
+      // T=0 Card entry
+      tl.to(card, {
+        opacity: 1,
+        y: 0,
+        duration: 0.6,
+        ease: 'power3.out',
+      });
+
+      // T=0.4 Animate progress bar fill to ~65%
+      tl.to(progress, {
+        width: '65%',
+        duration: 4.0,
+        ease: 'power1.inOut',
+      }, 0.4);
+
+      // Endless wave bar animation
+      const waveBars = document.querySelectorAll('.wave-bar');
+      waveBars.forEach((bar, index) => {
+        gsap.to(bar, {
+          height: 32,
+          duration: 0.4 + index * 0.1,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+        });
+      });
+
+      // Floating breath
+      tl.to(card, {
+        y: -5,
+        duration: 1.8,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      }, 0.6);
+
+      window.__timelines['hf_spotify'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

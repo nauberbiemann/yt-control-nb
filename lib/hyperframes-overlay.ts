@@ -92,6 +92,10 @@ const STATE_SCENE: Record<string, string> = {
   hf_notification: 'Futuristic minimal desktop environment, subtle UI elements, clean modern interface design',
   hf_world_map:    'High tech dark cybersecurity grid, glowing fiber optic connections, cyber neon maps',
   hf_data_chart:   'Futuristic HUD financial interface, glowing neon blue grid lines, abstract network data charts',
+  hf_reddit:       'Sleek dark room background, neon glow reflections, premium technology forum display',
+  hf_spotify:      'Atmospheric study room, moody neon purple light leaks, artistic retro details',
+  hf_code_terminal: 'Dark tech cyber hacker aesthetic screen reflection, abstract green and white code blocks scrolling',
+  hf_quote:        'Dramatic deep black background, soft golden spotlight, ambient cinematic smoke',
 };
 
 export const generateHfBgPrompt = (texto: string, visualState: string, aiPrompt?: string): string => {
@@ -141,6 +145,10 @@ const TEMPLATE_MAP: Record<string, string> = {
   hf_notification: 'hf_notification.html',
   hf_world_map:    'hf_world_map.html',
   hf_data_chart:   'hf_data_chart.html',
+  hf_reddit:       'hf_reddit.html',
+  hf_spotify:      'hf_spotify.html',
+  hf_code_terminal: 'hf_code_terminal.html',
+  hf_quote:        'hf_quote.html',
 };
 
 const resolveTemplate = (visualState?: string, promptFallback?: string): string => {

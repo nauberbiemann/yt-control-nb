@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .reddit-card {
+      width: 820px;
+      padding: 40px;
+      border-radius: 24px;
+      background: rgba(12, 12, 16, 0.92);
+      border: 1px solid rgba(255, 69, 0, 0.2);
+      box-shadow: 
+        0 30px 100px rgba(0, 0, 0, 0.8),
+        0 0 40px rgba(255, 69, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      opacity: 0;
+      transform: scale(0.9);
+      will-change: transform, opacity;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .reddit-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 20px;
+    }
+
+    .reddit-community-box {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .reddit-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #FF5722, #FF4500);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(255, 69, 0, 0.4);
+    }
+
+    .reddit-icon svg {
+      width: 32px;
+      height: 32px;
+      fill: #ffffff;
+    }
+
+    .reddit-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .reddit-subreddit {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .reddit-author {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .reddit-join-btn {
+      padding: 10px 22px;
+      border-radius: 9999px;
+      background: #FF4500;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      box-shadow: 0 4px 15px rgba(255, 69, 0, 0.3);
+    }
+
+    .reddit-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.35;
+      letter-spacing: -0.02em;
+    }
+
+    .reddit-body {
+      font-size: 22px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.85);
+      font-weight: 400;
+      word-wrap: break-word;
+    }
+
+    .reddit-footer {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-top: 10px;
+    }
+
+    .reddit-action-group {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 9999px;
+      padding: 8px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 12px;
+    }
+
+    .reddit-footer-icon {
+      width: 20px;
+      height: 20px;
+      fill: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+    }
+
+    .reddit-footer-icon.upvote-active {
+      fill: #FF4500;
+      filter: drop-shadow(0 0 8px #FF4500);
+    }
+
+    .reddit-counter {
+      font-size: 16px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.8);
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="reddit-card" id="reddit-card">
+      <div class="reddit-header">
+        <div class="reddit-community-box">
+          <div class="reddit-icon">
+            <svg viewBox="0 0 20 20">
+              <g><path d="M17.17,9.08c0-.68-.55-1.24-1.24-1.24a1.23,1.23,0,0,0-.81.3,8.73,8.73,0,0,0-3.69-1.15l.78-2.47,2.56.54a1,1,0,0,0,.15.54,1,1,0,1,0-1-.89l-2.81-.59a.31.31,0,0,0-.37.21l-.87,2.77a8.76,8.76,0,0,0-3.75,1.15,1.21,1.21,0,0,0-.8-.3A1.24,1.24,0,0,0,2.83,9.08a1.24,1.24,0,0,0,.52,1,8.39,8.39,0,0,0,0,1.83,1.24,1.24,0,0,0-.52,1A1.24,1.24,0,0,0,4.07,14a1.2,1.2,0,0,0,.8-.31,8.75,8.75,0,0,0,7.26,0,1.23,1.23,0,0,0,.81.31,1.24,1.24,0,0,0,1.24-1.24,1.21,1.21,0,0,0-.52-1,8.69,8.69,0,0,0,0-1.83A1.24,1.24,0,0,0,17.17,9.08ZM6.88,11.25a.94.94,0,1,1,.94-.94A.94.94,0,0,1,6.88,11.25Zm6.87,1.82a4.41,4.41,0,0,1-3.75,1.34,4.44,4.44,0,0,1-3.75-1.34.31.31,0,0,1,.44-.44,3.81,3.81,0,0,0,3.31,1.15,3.77,3.77,0,0,0,3.31-1.15.31.31,0,0,1,.44.44Zm-.63-2.76a.94.94,0,1,1,.94-.94A.94.94,0,0,1,13.12,10.31Z"/></g>
+            </svg>
+          </div>
+          <div class="reddit-meta">
+            <div class="reddit-subreddit" id="reddit-subreddit">r/technology</div>
+            <div class="reddit-author" id="reddit-author">Postado por u/content_os</div>
+          </div>
+        </div>
+        <button class="reddit-join-btn">Entrar</button>
+      </div>
+      <div class="reddit-title" id="reddit-title">Discussão Importante</div>
+      <div class="reddit-body" id="reddit-body">Carregando comentário estratégico...</div>
+      <div class="reddit-footer">
+        <div class="reddit-action-group">
+          <svg class="reddit-footer-icon upvote-active" viewBox="0 0 24 24">
+            <path d="M4 14h6v8h4v-8h6L12 4 4 14z"/>
+          </svg>
+          <span class="reddit-counter" id="reddit-upvotes">1.4K</span>
+          <svg class="reddit-footer-icon" viewBox="0 0 24 24">
+            <path d="M20 10h-6V2h-4v8H4l8 10 8-10z"/>
+          </svg>
+        </div>
+        <div class="reddit-action-group">
+          <svg class="reddit-footer-icon" viewBox="0 0 24 24">
+            <path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+          </svg>
+          <span class="reddit-counter">245</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+
+      const data = {{HF_DATA_JSON}};
+
+      // Render fields
+      const subredditEl = document.getElementById('reddit-subreddit');
+      const authorEl = document.getElementById('reddit-author');
+      const titleEl = document.getElementById('reddit-title');
+      const bodyEl = document.getElementById('reddit-body');
+      const upvotesEl = document.getElementById('reddit-upvotes');
+
+      const titleVal = data.title || data.titulo || 'r/technology';
+      if (subredditEl) {
+        subredditEl.textContent = titleVal.startsWith('r/') ? titleVal : 'r/' + titleVal;
+      }
+
+      const subtitleVal = data.subtitle || data.subtitulo || 'u/content_os';
+      if (authorEl) {
+        authorEl.textContent = 'Postado por ' + (subtitleVal.startsWith('u/') ? subtitleVal : 'u/' + subtitleVal);
+      }
+
+      // Title & Body
+      const postTitle = data.post_title || data.topic || 'Análise de Comunidade';
+      if (titleEl) titleEl.textContent = postTitle;
+
+      const rawText = data.text || data.texto || data.content || data.body || '';
+      if (bodyEl) {
+        bodyEl.textContent = rawText || data.subtitle || 'Insight estratégico extraído dos tópicos mais quentes.';
+      }
+
+      // Upvotes
+      const upvotesVal = data.metrics || data.kpi || '1.4K';
+      if (upvotesEl && upvotesVal !== '—') {
+        upvotesEl.textContent = upvotesVal;
+      }
+
+      // GSAP Animation
+      const tl = gsap.timeline({ paused: true });
+      const card = document.getElementById('reddit-card');
+
+      tl.to(card, {
+        opacity: 1,
+        scale: 1,
+        duration: 0.6,
+        ease: 'back.out(1.4)',
+      });
+
+      tl.to(card, {
+        y: -6,
+        duration: 2.0,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      }, 0.6);
+
+      window.__timelines['hf_reddit'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

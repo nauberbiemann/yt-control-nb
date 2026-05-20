@@ -239,8 +239,9 @@ export const applyAssetRules = (
     }
 
     let intervalMs = 0;
+    const progress = (index + 1) / totalRows;
+
     if (videoFormat === 'faceless') {
-      const progress = (index + 1) / totalRows;
       if (progress <= 0.15) {
         // Hook: fast cuts (3s to 5s)
         intervalMs = Math.round(prng.range(3000, 5000));
@@ -251,39 +252,48 @@ export const applyAssetRules = (
         // CTA: stimulating cuts (5s to 7s)
         intervalMs = Math.round(prng.range(5000, 7000));
       }
-
-      // --- Alinhamento por Pontuação (Natural Cuts) ---
-      // Look ahead in a tolerance window of +/- 1.5 seconds (1500 ms) around ideal cut time
-      const idealCutMs = lastBrollMarkerMs + intervalMs;
-      const toleranceMs = 1500;
-      
-      let bestPunctuationRowIndex = -1;
-      let bestDiff = Infinity;
-
-      for (let j = index; j < totalRows; j++) {
-        const jStartMs = parseSrtTimeToMs(rows[j].startTime);
-        const jEndMs = parseSrtTimeToMs(rows[j].endTime);
-        
-        if (jStartMs > idealCutMs + toleranceMs) break;
-
-        if (rowEndsWithPunctuation(rows[j].texto)) {
-          const diff = Math.abs(jEndMs - idealCutMs);
-          if (diff <= toleranceMs && diff < bestDiff) {
-            bestDiff = diff;
-            bestPunctuationRowIndex = j;
-          }
-        }
-      }
-
-      if (bestPunctuationRowIndex !== -1) {
-        const pEndMs = parseSrtTimeToMs(rows[bestPunctuationRowIndex].endTime);
-        if (bestPunctuationRowIndex === index) {
-          lastBrollMarkerMs = Math.max(lastBrollMarkerMs + (pEndMs - startMs), startMs);
-          return { ...row, asset: getBrollAsset(startMs, endMs) };
-        }
-      }
     } else {
-      intervalMs = getIntervalMs(index, totalRows);
+      if (progress <= 0.30) {
+        // Hook: dynamic cuts (14s to 22s)
+        intervalMs = Math.round(prng.range(14000, 22000));
+      } else if (progress <= 0.70) {
+        // Body: comfortable cuts (22s to 32s)
+        intervalMs = Math.round(prng.range(22000, 32000));
+      } else {
+        // CTA: stabilizing cuts (40s to 55s)
+        intervalMs = Math.round(prng.range(40000, 55000));
+      }
+    }
+
+    // --- Alinhamento por Pontuação (Natural Cuts) ---
+    // Look ahead in a tolerance window of +/- 1.5 seconds (1500 ms) around ideal cut time
+    const idealCutMs = lastBrollMarkerMs + intervalMs;
+    const toleranceMs = 1500;
+    
+    let bestPunctuationRowIndex = -1;
+    let bestDiff = Infinity;
+
+    for (let j = index; j < totalRows; j++) {
+      const jStartMs = parseSrtTimeToMs(rows[j].startTime);
+      const jEndMs = parseSrtTimeToMs(rows[j].endTime);
+      
+      if (jStartMs > idealCutMs + toleranceMs) break;
+
+      if (rowEndsWithPunctuation(rows[j].texto)) {
+        const diff = Math.abs(jEndMs - idealCutMs);
+        if (diff <= toleranceMs && diff < bestDiff) {
+          bestDiff = diff;
+          bestPunctuationRowIndex = j;
+        }
+      }
+    }
+
+    if (bestPunctuationRowIndex !== -1) {
+      const pEndMs = parseSrtTimeToMs(rows[bestPunctuationRowIndex].endTime);
+      if (bestPunctuationRowIndex === index) {
+        lastBrollMarkerMs = Math.max(lastBrollMarkerMs + (pEndMs - startMs), startMs);
+        return { ...row, asset: getBrollAsset(startMs, endMs) };
+      }
     }
 
     if (endMs - lastBrollMarkerMs >= intervalMs) {

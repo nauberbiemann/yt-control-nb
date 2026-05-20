@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
     title:    searchParams.get('title')    || 'Exemplo de Destaque',
     subtitle: searchParams.get('subtitle') || 'Texto de apoio narrativo para visualização do template',
     metrics:  searchParams.get('metrics')  || '+127%',
+    channel_name: searchParams.get('channel_name') || searchParams.get('channel') || 'YT CONTROL',
     background_prompt: 'Dark cinematic environment, no text, no people, moody lighting, preview mode',
   };
 

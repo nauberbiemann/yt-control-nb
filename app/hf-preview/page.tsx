@@ -122,6 +122,7 @@ export default function HfPreviewPage() {
   const [customTitle, setCustomTitle]       = useState('');
   const [customSubtitle, setCustomSubtitle] = useState('');
   const [customMetrics, setCustomMetrics]   = useState('');
+  const [customChannel, setCustomChannel]   = useState('');
   const [refreshKey, setRefreshKey]         = useState(0);
   const [templates, setTemplates]           = useState<TemplateInfo[]>([]);
   const [loading, setLoading]               = useState(true);
@@ -152,6 +153,7 @@ export default function HfPreviewPage() {
     if (customTitle)    params.set('title',    customTitle);
     if (customSubtitle) params.set('subtitle', customSubtitle);
     if (customMetrics)  params.set('metrics',  customMetrics);
+    if (customChannel)  params.set('channel_name', customChannel);
     return `/api/hf-preview?${params}`;
   };
 
@@ -181,6 +183,7 @@ export default function HfPreviewPage() {
         {/* Custom data controls */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {[
+            { label: 'channel',  value: customChannel,  set: setCustomChannel,  placeholder: 'Nome do Canal (ex: MEU CANAL)' },
             { label: 'title',    value: customTitle,    set: setCustomTitle,    placeholder: 'Título customizado' },
             { label: 'subtitle', value: customSubtitle, set: setCustomSubtitle, placeholder: 'Subtítulo customizado' },
             { label: 'metrics',  value: customMetrics,  set: setCustomMetrics,  placeholder: 'Métrica (ex: +42%)' },
@@ -193,7 +196,7 @@ export default function HfPreviewPage() {
               style={{
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: 8, color: '#fff', padding: '7px 12px', fontSize: 13,
-                outline: 'none', width: 200,
+                outline: 'none', width: label === 'channel' ? 240 : 200,
               }}
             />
           ))}

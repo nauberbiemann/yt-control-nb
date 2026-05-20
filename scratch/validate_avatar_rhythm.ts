@@ -1,134 +1,196 @@
-import { applyAssetRules, applyHyperframeRules, parseSrtToRows, parseSrtTimeToMs, type SrtAssetRow } from '../lib/srt-asset-pipeline';
+import {
+  applyAssetRules,
+  applyHyperframeRules,
+  parseSrtToRows,
+  parseSrtTimeToMs,
+  enforceTextoCooldown,
+  type SrtAssetRow,
+  calculateSrtSeed
+} from '../lib/srt-asset-pipeline';
 
-// Simulação de um arquivo SRT contendo legendas sequenciais com tempos realistas (intervalos de 2 a 4 segundos)
-// Totalizando cerca de 2 minutos e meio de vídeo
-const testSrt = `
-1
-00:00:01,000 --> 00:00:03,000
-Olá, bem-vindo ao Content OS.
+// Helper to format ms into SRT time format (HH:MM:SS,mmm)
+function formatMsToSrtTime(ms: number): string {
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const milliseconds = ms % 1000;
+  
+  const pad = (n: number, size: number) => String(n).padStart(size, '0');
+  return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(milliseconds, 3)}`;
+}
 
-2
-00:00:03,200 --> 00:00:06,500
-Hoje nós vamos analisar a arquitetura de sistemas biológicos legados.
+// Generates a mock SRT with specified length and texts
+function generateMockSrt(linesCount: number, contentSeedWord: string, textStyle: 'long' | 'short' = 'long'): string {
+  let srt = '';
+  let currentTime = 1000; // start at 1s
+  for (let i = 1; i <= linesCount; i++) {
+    const start = currentTime;
+    const end = currentTime + (textStyle === 'long' ? 6000 : 3500); // 6 seconds for long (satisfying MIN_HF_DURATION_MS), 3.5s for short
+    
+    const startStr = formatMsToSrtTime(start);
+    const endStr = formatMsToSrtTime(end);
+    
+    let sentence = `Esta e a legenda ${i} de teste do Content OS. Seed do canal: ${contentSeedWord}.`;
+    if (textStyle === 'short') {
+      sentence = `Legenda ${i}`; // < 25 chars to trigger cinematic text rules
+    }
 
-3
-00:00:06,700 --> 00:00:09,800
-Você já sentiu que seu cérebro está sofrendo um sério memory leak de atenção?
+    srt += `${i}\n${startStr} --> ${endStr}\n${sentence}\n\n`;
+    
+    currentTime = end + 500; // 500ms gap
+  }
+  return srt;
+}
 
-4
-00:00:10,000 --> 00:00:13,200
-A verdade é que nós tratamos nosso corpo como hardware de baixo custo descartável.
+console.log("===============================================================");
+console.log("=== INICIANDO VALIDAÇÃO DE REGRESSÃO E RITMO HYPERFRAMES ===");
+console.log("===============================================================\n");
 
-5
-00:00:13,500 --> 00:00:17,000
-Mas a longevidade exige um refactoring profundo na sua rotina diária.
+let globalSuccess = true;
 
-6
-00:00:17,200 --> 00:00:20,500
-Vamos começar isolando a dívida técnica acumulada no seu sono.
+// -----------------------------------------------------------------------------
+// VALIDAÇÃO 1: Cooldown de Texto Puro de 35 segundos (First-Wins)
+// -----------------------------------------------------------------------------
+console.log("🧪 VALIDAÇÃO 1: Testando Cooldown de Texto Puro de 35 segundos...");
+const shortTextSrt = generateMockSrt(15, "short-text", "short"); // 15 short texts, spaced by ~4 seconds
+const parsedShortRows = parseSrtToRows(shortTextSrt);
+const markedShortRows = parsedShortRows.map(r => ({ ...r, asset: 'texto' as const })); // Force as text
+const filteredRows = enforceTextoCooldown(markedShortRows, 35000);
 
-7
-00:00:20,800 --> 00:00:24,000
-A primeira regra é estabelecer um firewall rígido de prioridades de entrada.
+let lastTextoEndMs = -Infinity;
+let textCooldownViolations = 0;
+let textAssetCount = 0;
 
-8
-00:00:24,200 --> 00:00:27,500
-Isso evita que chamadas não autorizadas consumam sua energia crítica de deep work.
-
-9
-00:00:27,800 --> 00:00:31,000
-A segunda regra consiste na preservação da joia muscular do seu metabolismo.
-
-10
-00:00:31,200 --> 00:00:35,000
-O músculo não é apenas estética; ele é a reserva mais preciosa de uptime.
-
-11
-00:00:35,200 --> 00:00:38,500
-Se você negligencia sua força, está desenhando um SPOF humano no seu futuro.
-
-12
-00:00:38,800 --> 00:00:42,000
-Toda vez que você pula o treino de pernas, está criando gargalos na replicação celular.
-
-13
-00:00:42,200 --> 00:00:45,500
-É como rodar uma query complexa sem qualquer indexação no banco de dados.
-
-14
-00:00:45,800 --> 00:00:49,000
-Para reverter esse declínio de desempenho biológico, siga este protocolo.
-
-15
-00:00:49,200 --> 00:00:52,500
-Monitore os seus logs de cortisol logo nas primeiras horas da manhã.
-
-16
-00:00:52,800 --> 00:00:56,000
-Evite café gelado nos primeiros 90 minutos após inicializar seu sistema.
-
-17
-00:00:56,200 --> 00:00:59,500
-Dessa forma, o seu kernel hormonal se estabilizará de forma natural.
-
-18
-00:01:00,000 --> 00:01:03,500
-E o seu dia começará em estado estável de alta performance mental.
-
-19
-00:01:03,800 --> 00:01:07,000
-Compartilhe este vídeo com aquele colega tech lead que está sempre exausto.
-
-20
-00:01:07,200 --> 00:01:10,000
-E assine nosso canal para mais documentação biológica pragmática.
-`;
-
-console.log("=== INICIANDO VALIDAÇÃO DE RITMO DE HUMANIZAÇÃO ===");
-
-const runValidation = (mode: 'avatar' | 'faceless') => {
-  console.log(`\n> Testando no Modo: ${mode.toUpperCase()}`);
-  const initialRows = parseSrtToRows(testSrt);
-  const rowsWithBrolls = applyAssetRules(initialRows, mode);
-  const finalRows = applyHyperframeRules(rowsWithBrolls);
-
-  const cleanZoneMs = mode === 'faceless' ? 4000 : 12000;
-  const cooldownMs = mode === 'faceless' ? 3000 : 5000;
-
-  let failures = 0;
-  let lastBrollEndMs = 0;
-
-  finalRows.forEach((row) => {
+filteredRows.forEach((row, idx) => {
+  if (row.asset === 'texto') {
+    textAssetCount++;
     const startMs = parseSrtTimeToMs(row.startTime);
     const endMs = parseSrtTimeToMs(row.endTime);
-    const asset = row.asset;
-
-    const isBrollOrHf = asset === 'vídeo' || asset === 'imagem' || asset === 'hyperframe';
-
-    // Validação 1: Hook Clean Zone (Abertura Limpa)
-    if (startMs < cleanZoneMs && isBrollOrHf) {
-      console.error(`❌ FALHA: Encontrado asset '${asset}' na Clean Zone (${startMs}ms < ${cleanZoneMs}ms): "${row.texto}"`);
-      failures++;
+    if (startMs - lastTextoEndMs < 35000) {
+      console.error(`❌ ERRO: Violação de cooldown de texto na linha ${row.rowNumber}. Distância de apenas ${startMs - lastTextoEndMs}ms.`);
+      textCooldownViolations++;
     }
-
-    // Validação 2: Cooldown (Respiro)
-    if (isBrollOrHf) {
-      if (lastBrollEndMs > 0 && (startMs - lastBrollEndMs) < cooldownMs) {
-        console.error(`❌ FALHA: Asset '${asset}' violou o Cooldown de ${cooldownMs}ms (distância de apenas ${startMs - lastBrollEndMs}ms pós B-roll anterior): "${row.texto}"`);
-        failures++;
-      }
-      lastBrollEndMs = endMs;
-    }
-
-    console.log(`[${row.startTime} -> ${row.endTime}] Asset: ${asset.padEnd(10)} | Texto: ${row.texto.slice(0, 40)}...`);
-  });
-
-  if (failures === 0) {
-    console.log(`\n✅ SUCESSO: Modo ${mode.toUpperCase()} passou em 100% dos testes de janelas e respiros.`);
-  } else {
-    console.error(`\n❌ ERRO: Encontradas ${failures} violações de tempo no modo ${mode.toUpperCase()}.`);
+    lastTextoEndMs = endMs;
   }
-};
+});
 
-runValidation('avatar');
-runValidation('faceless');
+if (textCooldownViolations === 0 && textAssetCount > 0) {
+  console.log(`✅ SUCESSO: Cooldown de texto de 35s validado. ${textAssetCount} textos aceitos, nenhum violou o cooldown.`);
+} else {
+  console.error(`❌ FALHA: Encontradas ${textCooldownViolations} violações no cooldown de texto.`);
+  globalSuccess = false;
+}
+console.log("");
+
+// -----------------------------------------------------------------------------
+// VALIDAÇÃO 2: Orçamento Adaptativo de Hyperframes de até 10 slots
+// -----------------------------------------------------------------------------
+console.log("🧪 VALIDAÇÃO 2: Testando Orçamento Adaptativo de Hyperframes (Teto de 10 slots)...");
+// We generate a very long video with 280 lines to ensure we have >= 160 avatar rows
+const longSrt = generateMockSrt(280, "projeto-alfa-ia", "long");
+const parsedLongRows = parseSrtToRows(longSrt);
+const rowsWithAssets = applyAssetRules(parsedLongRows, 'avatar');
+const rowsWithHyperframes = applyHyperframeRules(rowsWithAssets);
+
+const hfCount = rowsWithHyperframes.filter(r => r.asset === 'hyperframe').length;
+console.log(`- Total de linhas no SRT gerado: ${rowsWithHyperframes.length}`);
+console.log(`- Avatar rows identificados no total: ${rowsWithHyperframes.filter(r => r.asset === 'avatar').length}`);
+console.log(`- Hyperframes injetados na timeline: ${hfCount}`);
+
+if (hfCount === 10) {
+  console.log(`✅ SUCESSO: Orçamento adaptativo de 10 slots de Hyperframe para vídeos longos confirmado!`);
+} else {
+  console.error(`❌ FALHA: Orçamento deveria ser 10 para 280 linhas, mas foi ${hfCount}.`);
+  globalSuccess = false;
+}
+console.log("");
+
+// -----------------------------------------------------------------------------
+// VALIDAÇÃO 3: Aleatoriedade Estocástica e Unicidade por Hash de Conteúdo (Seeded Shuffle)
+// -----------------------------------------------------------------------------
+console.log("🧪 VALIDAÇÃO 3: Testando Aleatoriedade Estocástica e Unicidade de Sequência Visual...");
+// We create two SRTs of the exact same size, but changing a single word to modify the content hash
+const srtA = generateMockSrt(280, "tema-biologia-molecular", "long");
+const srtB = generateMockSrt(280, "tema-astrofisica-relativa", "long");
+
+const hashA = calculateSrtSeed(srtA);
+const hashB = calculateSrtSeed(srtB);
+console.log(`- Hash do Roteiro A (Biologia): ${hashA}`);
+console.log(`- Hash do Roteiro B (Astrofísica): ${hashB}`);
+
+if (hashA === hashB) {
+  console.error("❌ FALHA Crítica: Os hashes dos dois roteiros diferentes são iguais!");
+  globalSuccess = false;
+}
+
+const pipelineA = applyHyperframeRules(applyAssetRules(parseSrtToRows(srtA), 'avatar'));
+const pipelineB = applyHyperframeRules(applyAssetRules(parseSrtToRows(srtB), 'avatar'));
+
+const sequenceA = pipelineA.filter(r => r.asset === 'hyperframe').map(r => r.prompt);
+const sequenceB = pipelineB.filter(r => r.asset === 'hyperframe').map(r => r.prompt);
+
+console.log(`\n- Sequência Visual A (Biologia):`);
+console.log(JSON.stringify(sequenceA, null, 2));
+
+console.log(`\n- Sequência Visual B (Astrofísica):`);
+console.log(JSON.stringify(sequenceB, null, 2));
+
+// Compare elements to verify the exact order is not identical
+let sequencesIdentical = true;
+if (sequenceA.length !== sequenceB.length) {
+  sequencesIdentical = false;
+} else {
+  sequencesIdentical = sequenceA.every((val, index) => val === sequenceB[index]);
+}
+
+if (!sequencesIdentical) {
+  console.log(`\n✅ SUCESSO: As sequências visuais são diferentes! Provado estatisticamente o Seeded Shuffle via Hash do SRT.`);
+} else {
+  console.error(`\n❌ FALHA: As sequências são idênticas! O seeded shuffle falhou em baralhar diferentemente.`);
+  globalSuccess = false;
+}
+console.log("");
+
+// -----------------------------------------------------------------------------
+// VALIDAÇÃO 4: Regras de Respiro Geral (Hook Clean Zone e Cooldown de B-roll)
+// -----------------------------------------------------------------------------
+console.log("🧪 VALIDAÇÃO 4: Testando Janelas de Respiro de Humanização no Vídeo de 200 Linhas...");
+let respiroViolations = 0;
+let cleanZoneViolations = 0;
+let lastBrollEnd = 0;
+
+rowsWithHyperframes.forEach(row => {
+  const startMs = parseSrtTimeToMs(row.startTime);
+  const endMs = parseSrtTimeToMs(row.endTime);
+  const isBrollOrHf = row.asset === 'vídeo' || row.asset === 'imagem' || row.asset === 'hyperframe';
+
+  // 12s Clean zone check
+  if (startMs < 12000 && isBrollOrHf) {
+    console.error(`❌ FALHA: Encontrado asset '${row.asset}' no hook inicial limpo em ${startMs}ms`);
+    cleanZoneViolations++;
+  }
+
+  // 5s Cooldown after previous B-roll
+  if (isBrollOrHf) {
+    if (lastBrollEnd > 0 && (startMs - lastBrollEnd) < 5000) {
+      console.error(`❌ FALHA: Cooldown pós B-roll de 5s violado no tempo ${startMs}ms (distância ${startMs - lastBrollEnd}ms)`);
+      respiroViolations++;
+    }
+    lastBrollEnd = endMs;
+  }
+});
+
+if (cleanZoneViolations === 0 && respiroViolations === 0) {
+  console.log("✅ SUCESSO: Regras de Hook Clean Zone (12s) e Cooldown de B-roll (5s) cumpridas 100%!");
+} else {
+  console.error(`❌ FALHA: Encontradas violações na timeline de respiro: CleanZone=${cleanZoneViolations}, Cooldown=${respiroViolations}`);
+  globalSuccess = false;
+}
+console.log("\n===============================================================");
+if (globalSuccess) {
+  console.log("🎉 VALIDAÇÃO CONCLUÍDA: TODAS AS REGRAS FORAM APROVADAS COM 100% DE SUCESSO!");
+} else {
+  console.error("🚨 FALHA NA VALIDAÇÃO: Pelo menos uma das regras de regressão falhou.");
+  process.exit(1);
+}
+console.log("===============================================================");

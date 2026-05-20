@@ -4,19 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// Map of all available default template filenames
-const TEMPLATE_FILES = [
-  'hf_focus.html',
-  'hf_break.html',
-  'hf_double.html',
-  'hf_floating.html',
-  'hf_holo.html',
-  'hf_vertical.html',
-  'hf_face_bottom.html',
-  'hf_face_top.html',
-  'hf_documentary.html',
-  'hf_dynamic.html',
-];
+// Templates are now discovered dynamically from the filesystem in lib/hf-templates/
 
 // Google Fonts map
 const FONT_IMPORT_MAP: Record<string, string> = {
@@ -109,7 +97,7 @@ export async function POST(req: NextRequest) {
       fontFamily = 'Inter',
       styleProfile = 'Tech',
       channelName = 'Canal',
-      selectedTemplates = TEMPLATE_FILES,
+      selectedTemplates = null,
     } = body;
 
     // Validate hex colors
@@ -117,11 +105,6 @@ export async function POST(req: NextRequest) {
     if (!hexPattern.test(primaryColor) || !hexPattern.test(secondaryColor)) {
       return NextResponse.json({ error: 'Cores inválidas. Use o formato #RRGGBB.' }, { status: 400 });
     }
-
-    const templatesDir = path.join(
-      process.cwd(),
-      'node_modules', // fallback location check below
-    );
 
     // Try to locate the default templates directory
     const skillTemplatesDir = path.join(
@@ -139,11 +122,27 @@ export async function POST(req: NextRequest) {
       templatesBase = localFallback;
     }
 
+    // Dinamically discover all html templates from the physical templates directory
+    let discoveredFiles: string[] = [];
+    if (fs.existsSync(templatesBase)) {
+      discoveredFiles = fs.readdirSync(templatesBase)
+        .filter((file) => file.endsWith('.html'));
+    }
+
+    // Security sanitization and resolving templates list to process
+    const targets = (selectedTemplates && Array.isArray(selectedTemplates))
+      ? selectedTemplates.filter((filename: string) => {
+          return filename.endsWith('.html') &&
+                 !filename.includes('/') &&
+                 !filename.includes('\\') &&
+                 !filename.includes('..');
+        })
+      : discoveredFiles;
+
     const results: { filename: string; content: string }[] = [];
     const missing: string[] = [];
 
-    for (const filename of selectedTemplates) {
-      if (!TEMPLATE_FILES.includes(filename)) continue; // security: only known files
+    for (const filename of targets) {
       const filePath = path.join(templatesBase, filename);
 
       if (!fs.existsSync(filePath)) {

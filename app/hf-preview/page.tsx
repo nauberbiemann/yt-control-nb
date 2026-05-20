@@ -2,19 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 
-/* ─── Template catalogue ───────────────────────────────────────────────────── */
-const TEMPLATES = [
-  { id: 'hf_break',       label: 'Full Motion Graphic',  accent: '#00B4FF', note: 'tela cheia · sem avatar' },
-  { id: 'hf_focus',       label: 'Foco Executivo',       accent: '#00FF88', note: 'painel direito · avatar livre' },
-  { id: 'hf_double',      label: 'Double Panel',         accent: '#00FF88', note: 'split 35/65 · avatar esquerda' },
-  { id: 'hf_floating',    label: 'Floating Cards',       accent: '#00FF88', note: 'cards orbitais · sem avatar' },
-  { id: 'hf_vertical',    label: 'Vertical Side Cut',    accent: '#00C8FF', note: 'moldura esquerda · conteúdo direita' },
-  { id: 'hf_holo',        label: 'Holographic Room',     accent: '#00C8FF', note: 'multi-painel · avatar implícito' },
-  { id: 'hf_documentary', label: 'Documentary Frame',    accent: '#FF5050', note: 'Netflix style · vignette' },
-  { id: 'hf_dynamic',     label: 'Dynamic Crops',        accent: '#FFFFFF', note: 'viewfinder + grid 1/3' },
-  { id: 'hf_face_top',    label: 'Rosto Superior',       accent: '#FFB400', note: 'avatar top-right' },
-  { id: 'hf_face_bottom', label: 'Rosto Inferior',       accent: '#00C8FF', note: 'avatar bottom-left' },
-] as const;
+export interface TemplateInfo {
+  id: string;
+  label: string;
+  accent: string;
+  note: string;
+}
 
 /* ─── Scale helper — fits 1920×1080 inside a container element ─────────────── */
 function useContainerScale(ref: React.RefObject<HTMLDivElement | null>) {
@@ -33,7 +26,7 @@ function useContainerScale(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 /* ─── Single template card ─────────────────────────────────────────────────── */
-function TemplateCard({ id, label, accent, note, src }: typeof TEMPLATES[number] & { src: string }) {
+function TemplateCard({ id, label, accent, note, src }: TemplateInfo & { src: string }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const scale = useContainerScale(wrapperRef);
   const [expanded, setExpanded] = useState(false);
@@ -130,6 +123,29 @@ export default function HfPreviewPage() {
   const [customSubtitle, setCustomSubtitle] = useState('');
   const [customMetrics, setCustomMetrics]   = useState('');
   const [refreshKey, setRefreshKey]         = useState(0);
+  const [templates, setTemplates]           = useState<TemplateInfo[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/templates')
+      .then((res) => {
+        if (!res.ok) throw new Error('Falha ao carregar lista de templates.');
+        return res.json();
+      })
+      .then((data) => {
+        setTemplates(data.templates || []);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(err.message || 'Erro inesperado ao listar templates.');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   const buildSrc = (id: string) => {
     const params = new URLSearchParams({ template: id });
@@ -158,7 +174,7 @@ export default function HfPreviewPage() {
             HyperFrame Preview
           </h1>
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '2px 0 0' }}>
-            {TEMPLATES.length} templates · mock data injetado · animações GSAP ativas
+            {loading ? 'Carregando' : templates.length} templates · mock data injetado · animações GSAP ativas
           </p>
         </div>
 
@@ -196,19 +212,31 @@ export default function HfPreviewPage() {
 
       {/* Grid */}
       <div style={{ padding: '28px 32px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(560px, 1fr))',
-          gap: 20,
-        }}>
-          {TEMPLATES.map(t => (
-            <TemplateCard
-              key={`${t.id}-${refreshKey}`}
-              {...t}
-              src={buildSrc(t.id)}
-            />
-          ))}
-        </div>
+        {loading && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>
+            ⏳ Carregando templates dinâmicos...
+          </div>
+        )}
+        {error && (
+          <div style={{ padding: '20px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 8, color: '#ff8080', textAlign: 'center', fontSize: 14 }}>
+            ⚠️ {error}
+          </div>
+        )}
+        {!loading && !error && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(560px, 1fr))',
+            gap: 20,
+          }}>
+            {templates.map(t => (
+              <TemplateCard
+                key={`${t.id}-${refreshKey}`}
+                {...t}
+                src={buildSrc(t.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Legend */}

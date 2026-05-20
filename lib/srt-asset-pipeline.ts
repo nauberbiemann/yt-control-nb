@@ -412,7 +412,7 @@ export const buildAssetStats = (rows: SrtAssetRow[]): SrtAssetStats => ({
  */
 export const enforceTextoCooldown = (
   rows: SrtAssetRow[],
-  cooldownMs = 20_000,
+  cooldownMs = 35_000,
 ): SrtAssetRow[] => {
   let lastTextoEndMs = -Infinity;
 
@@ -445,7 +445,76 @@ const HF_TEMPLATES = {
   documentary:  'hf_documentary',  // Netflix-style documentary frame — red accent
   dynamicCrop:  'hf_dynamic',      // viewfinder + rule-of-thirds — white HUD
   faceBottom:   'hf_face_bottom',  // avatar bottom-left — cyan accent
+  // ── Novos templates premiums descobriveis no filesystem ──────────────────
+  codeTerminal: 'hf_code_terminal',
+  dataChart:    'hf_data_chart',
+  notification: 'hf_notification',
+  quote:        'hf_quote',
+  reddit:       'hf_reddit',
+  spotify:      'hf_spotify',
+  worldMap:     'hf_world_map',
+  xPost:        'hf_x_post',
 } as const;
+
+/**
+ * Safely discovers all template filenames physically existing in the hf-templates folder.
+ * Uses dynamic require to prevent client-side bundle crashes in Next.js.
+ */
+const getDiscoveredTemplates = (): string[] => {
+  const defaults = [
+    'hf_focus', 'hf_break', 'hf_double', 'hf_floating', 'hf_holo',
+    'hf_vertical', 'hf_face_bottom', 'hf_face_top', 'hf_documentary', 'hf_dynamic'
+  ];
+
+  if (typeof window !== 'undefined') {
+    return defaults;
+  }
+
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Skill siblings templates path
+    const skillTemplatesDir = path.join(
+      process.cwd(),
+      '..', 'Produção em Massa', '1-ContentFlow',
+      'avatar-hyperframes-editor-skill', 'projects', 'default', 'templates'
+    );
+    
+    let templatesBase = skillTemplatesDir;
+    const localFallback = path.join(process.cwd(), 'lib', 'hf-templates');
+    
+    if (!fs.existsSync(templatesBase) && fs.existsSync(localFallback)) {
+      templatesBase = localFallback;
+    }
+
+    if (fs.existsSync(templatesBase)) {
+      const files = fs.readdirSync(templatesBase) as string[];
+      const names = files
+        .filter((file) => file.endsWith('.html'))
+        .map((file) => file.replace('.html', ''));
+      if (names.length > 0) return names;
+    }
+  } catch (err) {
+    // Graceful fallback
+  }
+
+  return defaults;
+};
+
+/**
+ * Seeded Fisher-Yates shuffle algorithm to guarantee stable visual randomness
+ */
+export const seededShuffle = <T>(array: T[], prng: SeededRandom): T[] => {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(prng.next() * (i + 1));
+    const temp = result[i];
+    result[i] = result[j];
+    result[j] = temp;
+  }
+  return result;
+};
 
 // Phase B (editor-hyperframes): minimum scene duration to guarantee GSAP animations complete fully
 const MIN_HF_DURATION_MS = 5_000;
@@ -481,7 +550,7 @@ const findClosestAvatarRow = (
 
     for (let k = 0; k < total; k++) {
       const assetType = normalizeAssetType(rows[k].asset);
-      if (assetType === 'vídeo' || assetType === 'imagem') {
+      if (assetType === 'vídeo' || assetType === 'imagem' || assetType === 'hyperframe') {
         const brollStartMs = parseSrtTimeToMs(rows[k].startTime);
         const brollEndMs = parseSrtTimeToMs(rows[k].endTime);
         // Verifica se a janela temporal do Hyperframe intersecta ou está a menos de 5s de um B-roll
@@ -529,41 +598,39 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
   const used          = new Set<number>();
   const usedTemplates = new Set<string>(); // Phase C: track assigned template names
 
-  // Phase C (editor-hyperframes): if preferred template was already used, pick the
-  // next unused one from the full pool — prevents visual repetition across HF slots.
-  const templatePool = Object.values(HF_TEMPLATES);
-  const resolveTemplate = (preferred: string): string => {
-    if (!usedTemplates.has(preferred)) return preferred;
-    const fallback = templatePool.find((t) => !usedTemplates.has(t));
-    return fallback ?? preferred; // graceful degradation: repeat only when pool is exhausted
-  };
+  const combinedText = rows.map((r) => r.texto).join(' ');
+  const seed = calculateSrtSeed(combinedText);
+  const prng = new SeededRandom(seed);
+
+  // Discover and shuffle the template pool using the script seed
+  const discovered = getDiscoveredTemplates();
+  const templatePool = seededShuffle(discovered, prng);
 
   const mark = (idx: number, template: string) => {
     if (idx < 0) return;
-    const resolved = resolveTemplate(template); // Phase C: anti-repetition
     result[idx] = {
       ...result[idx],
       asset: 'hyperframe' as SrtAssetType,
-      prompt: `hf:${resolved}`,
+      prompt: `hf:${template}`,
     };
     used.add(idx);
-    usedTemplates.add(resolved); // Phase C: register as used
   };
 
   // ── Adaptive HyperFrame budget ────────────────────────────────────────────
   // Scale the number of HyperFrames to the video length so short SRTs don't
-  // get 6 overlays crammed into 3 minutes of content.
+  // get 10 overlays crammed into 3 minutes of content.
   const avatarCount = rows.filter((r) => normalizeAssetType(r.asset) === 'avatar').length;
   const maxHF =
     avatarCount <  20 ? 1 :
     avatarCount <  40 ? 2 :
     avatarCount <  70 ? 3 :
-    avatarCount < 110 ? 4 :
-    avatarCount < 150 ? 5 : 6;
+    avatarCount < 100 ? 4 :
+    avatarCount < 130 ? 6 :
+    avatarCount < 160 ? 8 : 10;
   // ─────────────────────────────────────────────────────────────────────────
 
   // Rule 1 — Narrative midpoint: chapter break at ~52% (always applies when budget ≥ 1)
-  mark(findClosestAvatarRow(result, 0.52, used), HF_TEMPLATES.chapterBreak);
+  mark(findClosestAvatarRow(result, 0.52, used), templatePool[0] || 'hf_break');
   if (maxHF < 2) return result;
 
   // Rule 2 — Post-hook reframe at ~17% (prefer rows with longer text)
@@ -610,7 +677,7 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
 
     // Fallback: accept any avatar row near target
     if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.17, used);
-    mark(bestIdx, HF_TEMPLATES.closeCrop);
+    mark(bestIdx, templatePool[1] || 'hf_face_top');
   })();
 
   if (maxHF < 3) return result;
@@ -658,9 +725,8 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     }
 
     if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.82, used);
-    mark(bestIdx, HF_TEMPLATES.captionFocus);
+    mark(bestIdx, templatePool[2] || 'hf_focus');
   })();
-
 
   if (maxHF < 4) return result;
 
@@ -688,19 +754,39 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
 
     if (longestStart >= 0 && longestLen >= 4) {
       const midIdx = longestStart + Math.floor(longestLen / 2);
-      if (!used.has(midIdx)) mark(midIdx, HF_TEMPLATES.sidePanel);
+      if (!used.has(midIdx)) mark(midIdx, templatePool[3] || 'hf_double');
     }
   })();
 
   if (maxHF < 5) return result;
 
   // Rule 5 — ~33% first-half inflection: floating/list moment
-  mark(findClosestAvatarRow(result, 0.33, used), HF_TEMPLATES.midEarly);
+  mark(findClosestAvatarRow(result, 0.33, used), templatePool[4] || 'hf_floating');
 
   if (maxHF < 6) return result;
 
   // Rule 6 — ~67% second-half analysis: vertical/technical moment
-  mark(findClosestAvatarRow(result, 0.67, used), HF_TEMPLATES.midLate);
+  mark(findClosestAvatarRow(result, 0.67, used), templatePool[5] || 'hf_vertical');
+
+  if (maxHF < 7) return result;
+
+  // Rule 7 — ~25% transition: dynamic holographic pool entry
+  mark(findClosestAvatarRow(result, 0.25, used), templatePool[6] || 'hf_holo');
+
+  if (maxHF < 8) return result;
+
+  // Rule 8 — ~75% transition: documentary pool entry
+  mark(findClosestAvatarRow(result, 0.75, used), templatePool[7] || 'hf_documentary');
+
+  if (maxHF < 9) return result;
+
+  // Rule 9 — ~42% transition: viewfinder dynamic crop
+  mark(findClosestAvatarRow(result, 0.42, used), HF_TEMPLATES.dynamicCrop);
+
+  if (maxHF < 10) return result;
+
+  // Rule 10 — ~90% transition: pre-CTA portrait crop
+  mark(findClosestAvatarRow(result, 0.90, used), HF_TEMPLATES.faceBottom);
 
   return result;
 };

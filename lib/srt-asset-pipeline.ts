@@ -50,6 +50,14 @@ const THIRD_SECTION_INTERVAL_MS = 60_000;
 // Faceless mode: shorter b-roll interval — editor stretches the previous media for gaps
 const FACELESS_INTERVAL_MS = 6_000;
 
+// --- Regras de Ritmo de Humanização e Cooldown do Avatar ---
+const HOOK_CLEAN_ZONE_AVATAR_MS = 12_000;      // Primeiros 12s sem B-Rolls/Hyperframes no modo Avatar
+const HOOK_CLEAN_ZONE_FACELESS_MS = 4_000;      // Primeiros 4s sem B-Rolls no modo Faceless
+const MIN_AVATAR_CLEAN_TIME_AVATAR_MS = 5_000;  // Mínimo de 5s de avatar limpo entre B-Rolls
+const MIN_AVATAR_CLEAN_TIME_FACELESS_MS = 3_000;// Mínimo de 3s de avatar limpo entre B-Rolls
+const HF_BROLL_EXCLUSION_MS = 5_000;            // Respiro mínimo de 5s entre Hyperframes e B-Rolls
+
+
 export const normalizeLineBreaks = (value: string) => String(value || '').replace(/\r\n/g, '\n');
 
 export const normalizeAssetType = (value: string): SrtAssetType => {
@@ -219,6 +227,7 @@ export const applyAssetRules = (
   const prng = new SeededRandom(seed);
 
   let lastBrollMarkerMs = 0;
+  let lastBrollEndMs = 0; // Monitora o fim do último B-roll inserido para aplicar o cooldown
   const totalRows = rows.length;
 
   const rowEndsWithPunctuation = (text: string): boolean => {
@@ -238,10 +247,26 @@ export const applyAssetRules = (
       return { ...row, asset: 'texto' as const };
     }
 
+    const isFaceless = videoFormat === 'faceless';
+    const cleanZoneMs = isFaceless ? HOOK_CLEAN_ZONE_FACELESS_MS : HOOK_CLEAN_ZONE_AVATAR_MS;
+    const minCleanTimeMs = isFaceless ? MIN_AVATAR_CLEAN_TIME_FACELESS_MS : MIN_AVATAR_CLEAN_TIME_AVATAR_MS;
+
+    // --- REGRA 1: Hook de Abertura Humano Seguro ---
+    // Impede qualquer B-roll de quebrar a humanização inicial nos primeiros segundos do vídeo
+    if (startMs < cleanZoneMs) {
+      return { ...row, asset: 'avatar' as SrtAssetType };
+    }
+
+    // --- REGRA 2: Respiro do Avatar (Cooldown pós B-roll) ---
+    // Impede o encavalamento sequencial rápido de múltiplos B-rolls, dando tempo para a fala do avatar
+    if (startMs - lastBrollEndMs < minCleanTimeMs) {
+      return { ...row, asset: 'avatar' as SrtAssetType };
+    }
+
     let intervalMs = 0;
     const progress = (index + 1) / totalRows;
 
-    if (videoFormat === 'faceless') {
+    if (isFaceless) {
       if (progress <= 0.15) {
         // Hook: fast cuts (3s to 5s)
         intervalMs = Math.round(prng.range(3000, 5000));
@@ -254,8 +279,8 @@ export const applyAssetRules = (
       }
     } else {
       if (progress <= 0.30) {
-        // Hook: dynamic cuts (14s to 22s)
-        intervalMs = Math.round(prng.range(14000, 22000));
+        // Hook: dynamic cuts (8s to 14s) - Reduzido a pedido do usuário para aumentar o dinamismo inicial
+        intervalMs = Math.round(prng.range(8000, 14000));
       } else if (progress <= 0.70) {
         // Body: comfortable cuts (22s to 32s)
         intervalMs = Math.round(prng.range(22000, 32000));
@@ -292,12 +317,14 @@ export const applyAssetRules = (
       const pEndMs = parseSrtTimeToMs(rows[bestPunctuationRowIndex].endTime);
       if (bestPunctuationRowIndex === index) {
         lastBrollMarkerMs = Math.max(lastBrollMarkerMs + (pEndMs - startMs), startMs);
+        lastBrollEndMs = endMs; // Registra o término do B-roll para o cooldown da próxima iteração
         return { ...row, asset: getBrollAsset(startMs, endMs) };
       }
     }
 
     if (endMs - lastBrollMarkerMs >= intervalMs) {
       lastBrollMarkerMs = Math.max(lastBrollMarkerMs + intervalMs, startMs);
+      lastBrollEndMs = endMs; // Registra o término do B-roll para o cooldown da próxima iteração
       return { ...row, asset: getBrollAsset(startMs, endMs) };
     }
 
@@ -306,6 +333,7 @@ export const applyAssetRules = (
     return { ...row, asset: 'avatar' as SrtAssetType };
   });
 };
+
 
 export const finalizeFacelessRows = (
   rows: SrtAssetRow[],
@@ -444,6 +472,31 @@ const findClosestAvatarRow = (
     // Phase B: skip rows too short for the HyperFrame animation to complete
     const durationMs = parseSrtTimeToMs(rows[i].endTime) - parseSrtTimeToMs(rows[i].startTime);
     if (durationMs < MIN_HF_DURATION_MS) continue;
+
+    // --- REGRA DE SEGURANÇA: Respiro contra B-rolls (cooldown do avatar) ---
+    // Evita posicionar Hyperframes encavalados com B-rolls existentes, mantendo o respiro
+    const rowStartMs = parseSrtTimeToMs(rows[i].startTime);
+    const rowEndMs = parseSrtTimeToMs(rows[i].endTime);
+    let tooCloseToBroll = false;
+
+    for (let k = 0; k < total; k++) {
+      const assetType = normalizeAssetType(rows[k].asset);
+      if (assetType === 'vídeo' || assetType === 'imagem') {
+        const brollStartMs = parseSrtTimeToMs(rows[k].startTime);
+        const brollEndMs = parseSrtTimeToMs(rows[k].endTime);
+        // Verifica se a janela temporal do Hyperframe intersecta ou está a menos de 5s de um B-roll
+        if (
+          Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
+          Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
+        ) {
+          tooCloseToBroll = true;
+          break;
+        }
+      }
+    }
+
+    if (tooCloseToBroll) continue;
+
     const dist = Math.abs(i - target);
     if (dist < bestDist) {
       bestDist = dist;
@@ -453,6 +506,7 @@ const findClosestAvatarRow = (
 
   return bestIdx;
 };
+
 
 /**
  * Injects up to 6 'hyperframe' rows into the classified asset array.
@@ -527,6 +581,27 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
       // Phase B: skip rows too short for the HyperFrame animation to complete
       const durMs2 = parseSrtTimeToMs(result[i].endTime) - parseSrtTimeToMs(result[i].startTime);
       if (durMs2 < MIN_HF_DURATION_MS) continue;
+
+      // --- REGRA DE SEGURANÇA: Respiro contra B-rolls ---
+      const rowStartMs = parseSrtTimeToMs(result[i].startTime);
+      const rowEndMs = parseSrtTimeToMs(result[i].endTime);
+      let tooCloseToBroll = false;
+      for (let k = 0; k < total; k++) {
+        const assetType = normalizeAssetType(result[k].asset);
+        if (assetType === 'vídeo' || assetType === 'imagem') {
+          const brollStartMs = parseSrtTimeToMs(result[k].startTime);
+          const brollEndMs = parseSrtTimeToMs(result[k].endTime);
+          if (
+            Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
+            Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
+          ) {
+            tooCloseToBroll = true;
+            break;
+          }
+        }
+      }
+      if (tooCloseToBroll) continue;
+
       const wordCount = result[i].texto.trim().split(/\s+/).length;
       if (wordCount <= 8) continue; // prefer longer sentences for close_crop
       const dist = Math.abs(i - target);
@@ -555,6 +630,27 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
       // Phase B: skip rows too short for the HyperFrame animation to complete
       const durMs3 = parseSrtTimeToMs(result[i].endTime) - parseSrtTimeToMs(result[i].startTime);
       if (durMs3 < MIN_HF_DURATION_MS) continue;
+
+      // --- REGRA DE SEGURANÇA: Respiro contra B-rolls ---
+      const rowStartMs = parseSrtTimeToMs(result[i].startTime);
+      const rowEndMs = parseSrtTimeToMs(result[i].endTime);
+      let tooCloseToBroll = false;
+      for (let k = 0; k < total; k++) {
+        const assetType = normalizeAssetType(result[k].asset);
+        if (assetType === 'vídeo' || assetType === 'imagem') {
+          const brollStartMs = parseSrtTimeToMs(result[k].startTime);
+          const brollEndMs = parseSrtTimeToMs(result[k].endTime);
+          if (
+            Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
+            Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
+          ) {
+            tooCloseToBroll = true;
+            break;
+          }
+        }
+      }
+      if (tooCloseToBroll) continue;
+
       const wordCount = result[i].texto.trim().split(/\s+/).length;
       if (wordCount > 12) continue; // prefer short phrases for caption_focus
       const dist = Math.abs(i - target);
@@ -564,6 +660,7 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
     if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.82, used);
     mark(bestIdx, HF_TEMPLATES.captionFocus);
   })();
+
 
   if (maxHF < 4) return result;
 

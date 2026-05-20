@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Safe list of known templates — prevents path traversal
-const VALID_TEMPLATES = new Set([
-  'hf_break', 'hf_documentary', 'hf_double', 'hf_dynamic',
-  'hf_face_bottom', 'hf_face_top', 'hf_floating', 'hf_focus',
-  'hf_holo', 'hf_vertical',
-]);
-
 /**
  * GET /api/hf-preview?template=hf_focus
  * Returns the template HTML with mock HF_DATA_JSON injected so it can be
@@ -25,9 +18,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const template = (searchParams.get('template') || 'hf_focus').toLowerCase();
 
-  if (!VALID_TEMPLATES.has(template)) {
-    return new NextResponse(`Template "${template}" not found. Valid templates: ${[...VALID_TEMPLATES].join(', ')}`, {
-      status: 404,
+  // Strict regex to prevent any path traversal (only allows lowercase alphanumeric + underscore)
+  if (!/^[a-z0-9_]+$/.test(template)) {
+    return new NextResponse(`Invalid template name format: "${template}"`, {
+      status: 400,
       headers: { 'Content-Type': 'text/plain' },
     });
   }
@@ -35,7 +29,15 @@ export async function GET(req: NextRequest) {
   const filePath = path.join(process.cwd(), 'lib', 'hf-templates', `${template}.html`);
 
   if (!fs.existsSync(filePath)) {
-    return new NextResponse(`File not found: lib/hf-templates/${template}.html`, {
+    const templatesDir = path.join(process.cwd(), 'lib', 'hf-templates');
+    let availableTemplates: string[] = [];
+    if (fs.existsSync(templatesDir)) {
+      availableTemplates = fs.readdirSync(templatesDir)
+        .filter(f => f.endsWith('.html'))
+        .map(f => f.replace('.html', ''));
+    }
+
+    return new NextResponse(`Template "${template}" not found. Valid templates: ${availableTemplates.join(', ')}`, {
       status: 404,
       headers: { 'Content-Type': 'text/plain' },
     });

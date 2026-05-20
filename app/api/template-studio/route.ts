@@ -85,6 +85,9 @@ function customizeTemplate(
     `<!doctype html>\n<!-- Template Studio · Canal: ${channelName} · Gerado em: ${new Date().toISOString()} -->`
   );
 
+  // 7. Replace static "MOMENTO CHAVE" with the dynamic uppercase channel name
+  out = out.replace(/MOMENTO CHAVE/g, channelName.toUpperCase());
+
   return out;
 }
 

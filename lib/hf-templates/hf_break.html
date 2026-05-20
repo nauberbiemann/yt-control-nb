@@ -96,6 +96,12 @@
       window.__timelines = window.__timelines || {};
       const data = {{HF_DATA_JSON}};
 
+      // Dynamic eyebrow from channel_name if provided (e.g. from custom preview/pipeline)
+      const eyebrowEl = document.getElementById('eyebrow');
+      if (data.channel_name && data.channel_name !== 'YT CONTROL' && data.channel_name !== 'Canal') {
+        eyebrowEl.textContent = data.channel_name.toUpperCase();
+      }
+
       // Robust title resolution — supports old schema (titulo) and new (title)
       const headlineEl = document.getElementById('headline');
       const titleText = data.title || data.titulo || data.headline || data.subtitle || 'Destaque';

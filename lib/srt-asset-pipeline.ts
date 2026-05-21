@@ -53,8 +53,10 @@ const FACELESS_INTERVAL_MS = 6_000;
 // --- Regras de Ritmo de Humanização e Cooldown do Avatar ---
 const HOOK_CLEAN_ZONE_AVATAR_MS = 12_000;      // Primeiros 12s sem B-Rolls/Hyperframes no modo Avatar
 const HOOK_CLEAN_ZONE_FACELESS_MS = 4_000;      // Primeiros 4s sem B-Rolls no modo Faceless
+const HOOK_CLEAN_ZONE_VLOG_MS = 6_000;          // Primeiros 6s sem B-Rolls no modo VLOG
 const MIN_AVATAR_CLEAN_TIME_AVATAR_MS = 5_000;  // Mínimo de 5s de avatar limpo entre B-Rolls
 const MIN_AVATAR_CLEAN_TIME_FACELESS_MS = 3_000;// Mínimo de 3s de avatar limpo entre B-Rolls
+const MIN_AVATAR_CLEAN_TIME_VLOG_MS = 4_000;    // Mínimo de 4s de avatar limpo entre B-Rolls
 const HF_BROLL_EXCLUSION_MS = 5_000;            // Respiro mínimo de 5s entre Hyperframes e B-Rolls
 
 
@@ -217,7 +219,7 @@ export const calculateSrtSeed = (srtText: string): number => {
 
 export const applyAssetRules = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' = 'avatar',
+  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar',
   srtText = ''
 ) => {
   if (!rows.length) return rows;
@@ -248,8 +250,17 @@ export const applyAssetRules = (
     }
 
     const isFaceless = videoFormat === 'faceless';
-    const cleanZoneMs = isFaceless ? HOOK_CLEAN_ZONE_FACELESS_MS : HOOK_CLEAN_ZONE_AVATAR_MS;
-    const minCleanTimeMs = isFaceless ? MIN_AVATAR_CLEAN_TIME_FACELESS_MS : MIN_AVATAR_CLEAN_TIME_AVATAR_MS;
+    const isVlog = videoFormat === 'vlog';
+    const cleanZoneMs = isVlog
+      ? HOOK_CLEAN_ZONE_VLOG_MS
+      : isFaceless
+      ? HOOK_CLEAN_ZONE_FACELESS_MS
+      : HOOK_CLEAN_ZONE_AVATAR_MS;
+    const minCleanTimeMs = isVlog
+      ? MIN_AVATAR_CLEAN_TIME_VLOG_MS
+      : isFaceless
+      ? MIN_AVATAR_CLEAN_TIME_FACELESS_MS
+      : MIN_AVATAR_CLEAN_TIME_AVATAR_MS;
 
     // --- REGRA 1: Hook de Abertura Humano Seguro ---
     // Impede qualquer B-roll de quebrar a humanização inicial nos primeiros segundos do vídeo
@@ -276,6 +287,17 @@ export const applyAssetRules = (
       } else {
         // CTA: stimulating cuts (5s to 7s)
         intervalMs = Math.round(prng.range(5000, 7000));
+      }
+    } else if (isVlog) {
+      if (progress <= 0.30) {
+        // Hook: dynamic cuts (10s to 16s)
+        intervalMs = Math.round(prng.range(10000, 16000));
+      } else if (progress <= 0.70) {
+        // Body: comfortable cuts (25s to 35s)
+        intervalMs = Math.round(prng.range(25000, 35000));
+      } else {
+        // CTA: stabilizing cuts (35s to 50s)
+        intervalMs = Math.round(prng.range(35000, 50000));
       }
     } else {
       if (progress <= 0.30) {
@@ -337,7 +359,7 @@ export const applyAssetRules = (
 
 export const finalizeFacelessRows = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
 ): SrtAssetRow[] => {
   if (videoFormat !== 'faceless') return rows;
   return rows.map((row) => {

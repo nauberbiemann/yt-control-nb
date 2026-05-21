@@ -58,7 +58,61 @@ type ExecutionMode = 'internal' | 'external';
 type ScriptStage = 'blueprint' | 'final';
 type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
 type VideoCharacterMode = 'male' | 'female' | 'custom';
-type VideoFormat = 'avatar' | 'faceless';
+type VideoFormat = 'avatar' | 'faceless' | 'vlog';
+
+const resolveCharacterProfileInFrontend = (
+  mode: VideoCharacterMode,
+  format: VideoFormat,
+  projectName?: string,
+  customDescription?: string
+): string => {
+  const resolvedMode = mode === 'female' || mode === 'custom' ? mode : 'male';
+  const resolvedCustomDescription = String(customDescription || '').replace(/\s+/g, ' ').trim();
+
+  if (resolvedMode === 'custom' && resolvedCustomDescription) {
+    return resolvedCustomDescription;
+  }
+
+  const resolvedProjectName = String(projectName || '').trim();
+  const videoFormat = format || 'avatar';
+  const isDevZen = resolvedProjectName.toLowerCase().includes('dev') || resolvedProjectName.toLowerCase().includes('tech');
+  const isMetabolismo = resolvedProjectName.toLowerCase().includes('metabolismo') || resolvedProjectName.toLowerCase().includes('saude') || resolvedProjectName.toLowerCase().includes('longevidade') || resolvedProjectName.toLowerCase().includes('ouro');
+
+  if (isDevZen) {
+    if (videoFormat === 'vlog') {
+      return resolvedMode === 'female'
+        ? 'same recurring Brazilian female field researcher and software architect in her early 30s, intelligent and curious expression, wearing casual techwear travel jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie'
+        : 'same recurring Brazilian male field researcher and software engineer in his early 30s, intelligent and curious expression, wearing casual techwear travel jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie';
+    } else {
+      return resolvedMode === 'female'
+        ? 'same recurring Brazilian female senior software architect in her early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear'
+        : 'same recurring Brazilian male senior software architect in his early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
+    }
+  }
+
+  if (isMetabolismo) {
+    if (videoFormat === 'vlog') {
+      return resolvedMode === 'female'
+        ? 'same recurring Brazilian female health mentor and longevity explorer in her late 60s, radiant skin, elegant active expression, wearing an organic linen travel shirt, recording an educational vlog selfie in the natural or historical setting'
+        : 'same recurring Brazilian male health educator and longevity explorer in his late 60s, elegant active expression, wearing an organic linen travel shirt, recording an educational vlog selfie in the natural or historical setting';
+    } else {
+      return resolvedMode === 'female'
+        ? 'same recurring Brazilian female health mentor in her late 60s, radiant skin, vital active expression, elegant look, modern minimalist home office with organic textures and soft sunlight, wearing elegant natural fabrics'
+        : 'same recurring Brazilian male health mentor in his late 60s, healthy vital expression, elegant look, modern minimalist home office with natural wood and plants, soft lighting';
+    }
+  }
+
+  // Generic fallback
+  if (videoFormat === 'vlog') {
+    return resolvedMode === 'female'
+      ? 'same recurring Brazilian female field researcher and didactic educator in her early 30s, intelligent and curious expression, wearing a brown canvas explorer jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie'
+      : 'same recurring Brazilian male field researcher and didactic educator in his early 30s, intelligent and curious expression, wearing a brown canvas explorer jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie';
+  } else {
+    return resolvedMode === 'female'
+      ? 'same recurring Brazilian female presenter in her early 30s, intelligent and friendly expression, modern dark home studio, professional attire'
+      : 'same recurring Brazilian male presenter in his early 30s, intelligent and friendly expression, modern dark home studio, professional attire';
+  }
+};
 
 interface SrtPipelineObserverStep {
   key: 'upload' | 'csv' | 'assets' | 'prompts' | 'render' | 'persist';
@@ -858,7 +912,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                 if (typeof cloudSnapshot.externalSrtFileName === 'string') setExternalSrtFileName(cloudSnapshot.externalSrtFileName);
                 if (['male', 'female', 'custom'].includes(cloudSnapshot.videoCharacterMode)) setVideoCharacterMode(cloudSnapshot.videoCharacterMode);
                 if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
-                if (cloudSnapshot.videoFormat === 'faceless' || cloudSnapshot.videoFormat === 'avatar') setVideoFormat(cloudSnapshot.videoFormat);
+                if (cloudSnapshot.videoFormat === 'faceless' || cloudSnapshot.videoFormat === 'avatar' || cloudSnapshot.videoFormat === 'vlog') setVideoFormat(cloudSnapshot.videoFormat);
                 if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
@@ -899,7 +953,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.externalSrtFileName === 'string') setExternalSrtFileName(snapshot.externalSrtFileName);
       if (['male', 'female', 'custom'].includes(snapshot?.videoCharacterMode)) setVideoCharacterMode(snapshot.videoCharacterMode);
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
-      if (snapshot?.videoFormat === 'faceless' || snapshot?.videoFormat === 'avatar') setVideoFormat(snapshot.videoFormat);
+      if (snapshot?.videoFormat === 'faceless' || snapshot?.videoFormat === 'avatar' || snapshot?.videoFormat === 'vlog') setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
@@ -1944,6 +1998,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       const assetStats     = buildAssetStats(finalRows);
       const assetDesc      = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
+        : videoFormat === 'vlog'
+        ? `${assetStats.texto} texto, ${assetStats.avatar} avatar (VLOG), ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`
         : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`;
       updateSrtObserverStep('assets', 'done', assetDesc);
       setSrtPipelineStatus('Assets marcados. Enviando as linhas elegiveis para gerar prompts visuais...');
@@ -4204,9 +4260,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
                     <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       {([
-                        { value: 'avatar', label: 'Com Apresentador' },
+                        { value: 'avatar', label: 'Apresentador' },
+                        { value: 'vlog', label: 'VLOG' },
                         { value: 'faceless', label: 'Faceless' },
                       ] as { value: VideoFormat; label: string }[]).map((option) => {
                         const selected = videoFormat === option.value;
@@ -4215,7 +4272,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                             key={option.value}
                             type="button"
                             onClick={() => setVideoFormat(option.value)}
-                            className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
+                            className={`rounded-xl border px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all text-center ${
                               selected
                                 ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
                                 : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
@@ -4229,6 +4286,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     {videoFormat === 'faceless' && (
                       <p className="text-[9px] text-amber-400/70 leading-relaxed">
                         Modo Faceless: imagens e videos a cada ~6s. As lacunas no CSV ficam em branco — estique a midia anterior no editor.
+                      </p>
+                    )}
+                    {videoFormat === 'vlog' && (
+                      <p className="text-[9px] text-cyan-400/70 leading-relaxed">
+                        Modo VLOG Imersivo: personagem consistente em selfie trêmula 1ª pessoa e ritmo de B-roll descontraído.
+                      </p>
+                    )}
+                    {videoFormat === 'avatar' && (
+                      <p className="text-[9px] text-purple-400/70 leading-relaxed">
+                        Modo Apresentador: personagem no home office/cenário fixo com inserções de B-roll frequentes.
                       </p>
                     )}
                   </div>
@@ -4257,13 +4324,57 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         );
                       })}
                     </div>
+                    
+                    {/* Visual Preview / Customizer Interface */}
+                    {videoFormat !== 'faceless' && (videoCharacterMode === 'male' || videoCharacterMode === 'female') && (() => {
+                      const resolvedPrompt = resolveCharacterProfileInFrontend(
+                        videoCharacterMode,
+                        videoFormat,
+                        activeProject?.name || activeProject?.project_name
+                      );
+                      return (
+                        <div className="space-y-1.5 mt-2">
+                          <p className="text-[8px] font-bold uppercase tracking-wider text-white/40">Visual Resolvido (Automático):</p>
+                          <div className="rounded-xl border border-white/5 bg-black/35 p-3 text-[10px] leading-relaxed text-white/70 italic relative overflow-hidden group">
+                            {resolvedPrompt}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVideoCharacterCustom(resolvedPrompt);
+                              setVideoCharacterMode('custom');
+                            }}
+                            className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 active:scale-95"
+                          >
+                            ✏️ Customizar este visual
+                          </button>
+                        </div>
+                      );
+                    })()}
+
                     {videoCharacterMode === 'custom' && (
-                      <textarea
-                        value={videoCharacterCustom}
-                        onChange={(e) => setVideoCharacterCustom(e.target.value)}
-                        placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
-                        className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
-                      />
+                      <div className="space-y-2 mt-2">
+                        <textarea
+                          value={videoCharacterCustom}
+                          onChange={(e) => setVideoCharacterCustom(e.target.value)}
+                          placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
+                          className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const resolved = resolveCharacterProfileInFrontend(
+                              'male',
+                              videoFormat,
+                              activeProject?.name || activeProject?.project_name
+                            );
+                            setVideoCharacterCustom(resolved);
+                          }}
+                          className="flex items-center justify-center gap-1 w-full rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/60 transition-all hover:bg-white/10 hover:text-white/80"
+                        >
+                          ✨ Sugerir com base no Canal
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

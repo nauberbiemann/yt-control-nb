@@ -121,6 +121,8 @@ interface PromptResponseShape {
 interface CharacterProfileInput {
   mode?: 'male' | 'female' | 'custom';
   customDescription?: string;
+  projectName?: string;
+  videoFormat?: 'avatar' | 'faceless' | 'vlog';
 }
 
 const resolveCharacterProfile = (input?: CharacterProfileInput | null) => {
@@ -131,11 +133,45 @@ const resolveCharacterProfile = (input?: CharacterProfileInput | null) => {
     return customDescription;
   }
 
-  if (mode === 'female') {
-    return 'same recurring Brazilian female senior software architect in her early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
+  const projectName = String(input?.projectName || '').trim();
+  const videoFormat = input?.videoFormat || 'avatar';
+  const isDevZen = projectName.toLowerCase().includes('dev') || projectName.toLowerCase().includes('tech');
+  const isMetabolismo = projectName.toLowerCase().includes('metabolismo') || projectName.toLowerCase().includes('saude') || projectName.toLowerCase().includes('longevidade') || projectName.toLowerCase().includes('ouro');
+
+  if (isDevZen) {
+    if (videoFormat === 'vlog') {
+      return mode === 'female'
+        ? 'same recurring Brazilian female field researcher and software architect in her early 30s, intelligent and curious expression, wearing casual techwear travel jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie'
+        : 'same recurring Brazilian male field researcher and software engineer in his early 30s, intelligent and curious expression, wearing casual techwear travel jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie';
+    } else {
+      return mode === 'female'
+        ? 'same recurring Brazilian female senior software architect in her early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear'
+        : 'same recurring Brazilian male senior software architect in his early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
+    }
   }
 
-  return 'same recurring Brazilian male senior software architect in his early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
+  if (isMetabolismo) {
+    if (videoFormat === 'vlog') {
+      return mode === 'female'
+        ? 'same recurring Brazilian female health mentor and longevity explorer in her late 60s, radiant skin, elegant active expression, wearing an organic linen travel shirt, recording an educational vlog selfie in the natural or historical setting'
+        : 'same recurring Brazilian male health educator and longevity explorer in his late 60s, elegant active expression, wearing an organic linen travel shirt, recording an educational vlog selfie in the natural or historical setting';
+    } else {
+      return mode === 'female'
+        ? 'same recurring Brazilian female health mentor in her late 60s, radiant skin, vital active expression, elegant look, modern minimalist home office with organic textures and soft sunlight, wearing elegant natural fabrics'
+        : 'same recurring Brazilian male health mentor in his late 60s, healthy vital expression, elegant look, modern minimalist home office with natural wood and plants, soft lighting';
+    }
+  }
+
+  // Generic fallback
+  if (videoFormat === 'vlog') {
+    return mode === 'female'
+      ? 'same recurring Brazilian female field researcher and didactic educator in her early 30s, intelligent and curious expression, wearing a brown canvas explorer jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie'
+      : 'same recurring Brazilian male field researcher and didactic educator in his early 30s, intelligent and curious expression, wearing a brown canvas explorer jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie';
+  } else {
+    return mode === 'female'
+      ? 'same recurring Brazilian female presenter in her early 30s, intelligent and friendly expression, modern dark home studio, professional attire'
+      : 'same recurring Brazilian male presenter in his early 30s, intelligent and friendly expression, modern dark home studio, professional attire';
+  }
 };
 
 const chunk = <T,>(items: T[], size: number) => {
@@ -368,7 +404,7 @@ const generatePromptMap = async ({
   items: PromptBatchItem[];
   characterDescription: string;
   videoContext?: string;
-  videoFormat?: 'avatar' | 'faceless';
+  videoFormat?: 'avatar' | 'faceless' | 'vlog';
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -385,9 +421,11 @@ const generatePromptMap = async ({
   const promptMap = new Map<number, string>();
   const textoAdicionalMap = new Map<number, any>();
 
-  // Faceless mode: suppress character entirely and request full-screen compositions
+  // Dynamic hint based on video format (Faceless, Vlog, or Avatar)
   const facelessHint = videoFormat === 'faceless'
     ? 'FACELESS VIDEO MODE: Do NOT include any presenter, character, or person in video or image prompts. Every prompt must be a full-screen cinematic composition (cinematic B-roll, 3D animation, macro photography, abstract visual) that fills the entire frame. The subtitle text is your only reference for subject matter.'
+    : videoFormat === 'vlog'
+    ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
     : '';
 
   for (const batch of chunk(items, batchSize)) {
@@ -413,9 +451,13 @@ export async function POST(req: NextRequest) {
     const engine = body?.engine === 'gemini' ? 'gemini' : 'openai';
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
-    const characterDescription = resolveCharacterProfile(body?.characterProfile);
+    const videoFormat: 'avatar' | 'faceless' | 'vlog' = body?.videoFormat === 'vlog' ? 'vlog' : (body?.videoFormat === 'faceless' ? 'faceless' : 'avatar');
+    const characterDescription = resolveCharacterProfile({
+      ...(body?.characterProfile || {}),
+      projectName: projectConfig?.project_name || '',
+      videoFormat,
+    });
     const videoContext = String(body?.videoContext || '').trim();
-    const videoFormat: 'avatar' | 'faceless' = body?.videoFormat === 'faceless' ? 'faceless' : 'avatar';
     
     // Batch Mode Branch
     if (Array.isArray(body?.batchItems) && body.batchItems.length > 0) {

@@ -35,6 +35,7 @@ export function LocalRescueTool() {
   const [isRunningGc, setIsRunningGc] = useState(false);
   const [showGcLogs, setShowGcLogs] = useState(false);
   const [gcActionFeedback, setGcActionFeedback] = useState<string | null>(null);
+  const [showAdvancedRescue, setShowAdvancedRescue] = useState(false);
 
   const calculateStorage = () => {
     if (typeof window === 'undefined') return;
@@ -266,24 +267,51 @@ export function LocalRescueTool() {
   // Cálculo da percentagem de espaço ocupado (limite de alerta 1.2MB)
   const storagePercentage = Math.min((storageMB / 1.2) * 100, 100);
 
-  // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 2 MB) - RENDERIZA CARD DE AVISO DE EMERGÊNCIA
-  if (storageMB >= 2 || uploadStatus === 'success') {
+  // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 2 MB), SE O UPLOAD FOR CONCLUÍDO OU SE O USUÁRIO ABRIR O MODO MANUAL
+  if (storageMB >= 2 || uploadStatus === 'success' || showAdvancedRescue) {
+    const isEmergency = storageMB >= 2 && uploadStatus !== 'success';
+
     return (
-      <div className="w-full bg-slate-900 border-2 border-red-500/50 rounded-xl p-6 mb-8 shadow-2xl shadow-red-900/20 relative overflow-hidden animate-in fade-in zoom-in duration-500">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500"></div>
+      <div className={`w-full bg-slate-900 border-2 rounded-xl p-6 mb-8 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-500 ${
+        isEmergency ? 'border-red-500/50 shadow-red-900/20' : 'border-slate-800 shadow-slate-950/50'
+      }`}>
+        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${
+          isEmergency ? 'from-red-500 via-orange-500 to-red-500' : 'from-blue-500 via-indigo-500 to-purple-600'
+        }`}></div>
         
+        {/* Botão de Fechar no Modo Manual */}
+        {!isEmergency && (
+          <button 
+            onClick={() => setShowAdvancedRescue(false)}
+            className="absolute top-4 right-4 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-white px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 transition-all shadow-sm z-20"
+          >
+            Voltar ao Painel
+          </button>
+        )}
+
         <div className="flex flex-col md:flex-row gap-6 items-center">
-          <div className="flex-shrink-0 bg-red-500/10 p-4 rounded-full border border-red-500/20">
-            <AlertTriangle className="w-10 h-10 text-red-500 animate-pulse" />
+          <div className={`flex-shrink-0 p-4 rounded-full border ${
+            isEmergency ? 'bg-red-500/10 border-red-500/20' : 'bg-blue-500/10 border-blue-500/20'
+          }`}>
+            {isEmergency ? (
+              <AlertTriangle className="w-10 h-10 text-red-500 animate-pulse" />
+            ) : (
+              <CloudUpload className="w-10 h-10 text-blue-400" />
+            )}
           </div>
           
           <div className="flex-1">
             <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
-              ALERTA CRÍTICO DE ARMAZENAMENTO ({storageMB.toFixed(1)} MB Usados)
+              {isEmergency 
+                ? `ALERTA CRÍTICO DE ARMAZENAMENTO (${storageMB.toFixed(2)} MB Usados)`
+                : `CONSOLE DE SINCRONIZAÇÃO E EXPURGO SEGURO (${storageMB.toFixed(2)} MB Usados)`
+              }
             </h2>
             <p className="text-slate-400 text-sm mt-2 leading-relaxed max-w-2xl">
-              Seu navegador atingiu o limite físico de memória e <b>vai começar a travar ou perder roteiros</b>. 
-              Siga os 3 passos abaixo nesta ordem exata para salvar seus arquivos em segurança para o banco de dados oficial (Supabase) e liberar a memória local.
+              {isEmergency 
+                ? 'Seu navegador atingiu o limite físico de memória e vai começar a travar ou perder roteiros. Siga os 3 passos abaixo nesta ordem exata para salvar seus arquivos em segurança para o banco de dados oficial (Supabase) e liberar a memória local.'
+                : 'Use esta área para transferir todos os dados temporários do navegador para o banco de dados seguro do Supabase e limpar a memória local (reduzindo a barra de limite de volta a 0%). Siga os 3 passos abaixo.'
+              }
             </p>
           </div>
         </div>
@@ -430,6 +458,15 @@ export function LocalRescueTool() {
 
           {/* Ação manual discreta */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAdvancedRescue(true)}
+              title="Abrir painel de sincronização em nuvem e expurgo completo"
+              className="px-3 py-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 text-slate-300 hover:text-blue-400 border border-slate-800 hover:border-slate-700 transition-all text-xs font-extrabold flex items-center gap-1.5 shadow-sm"
+            >
+              <CloudUpload className="w-3 h-3 text-slate-400" />
+              Sincronização Completa
+            </button>
+
             <button
               onClick={handleRunGcManually}
               disabled={isRunningGc}

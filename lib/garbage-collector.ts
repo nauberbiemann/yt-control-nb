@@ -2,7 +2,7 @@
  * lib/garbage-collector.ts
  * 
  * Coletor de Lixo Automático e Inteligente (Garbage Collector - GC) para o Content OS.
- * Mantém o localStorage do navegador de forma silenciosa abaixo do limite crítico (1.2 MB),
+ * Mantém o localStorage do navegador de forma silenciosa abaixo do limite crítico (2.5 MB),
  * garantindo integridade absoluta com o Supabase antes de liberar ou comprimir qualquer dado local.
  */
 
@@ -85,13 +85,13 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
 
   const currentSizeMB = getLocalStorageSizeMB();
   
-  // Só executa se o tamanho for > 1.2 MB ou se for forçado
-  if (!force && currentSizeMB <= 1.2) {
+  // Só executa se o tamanho for > 2.5 MB ou se for forçado
+  if (!force && currentSizeMB <= 2.5) {
     return {
       lastRun: new Date().toISOString(),
       bytesCleaned: 0,
       status: 'idle',
-      details: [`Ignorado: localStorage está saudável (${currentSizeMB.toFixed(2)} MB). Limite de disparo é 1.2 MB.`]
+      details: [`Ignorado: localStorage está saudável (${currentSizeMB.toFixed(2)} MB). Limite de disparo é 2.5 MB.`]
     };
   }
 

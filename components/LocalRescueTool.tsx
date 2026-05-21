@@ -264,12 +264,12 @@ export function LocalRescueTool() {
     }
   };
 
-  // Cálculo da percentagem de espaço ocupado (limite de alerta 1.2MB)
-  const storagePercentage = Math.min((storageMB / 1.2) * 100, 100);
+  // Cálculo da percentagem de espaço ocupado (limite de alerta 2.5MB)
+  const storagePercentage = Math.min((storageMB / 2.5) * 100, 100);
 
-  // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 2 MB), SE O UPLOAD FOR CONCLUÍDO OU SE O USUÁRIO ABRIR O MODO MANUAL
-  if (storageMB >= 2 || uploadStatus === 'success' || showAdvancedRescue) {
-    const isEmergency = storageMB >= 2 && uploadStatus !== 'success';
+  // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 4 MB), SE O UPLOAD FOR CONCLUÍDO OU SE O USUÁRIO ABRIR O MODO MANUAL
+  if (storageMB >= 4 || uploadStatus === 'success' || showAdvancedRescue) {
+    const isEmergency = storageMB >= 4 && uploadStatus !== 'success';
 
     return (
       <div className={`w-full bg-slate-900 border-2 rounded-xl p-6 mb-8 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-500 ${
@@ -444,7 +444,7 @@ export function LocalRescueTool() {
           <div className="text-left md:text-right pr-2">
             <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Armazenamento Local</p>
             <p className="text-xs font-black text-slate-300">
-              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 1.20 MB máx</span>
+              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 2.50 MB máx</span>
             </p>
           </div>
 
@@ -499,7 +499,7 @@ export function LocalRescueTool() {
         </div>
       )}
 
-      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 1.2MB) */}
+      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 2.5MB) */}
       <div className="w-full bg-slate-900/30 p-3 rounded-lg border border-slate-800/50">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -507,21 +507,21 @@ export function LocalRescueTool() {
           </span>
           <div className="flex items-center gap-2">
             <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-              storageMB >= 1.2 ? 'bg-rose-500 animate-pulse' : storageMB > 0.9 ? 'bg-amber-500' : 'bg-emerald-500'
+              storageMB >= 2.5 ? 'bg-rose-500 animate-pulse' : storageMB > 1.8 ? 'bg-amber-500' : 'bg-emerald-500'
             }`} />
             <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
-              storageMB >= 1.2 ? 'text-rose-400' : storageMB > 0.9 ? 'text-amber-400' : 'text-emerald-400'
+              storageMB >= 2.5 ? 'text-rose-400' : storageMB > 1.8 ? 'text-amber-400' : 'text-emerald-400'
             }`}>
-              {storageMB >= 1.2 ? 'Limite Excedido' : storageMB > 0.9 ? 'Atenção' : 'Excelente'} ({((storageMB / 1.2) * 100).toFixed(0)}%)
+              {storageMB >= 2.5 ? 'Limite Excedido' : storageMB > 1.8 ? 'Atenção' : 'Excelente'} ({((storageMB / 2.5) * 100).toFixed(0)}%)
             </span>
           </div>
         </div>
         <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/60 relative">
           <div 
             className={`h-full rounded-full transition-all duration-500 ${
-              storageMB >= 1.2
+              storageMB >= 2.5
                 ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                : storageMB > 0.9
+                : storageMB > 1.8
                 ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
                 : 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
             }`}
@@ -530,8 +530,8 @@ export function LocalRescueTool() {
         </div>
         <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-500">
           <span>0.00 MB (Vazio)</span>
-          <span className="font-medium text-slate-400">Limite Recomendado: 1.20 MB</span>
-          <span>1.20+ MB</span>
+          <span className="font-medium text-slate-400">Limite Recomendado: 2.50 MB</span>
+          <span>2.50+ MB</span>
         </div>
       </div>
 

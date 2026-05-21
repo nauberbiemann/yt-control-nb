@@ -463,18 +463,38 @@ export function LocalRescueTool() {
       )}
 
       {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 1.2MB) */}
-      <div className="w-full">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-[9px] font-bold text-slate-500 uppercase">Uso do Armazenamento</span>
-          <span className="text-[10px] font-bold text-slate-400">{storagePercentage.toFixed(0)}% saudável</span>
+      <div className="w-full bg-slate-900/30 p-3 rounded-lg border border-slate-800/50">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-slate-500" /> Uso do Limite Recomendado
+          </span>
+          <div className="flex items-center gap-2">
+            <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+              storageMB >= 1.2 ? 'bg-rose-500 animate-pulse' : storageMB > 0.9 ? 'bg-amber-500' : 'bg-emerald-500'
+            }`} />
+            <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+              storageMB >= 1.2 ? 'text-rose-400' : storageMB > 0.9 ? 'text-amber-400' : 'text-emerald-400'
+            }`}>
+              {storageMB >= 1.2 ? 'Limite Excedido' : storageMB > 0.9 ? 'Atenção' : 'Excelente'} ({((storageMB / 1.2) * 100).toFixed(0)}%)
+            </span>
+          </div>
         </div>
-        <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800/40">
+        <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/60 relative">
           <div 
             className={`h-full rounded-full transition-all duration-500 ${
-              storageMB > 1.0 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'
+              storageMB >= 1.2
+                ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                : storageMB > 0.9
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                : 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
             }`}
             style={{ width: `${storagePercentage}%` }}
           />
+        </div>
+        <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-500">
+          <span>0.00 MB (Vazio)</span>
+          <span className="font-medium text-slate-400">Limite Recomendado: 1.20 MB</span>
+          <span>1.20+ MB</span>
         </div>
       </div>
 

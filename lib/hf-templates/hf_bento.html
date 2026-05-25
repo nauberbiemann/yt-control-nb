@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* Ambient background blur */
+    .bento-glow-bg {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      filter: blur(80px);
+      z-index: 1;
+      opacity: 0;
+    }
+
+    /* Bento Grid container */
+    .bento-container {
+      position: relative;
+      z-index: 2;
+      width: 1100px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 220px 220px;
+      gap: 24px;
+      opacity: 0;
+      transform: translateY(60px);
+      will-change: transform, opacity;
+    }
+
+    /* Bento Cards base style (Ultra-premium Glassmorphism) */
+    .bento-card {
+      background: rgba(10, 11, 15, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      box-shadow: 
+        0 30px 70px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      opacity: 0;
+      transform: scale(0.92);
+      will-change: transform, opacity;
+    }
+
+    /* Card 1: Main insights (Large Card) */
+    .card-large {
+      grid-column: span 2;
+      grid-row: span 2;
+      justify-content: flex-start;
+      gap: 20px;
+      border-left: 2px solid rgba(99, 102, 241, 0.4);
+    }
+
+    .bento-eyebrow {
+      font-size: 14px;
+      font-weight: 800;
+      color: #6366F1;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+    }
+
+    .bento-title {
+      font-size: 42px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .bento-desc {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.6);
+      line-height: 1.5;
+      font-weight: 400;
+      margin-top: auto;
+    }
+
+    /* Card 2: Numbers/Metrics (Tall Card) */
+    .card-tall {
+      grid-column: span 1;
+      grid-row: span 2;
+      background: linear-gradient(135deg, rgba(10, 11, 15, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border-right: 2px solid rgba(16, 185, 129, 0.3);
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 72px;
+      font-weight: 900;
+      color: #10B981;
+      letter-spacing: -0.04em;
+      text-shadow: 0 0 35px rgba(16, 185, 129, 0.35);
+      margin-top: auto;
+      margin-bottom: auto;
+    }
+
+    .metric-label {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.4);
+      letter-spacing: 0.15em;
+    }
+
+    /* Card 3: Dynamic Telemetry (Small Card) */
+    .card-small-telemetry {
+      grid-column: span 1;
+      grid-row: span 1;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .telemetry-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .telemetry-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+
+    .telemetry-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    /* Simulated animated loading bars */
+    .telemetry-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 24px;
+    }
+
+    .telemetry-bar {
+      width: 3px;
+      height: 4px;
+      background: #6366F1;
+      border-radius: 9999px;
+    }
+
+    /* Card 4: Status Indicator (Small Card) */
+    .card-small-status {
+      grid-column: span 1;
+      grid-row: span 1;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      font-size: 12px;
+      font-weight: 800;
+      color: #818cf8;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #818cf8;
+      box-shadow: 0 0 10px #818cf8;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="bento-glow-bg" id="glow-bg"></div>
+
+    <div class="bento-container" id="bento-grid">
+      <!-- CARD 1: INSIGHT PRINCIPAL (GRANDE) -->
+      <div class="bento-card card-large">
+        <span class="bento-eyebrow">Destaque do Projeto</span>
+        <h1 class="bento-title" id="bento-title">Insights Avançados</h1>
+        <p class="bento-desc" id="bento-desc">Descrição explicativa inteligente que se adapta ao contexto narrativo e orienta o espectador do vídeo.</p>
+      </div>
+
+      <!-- CARD 2: MÉTRICA PRINCIPAL (ALTO) -->
+      <div class="bento-card card-tall">
+        <span class="metric-label">Desempenho</span>
+        <div class="metric-value" id="metric-value">+127%</div>
+        <span class="metric-label">resultado mensurado</span>
+      </div>
+
+      <!-- CARD 3: TELEMETRIA EM TEMPO REAL (PEQUENO) -->
+      <div class="bento-card card-small-telemetry">
+        <div class="telemetry-info">
+          <span class="telemetry-label">Processamento</span>
+          <span class="telemetry-value">Ativo</span>
+        </div>
+        <div class="telemetry-bars" id="telemetry-bars">
+          <div class="telemetry-bar"></div>
+          <div class="telemetry-bar"></div>
+          <div class="telemetry-bar"></div>
+          <div class="telemetry-bar"></div>
+        </div>
+      </div>
+
+      <!-- CARD 4: STATUS DO CANAL (PEQUENO) -->
+      <div class="bento-card card-small-status">
+        <div class="telemetry-info">
+          <span class="telemetry-label">Redundância</span>
+          <span class="telemetry-value" id="channel-name">MEU CANAL</span>
+        </div>
+        <div class="status-badge">
+          <span class="status-dot animate-pulse"></span>
+          <span>Online</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const data = {{HF_DATA_JSON}};
+
+      // Render placeholders
+      const titleEl = document.getElementById('bento-title');
+      const descEl  = document.getElementById('bento-desc');
+      const valEl   = document.getElementById('metric-value');
+      const chanEl  = document.getElementById('channel-name');
+
+      if (titleEl) titleEl.textContent = data.title || data.titulo || 'Métricas de Alta Frequência';
+      if (descEl)  descEl.textContent  = data.subtitle || data.subtitulo || 'Análise heurística de desempenho baseada em padrões quantitativos de retenção.';
+      if (valEl)   valEl.textContent   = data.metrics || '+94.2%';
+      if (chanEl)  chanEl.textContent  = data.channel_name || data.channel || 'Content OS';
+
+      // GSAP Animation Timelines
+      const tl = gsap.timeline({ paused: true });
+
+      // Glow backdrop entry
+      tl.to('#glow-bg', { opacity: 1, duration: 1.2, ease: 'power2.out' }, 0);
+
+      // Grid container entry
+      tl.to('#bento-grid', { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.1);
+
+      // Individual cards entrance with a beautiful stagger and spring
+      const cards = document.querySelectorAll('.bento-card');
+      tl.to(cards, {
+        opacity: 1,
+        scale: 1,
+        duration: 0.8,
+        ease: 'elastic.out(1.1, 0.8)',
+        stagger: 0.12
+      }, 0.2);
+
+      // Endless simulated telemetry bars loop
+      const bars = document.querySelectorAll('.telemetry-bar');
+      bars.forEach((bar, idx) => {
+        gsap.to(bar, {
+          height: 24,
+          duration: 0.35 + (idx * 0.08),
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut'
+        });
+      });
+
+      // Subtle breathing float animation for the entire grid
+      tl.to('#bento-grid', {
+        y: -6,
+        duration: 2.2,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1
+      }, 1.0);
+
+      window.__timelines['hf_bento'] = tl;
+      tl.play();
+    })();
+  </script>
+</body>
+</html>

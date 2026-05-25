@@ -468,6 +468,7 @@ const HF_TEMPLATES = {
   dynamicCrop:  'hf_dynamic',      // viewfinder + rule-of-thirds — white HUD
   faceBottom:   'hf_face_bottom',  // avatar bottom-left — cyan accent
   // ── Novos templates premiums descobriveis no filesystem ──────────────────
+  bento:        'hf_bento',
   codeTerminal: 'hf_code_terminal',
   dataChart:    'hf_data_chart',
   notification: 'hf_notification',

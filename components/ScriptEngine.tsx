@@ -876,6 +876,24 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         return;
       }
 
+      // NEW: Check if the snapshot represents a finished (scheduled/published) script
+      if (snapshot && snapshot.manualPublishDate && !pendingData) {
+        if (snapshot._isResume) {
+          // Deliberate resume: allow hydration, but strip the temporary flag from localStorage
+          console.log('[ScriptEngine] Resuming scheduled script explicitly from Theme Bank.');
+          delete snapshot._isResume;
+          try {
+            localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
+          } catch { /* ignore */ }
+        } else {
+          // Navigating via sidebar: bypass hydration of finished script to keep workspace clean
+          console.log('[ScriptEngine] Bypassing hydration of finished/scheduled script for a clean workspace.');
+          clearExecutionState();
+          setExecutionHydrated(true);
+          return;
+        }
+      }
+
       if (!snapshot) {
         if (supabase) {
           const loadFromCloud = async () => {
@@ -891,6 +909,15 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
+                
+                // NEW: Bypass cloud hydration if the script has already been scheduled/published
+                if (cloudSnapshot.manualPublishDate) {
+                  console.log('[ScriptEngine] Cloud snapshot is already scheduled/published. Bypassing cloud hydration.');
+                  clearExecutionState();
+                  setExecutionHydrated(true);
+                  return;
+                }
+
                 console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
                 
                 if (cloudSnapshot.approvedTheme) setApprovedTheme(cloudSnapshot.approvedTheme);
@@ -2627,7 +2654,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
-  const clearExecutionState = () => {
+  function clearExecutionState() {
     if (executionStorageKey) {
       localStorage.removeItem(executionStorageKey);
       // Also clear the split-storage keys for large objects
@@ -2650,12 +2677,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     setExternalSrtPipeline(null);
     setExternalSrtObserver(buildInitialSrtObserver());
     setPostScriptPackage(null);
+    setManualPublishDate('');
+    setManualPublishDraftDate('');
+    setManualPublishDraftTime('');
     setScriptBlocks([
       { id: 'h0', type: 'Hook', title: 'Gancho Estrategico', content: 'Inicie com uma promessa tecnica...', sop: 'Corte seco.' },
       { id: 'c0', type: 'Context', title: 'Contextualizacao', content: 'Conecte com a dor do publico...', sop: 'B-roll de contexto.' }
     ]);
     setAssemblerActive(true);
-  };
+  }
 
   const returnToAssembler = () => {
     setAssemblerActive(true);

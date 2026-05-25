@@ -803,6 +803,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       _themeId: theme.id,                  // 🔑 stable ID to survive title renames
       _pendingTitleUpdate: titleChanged ? theme.title : undefined,
       _originalApprovedTitle: titleChanged ? originalTitle : undefined,
+      _isResume: true,                     // 🔑 flag to bypass hydration cleanup of finished themes
       updated_at: new Date().toISOString(),
     };
 

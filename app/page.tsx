@@ -1697,7 +1697,7 @@ export default function Home() {
           />;
         case 'scripts':
           return <ScriptEngine 
-            key={`script-engine-${scriptResumeKey}`}
+            key={`script-engine-${scriptResumeKey}-${pendingScript?.id || 'none'}`}
             activeProject={activeProject} 
             pendingData={pendingScript}
             onClearPending={() => setPendingScript(null)}

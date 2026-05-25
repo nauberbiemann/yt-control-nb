@@ -1121,12 +1121,18 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         sop: 'Split screen ou CTA visual. Encerramento com a trilha em crescendo.'
       });
 
+      setApprovedTheme(pendingData.refined_title || pendingData.title || '');
+      setApprovedBriefing(null);
       setScriptBlocks(v4Blocks);
       setScriptStage('blueprint');
       setPostScriptPackage(null);
-      setManualPublishDate(''); // 🔑 Clear inherited date from previous snapshot - new theme starts without a publish date
-      setManualPublishDraftDate('');
-      setManualPublishDraftTime('');
+      
+      const themeDate = pendingData.target_publish_date || pendingData.production_assets?.target_publish_date || '';
+      setManualPublishDate(themeDate);
+      const dateParts = getManualPublishDateParts(themeDate);
+      setManualPublishDraftDate(dateParts.date);
+      setManualPublishDraftTime(dateParts.time);
+
       onClearPending?.();
       setAssemblerActive(false); // Move to editor once pending data arrives
     } else if (scriptBlocks.length === 0 && !approvedBriefing) {

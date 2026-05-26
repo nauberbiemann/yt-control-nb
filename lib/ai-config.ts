@@ -2,10 +2,12 @@ import { z } from 'zod';
 
 export const AI_MODELS = {
   openai: [
-    { id: 'gpt-5.1',     name: 'GPT-5.1',      isDefault: true  },
-    { id: 'gpt-5-mini',  name: 'GPT-5 Mini',    isDefault: false },
-    { id: 'gpt-4o',      name: 'GPT-4o',        isDefault: false },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini',   isDefault: false },
+    { id: 'gpt-5.1',       name: 'GPT-5.1',        isDefault: true  },
+    { id: 'gpt-5.4-mini',  name: 'GPT-5.4 Mini',   isDefault: false },
+    { id: 'gpt-5.4-nano',  name: 'GPT-5.4 Nano',   isDefault: false },
+    { id: 'gpt-5-mini',    name: 'GPT-5 Mini',     isDefault: false },
+    { id: 'gpt-4o',        name: 'GPT-4o',         isDefault: false },
+    { id: 'gpt-4o-mini',   name: 'GPT-4o Mini',    isDefault: false },
   ],
   gemini: [
     { id: 'gemini-3-flash',         name: 'Gemini 3 Flash',         isDefault: true  },
@@ -36,10 +38,12 @@ export const DEFAULT_CONFIG: AIConfig = {
  */
 export const MODEL_ALIAS_MAP: Record<string, string> = {
   // OpenAI
-  'gpt-5.1':     'gpt-4o',
-  'gpt-5-mini':  'gpt-4o-mini',
-  'gpt-4o':      'gpt-4o',
-  'gpt-4o-mini': 'gpt-4o-mini',
+  'gpt-5.1':       'gpt-4o',
+  'gpt-5.4-mini':  'gpt-5.4-mini',
+  'gpt-5.4-nano':  'gpt-5.4-nano',
+  'gpt-5-mini':    'gpt-4o-mini',
+  'gpt-4o':        'gpt-4o',
+  'gpt-4o-mini':   'gpt-4o-mini',
 
   // Google Gemini
   'gemini-3-flash':         'gemini-2.5-flash',
@@ -61,7 +65,7 @@ export function resolveModel(modelId: string): string {
  */
 export function isReasoningModel(modelId: string): boolean {
   const resolved = resolveModel(modelId);
-  return resolved.startsWith('o1') || resolved.startsWith('o3') || resolved.startsWith('gpt-5');
+  return (resolved.startsWith('o1') || resolved.startsWith('o3') || resolved.startsWith('gpt-5')) && !resolved.includes('mini') && !resolved.includes('nano');
 }
 
 /**

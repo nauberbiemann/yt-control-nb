@@ -237,6 +237,8 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
   // Create / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<NarrativeComponent | null>(null);
+  const [isQuickPasteActive, setIsQuickPasteActive] = useState(false);
+  const [quickPasteText, setQuickPasteText] = useState('');
   const [formData, setFormData] = useState({
     type: getDefaultTypeForSection('content'),
     name: '',
@@ -432,6 +434,8 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
 
   const resetForm = () => {
     setEditingItem(null);
+    setIsQuickPasteActive(false);
+    setQuickPasteText('');
     setFormData({
       type: getDefaultTypeForSection(activeSection),
       name: '',
@@ -439,6 +443,144 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
       content_pattern: '',
       category: ''
     });
+  };
+
+  const parseQuickPaste = (text: string) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    
+    let name = '';
+    let category = '';
+    let description = '';
+    let content_pattern = '';
+
+    // Clean lines of list bullets (like o, *, -, •, etc.)
+    const cleanLine = (line: string) => {
+      return line.replace(/^[o\*\-\•\s\d\.\,\(\)\[\]\{\}\:]+\s*/, '').trim();
+    };
+
+    // Helper to extract value after a label
+    const getValueAfterLabel = (line: string, prefixes: string[]) => {
+      for (const prefix of prefixes) {
+        const lowerLine = line.toLowerCase();
+        const lowerPrefix = prefix.toLowerCase();
+        if (lowerLine.startsWith(lowerPrefix)) {
+          return line.slice(prefix.length).replace(/^[:\s\-]+/, '').trim();
+        }
+      }
+      return null;
+    };
+
+    // 1. Try label-based parsing
+    for (const line of lines) {
+      // Name checks
+      const parsedName = getValueAfterLabel(line, [
+        'Nome do Pattern', 
+        'Nome do Padrão', 
+        'Nome', 
+        'Pattern Name', 
+        'Pattern'
+      ]);
+      if (parsedName !== null && !name) {
+        name = parsedName;
+        continue;
+      }
+
+      // Tag / Category checks
+      const parsedTag = getValueAfterLabel(line, [
+        'Tag Interna', 
+        'Tag', 
+        'Categoria', 
+        'Category', 
+        'Internal Tag'
+      ]);
+      if (parsedTag !== null && !category) {
+        category = parsedTag;
+        continue;
+      }
+
+      // Description checks
+      const parsedDesc = getValueAfterLabel(line, [
+        'Descrição Tática', 
+        'Descrição', 
+        'Descricao Tatica', 
+        'Descricao', 
+        'Tactical Description', 
+        'Description'
+      ]);
+      if (parsedDesc !== null && !description) {
+        description = parsedDesc;
+        continue;
+      }
+
+      // Core Pattern checks
+      const parsedPattern = getValueAfterLabel(line, [
+        'Core Pattern', 
+        'Estrutura-Chave', 
+        'Estrutura Chave', 
+        'Pattern Core', 
+        'Fórmula', 
+        'Formula'
+      ]);
+      if (parsedPattern !== null && !content_pattern) {
+        content_pattern = parsedPattern;
+        continue;
+      }
+    }
+
+    // 2. Fallback: if fields are still empty, try to match by "Label: Value" format in map keys
+    if (!name || !content_pattern) {
+      const parsedMap = new Map<string, string>();
+      lines.forEach(line => {
+        const parts = line.split(':');
+        if (parts.length > 1) {
+          const key = parts[0].trim().toLowerCase();
+          const value = parts.slice(1).join(':').trim();
+          parsedMap.set(key, value);
+        }
+      });
+
+      if (parsedMap.has('nome do pattern') || parsedMap.has('nome') || parsedMap.has('pattern')) {
+        name = parsedMap.get('nome do pattern') || parsedMap.get('nome') || parsedMap.get('pattern') || '';
+      }
+      if (parsedMap.has('tag interna') || parsedMap.has('tag') || parsedMap.has('categoria')) {
+        category = parsedMap.get('tag interna') || parsedMap.get('tag') || parsedMap.get('categoria') || '';
+      }
+      if (parsedMap.has('descrição tática') || parsedMap.has('descrição') || parsedMap.has('descricao') || parsedMap.has('descrição tática')) {
+        description = parsedMap.get('descrição tática') || parsedMap.get('descrição') || parsedMap.get('descricao') || '';
+      }
+      if (parsedMap.has('core pattern') || parsedMap.has('estrutura-chave') || parsedMap.has('pattern') || parsedMap.has('fórmula') || parsedMap.has('formula')) {
+        content_pattern = parsedMap.get('core pattern') || parsedMap.get('estrutura-chave') || parsedMap.get('pattern') || parsedMap.get('fórmula') || parsedMap.get('formula') || '';
+      }
+    }
+
+    // 3. Absolute Fallback: if we still don't have structured data, assume raw lines in order
+    const cleanLines = lines.map(cleanLine).filter(Boolean);
+    if (!name && cleanLines[0]) name = cleanLines[0];
+    if (!category && cleanLines[1]) category = cleanLines[1];
+    if (!description && cleanLines[2]) description = cleanLines[2];
+    
+    if (!content_pattern) {
+      if (cleanLines.length >= 4) {
+        content_pattern = cleanLines.slice(3).join('\n');
+      } else if (cleanLines.length === 3) {
+        content_pattern = cleanLines[2];
+        description = cleanLines[1];
+        category = '';
+      } else if (cleanLines.length === 2) {
+        content_pattern = cleanLines[1];
+        description = '';
+        category = '';
+      } else if (cleanLines.length === 1) {
+        content_pattern = cleanLines[0];
+      }
+    }
+
+    return {
+      name: name.trim(),
+      category: category.trim(),
+      description: description.trim(),
+      content_pattern: content_pattern.trim(),
+    };
   };
 
   const openNewModal = () => {
@@ -647,148 +789,225 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
                 {editingItem ? 'Editar Componente' : 'Novo Pattern Estratégico'}
               </h2>
             </div>
-            
-            <form onSubmit={handleSave} className="p-8 flex flex-col gap-6">
-              
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Categoria</label>
-                <CustomSelect
-                  value={formData.type}
-                  onChange={val => setFormData({...formData, type: val})}
-                  options={sectionTypeOptions}
-                  placeholder="Selecionar Categoria"
-                />
-                <p className="text-[11px] leading-relaxed text-white/28">
-                  {getCategoryMicrocopy(formData.type)}
-                </p>
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nome do Pattern</label>
-                <input 
-                  type="text"
-                  placeholder={
-                    formData.type === 'Narrative Curve'
-                      ? 'Ex: Choque > Diagnóstico > Virada > Aplicação'
-                      : formData.type === 'Argument Mode'
-                        ? 'Ex: Confronto técnico direto'
-                        : formData.type === 'Repetition Rule'
-                          ? 'Ex: Conceito canônico só 1x'
-                          : 'Ex: Paradoxo S1, CTA Nativo Lead'
-                  }
-                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  required
-                />
-                <p className="text-[11px] leading-relaxed text-white/28">
-                  {getNameMicrocopy(formData.type)}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Descrição Tática</label>
-                <textarea 
-                  placeholder={
-                    formData.type === 'Narrative Curve'
-                      ? 'Explique quando essa curva deve ser usada e qual progressão emocional ela cria.'
-                      : formData.type === 'Argument Mode'
-                        ? 'Explique como esse modo convence a audiência e que tom ele preserva.'
-                        : formData.type === 'Repetition Rule'
-                          ? 'Explique por que essa regra evita repetição e quando ela deve travar o roteiro.'
-                          : 'Como e por que este elemento funciona estrategicamente?'
-                  }
-                  className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none h-20 resize-none"
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                />
-                <p className="text-[11px] leading-relaxed text-white/28">
-                  {getDescriptionMicrocopy(formData.type)}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
-                  {usesBehaviorFlag(formData.type) ? 'Comportamento do ativo' : 'Categoria / Tag interna'}
-                </label>
-                {usesBehaviorFlag(formData.type) ? (
-                  <CustomSelect
-                    value={formData.category}
-                    onChange={val => setFormData({...formData, category: val})}
-                    options={BEHAVIOR_FLAG_OPTIONS}
-                    placeholder="Selecionar comportamento"
-                  />
-                ) : formData.type === 'Hook' ? (
-                  <CustomSelect
-                    value={formData.category}
-                    onChange={val => setFormData({...formData, category: val})}
-                    options={HOOK_CATEGORIES.map((item) => ({ value: item, label: item }))}
-                    placeholder="Selecionar categoria"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    placeholder="Ex: Fechamento, Conversão, Autoridade..."
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none"
-                    value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  />
-                )}
-                <p className="text-[11px] leading-relaxed text-white/28">
-                  {getCategoryFieldMicrocopy(formData.type)}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
-                  {formData.type === 'Narrative Curve'
-                    ? 'Sequência / Blueprint'
-                    : formData.type === 'Argument Mode'
-                      ? 'Regras de uso'
-                      : formData.type === 'Repetition Rule'
-                        ? 'Regra operacional'
-                        : 'Core Pattern (Estrutura-Chave)'}
-                </label>
-                <textarea 
-                  placeholder={
-                    formData.type === 'Narrative Curve'
-                      ? 'Ex: ruptura > espelho > diagnóstico > virada > aplicação > fechamento'
-                      : formData.type === 'Argument Mode'
-                        ? 'Ex: use confronto no início, evidência no meio e fechamento prático sem tom guru.'
-                        : formData.type === 'Repetition Rule'
-                          ? 'Ex: não repetir nomes canônicos mais de 1 vez no corpo do roteiro; depois usar paráfrases.'
-                          : 'Ex: O maior erro ignorado ao tentarem [Atingir Objetivo] é [Prática Comum]. O segredo está na [Solução Incomum].'
-                  }
-                  className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white font-medium focus:border-blue-500 focus:outline-none h-32 resize-none"
-                  value={formData.content_pattern}
-                  onChange={(e) => setFormData({...formData, content_pattern: e.target.value})}
-                  required
-                />
-                <p className="text-[11px] leading-relaxed text-white/28">
-                  {getPatternMicrocopy(formData.type)}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={isSubmitting}
-                  className="px-6 py-3 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
-                >
-                  Cancelar
-                </button>
-                <button 
+            {/* Toggle between Manual Form and Smart Quick Paste */}
+            {!editingItem && (
+              <div className="px-8 pt-4 flex gap-6 border-b border-white/5 bg-white/[0.01]">
+                <button
                   type="button"
-                  onClick={() => handleSave()}
-                  disabled={isSubmitting || !formData.name || !formData.content_pattern}
-                  className={`btn-primary py-3 px-8 text-[10px] ${isSubmitting ? 'opacity-50 cursor-wait' : ''}`}
+                  onClick={() => setIsQuickPasteActive(false)}
+                  className={`pb-3 text-xs font-black tracking-widest uppercase border-b-2 transition-all ${
+                    !isQuickPasteActive
+                      ? 'border-blue-500 text-white'
+                      : 'border-transparent text-white/40 hover:text-white'
+                  }`}
                 >
-                  {isSubmitting ? 'SALVANDO NO KERNEL...' : 'SALVAR NO KERNEL'}
+                  Formulário Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickPasteActive(true)}
+                  className={`pb-3 text-xs font-black tracking-widest uppercase border-b-2 transition-all flex items-center gap-1.5 ${
+                    isQuickPasteActive
+                      ? 'border-blue-500 text-white'
+                      : 'border-transparent text-white/40 hover:text-white'
+                  }`}
+                >
+                  <Sparkles size={12} className="text-blue-400" />
+                  Colagem Inteligente
                 </button>
               </div>
+            )}
+            
+            {isQuickPasteActive && !editingItem ? (
+              <div className="p-8 flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-blue-400 animate-pulse" />
+                    Cole o Bloco de Texto Completo
+                  </label>
+                  <textarea
+                    placeholder={`Cole aqui o bloco completo copiado do seu canal ou roteiro, ex:\n\nNome do Pattern: Recrutamento\nTag Interna: AUTORIDADE\nDescrição Tática: Transforma o espectador em um membro ativo...\nCore Pattern: Junte-se à nossa guarnição...`}
+                    className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-blue-500 focus:outline-none h-64 font-mono leading-relaxed resize-none"
+                    value={quickPasteText}
+                    onChange={(e) => setQuickPasteText(e.target.value)}
+                  />
+                  <p className="text-[11px] leading-relaxed text-white/30 italic">
+                    Dica: O assistente tático irá ler e separar os campos (Nome, Tag, Descrição e Core Pattern) automaticamente para você validar antes de salvar.
+                  </p>
+                </div>
 
-            </form>
+                <div className="flex justify-end gap-3 mt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsQuickPasteActive(false)}
+                    className="px-6 py-3 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    Voltar
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const parsed = parseQuickPaste(quickPasteText);
+                      setFormData((prev) => ({
+                        ...prev,
+                        name: parsed.name || prev.name,
+                        category: parsed.category || prev.category,
+                        description: parsed.description || prev.description,
+                        content_pattern: parsed.content_pattern || prev.content_pattern,
+                      }));
+                      setIsQuickPasteActive(false); // Switch back to manual form to review
+                    }}
+                    disabled={!quickPasteText.trim()}
+                    className="btn-primary py-3 px-8 text-[10px] flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Wand2 size={12} /> PROCESSAR E PREENCHER
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSave} className="p-8 flex flex-col gap-6">
+                
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Categoria</label>
+                  <CustomSelect
+                    value={formData.type}
+                    onChange={val => setFormData({...formData, type: val})}
+                    options={sectionTypeOptions}
+                    placeholder="Selecionar Categoria"
+                  />
+                  <p className="text-[11px] leading-relaxed text-white/28">
+                    {getCategoryMicrocopy(formData.type)}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nome do Pattern</label>
+                  <input 
+                    type="text"
+                    placeholder={
+                      formData.type === 'Narrative Curve'
+                        ? 'Ex: Choque > Diagnóstico > Virada > Aplicação'
+                        : formData.type === 'Argument Mode'
+                          ? 'Ex: Confronto técnico direto'
+                          : formData.type === 'Repetition Rule'
+                            ? 'Ex: Conceito canônico só 1x'
+                            : 'Ex: Paradoxo S1, CTA Nativo Lead'
+                    }
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    required
+                  />
+                  <p className="text-[11px] leading-relaxed text-white/28">
+                    {getNameMicrocopy(formData.type)}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Descrição Tática</label>
+                  <textarea 
+                    placeholder={
+                      formData.type === 'Narrative Curve'
+                        ? 'Explique quando essa curva deve ser usada e qual progressão emocional ela cria.'
+                        : formData.type === 'Argument Mode'
+                          ? 'Explique como esse modo convence a audiência e que tom ele preserva.'
+                          : formData.type === 'Repetition Rule'
+                            ? 'Explique por que essa regra evita repetição e quando ela deve travar o roteiro.'
+                            : 'Como e por que este elemento funciona estrategicamente?'
+                    }
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none h-20 resize-none"
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  />
+                  <p className="text-[11px] leading-relaxed text-white/28">
+                    {getDescriptionMicrocopy(formData.type)}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                    {usesBehaviorFlag(formData.type) ? 'Comportamento do ativo' : 'Categoria / Tag interna'}
+                  </label>
+                  {usesBehaviorFlag(formData.type) ? (
+                    <CustomSelect
+                      value={formData.category}
+                      onChange={val => setFormData({...formData, category: val})}
+                      options={BEHAVIOR_FLAG_OPTIONS}
+                      placeholder="Selecionar comportamento"
+                    />
+                  ) : formData.type === 'Hook' ? (
+                    <CustomSelect
+                      value={formData.category}
+                      onChange={val => setFormData({...formData, category: val})}
+                      options={HOOK_CATEGORIES.map((item) => ({ value: item, label: item }))}
+                      placeholder="Selecionar categoria"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Ex: Fechamento, Conversão, Autoridade..."
+                      className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-blue-500 focus:outline-none"
+                      value={formData.category}
+                      onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    />
+                  )}
+                  <p className="text-[11px] leading-relaxed text-white/28">
+                    {getCategoryFieldMicrocopy(formData.type)}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                    {formData.type === 'Narrative Curve'
+                      ? 'Sequência / Blueprint'
+                      : formData.type === 'Argument Mode'
+                        ? 'Regras de uso'
+                        : formData.type === 'Repetition Rule'
+                          ? 'Regra operacional'
+                          : 'Core Pattern (Estrutura-Chave)'}
+                  </label>
+                  <textarea 
+                    placeholder={
+                      formData.type === 'Narrative Curve'
+                        ? 'Ex: ruptura > espelho > diagnóstico > virada > aplicação > fechamento'
+                        : formData.type === 'Argument Mode'
+                          ? 'Ex: use confronto no início, evidência no meio e fechamento prático sem tom guru.'
+                          : formData.type === 'Repetition Rule'
+                            ? 'Ex: não repetir nomes canônicos mais de 1 vez no corpo do roteiro; depois usar paráfrases.'
+                            : 'Ex: O maior erro ignorado ao tentarem [Atingir Objetivo] é [Prática Comum]. O segredo está na [Solução Incomum].'
+                    }
+                    className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white font-medium focus:border-blue-500 focus:outline-none h-32 resize-none"
+                    value={formData.content_pattern}
+                    onChange={(e) => setFormData({...formData, content_pattern: e.target.value})}
+                    required
+                  />
+                  <p className="text-[11px] leading-relaxed text-white/28">
+                    {getPatternMicrocopy(formData.type)}
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)}
+                    disabled={isSubmitting}
+                    className="px-6 py-3 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleSave()}
+                    disabled={isSubmitting || !formData.name || !formData.content_pattern}
+                    className={`btn-primary py-3 px-8 text-[10px] ${isSubmitting ? 'opacity-50 cursor-wait' : ''}`}
+                  >
+                    {isSubmitting ? 'SALVANDO NO KERNEL...' : 'SALVAR NO KERNEL'}
+                  </button>
+                </div>
+
+              </form>
+            )}
           </div>
         </div>,
         document.body

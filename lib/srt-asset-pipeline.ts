@@ -364,7 +364,10 @@ export const finalizeFacelessRows = (
   if (videoFormat !== 'faceless') return rows;
   return rows.map((row) => {
     if (normalizeAssetType(row.asset) === 'avatar') {
-      return { ...row, asset: '' as SrtAssetType };
+      const startMs = parseSrtTimeToMs(row.startTime);
+      const endMs = parseSrtTimeToMs(row.endTime);
+      const assetType = (endMs - startMs) <= VIDEO_MAX_DURATION_MS ? 'vídeo' : 'imagem';
+      return { ...row, asset: assetType };
     }
     return row;
   });

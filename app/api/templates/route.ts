@@ -23,7 +23,8 @@ const TEMPLATE_META: Record<string, { label: string; accent: string; note: strin
   hf_reddit: { label: 'Reddit Thread', accent: '#FF4500', note: 'tópico do fórum reddit premium' },
   hf_spotify: { label: 'Spotify Player', accent: '#1DB954', note: 'reprodutor de áudio e música' },
   hf_world_map: { label: 'World Map', accent: '#00B4FF', note: 'mapa mundial com pontos dinâmicos' },
-  hf_x_post: { label: 'X (Twitter) Post', accent: '#FFFFFF', note: 'publicação oficial no feed do X' }
+  hf_x_post: { label: 'X (Twitter) Post', accent: '#FFFFFF', note: 'publicação oficial no feed do X' },
+  hf_bento: { label: 'Bento Grid', accent: '#6366F1', note: 'grade bento animada · sem avatar' }
 };
 
 export async function GET(req: NextRequest) {

@@ -89,13 +89,14 @@ Rules for asset types:
   - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
 
 Context rules:
-- Use the current subtitle text as the main source of meaning.
+- Use the current subtitle text as the main source of meaning. Interpret the ideas, actions, specific nouns, and deeper context of the narrative, and represent them visually in the prompt. Do not use generic scenes or repetitive placeholders.
 - Use previous and next subtitle lines only to disambiguate.
 - Avoid repeating the line literally.
 
 - Prefer concrete subjects, environments, actions, materials, and mood.
 - If 'Channel Visual Identity' is provided, align the visual style, atmosphere, and shot types with it.
 - If 'Video Context' is provided, use it to inform the specific theme and visual direction of ALL prompts in this batch.
+- If 'Visual Identity and Aesthetic Style reference' is provided, you MUST strictly apply this aesthetic direction, color palette, lighting, and thematic atmosphere to EVERY video and image prompt. Integrate these style elements seamlessly.
 `.trim();
 
 interface PromptBatchItem {
@@ -273,6 +274,7 @@ const generateBatchWithOpenAI = async ({
   visualIdentity,
   videoContext,
   facelessHint,
+  videoFormat,
 }: {
   apiKey: string;
   model: string;
@@ -282,6 +284,7 @@ const generateBatchWithOpenAI = async ({
   visualIdentity: string;
   videoContext: string;
   facelessHint: string;
+  videoFormat?: string;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
@@ -292,7 +295,9 @@ const generateBatchWithOpenAI = async ({
         content: [
           'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
-          `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
+          videoFormat === 'faceless'
+            ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
+            : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
@@ -337,6 +342,7 @@ const generateBatchWithGemini = async ({
   visualIdentity,
   videoContext,
   facelessHint,
+  videoFormat,
 }: {
   apiKey: string;
   model: string;
@@ -346,6 +352,7 @@ const generateBatchWithGemini = async ({
   visualIdentity: string;
   videoContext: string;
   facelessHint: string;
+  videoFormat?: string;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -359,7 +366,9 @@ const generateBatchWithGemini = async ({
               SYSTEM_INSTRUCTIONS,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
-              `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
+              videoFormat === 'faceless'
+                ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
+                : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
@@ -430,8 +439,8 @@ const generatePromptMap = async ({
 
   for (const batch of chunk(items, batchSize)) {
     const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint });
+      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat })
+      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat });
 
     const validatedBatch = validatePromptBatch(batch, payload);
     validatedBatch.forEach((val, rowNumber) => {

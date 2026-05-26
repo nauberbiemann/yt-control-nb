@@ -486,7 +486,9 @@ const HF_TEMPLATES = {
 const getDiscoveredTemplates = (): string[] => {
   const defaults = [
     'hf_focus', 'hf_break', 'hf_double', 'hf_floating', 'hf_holo',
-    'hf_vertical', 'hf_face_bottom', 'hf_face_top', 'hf_documentary', 'hf_dynamic'
+    'hf_vertical', 'hf_face_bottom', 'hf_face_top', 'hf_documentary', 'hf_dynamic',
+    'hf_bento', 'hf_notification', 'hf_world_map', 'hf_data_chart', 'hf_reddit',
+    'hf_spotify', 'hf_code_terminal', 'hf_quote', 'hf_x_post'
   ];
 
   if (typeof window !== 'undefined') {
@@ -616,7 +618,10 @@ const findClosestAvatarRow = (
  * Phase B: only rows with >= 5s duration are eligible (GSAP animations need time).
  * Phase C: anti-repetition — if preferred template was already assigned, picks next unused from pool.
  */
-export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
+export const applyHyperframeRules = (
+  rows: SrtAssetRow[],
+  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
+): SrtAssetRow[] => {
   const result = rows.map((r) => ({ ...r }));
   const used          = new Set<number>();
   const usedTemplates = new Set<string>(); // Phase C: track assigned template names
@@ -643,13 +648,19 @@ export const applyHyperframeRules = (rows: SrtAssetRow[]): SrtAssetRow[] => {
   // Scale the number of HyperFrames to the video length so short SRTs don't
   // get 10 overlays crammed into 3 minutes of content.
   const avatarCount = rows.filter((r) => normalizeAssetType(r.asset) === 'avatar').length;
-  const maxHF =
+  let maxHF =
     avatarCount <  20 ? 1 :
     avatarCount <  40 ? 2 :
     avatarCount <  70 ? 3 :
     avatarCount < 100 ? 4 :
     avatarCount < 130 ? 6 :
     avatarCount < 160 ? 8 : 10;
+
+  // NEW: Faceless Mode increases visual variety and increases the budget by 50%
+  const isFaceless = videoFormat === 'faceless';
+  if (isFaceless) {
+    maxHF = Math.min(12, Math.ceil(maxHF * 1.5));
+  }
   // ─────────────────────────────────────────────────────────────────────────
 
   // Rule 1 — Narrative midpoint: chapter break at ~52% (always applies when budget ≥ 1)

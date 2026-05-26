@@ -2025,7 +2025,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video, imagem ou hyperframe...');
       const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText);
       const cooledRows     = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
-      const hfRows         = applyHyperframeRules(cooledRows);            // injeta até 6 hyperframes narrativos
+      const hfRows         = applyHyperframeRules(cooledRows, videoFormat); // injeta até 6 hyperframes narrativos (adaptado ao formato)
       const excludedRows   = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
       const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
       const assetStats     = buildAssetStats(finalRows);
@@ -2470,7 +2470,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         (r: any) => normalizeAssetType(r.asset) === 'hyperframe',
       );
       if (hfRows.length > 0) {
-        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, activePackage?.hfContextTitles);
+        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, activePackage?.hfContextTitles, videoFormat);
         setTimeout(() => {
           downloadTextArtifact(
             srtArtifactStem,

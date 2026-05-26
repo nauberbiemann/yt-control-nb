@@ -149,10 +149,22 @@ const TEMPLATE_MAP: Record<string, string> = {
   hf_spotify:      'hf_spotify.html',
   hf_code_terminal: 'hf_code_terminal.html',
   hf_quote:        'hf_quote.html',
+  hf_bento:        'hf_bento.html',
 };
 
-const resolveTemplate = (visualState?: string, promptFallback?: string): string => {
-  if (visualState && TEMPLATE_MAP[visualState]) return TEMPLATE_MAP[visualState];
+const resolveTemplate = (visualState?: string, promptFallback?: string, videoFormat?: string): string => {
+  let state = visualState;
+
+  // If the format is faceless (no human avatar), map avatar-dependent states to beautiful full-screen/side grids
+  if (videoFormat === 'faceless') {
+    if (state === 'hf_face_top') {
+      state = 'hf_bento';
+    } else if (state === 'hf_face_bottom') {
+      state = 'hf_focus';
+    }
+  }
+
+  if (state && TEMPLATE_MAP[state]) return TEMPLATE_MAP[state];
   // Legacy fallback: hf:template_name in the prompt field
   if (promptFallback?.startsWith('hf:')) {
     const legacy = promptFallback.slice(3);
@@ -171,11 +183,13 @@ export const buildHyperframesBat = (
   rows: SrtAssetRow[],
   stem: string,
   styleOverride?: HfStyleOverride,
-  hfContextTitles?: HfContext[]
+  hfContextTitles?: HfContext[],
+  videoFormat?: string
 ): string => {
   const safeStem  = sanitizeDownloadFileStem(stem);
   const hfRows    = rows.filter((r) => normalizeAssetType(r.asset) === 'hyperframe');
   const variation = resolveVariation(safeStem, styleOverride);
+  const isFaceless = videoFormat === 'faceless';
 
   if (hfRows.length === 0) {
     return [
@@ -197,7 +211,9 @@ export const buildHyperframesBat = (
     `:: Overlays : ${hfRows.length} cena(s)`,
     `:: Estilo   : ${variation.label}`,
     '::',
-    ':: Gera arquivos .MOV transparentes (ProRes 4444) via Playwright.',
+    isFaceless
+      ? ':: Gera arquivos .MOV transparentes (ProRes 4444) para vídeo FACELESS.'
+      : ':: Gera arquivos .MOV transparentes (ProRes 4444) via Playwright.',
     ':: Requisito: Python no PATH + pip install playwright + playwright install chromium',
     ':: ================================================================',
     '',
@@ -264,7 +280,7 @@ export const buildHyperframesBat = (
     const context = findHfContext(hfContextTitles || [], row.startTime)
       ?? (hfContextTitles && hfContextTitles.length > i ? hfContextTitles[i] : undefined);
     const visualState = context?.visualState;
-    const templateFile = resolveTemplate(visualState, row.prompt);
+    const templateFile = resolveTemplate(visualState, row.prompt, videoFormat);
     const stateName   = visualState ?? 'hf_focus';
     const caption     = escapeCaption(row.texto);
     const startSafe   = safeStartTime(row.startTime);
@@ -331,7 +347,7 @@ export const buildHyperframesBat = (
 
     // Instruction comment for templates that need manual CapCut work
     const manualStates = ['hf_face_bottom', 'hf_face_top', 'hf_documentary', 'hf_dynamic'];
-    const manualNote   = manualStates.includes(stateName)
+    const manualNote   = (!isFaceless && manualStates.includes(stateName))
       ? `:: NOTA EDITOR: ${stateName} requer reposicionamento manual do avatar no CapCut`
       : '';
 
@@ -370,9 +386,13 @@ export const buildHyperframesBat = (
     'echo Como usar no CapCut:',
     'echo   1. Importe a pasta hyperframes_overlays',
     'echo   2. O tempo esta no nome do arquivo (ex: 00-03-55 = 3min55s)',
-    'echo   3. Coloque cada .mov ACIMA do avatar na timeline',
+    isFaceless
+      ? 'echo   3. Coloque cada .mov ACIMA do B-Roll na timeline'
+      : 'echo   3. Coloque cada .mov ACIMA do avatar na timeline',
     'echo   4. Os arquivos .mov tem fundo transparente (ProRes 4444)',
-    'echo   5. Templates hf_face_* e hf_documentary: reposicione o avatar manualmente',
+    isFaceless
+      ? 'echo   5. Formato Faceless: overlays autossuficientes, sem necessidade de avatar'
+      : 'echo   5. Templates hf_face_* e hf_documentary: reposicione o avatar manualmente',
     'echo.',
     'pause',
   ];

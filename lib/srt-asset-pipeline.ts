@@ -554,40 +554,49 @@ const findClosestAvatarRow = (
   rows: SrtAssetRow[],
   targetRatio: number,
   usedIndices: Set<number>,
+  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
 ): number => {
   const total = rows.length;
   const guardStart = Math.floor(total * 0.10);
   const guardEnd   = Math.ceil(total * 0.90);
   const target     = Math.round(targetRatio * total);
 
+  const isFaceless = videoFormat === 'faceless';
+
   let bestIdx = -1;
   let bestDist = Infinity;
 
   for (let i = guardStart; i < guardEnd; i++) {
     if (usedIndices.has(i)) continue;
-    if (normalizeAssetType(rows[i].asset) !== 'avatar') continue;
+    const assetType = normalizeAssetType(rows[i].asset);
+    const isValid = isFaceless
+      ? (assetType === 'avatar' || assetType === 'vídeo' || assetType === 'imagem')
+      : (assetType === 'avatar');
+    if (!isValid) continue;
+
     // Phase B: skip rows too short for the HyperFrame animation to complete
     const durationMs = parseSrtTimeToMs(rows[i].endTime) - parseSrtTimeToMs(rows[i].startTime);
     if (durationMs < MIN_HF_DURATION_MS) continue;
 
     // --- REGRA DE SEGURANÇA: Respiro contra B-rolls (cooldown do avatar) ---
-    // Evita posicionar Hyperframes encavalados com B-rolls existentes, mantendo o respiro
-    const rowStartMs = parseSrtTimeToMs(rows[i].startTime);
-    const rowEndMs = parseSrtTimeToMs(rows[i].endTime);
+    // Evita posicionar Hyperframes encavalados com B-rolls existentes, mantendo o respiro (pula em modo Faceless)
     let tooCloseToBroll = false;
+    if (!isFaceless) {
+      const rowStartMs = parseSrtTimeToMs(rows[i].startTime);
+      const rowEndMs = parseSrtTimeToMs(rows[i].endTime);
 
-    for (let k = 0; k < total; k++) {
-      const assetType = normalizeAssetType(rows[k].asset);
-      if (assetType === 'vídeo' || assetType === 'imagem' || assetType === 'hyperframe') {
-        const brollStartMs = parseSrtTimeToMs(rows[k].startTime);
-        const brollEndMs = parseSrtTimeToMs(rows[k].endTime);
-        // Verifica se a janela temporal do Hyperframe intersecta ou está a menos de 5s de um B-roll
-        if (
-          Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
-          Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
-        ) {
-          tooCloseToBroll = true;
-          break;
+      for (let k = 0; k < total; k++) {
+        const kAssetType = normalizeAssetType(rows[k].asset);
+        if (kAssetType === 'vídeo' || kAssetType === 'imagem' || kAssetType === 'hyperframe') {
+          const brollStartMs = parseSrtTimeToMs(rows[k].startTime);
+          const brollEndMs = parseSrtTimeToMs(rows[k].endTime);
+          if (
+            Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
+            Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
+          ) {
+            tooCloseToBroll = true;
+            break;
+          }
         }
       }
     }
@@ -647,27 +656,33 @@ export const applyHyperframeRules = (
     used.add(idx);
   };
 
+  const isFaceless = videoFormat === 'faceless';
+
   // ── Adaptive HyperFrame budget ────────────────────────────────────────────
   // Scale the number of HyperFrames to the video length so short SRTs don't
   // get 10 overlays crammed into 3 minutes of content.
-  const avatarCount = rows.filter((r) => normalizeAssetType(r.asset) === 'avatar').length;
-  let maxHF =
-    avatarCount <  20 ? 1 :
-    avatarCount <  40 ? 2 :
-    avatarCount <  70 ? 3 :
-    avatarCount < 100 ? 4 :
-    avatarCount < 130 ? 6 :
-    avatarCount < 160 ? 8 : 10;
-
-  // NEW: Faceless Mode increases visual variety and increases the budget by 50%
-  const isFaceless = videoFormat === 'faceless';
+  let maxHF = 1;
   if (isFaceless) {
-    maxHF = Math.min(12, Math.ceil(maxHF * 1.5));
+    const totalCount = rows.length;
+    maxHF =
+      totalCount < 50 ? 2 :
+      totalCount < 100 ? 4 :
+      totalCount < 150 ? 6 :
+      totalCount < 200 ? 8 : 10;
+  } else {
+    const avatarCount = rows.filter((r) => normalizeAssetType(r.asset) === 'avatar').length;
+    maxHF =
+      avatarCount <  20 ? 1 :
+      avatarCount <  40 ? 2 :
+      avatarCount <  70 ? 3 :
+      avatarCount < 100 ? 4 :
+      avatarCount < 130 ? 6 :
+      avatarCount < 160 ? 8 : 10;
   }
   // ─────────────────────────────────────────────────────────────────────────
 
   // Rule 1 — Narrative midpoint: chapter break at ~52% (always applies when budget ≥ 1)
-  mark(findClosestAvatarRow(result, 0.52, used), templatePool[0] || 'hf_break');
+  mark(findClosestAvatarRow(result, 0.52, used, videoFormat), templatePool[0] || 'hf_break');
   if (maxHF < 2) return result;
 
   // Rule 2 — Post-hook reframe at ~17% (prefer rows with longer text)
@@ -681,26 +696,34 @@ export const applyHyperframeRules = (
 
     for (let i = guardStart; i < guardEnd; i++) {
       if (used.has(i)) continue;
-      if (normalizeAssetType(result[i].asset) !== 'avatar') continue;
+      
+      const assetType = normalizeAssetType(result[i].asset);
+      const isValid = isFaceless
+        ? (assetType === 'avatar' || assetType === 'vídeo' || assetType === 'imagem')
+        : (assetType === 'avatar');
+      if (!isValid) continue;
+
       // Phase B: skip rows too short for the HyperFrame animation to complete
       const durMs2 = parseSrtTimeToMs(result[i].endTime) - parseSrtTimeToMs(result[i].startTime);
       if (durMs2 < MIN_HF_DURATION_MS) continue;
 
       // --- REGRA DE SEGURANÇA: Respiro contra B-rolls ---
-      const rowStartMs = parseSrtTimeToMs(result[i].startTime);
-      const rowEndMs = parseSrtTimeToMs(result[i].endTime);
       let tooCloseToBroll = false;
-      for (let k = 0; k < total; k++) {
-        const assetType = normalizeAssetType(result[k].asset);
-        if (assetType === 'vídeo' || assetType === 'imagem') {
-          const brollStartMs = parseSrtTimeToMs(result[k].startTime);
-          const brollEndMs = parseSrtTimeToMs(result[k].endTime);
-          if (
-            Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
-            Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
-          ) {
-            tooCloseToBroll = true;
-            break;
+      if (!isFaceless) {
+        const rowStartMs = parseSrtTimeToMs(result[i].startTime);
+        const rowEndMs = parseSrtTimeToMs(result[i].endTime);
+        for (let k = 0; k < total; k++) {
+          const kAssetType = normalizeAssetType(result[k].asset);
+          if (kAssetType === 'vídeo' || kAssetType === 'imagem') {
+            const brollStartMs = parseSrtTimeToMs(result[k].startTime);
+            const brollEndMs = parseSrtTimeToMs(result[k].endTime);
+            if (
+              Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
+              Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
+            ) {
+              tooCloseToBroll = true;
+              break;
+            }
           }
         }
       }
@@ -713,7 +736,7 @@ export const applyHyperframeRules = (
     }
 
     // Fallback: accept any avatar row near target
-    if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.17, used);
+    if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.17, used, videoFormat);
     mark(bestIdx, templatePool[1] || 'hf_face_top');
   })();
 
@@ -730,26 +753,34 @@ export const applyHyperframeRules = (
 
     for (let i = guardStart; i < guardEnd; i++) {
       if (used.has(i)) continue;
-      if (normalizeAssetType(result[i].asset) !== 'avatar') continue;
+      
+      const assetType = normalizeAssetType(result[i].asset);
+      const isValid = isFaceless
+        ? (assetType === 'avatar' || assetType === 'vídeo' || assetType === 'imagem')
+        : (assetType === 'avatar');
+      if (!isValid) continue;
+
       // Phase B: skip rows too short for the HyperFrame animation to complete
       const durMs3 = parseSrtTimeToMs(result[i].endTime) - parseSrtTimeToMs(result[i].startTime);
       if (durMs3 < MIN_HF_DURATION_MS) continue;
 
       // --- REGRA DE SEGURANÇA: Respiro contra B-rolls ---
-      const rowStartMs = parseSrtTimeToMs(result[i].startTime);
-      const rowEndMs = parseSrtTimeToMs(result[i].endTime);
       let tooCloseToBroll = false;
-      for (let k = 0; k < total; k++) {
-        const assetType = normalizeAssetType(result[k].asset);
-        if (assetType === 'vídeo' || assetType === 'imagem') {
-          const brollStartMs = parseSrtTimeToMs(result[k].startTime);
-          const brollEndMs = parseSrtTimeToMs(result[k].endTime);
-          if (
-            Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
-            Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
-          ) {
-            tooCloseToBroll = true;
-            break;
+      if (!isFaceless) {
+        const rowStartMs = parseSrtTimeToMs(result[i].startTime);
+        const rowEndMs = parseSrtTimeToMs(result[i].endTime);
+        for (let k = 0; k < total; k++) {
+          const kAssetType = normalizeAssetType(result[k].asset);
+          if (kAssetType === 'vídeo' || kAssetType === 'imagem') {
+            const brollStartMs = parseSrtTimeToMs(result[k].startTime);
+            const brollEndMs = parseSrtTimeToMs(result[k].endTime);
+            if (
+              Math.abs(rowStartMs - brollEndMs) < HF_BROLL_EXCLUSION_MS ||
+              Math.abs(brollStartMs - rowEndMs) < HF_BROLL_EXCLUSION_MS
+            ) {
+              tooCloseToBroll = true;
+              break;
+            }
           }
         }
       }
@@ -761,7 +792,7 @@ export const applyHyperframeRules = (
       if (dist < bestDist) { bestDist = dist; bestIdx = i; }
     }
 
-    if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.82, used);
+    if (bestIdx < 0) bestIdx = findClosestAvatarRow(result, 0.82, used, videoFormat);
     mark(bestIdx, templatePool[2] || 'hf_focus');
   })();
 
@@ -779,7 +810,12 @@ export const applyHyperframeRules = (
     let curLen       = 0;
 
     for (let i = guardStart; i < guardEnd; i++) {
-      if (normalizeAssetType(result[i].asset) === 'avatar' && !used.has(i)) {
+      const assetType = normalizeAssetType(result[i].asset);
+      const isBlockMember = isFaceless
+        ? (assetType === 'avatar' || assetType === 'vídeo' || assetType === 'imagem')
+        : (assetType === 'avatar');
+
+      if (isBlockMember && !used.has(i)) {
         if (curStart < 0) curStart = i;
         curLen++;
         if (curLen > longestLen) { longestLen = curLen; longestStart = curStart; }
@@ -798,17 +834,17 @@ export const applyHyperframeRules = (
   if (maxHF < 5) return result;
 
   // Rule 5 — ~33% first-half inflection: floating/list moment
-  mark(findClosestAvatarRow(result, 0.33, used), templatePool[4] || 'hf_floating');
+  mark(findClosestAvatarRow(result, 0.33, used, videoFormat), templatePool[4] || 'hf_floating');
 
   if (maxHF < 6) return result;
 
   // Rule 6 — ~67% second-half analysis: vertical/technical moment
-  mark(findClosestAvatarRow(result, 0.67, used), templatePool[5] || 'hf_vertical');
+  mark(findClosestAvatarRow(result, 0.67, used, videoFormat), templatePool[5] || 'hf_vertical');
 
   if (maxHF < 7) return result;
 
   // Rule 7 — ~25% transition: dynamic holographic pool entry
-  mark(findClosestAvatarRow(result, 0.25, used), templatePool[6] || 'hf_holo');
+  mark(findClosestAvatarRow(result, 0.25, used, videoFormat), templatePool[6] || 'hf_holo');
 
   if (maxHF < 8) return result;
 

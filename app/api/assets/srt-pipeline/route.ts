@@ -515,7 +515,7 @@ export async function POST(req: NextRequest) {
 
     const assetRows      = applyAssetRules(parsedRows, videoFormat, srtText);
     const cooledRows     = enforceTextoCooldown(assetRows);
-    const hfRows         = applyHyperframeRules(cooledRows);
+    const hfRows         = applyHyperframeRules(cooledRows, videoFormat);
     const excludedRows   = applyHyperframeExclusionZone(hfRows);
     const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
     const promptItems    = buildPromptItems(finalRows);

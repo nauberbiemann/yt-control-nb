@@ -19,8 +19,7 @@ const BATCH_SIZE_REASONING = 2; // Reasoning models handle smaller batches more 
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
 
 export const maxDuration = 60;
-
-const SYSTEM_INSTRUCTIONS = `
+const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
@@ -29,24 +28,25 @@ Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI ove
 Keep prompts concise, vivid, and generator-friendly.
 Use one sentence per prompt, usually between 18 and 40 words.
 
-` + `CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
+CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
 
 Rules for asset types:
 - asset == "video":
-  - First, identify what is being described in the subtitle text: a concept, feeling, process, place, or personal moment.
-  - CRITICAL: The recurring character is OPTIONAL. Only include the character if the subtitle text explicitly references a PERSONAL, SUBJECTIVE, or FIRST-PERSON experience (memory, personal decision, emotional moment, first-person narrative using "I", "my", "me", or clearly describing the narrator's own experience).
-  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (brain chemistry, code architecture, attention mechanisms, cognitive load, data structures, invisible processes, team dynamics as metaphor): ALWAYS use 3D technical animation WITHOUT the character. The prompt must begin with "3D technical animation of". CRITICAL: do NOT mention any person, human, man, woman, or character of any kind in these prompts — not even generically (e.g. NEVER write "a person in their forties" or "a human figure"). The scene must be purely conceptual, mechanical, or abstract.
-  - If the text describes an ENVIRONMENT or SITUATION (workplace, meeting, nature, specific place) WITHOUT personal reference: visualize that specific environment WITHOUT the character. Do NOT mention any generic person or human in these prompts.
-  - If the text is narrative/conceptual ("the team starts to...", "when a system...", "engineers know..."): do NOT include the character — use abstract or environmental visuals instead.
-  - Only use the character for clear first-person moments ("I believed...", "I had a process...", "When I collapsed...", "I arrived home...").
-  - For live-action prompts WITH character: begin with "Realistic cinematic video of" and include the recurring character. CRITICAL: when including the character, copy the exact character description provided under 'Recurring character reference' word for word — do NOT paraphrase, summarize, or substitute with generic terms like "a person", "a woman", or "someone". Always add ambient sound only, no dialogue, no voice-over.
-  - For 3D/abstract prompts WITHOUT character: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
-  - NEVER force the character into a technical or conceptual scene. NEVER default to a generic scene of "person at desk" when the content is conceptual. NEVER leak any part of the character description (age, gender, profession) into prompts where the character is absent.
+  - First, identify what is being described in the subtitle text: a character action, historical scene, feeling, concept, process, place, or personal moment.
+  - CRITICAL - NARRATIVE CHARACTERS VS PRESENTERS (HOSTS):
+    - "Presenter/Host": This is the virtual speaker (e.g. a modern tech presenter, health mentor, or coach at a desk). In FACELESS MODE, the Presenter/Host is completely BANNED. Never show a presenter reacting, pointing, or speaking to the camera in home studio environments.
+    - "Narrative Characters": These are historical, epic, or fictional figures described in the story (e.g., "Fulgrim", "The Emperor", "soldiers", "knights", "primarchs"). In FACELESS MODE, if the subtitle text describes actions, thoughts, or settings involving these story characters, you MUST actively visualize these characters in cinematic, dramatic, and high-fidelity action or environmental compositions aligned with the visual style! Never drop them.
+  - CRITICAL - ANTI-LITERAL METAPHOR GUARD:
+    - If the subtitle text uses corporate, technical, or structural metaphors (e.g. "machine", "gears", "mechanism", "cog", "architecture", "system", "vector", "corrosion"): Do NOT visualize these terms literally. NEVER generate generic factory cogs, mechanical brass gears, industrial robot arms, green digital matrix grids, or circuit boards unless the script is literally about mechanical clocks or computers.
+    - Instead, translate these metaphors into grand, atmospheric visual symbols aligned with the aesthetic theme. For example, in a dark sci-fi/gothic (Grimdark) setting, "machine/system/architecture" should be visualized as colossal gothic spaceships, decaying cathedral structures in deep space, stone gargoyles crumbling under ash, or armor of ancient metal corroding under volumetric light.
+  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept WITHOUT story characters: ALWAYS use 3D technical animation. The prompt must begin with "3D technical animation of".
+  - For live-action / cinematic prompts WITH narrative characters or environments: begin with "Realistic cinematic video of" or "Cinematic epic shot of" and describe the scene with dynamic details. Always add ambient sound only, no dialogue, no voice-over.
+  - For 3D/abstract prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
+  - For video prompts, include enquadramento e câmera details (e.g. volumetric dust, cinematic lighting, shallow depth of field, panning, macro shot, dramatic backlight).
 - asset == "image":
   - Always create a realistic still image prompt.
-  - The image must directly illustrate the SPECIFIC concept, object, emotion, or situation described in the subtitle text.
-  - Choose a concrete, specific angle: if the text mentions cortisol, show cortisol effects; if it mentions notification overload, show a phone screen with hundreds of alerts; if it mentions deep focus, show a single desk lamp in a dark room with one focused person.
-  - Be indirect and metaphorical when helpful, but always grounded in the specific content.
+  - The image must directly and metaphorically illustrate the SPECIFIC concept, story character, object, emotion, or situation described in the subtitle text.
+  - Follow the same NARRATIVE CHARACTER and ANTI-LITERAL rules as the video prompts.
   - The prompt must begin with "Photorealistic still image of".
 - asset == "text":
   - Read the current subtitle text provided as context.

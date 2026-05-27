@@ -2075,38 +2075,81 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       for (let i = 0; i < chunks.length; i++) {
         const batch = chunks[i];
         updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote ${i + 1} de ${chunks.length}...`);
-        const res = await fetch('/api/assets/srt-pipeline', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            batchItems: batch,
-            engine,
-            model,
-            apiKeyOverwrite: apiKey,
-            projectConfig: activeProject,
-            videoContext: buildVideoContext(),
-            videoFormat,
-            textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
-            characterProfile: {
-              mode: videoCharacterMode,
-              customDescription: videoCharacterCustom,
-            },
-          }),
-        });
-
-        const responseText = await res.text();
+        
+        let res: Response | null = null;
+        let success = false;
         let data: any = {};
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseError) {
-          if (res.status === 504) {
-             throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação no Lote ${i + 1}. A inteligência demorou demais para responder. Modelos avançados ("Reasoning" ou OpenAI gpt-4o) podem causar isso no plano gratuito da host. Tente usar gemini-2.5-flash.`);
-          }
-          throw new Error(`Erro inesperado (${res.status}) no lote ${i + 1}: A Vercel não retornou um JSON válido. Resposta: ${responseText.slice(0, 80)}...`);
-        }
+        const maxRetries = 2;
 
-        if (!res.ok || data?.error) {
-          throw new Error(data?.error || `Falha ao processar lote ${i + 1} do SRT.`);
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            res = await fetch('/api/assets/srt-pipeline', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                batchItems: batch,
+                engine,
+                model,
+                apiKeyOverwrite: apiKey,
+                projectConfig: activeProject,
+                videoContext: buildVideoContext(),
+                videoFormat,
+                textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
+                characterProfile: {
+                  mode: videoCharacterMode,
+                  customDescription: videoCharacterCustom,
+                },
+              }),
+            });
+
+            const responseText = await res.text();
+            if (res.status === 504) {
+              if (attempt < maxRetries) {
+                console.warn(`Lote ${i + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
+                await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+                continue;
+              }
+              throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação.`);
+            }
+
+            try {
+              data = JSON.parse(responseText);
+            } catch {
+              throw new Error(`Resposta inválida (não JSON): ${responseText.slice(0, 80)}`);
+            }
+
+            if (!res.ok || data?.error) {
+              throw new Error(data?.error || `Falha do servidor (Status ${res.status})`);
+            }
+
+            success = true;
+            break;
+          } catch (err: any) {
+            console.warn(`[Lote ${i + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
+            if (attempt === maxRetries) {
+              console.error(`[Lote ${i + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
+              data = {
+                prompts: batch.map((item: any) => {
+                  const fallback =
+                    item.asset === 'text'
+                      ? 'Clean'
+                      : item.asset === 'hyperframe'
+                      ? item.template_name || 'hf_break'
+                      : item.asset === 'image'
+                      ? `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`
+                      : `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+                  return {
+                    rowNumber: item.row_number,
+                    prompt: fallback,
+                    isFallback: true
+                  };
+                })
+              };
+              success = true;
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+          }
         }
 
         (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean; texto_adicional?: string }) => {
@@ -2254,32 +2297,56 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       if (batchItems.length === 0) return;
 
-      const res = await fetch('/api/assets/srt-pipeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          batchItems,
-          engine,
-          model,
-          apiKeyOverwrite: apiKey,
-          projectConfig: activeProject,
-          videoContext: buildVideoContext(),
-          videoFormat,
-          characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
-        }),
-      });
-
-      const responseText = await res.text();
+      let res: Response | null = null;
+      let responseText = '';
       let data: any = {};
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        if (res.status === 504) {
-          throw new Error('Timeout (504): A operação demorou demais. Tente com um modelo mais rápido (ex: gemini-2.5-flash).');
+      const maxRetries = 2;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          res = await fetch('/api/assets/srt-pipeline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              batchItems,
+              engine,
+              model,
+              apiKeyOverwrite: apiKey,
+              projectConfig: activeProject,
+              videoContext: buildVideoContext(),
+              videoFormat,
+              characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
+            }),
+          });
+
+          responseText = await res.text();
+          if (res.status === 504) {
+            if (attempt < maxRetries) {
+              console.warn(`Tentativa de regeneração falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
+              await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+              continue;
+            }
+            throw new Error('Timeout (504): A operação demorou demais.');
+          }
+
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            throw new Error(`Resposta inválida (não JSON): ${responseText.slice(0, 80)}`);
+          }
+
+          if (!res.ok || data?.error) {
+            throw new Error(data?.error || `Falha do servidor (Status ${res?.status})`);
+          }
+
+          break;
+        } catch (err: any) {
+          if (attempt === maxRetries) {
+            throw new Error(err.message || 'Falha persistente na regeneração de prompts.');
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
         }
-        throw new Error(`Erro inesperado (${res.status}) ao regenerar: ${responseText.slice(0, 80)}`);
       }
-      if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao regenerar prompts.');
 
       // Merge: replace fallback rows with the new prompts.
       // Accept the prompt regardless of isFallback flag on the response — the LLM sometimes

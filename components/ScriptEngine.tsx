@@ -1860,6 +1860,37 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     return compiled;
   };
 
+  const getCharacterSheetPrompt = (char: { name: string; description: string }) => {
+    const styleBlock = char.description.toLowerCase().includes('anime') || 
+                       char.description.toLowerCase().includes('cartoon') || 
+                       char.description.toLowerCase().includes('illustrated') ||
+                       char.description.toLowerCase().includes('stylized')
+      ? "Stylized digital art style rendering. Clean, consistent line work with uniform weight. Professional animation/game studio production quality."
+      : "Ultra-photorealistic rendering. Hyper-detailed as if captured by a high-end full-frame DSLR camera (Canon EOS R5, 85mm portrait lens, f/2.8, ISO 100). Skin with natural pores, subtle micro-imperfections, fine peach fuzz, and realistic subsurface scattering. Hair with individual strand-level detail, natural sheen, and volume. Eyes with realistic moisture, light reflection, and iris detail. Fabric textures clearly distinguishable — cotton weave, denim texture, leather grain, knit patterns. RAW photo quality, 8K resolution detail.";
+
+    return [
+      `Create a professional character reference sheet presented as a technical model turnaround of ${char.name}. Clean, neutral, solid plain gray background — no gradients, no environments, no props. Professional concept art turnaround used in film, game development, or animation production.`,
+      styleBlock,
+      `Character details: ${char.description.trim()}`,
+      `The image is composed of exactly two horizontal rows with clean panel separation and even spacing:`,
+      `Top row — four full-body standing views side by side, left to right:\nPanel 1: Front view — character standing facing the camera directly, feet slightly apart in a relaxed A-pose, arms slightly away from the body with hands relaxed at sides, fingers naturally open, full body visible head to feet, camera at chest height straight on.\nPanel 2: Left profile view — character rotated exactly 90 degrees facing left, same A-pose, full body visible head to feet, camera at chest height perpendicular to the side, showing left side of face, left arm forward, right arm behind.\nPanel 3: Right profile view — character rotated exactly 90 degrees facing right, same A-pose, full body visible head to feet, camera at chest height perpendicular to the side, showing right side of face, right arm forward, left arm behind, perfect mirror of panel 2.\nPanel 4: Back view — character rotated 180 degrees facing directly away from camera, same A-pose, full body visible head to feet, camera at chest height straight on, showing back of head, back of outfit, shoe heels.`,
+      `Bottom row — three close-up portrait views centered beneath the full-body row, left to right:\nPanel 5: Front portrait — head, neck, and upper shoulders visible, character facing camera directly, neutral expression, highly detailed facial features, skin texture, hair, upper clothing neckline, camera at eye level straight on.\nPanel 6: Left profile portrait — head, neck, and upper shoulders visible, head rotated 90 degrees facing left, showing left ear, left jawline, left side of nose, left brow, same neutral expression, camera at eye level perpendicular, highly detailed.\nPanel 7: Right profile portrait — head, neck, and upper shoulders visible, head rotated 90 degrees facing right, showing right ear, right jawline, right side of nose, right brow, same neutral expression, camera at eye level perpendicular, perfect mirror of panel 6, highly detailed.`,
+      `Absolute identity consistency across all 7 panels. Same face with identical bone structure, eye spacing, nose, lips, and chin in every view. Same body with identical height, proportions, build, and posture. Same outfit with every detail matching perfectly from every angle — same wrinkles, pocket placement, color, fit, material appearance. Same hair color, length, volume, and styling from every angle, anatomically consistent when viewed from front, side, and back. Same skin tone and marks across all panels. Same accessories in the same position from every angle. No variation in age, weight, or any physical attribute between panels. The turnaround must look like the same subject captured from different angles in the same session.`,
+      `Three-point studio lighting identical across all 7 panels. Key light positioned upper-right at 45 degrees with medium-soft intensity. Fill light positioned left, softer than key light. Subtle rim light from behind for edge separation from background. Same shadow direction, softness, and highlight intensity in every panel. Neutral daylight color temperature. Crisp, print-ready output. Sharp details throughout with no softness, blur, or artifacts. Professional production quality. Clean panel edges, even spacing. No text, labels, watermarks, or annotations. Landscape orientation for the overall sheet. High resolution.`
+    ].join('\n\n');
+  };
+
+  const copyAllCharacterPrompts = () => {
+    if (visualBlueprintCast.length === 0) return;
+    
+    const combinedPrompts = visualBlueprintCast.map((char) => {
+      const prompt = getCharacterSheetPrompt(char);
+      return `==================================================\nFICHA DE PERSONAGEM: ${char.name.toUpperCase()}\n==================================================\n\n${prompt}`;
+    }).join('\n\n\n');
+
+    void copyTextToClipboard(combinedPrompts, 'Todos os prompts de personagens foram copiados!');
+  };
+
   const extractVisualBlueprintAndCast = async () => {
     const textToAnalyze = externalScriptText || '';
     if (!textToAnalyze.trim()) {
@@ -4439,17 +4470,42 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
               {/* ROW 2: SRT + Formato/Personagem + Estilo + Botoes — 3 cols */}
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                {/* Col 1: SRT Upload */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
-                  <input
-                    type="file"
-                    accept=".srt,text/plain"
-                    onChange={handleExternalSrtUpload}
-                    className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
-                  />
-                  <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                    {externalSrtFileName ? `Persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado.'}
+                {/* Col 1: SRT Upload & Estilo Visual */}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
+                    <input
+                      type="file"
+                      accept=".srt,text/plain"
+                      onChange={handleExternalSrtUpload}
+                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
+                    />
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                      {externalSrtFileName ? `Persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado.'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
+                    <select
+                      value={textStyleMode}
+                      onChange={(e) => setTextStyleMode(e.target.value)}
+                      className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
+                    >
+                      <option value="auto">Automatico (IA, Variavel cena a cena)</option>
+                      {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                      <option value="custom">Personalizado...</option>
+                    </select>
+                    {textStyleMode === 'custom' && (
+                      <input
+                        value={customTextStyle}
+                        onChange={(e) => setCustomTextStyle(e.target.value)}
+                        placeholder="Ex: Neon, Vintage VHS, Clean White..."
+                        className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -4574,107 +4630,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       </div>
                     )}
                   </div>
-
-                  {/* Direcao de Arte & Elenco Narrativo (Consistent Characters) */}
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300">🎨 Direcao de Arte & Elenco</p>
-                    
-                    {/* Setting description */}
-                    <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold uppercase tracking-wider text-white/40">Cenario / Estilo Geral (PT-BR):</label>
-                      <textarea
-                        value={visualBlueprintSetting}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setVisualBlueprintSetting(val);
-                          persistExecutionSnapshotLocally({ visualBlueprintSetting: val });
-                        }}
-                        placeholder="Ex: Fantasia sombria Warhammer 40k, catedral espacial gotica gelida..."
-                        className="w-full min-h-[60px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[10px] leading-relaxed text-white/80 outline-none focus:border-cyan-300/40"
-                      />
-                    </div>
-
-                    {/* Cast of characters */}
-                    <div className="space-y-2 pt-1">
-                      <p className="text-[8px] font-bold uppercase tracking-wider text-white/40">Elenco Narrativo ({visualBlueprintCast.length}):</p>
-                      {visualBlueprintCast.length === 0 ? (
-                        <p className="text-[9px] text-white/30 italic">Nenhum personagem extraido ainda. Carregue o .txt do roteiro e clique em Analisar.</p>
-                      ) : (
-                        <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
-                          {visualBlueprintCast.map((char, index) => (
-                            <div key={index} className="rounded-xl border border-white/5 bg-black/25 p-2 space-y-1 text-[10px]">
-                              <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
-                                <span className="font-bold text-cyan-200">{char.name}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const styleBlock = char.description.toLowerCase().includes('anime') || 
-                                                       char.description.toLowerCase().includes('cartoon') || 
-                                                       char.description.toLowerCase().includes('illustrated') ||
-                                                       char.description.toLowerCase().includes('stylized')
-                                      ? "Stylized digital art style rendering. Clean, consistent line work with uniform weight. Professional animation/game studio production quality."
-                                      : "Ultra-photorealistic rendering. Hyper-detailed as if captured by a high-end full-frame DSLR camera (Canon EOS R5, 85mm portrait lens, f/2.8, ISO 100). Skin with natural pores, subtle micro-imperfections, fine peach fuzz, and realistic subsurface scattering. Hair with individual strand-level detail, natural sheen, and volume. Eyes with realistic moisture, light reflection, and iris detail. Fabric textures clearly distinguishable — cotton weave, denim texture, leather grain, knit patterns. RAW photo quality, 8K resolution detail.";
-
-                                    const sheetPrompt = [
-                                      `Create a professional character reference sheet presented as a technical model turnaround of ${char.name}. Clean, neutral, solid plain gray background — no gradients, no environments, no props. Professional concept art turnaround used in film, game development, or animation production.`,
-                                      styleBlock,
-                                      `Character details: ${char.description.trim()}`,
-                                      `The image is composed of exactly two horizontal rows with clean panel separation and even spacing:`,
-                                      `Top row — four full-body standing views side by side, left to right:\nPanel 1: Front view — character standing facing the camera directly, feet slightly apart in a relaxed A-pose, arms slightly away from the body with hands relaxed at sides, fingers naturally open, full body visible head to feet, camera at chest height straight on.\nPanel 2: Left profile view — character rotated exactly 90 degrees facing left, same A-pose, full body visible head to feet, camera at chest height perpendicular to the side, showing left side of face, left arm forward, right arm behind.\nPanel 3: Right profile view — character rotated exactly 90 degrees facing right, same A-pose, full body visible head to feet, camera at chest height perpendicular to the side, showing right side of face, right arm forward, left arm behind, perfect mirror of panel 2.\nPanel 4: Back view — character rotated 180 degrees facing directly away from camera, same A-pose, full body visible head to feet, camera at chest height straight on, showing back of head, back of outfit, shoe heels.`,
-                                      `Bottom row — three close-up portrait views centered beneath the full-body row, left to right:\nPanel 5: Front portrait — head, neck, and upper shoulders visible, character facing camera directly, neutral expression, highly detailed facial features, skin texture, hair, upper clothing neckline, camera at eye level straight on.\nPanel 6: Left profile portrait — head, neck, and upper shoulders visible, head rotated 90 degrees facing left, showing left ear, left jawline, left side of nose, left brow, same neutral expression, camera at eye level perpendicular, highly detailed.\nPanel 7: Right profile portrait — head, neck, and upper shoulders visible, head rotated 90 degrees facing right, showing right ear, right jawline, right side of nose, right brow, same neutral expression, camera at eye level perpendicular, perfect mirror of panel 6, highly detailed.`,
-                                      `Absolute identity consistency across all 7 panels. Same face with identical bone structure, eye spacing, nose, lips, and chin in every view. Same body with identical height, proportions, build, and posture. Same outfit with every detail matching perfectly from every angle — same wrinkles, pocket placement, color, fit, material appearance. Same hair color, length, volume, and styling from every angle, anatomically consistent when viewed from front, side, and back. Same skin tone and marks across all panels. Same accessories in the same position from every angle. No variation in age, weight, or any physical attribute between panels. The turnaround must look like the same subject captured from different angles in the same session.`,
-                                      `Three-point studio lighting identical across all 7 panels. Key light positioned upper-right at 45 degrees with medium-soft intensity. Fill light positioned left, softer than key light. Subtle rim light from behind for edge separation from background. Same shadow direction, softness, and highlight intensity in every panel. Neutral daylight color temperature. Crisp, print-ready output. Sharp details throughout with no softness, blur, or artifacts. Professional production quality. Clean panel edges, even spacing. No text, labels, watermarks, or annotations. Landscape orientation for the overall sheet. High resolution.`
-                                    ].join('\n\n');
-
-                                    copyTextToClipboard(sheetPrompt, `Ficha de ${char.name} copiada!`);
-                                  }}
-                                  className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[8px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider"
-                                >
-                                  📋 Ficha
-                                </button>
-                              </div>
-                              <textarea
-                                value={char.description}
-                                onChange={(e) => {
-                                  const updatedCast = [...visualBlueprintCast];
-                                  updatedCast[index] = { ...char, description: e.target.value };
-                                  setVisualBlueprintCast(updatedCast);
-                                  persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
-                                }}
-                                className="w-full min-h-[45px] bg-transparent border-0 text-[9px] leading-relaxed text-white/70 italic resize-y p-0 outline-none focus:text-white"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
 
-                {/* Col 3: Estilo + Botoes de Acao */}
+                {/* Col 3: Botoes de Acao */}
                 <div className="space-y-3">
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
-                    <select
-                      value={textStyleMode}
-                      onChange={(e) => setTextStyleMode(e.target.value)}
-                      className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
-                    >
-                      <option value="auto">Automatico (IA, Variavel cena a cena)</option>
-                      {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                      <option value="custom">Personalizado...</option>
-                    </select>
-                    {textStyleMode === 'custom' && (
-                      <input
-                        value={customTextStyle}
-                        onChange={(e) => setCustomTextStyle(e.target.value)}
-                        placeholder="Ex: Neon, Vintage VHS, Clean White..."
-                        className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
-                      />
-                    )}
-                  </div>
                   {/* ── BOTÃO PRINCIPAL: PIPELINE COMPLETO ────────────────── */}
                   <div className="flex gap-2 items-stretch">
                     <button
@@ -4794,6 +4753,90 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           ? `Pacote persistido em ${new Date(postScriptPackage.generatedAt).toLocaleString('pt-BR')}.`
                           : 'Nenhum pacote pos-roteiro processado ainda.'}
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* DIREÇÃO DE ARTE & ELENCO CONSISTENTE (FULL WIDTH & GRADE) */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4">
+                  <div>
+                    <span className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">🎨 Direção de Arte & Elenco Consistente</span>
+                    <p className="text-[10px] text-white/40 mt-1">Defina a ambientação visual e gerencie o elenco para consistência via colchetes [Nome].</p>
+                  </div>
+                  {visualBlueprintCast.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={copyAllCharacterPrompts}
+                      className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-2.5 text-[9px] font-bold text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2 uppercase tracking-wider"
+                    >
+                      <span>📋 Copiar Todos os Prompts (Elenco)</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  {/* Cenário / Estilo Geral */}
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Cenário / Estilo Geral (PT-BR)</label>
+                    <textarea
+                      value={visualBlueprintSetting}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setVisualBlueprintSetting(val);
+                        persistExecutionSnapshotLocally({ visualBlueprintSetting: val });
+                      }}
+                      placeholder="Ex: Fantasia sombria Warhammer 40k, catedral espacial gotica gelida..."
+                      className="w-full min-h-[140px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] leading-relaxed text-white/80 outline-none focus:border-cyan-300/40"
+                    />
+                    <p className="text-[9px] text-white/35 leading-relaxed">
+                      Descreva a atmosfera, iluminação e visual de fundo geral. O pipeline combina este estilo com as cenas geradas.
+                    </p>
+                  </div>
+
+                  {/* Elenco de Personagens */}
+                  <div className="lg:col-span-2 rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Elenco Narrativo ({visualBlueprintCast.length})</label>
+                    {visualBlueprintCast.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/10">
+                        <p className="text-[11px] text-white/35 italic">Nenhum personagem extraído ainda.</p>
+                        <p className="text-[9px] text-white/20 mt-1 max-w-xs">
+                          Anexe o arquivo do roteiro (.txt) no painel superior e clique em &quot;Analisar Direção de Arte & Elenco&quot; para gerar.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                        {visualBlueprintCast.map((char, index) => (
+                          <div key={index} className="rounded-xl border border-white/5 bg-midnight/40 p-3.5 space-y-2 flex flex-col justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                <span className="font-bold text-[11px] text-cyan-200 tracking-wide">{char.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Ficha de ${char.name} copiada!`)}
+                                  className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[9px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1"
+                                >
+                                  <span>📋 Ficha</span>
+                                </button>
+                              </div>
+                              <textarea
+                                value={char.description}
+                                onChange={(e) => {
+                                  const updatedCast = [...visualBlueprintCast];
+                                  updatedCast[index] = { ...char, description: e.target.value };
+                                  setVisualBlueprintCast(updatedCast);
+                                  persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                }}
+                                className="w-full min-h-[70px] bg-transparent border-0 text-[10px] leading-relaxed text-white/70 italic resize-y p-0 outline-none focus:text-white"
+                              />
+                            </div>
+                            <div className="text-[8px] text-cyan-400/35 text-right font-mono tracking-wider">
+                              Use [{char.name}] no roteiro para vincular
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -858,6 +858,11 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   };
 
   useEffect(() => {
+    hasHydratedRef.current = false;
+    setExecutionHydrated(false);
+  }, [executionStorageKey]);
+
+  useEffect(() => {
     if (!executionStorageKey) {
       setExecutionHydrated(true);
       return;

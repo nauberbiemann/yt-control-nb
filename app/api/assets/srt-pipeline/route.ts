@@ -97,6 +97,11 @@ Context rules:
 - If 'Channel Visual Identity' is provided, align the visual style, atmosphere, and shot types with it.
 - If 'Video Context' is provided, use it to inform the specific theme and visual direction of ALL prompts in this batch.
 - If 'Visual Identity and Aesthetic Style reference' is provided, you MUST strictly apply this aesthetic direction, color palette, lighting, and thematic atmosphere to EVERY video and image prompt. Integrate these style elements seamlessly.
+- CONSISTENT CHARACTERS BRACKET SYSTEM:
+  - If a list of 'Consistent Characters' (Narrative Cast) is provided, scan the subtitle text. If the subtitle references any character by name (or clear pronoun/role), you MUST represent them in the prompt by writing their name in brackets, e.g. "[Fulgrim]" or "[The Emperor]".
+  - Do NOT write out their full physical description in the prompt. The compiler will swap the brackets with their description later. Just output the short tag like "[Fulgrim] looking distraught" or "Close-up shot of [Fulgrim] drawing his glowing purple sword".
+  - Only use character names from the provided Cast list in brackets. If a character is described but is NOT in the Cast list, describe them normally.
+  - In FACELESS MODE, virtual presenters/hosts speaking to the camera are completely banned, but story characters from the Cast list (e.g. "[Fulgrim]") are welcome and must be visualized in action sequences or environmental scenes in brackets!
 `.trim();
 
 interface PromptBatchItem {
@@ -275,6 +280,7 @@ const generateBatchWithOpenAI = async ({
   videoContext,
   facelessHint,
   videoFormat,
+  visualBlueprint,
 }: {
   apiKey: string;
   model: string;
@@ -285,6 +291,7 @@ const generateBatchWithOpenAI = async ({
   videoContext: string;
   facelessHint: string;
   videoFormat?: string;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
@@ -298,6 +305,10 @@ const generateBatchWithOpenAI = async ({
           videoFormat === 'faceless'
             ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
             : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
+          visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
+          visualBlueprint?.cast && visualBlueprint.cast.length > 0
+            ? `Consistent Characters (Narrative Cast) - When any character listed here is mentioned, you MUST represent them using their name in brackets [Character Name], e.g. [Fulgrim] doing something: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
+            : '',
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
@@ -343,6 +354,7 @@ const generateBatchWithGemini = async ({
   videoContext,
   facelessHint,
   videoFormat,
+  visualBlueprint,
 }: {
   apiKey: string;
   model: string;
@@ -353,6 +365,7 @@ const generateBatchWithGemini = async ({
   videoContext: string;
   facelessHint: string;
   videoFormat?: string;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -369,6 +382,10 @@ const generateBatchWithGemini = async ({
               videoFormat === 'faceless'
                 ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
                 : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
+              visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
+              visualBlueprint?.cast && visualBlueprint.cast.length > 0
+                ? `Consistent Characters (Narrative Cast) - When any character listed here is mentioned, you MUST represent them using their name in brackets [Character Name], e.g. [Fulgrim] doing something: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
+                : '',
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
@@ -405,6 +422,7 @@ const generatePromptMap = async ({
   characterDescription,
   videoContext,
   videoFormat,
+  visualBlueprint,
 }: {
   engine: 'openai' | 'gemini';
   model: string;
@@ -414,6 +432,7 @@ const generatePromptMap = async ({
   characterDescription: string;
   videoContext?: string;
   videoFormat?: 'avatar' | 'faceless' | 'vlog';
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -432,15 +451,15 @@ const generatePromptMap = async ({
 
   // Dynamic hint based on video format (Faceless, Vlog, or Avatar)
   const facelessHint = videoFormat === 'faceless'
-    ? 'FACELESS VIDEO MODE: Do NOT include any presenter, character, or person in video or image prompts. Every prompt must be a full-screen cinematic composition (cinematic B-roll, 3D animation, macro photography, abstract visual) that fills the entire frame. The subtitle text is your only reference for subject matter.'
+    ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
     : videoFormat === 'vlog'
     ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
     : '';
 
   for (const batch of chunk(items, batchSize)) {
     const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat });
+      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint })
+      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint });
 
     const validatedBatch = validatePromptBatch(batch, payload);
     validatedBatch.forEach((val, rowNumber) => {
@@ -461,6 +480,7 @@ export async function POST(req: NextRequest) {
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
     const videoFormat: 'avatar' | 'faceless' | 'vlog' = body?.videoFormat === 'vlog' ? 'vlog' : (body?.videoFormat === 'faceless' ? 'faceless' : 'avatar');
+    const visualBlueprint = body?.visualBlueprint || null;
     const characterDescription = resolveCharacterProfile({
       ...(body?.characterProfile || {}),
       projectName: projectConfig?.project_name || '',
@@ -488,6 +508,7 @@ export async function POST(req: NextRequest) {
         characterDescription,
         videoContext,
         videoFormat,
+        visualBlueprint,
       });
 
       const prompts = promptItems.map((item) => ({
@@ -544,6 +565,7 @@ export async function POST(req: NextRequest) {
         characterDescription,
         videoContext,
         videoFormat,
+        visualBlueprint,
       });
 
       rowsWithPrompts = finalRows.map((row) => ({

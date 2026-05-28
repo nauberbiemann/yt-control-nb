@@ -151,6 +151,8 @@ interface ExecutionSnapshot {
   externalSrtObserver: SrtPipelineObserverStep[];
   postScriptPackage: PostScriptPackage | null;
   hfBgPrompts?: Array<{ rowNumber: number; prompt: string }> | null;
+  visualBlueprintSetting?: string;
+  visualBlueprintCast?: Array<{ name: string; description: string }>;
   _themeId?: string; // stable ID to find the theme even after a title rename
 }
 
@@ -288,6 +290,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('male');
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
   const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
+  // Consistent Characters (Visual Blueprint & Cast)
+  const [visualBlueprintSetting, setVisualBlueprintSetting] = useState<string>('');
+  const [visualBlueprintCast, setVisualBlueprintCast] = useState<Array<{ name: string; description: string }>>([]);
+  const [isExtractingVisuals, setIsExtractingVisuals] = useState<boolean>(false);
   const [textStyleMode, setTextStyleMode] = useState('auto');
   const [customTextStyle, setCustomTextStyle] = useState('');
   const [manualPublishDate, setManualPublishDate] = useState('');
@@ -597,6 +603,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSrtObserver,
     postScriptPackage,
     hfBgPrompts,
+    visualBlueprintSetting,
+    visualBlueprintCast,
     ...overrides,
   });
 
@@ -941,6 +949,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                 if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
                 if (cloudSnapshot.videoFormat === 'faceless' || cloudSnapshot.videoFormat === 'avatar' || cloudSnapshot.videoFormat === 'vlog') setVideoFormat(cloudSnapshot.videoFormat);
                 if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
+                if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
+                if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
@@ -982,6 +992,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
       if (snapshot?.videoFormat === 'faceless' || snapshot?.videoFormat === 'avatar' || snapshot?.videoFormat === 'vlog') setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
+      if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
+      if (Array.isArray(snapshot?.visualBlueprintCast)) setVisualBlueprintCast(snapshot.visualBlueprintCast);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
@@ -1836,6 +1848,73 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
+  const compilePromptText = (text: string) => {
+    if (!text) return '';
+    let compiled = text;
+    visualBlueprintCast.forEach((char) => {
+      if (!char.name || !char.description) return;
+      const escapedName = char.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\[${escapedName}\\]`, 'gi');
+      compiled = compiled.replace(regex, `(${char.description.trim()})`);
+    });
+    return compiled;
+  };
+
+  const extractVisualBlueprintAndCast = async () => {
+    const textToAnalyze = externalScriptText || '';
+    if (!textToAnalyze.trim()) {
+      alert('Nao ha roteiro para analisar. Carregue um roteiro .txt primeiro.');
+      return;
+    }
+
+    const engine = activeProject?.ai_engine_rules?.engine || 'openai';
+    const model = activeProject?.ai_engine_rules?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1');
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+
+    if (!apiKey) {
+      alert(`Por favor, configure sua chave de API para ${engine} em Ajustes Globais ou no navegador.`);
+      return;
+    }
+
+    setIsExtractingVisuals(true);
+    try {
+      const response = await fetch('/api/assets/analyze-script-visuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scriptText: textToAnalyze,
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao analisar o roteiro.');
+      }
+
+      const setting = data.setting || '';
+      const characters = Array.isArray(data.characters) ? data.characters : [];
+
+      setVisualBlueprintSetting(setting);
+      setVisualBlueprintCast(characters);
+
+      persistExecutionSnapshotLocally({
+        visualBlueprintSetting: setting,
+        visualBlueprintCast: characters,
+      });
+
+      alert('Direcao de Arte e Elenco Narrativo extraidos com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao extrair visuais: ${err.message}`);
+    } finally {
+      setIsExtractingVisuals(false);
+    }
+  };
+
   const handleExternalSrtUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -2099,6 +2178,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                   mode: videoCharacterMode,
                   customDescription: videoCharacterCustom,
                 },
+                visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
               }),
             });
 
@@ -2316,6 +2396,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
               videoContext: buildVideoContext(),
               videoFormat,
               characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
+              visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
             }),
           });
 
@@ -2421,6 +2502,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         videoContext: buildVideoContext(),
         videoFormat,
         characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
+        visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
       }),
     });
     const data = await res.json();
@@ -2745,6 +2827,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     setExternalSrtObserver(buildInitialSrtObserver());
     setPostScriptPackage(null);
     setManualPublishDate('');
+    setVisualBlueprintSetting('');
+    setVisualBlueprintCast([]);
     setManualPublishDraftDate('');
     setManualPublishDraftTime('');
     setScriptBlocks([
@@ -4339,6 +4423,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
                       {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
                     </div>
+                    {externalScriptText && (
+                      <button
+                        type="button"
+                        onClick={extractVisualBlueprintAndCast}
+                        disabled={isExtractingVisuals}
+                        className={`w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.15em] text-blue-200 transition-all hover:bg-blue-500/20 active:scale-95 flex items-center justify-center gap-2`}
+                      >
+                        {isExtractingVisuals ? '⏳ Analisando...' : '✨ Analisar Direcao de Arte & Elenco'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -4479,6 +4573,64 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                         </button>
                       </div>
                     )}
+                  </div>
+
+                  {/* Direcao de Arte & Elenco Narrativo (Consistent Characters) */}
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300">🎨 Direcao de Arte & Elenco</p>
+                    
+                    {/* Setting description */}
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-bold uppercase tracking-wider text-white/40">Cenario / Estilo Geral (PT-BR):</label>
+                      <textarea
+                        value={visualBlueprintSetting}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setVisualBlueprintSetting(val);
+                          persistExecutionSnapshotLocally({ visualBlueprintSetting: val });
+                        }}
+                        placeholder="Ex: Fantasia sombria Warhammer 40k, catedral espacial gotica gelida..."
+                        className="w-full min-h-[60px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[10px] leading-relaxed text-white/80 outline-none focus:border-cyan-300/40"
+                      />
+                    </div>
+
+                    {/* Cast of characters */}
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[8px] font-bold uppercase tracking-wider text-white/40">Elenco Narrativo ({visualBlueprintCast.length}):</p>
+                      {visualBlueprintCast.length === 0 ? (
+                        <p className="text-[9px] text-white/30 italic">Nenhum personagem extraido ainda. Carregue o .txt do roteiro e clique em Analisar.</p>
+                      ) : (
+                        <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
+                          {visualBlueprintCast.map((char, index) => (
+                            <div key={index} className="rounded-xl border border-white/5 bg-black/25 p-2 space-y-1 text-[10px]">
+                              <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-1">
+                                <span className="font-bold text-cyan-200">{char.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const sheetPrompt = `A highly detailed character reference sheet of ${char.name}, ${char.description}, split into multiple panels, showing full body, front portrait, side profile, and rear view, dark background, dramatic cinematic lighting, ultra-realistic, 8k resolution, photorealistic, intricate details.`;
+                                    copyTextToClipboard(sheetPrompt, `Ficha de ${char.name} copiada!`);
+                                  }}
+                                  className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[8px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider"
+                                >
+                                  📋 Ficha
+                                </button>
+                              </div>
+                              <textarea
+                                value={char.description}
+                                onChange={(e) => {
+                                  const updatedCast = [...visualBlueprintCast];
+                                  updatedCast[index] = { ...char, description: e.target.value };
+                                  setVisualBlueprintCast(updatedCast);
+                                  persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                }}
+                                className="w-full min-h-[45px] bg-transparent border-0 text-[9px] leading-relaxed text-white/70 italic resize-y p-0 outline-none focus:text-white"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -4736,14 +4888,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                             <div className="flex gap-2">
                               <button
                                 type="button"
-                                onClick={() => copyTextToClipboard(externalSrtPipeline.videoPromptsTxt, 'Prompts de video copiados.')}
+                                onClick={() => copyTextToClipboard(compilePromptText(externalSrtPipeline.videoPromptsTxt), 'Prompts de video copiados.')}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <Copy size={12} className="inline mr-2" /> Copiar
                               </button>
                               <button
                                 type="button"
-                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_video', externalSrtPipeline.videoPromptsTxt)}
+                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_video', compilePromptText(externalSrtPipeline.videoPromptsTxt))}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
                                 <FileText size={12} className="inline mr-2" /> TXT
@@ -4752,7 +4904,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           </div>
                           <textarea
                             readOnly
-                            value={externalSrtPipeline.videoPromptsTxt || 'Nenhum prompt de video foi gerado para este SRT.'}
+                            value={compilePromptText(externalSrtPipeline.videoPromptsTxt) || 'Nenhum prompt de video foi gerado para este SRT.'}
                             className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />
                         </div>
@@ -4824,8 +4976,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                 type="button"
                                 onClick={() => {
                                   const validHf = (hfBgPrompts || []).filter(p => p.rowNumber !== -1);
-                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
-                                  copyTextToClipboard(externalSrtPipeline.imagePromptsTxt + hfLines, 'Prompts copiados.');
+                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${compilePromptText(p.prompt)}`).join('\n')) : '';
+                                  copyTextToClipboard(compilePromptText(externalSrtPipeline.imagePromptsTxt) + hfLines, 'Prompts copiados.');
                                 }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
@@ -4835,8 +4987,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                 type="button"
                                 onClick={() => {
                                   const validHf = (hfBgPrompts || []).filter(p => p.rowNumber !== -1);
-                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${p.prompt}`).join('\n')) : '';
-                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', externalSrtPipeline.imagePromptsTxt + hfLines);
+                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${compilePromptText(p.prompt)}`).join('\n')) : '';
+                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', compilePromptText(externalSrtPipeline.imagePromptsTxt) + hfLines);
                                 }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
@@ -4860,8 +5012,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           <textarea
                             readOnly
                             value={[
-                              externalSrtPipeline.imagePromptsTxt,
-                              ...((hfBgPrompts || []).filter(p => p.rowNumber !== -1).map(p => `HF${p.rowNumber}: ${p.prompt}`)),
+                              compilePromptText(externalSrtPipeline.imagePromptsTxt),
+                              ...((hfBgPrompts || []).filter(p => p.rowNumber !== -1).map(p => `HF${p.rowNumber}: ${compilePromptText(p.prompt)}`)),
                             ].filter(Boolean).join('\n') || 'Nenhum prompt de imagem foi gerado para este SRT.'}
                             className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />

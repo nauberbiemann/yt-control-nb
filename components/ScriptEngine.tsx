@@ -720,6 +720,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       videoCharacterCustom: executionSnapshot.videoCharacterCustom,
       videoFormat: executionSnapshot.videoFormat,
       manualPublishDate: executionSnapshot.manualPublishDate,
+      visualBlueprintSetting: executionSnapshot.visualBlueprintSetting,
+      visualBlueprintCast: executionSnapshot.visualBlueprintCast,
       // Stripped: externalScriptText, externalSrtText, scriptBlocks, externalSrtPipeline, postScriptPackage, externalSrtObserver
       scriptBlocks: [],     // stripped - regenerated from briefing when needed
       externalScriptText: '',  // stripped
@@ -1091,6 +1093,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     externalSrtObserver,
     postScriptPackage,
     hfBgPrompts,
+    visualBlueprintSetting,
+    visualBlueprintCast,
   ]);
 
   // Check storage usage on mount so the badge shows immediately if already high
@@ -1936,8 +1940,6 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         visualBlueprintSetting: setting,
         visualBlueprintCast: characters,
       });
-
-      alert('Direcao de Arte e Elenco Narrativo extraidos com sucesso!');
     } catch (err: any) {
       console.error(err);
       alert(`Erro ao extrair visuais: ${err.message}`);
@@ -2828,6 +2830,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setExternalSrtPipeline(snapshot?.externalSrtPipeline || null);
       setExternalSrtObserver(Array.isArray(snapshot?.externalSrtObserver) && snapshot.externalSrtObserver.length > 0 ? snapshot.externalSrtObserver : buildInitialSrtObserver());
       setPostScriptPackage(snapshot?.postScriptPackage || null);
+      setVisualBlueprintSetting(snapshot?.visualBlueprintSetting || '');
+      setVisualBlueprintCast(Array.isArray(snapshot?.visualBlueprintCast) ? snapshot.visualBlueprintCast : []);
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao manualmente.', error);
       alert('Nao foi possivel restaurar a execucao salva.');
@@ -4813,10 +4817,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                 <span className="font-bold text-[11px] text-cyan-200 tracking-wide">{char.name}</span>
                                 <button
                                   type="button"
-                                  onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Ficha de ${char.name} copiada!`)}
-                                  className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[9px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1"
+                                  onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Prompt de ${char.name} copiado!`)}
+                                  className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[9px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1.5"
                                 >
-                                  <span>📋 Ficha</span>
+                                  <span>📋 Copiar Prompt</span>
                                 </button>
                               </div>
                               <textarea

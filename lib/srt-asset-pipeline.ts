@@ -383,10 +383,12 @@ export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
     const prompt = sanitizePrompt(row.prompt || '');
     if (!prompt) return;
 
-    const line = `${row.rowNumber}: ${prompt}`;
     const assetType = normalizeAssetType(row.asset);
+    const isFacelessHf = assetType === 'hyperframe' && prompt.includes('📷');
+    const prefix = isFacelessHf ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
+    const line = `${prefix}: ${prompt}`;
 
-    if (assetType === 'vídeo' || (assetType === 'hyperframe' && prompt.includes('📷'))) {
+    if (assetType === 'vídeo' || isFacelessHf) {
       videoLines.push(line);
     } else if (assetType === 'imagem') {
       imageLines.push(line);

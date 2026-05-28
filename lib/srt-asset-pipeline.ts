@@ -380,12 +380,27 @@ export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
   const imageLines: string[] = [];
 
   rows.forEach((row) => {
-    const prompt = sanitizePrompt(row.prompt || '');
-    if (!prompt) return;
+    const rawPrompt = sanitizePrompt(row.prompt || '');
+    if (!rawPrompt) return;
 
     const assetType = normalizeAssetType(row.asset);
-    const isFacelessHf = assetType === 'hyperframe' && prompt.includes('📷');
+    const isFacelessHf = assetType === 'hyperframe' && rawPrompt.includes('📷');
     const prefix = isFacelessHf ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
+    
+    // Clean up "📷HyperFrames by HeyGen" and other similar HeyGen camera prefixes dynamically
+    let prompt = rawPrompt;
+    if (isFacelessHf) {
+      prompt = rawPrompt
+        .replace(/^(?:use\s+)?📷\s*HyperFrames\s+by\s+HeyGen(?:\s+and\s+Image\s+Gen\s+if\s+you\s+need\s+it\s+for\s+assets\s+or\s+like\s+png\s+images\s+of\s+assets\s+without\s+backround\s+to\s+make)?[\s.,;!?]*/i, '')
+        .replace(/^📷\s*HyperFrames\s+by\s+HeyGen[\s.,;!?]*/i, '')
+        .trim();
+      
+      // Capitalize the first letter of the cleaned prompt if needed
+      if (prompt.length > 0) {
+        prompt = prompt.charAt(0).toUpperCase() + prompt.slice(1);
+      }
+    }
+    
     const line = `${prefix}: ${prompt}`;
 
     if (assetType === 'vídeo' || isFacelessHf) {

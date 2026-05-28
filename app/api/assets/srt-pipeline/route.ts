@@ -320,6 +320,7 @@ const generateBatchWithOpenAI = async ({
         content: [
           'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
+          `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
           videoFormat === 'faceless'
             ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
             : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
@@ -397,6 +398,7 @@ const generateBatchWithGemini = async ({
               SYSTEM_INSTRUCTIONS,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
+              `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
               videoFormat === 'faceless'
                 ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
                 : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,

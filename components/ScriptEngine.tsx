@@ -2658,7 +2658,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       const hfRows = activePipeline.rows.filter(
         (r: any) => normalizeAssetType(r.asset) === 'hyperframe',
       );
-      if (hfRows.length > 0) {
+      if (hfRows.length > 0 && videoFormat !== 'faceless') {
         const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, activePackage?.hfContextTitles, videoFormat);
         setTimeout(() => {
           downloadTextArtifact(

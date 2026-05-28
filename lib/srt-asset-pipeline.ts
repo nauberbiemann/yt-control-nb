@@ -384,8 +384,13 @@ export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
     if (!prompt) return;
 
     const line = `${row.rowNumber}: ${prompt}`;
-    if (normalizeAssetType(row.asset) === 'vídeo') videoLines.push(line);
-    if (normalizeAssetType(row.asset) === 'imagem') imageLines.push(line);
+    const assetType = normalizeAssetType(row.asset);
+
+    if (assetType === 'vídeo' || (assetType === 'hyperframe' && prompt.includes('📷'))) {
+      videoLines.push(line);
+    } else if (assetType === 'imagem') {
+      imageLines.push(line);
+    }
   });
 
   return {

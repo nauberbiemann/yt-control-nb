@@ -290,6 +290,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('male');
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
   const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
+  const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
   // Consistent Characters (Visual Blueprint & Cast)
   const [visualBlueprintSetting, setVisualBlueprintSetting] = useState<string>('');
   const [visualBlueprintCast, setVisualBlueprintCast] = useState<Array<{ name: string; description: string }>>([]);
@@ -1859,6 +1860,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const compilePromptText = (text: string) => {
     if (!text) return '';
+    if (preserveBrackets) return text;
     let compiled = text;
     visualBlueprintCast.forEach((char) => {
       if (!char.name || !char.description) return;
@@ -3226,7 +3228,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setPipelineCurrentStep('hf');
       const hfCount = (_pipelineResultRef.current.rows ?? [])
         .filter((r: any) => normalizeAssetType(r.asset) === 'hyperframe').length;
-      if (hfCount > 0) {
+      if (hfCount > 0 && videoFormat !== 'faceless') {
         try {
           await generateHfBgPromptsInternal(_pipelineResultRef.current);
         } catch (err: any) {
@@ -4947,6 +4949,26 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
                   {externalSrtPipeline && (
                     <>
+                      {/* Checkbox global de colchetes */}
+                      <div className="flex items-center gap-3 bg-midnight/25 border border-white/10 rounded-2xl p-4 mb-4">
+                        <label className="relative flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={preserveBrackets}
+                            onChange={(e) => setPreserveBrackets(e.target.checked)}
+                            className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500"
+                          />
+                          <div>
+                            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                              Preservar [Colchetes] de Personagens Consistentes
+                            </span>
+                            <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                              Marque para manter a tag original do personagem (ex: <strong>[Grey Knight]</strong>) nos prompts copiado/exportados. Útil para fluxos de referência (Cref / Flux LoRA). Desmarque para expandir a descrição física completa automaticamente.
+                            </span>
+                          </div>
+                        </label>
+                      </div>
+
                       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                         <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                           <div className="flex items-center justify-between gap-3">
@@ -4991,6 +5013,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               <button
                                 type="button"
                                 onClick={async () => {
+                                  if (videoFormat === 'faceless') {
+                                    alert('No formato Faceless, os HyperFrames já são gerados como prompts de vídeo completos na seção de vídeos acima. Não é necessário gerar fundos de imagem.');
+                                    return;
+                                  }
                                   setIsGeneratingHfBg(true);
                                   setHfBgPrompts(null);
                                   try {
@@ -5036,9 +5062,13 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                   }
                                 }}
                                 disabled={isGeneratingHfBg}
-                                className="rounded-xl border border-violet-500/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-violet-300 hover:border-violet-400/60 hover:text-violet-200 disabled:opacity-50 transition-all"
+                                className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
+                                  videoFormat === 'faceless'
+                                    ? 'border-white/10 text-white/35 hover:bg-transparent cursor-pointer'
+                                    : 'border-violet-500/30 text-violet-300 hover:border-violet-400/60 hover:text-violet-200'
+                                }`}
                               >
-                                {isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF'}
+                                {videoFormat === 'faceless' ? '🚫 Sem Fundos' : (isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF')}
                               </button>
                               <div className="flex gap-2">
                               <button

@@ -56,37 +56,55 @@ Rules for asset types:
   - Vary your choices across the sequence to create visual diversity. Do not use the same style for every text entry.
   - Style guidance: Neon = tech/hacker/matrix energy. Clean = calm/reflective/minimal. Impact = urgency/alarm/strong statements. Frost = futuristic/analytical/cool. Gold = elegant/important/prestigious.
 - asset == "hyperframe":
-  - The template_name specifies the layout schema required.
-  - Do NOT generate a visual prompt. Instead, extract the key message from the subtitle text and return structured JSON.
-  - Return the JSON inside the 'texto_adicional' property. The 'prompt' property must echo just the template_name.
-  - CRITICAL: The HTML templates read the fields 'title', 'subtitle', and 'metrics' from the JSON. Use exactly these keys.
-  - ALL schemas must also include a 'background_prompt' field: a 1-sentence English image generation prompt for the background behind the overlay. This prompt MUST be aligned with the 'Channel Visual Identity' if provided, otherwise use a dark cinematic default. The background must be dark, have no readable text, and leave the overlay legible.
-  - CRITICAL TEXT RULES (apply to ALL schemas):
-    - NEVER copy the subtitle text verbatim into any field. Always reinterpret the idea in your own words.
-    - 'title' must be a short, punchy phrase (3-7 words max) that captures the CORE IDEA — not the literal subtitle.
-    - 'subtitle' must be a COMPLETE, standalone sentence that ADDS CONTEXT or REPHRASES the idea as a synonym. It must never be the same sentence as the subtitle text, never a fragment, and never end mid-word. Write at least one full verb-subject clause.
-    - 'metrics' must be a specific KPI, number, or "—" if no data is present. Never leave it empty.
-    - All text fields must be short enough to fit in one line of an overlay (title: max 40 chars, subtitle: max 80 chars, metrics: max 20 chars).
-  - Schemas (use exact field names shown):
-    - hf_break:       {"title": "2-3 word punchy idea", "subtitle": "—", "metrics": "—", "background_prompt": "..."}
-    - hf_face_top:    {"title": "Impactful phrase max 6 words", "subtitle": "Complete context sentence in own words", "metrics": "KPI or —", "background_prompt": "..."}
-    - hf_focus:       {"title": "Focus keyword or short phrase", "subtitle": "Complete supporting sentence rephrasing the idea", "metrics": "— or KPI", "background_prompt": "..."}
-    - hf_double:      {"title": "Main concept (noun phrase)", "subtitle": "Complete analytical sentence in own words", "metrics": "— or data", "background_prompt": "..."}
-    - hf_floating:    {"title": "Central keyword", "subtitle": "Complete side-point sentence as synonym", "metrics": "Side impact or —", "background_prompt": "..."}
-    - hf_vertical:    {"title": "2-3 word insight", "subtitle": "Complete context sentence rephrasing the idea", "metrics": "— or data", "background_prompt": "..."}
-    - hf_holo:        {"title": "Insight headline (noun phrase)", "subtitle": "Complete analysis sentence in own words", "metrics": "Numeric data or —", "background_prompt": "..."}
-    - hf_documentary: {"title": "Investigation theme", "subtitle": "Complete context sentence as synonym phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
-    - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or complete short support sentence", "metrics": "—", "background_prompt": "..."}
-    - hf_face_bottom: {"title": "Analytical headline (noun phrase)", "subtitle": "Complete detail sentence in own words", "metrics": "Measurable result or —", "background_prompt": "..."}
-    - hf_x_post:       {"title": "Author Name / Channel", "subtitle": "Twitter @handle", "text": "Short punchy tweet message (1-2 sentences)", "metrics": "Likes count (e.g. 10.5K) or —", "background_prompt": "..."}
-    - hf_notification: {"title": "App Name or Alert Type", "subtitle": "Notification bubble body message", "metrics": "Time (e.g. 'agora', '2m') or —", "background_prompt": "..."}
-    - hf_world_map:    {"title": "Global network headline", "subtitle": "Short description of global/geographical connection", "metrics": "KPI percentage (e.g. '+320%') or —", "background_prompt": "..."}
-    - hf_data_chart:   {"title": "Data / Growth title", "subtitle": "Analytical sentence describing the metric trend", "metrics": "Key metric value (e.g. '94.2% Eficiência') or —", "background_prompt": "..."}
-    - hf_reddit:       {"title": "Subreddit / Community", "subtitle": "Thread Title or Topic", "text": "Reddit comment body (1-2 sentences)", "metrics": "Upvote count (e.g. 5.2K) or —", "background_prompt": "..."}
-    - hf_spotify:      {"title": "Track Title", "subtitle": "Artist Name", "metrics": "Time duration (e.g. '3:45') or —", "background_prompt": "..."}
-    - hf_code_terminal: {"title": "Terminal Title (e.g. bash, zsh, node)", "subtitle": "Directory path or —", "text": "Command or code segment to be typed out", "metrics": "—", "background_prompt": "..."}
-    - hf_quote:        {"title": "Author of the Quote", "subtitle": "Description or role of author (or —)", "text": "The quotation body sentence", "metrics": "—", "background_prompt": "..."}
-  - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
+  - Check the requested Video Format:
+    - If the format is NOT Faceless (e.g. Avatar or Vlog mode):
+      - The template_name specifies the layout schema required.
+      - Do NOT generate a visual prompt. Instead, extract the key message from the subtitle text and return structured JSON.
+      - Return the JSON inside the 'texto_adicional' property. The 'prompt' property must echo just the template_name.
+      - CRITICAL: The HTML templates read the fields 'title', 'subtitle', and 'metrics' from the JSON. Use exactly these keys.
+      - ALL schemas must also include a 'background_prompt' field: a 1-sentence English image generation prompt for the background behind the overlay. This prompt MUST be aligned with the 'Channel Visual Identity' if provided, otherwise use a dark cinematic default. The background must be dark, have no readable text, and leave the overlay legible.
+      - CRITICAL TEXT RULES (apply to ALL schemas):
+        - NEVER copy the subtitle text verbatim into any field. Always reinterpret the idea in your own words.
+        - 'title' must be a short, punchy phrase (3-7 words max) that captures the CORE IDEA — not the literal subtitle.
+        - 'subtitle' must be a COMPLETE, standalone sentence that ADDS CONTEXT or REPHRASES the idea as a synonym. It must never be the same sentence as the subtitle text, never a fragment, and never end mid-word. Write at least one full verb-subject clause.
+        - 'metrics' must be a specific KPI, number, or "—" if no data is present. Never leave it empty.
+        - All text fields must be short enough to fit in one line of an overlay (title: max 40 chars, subtitle: max 80 chars, metrics: max 20 chars).
+      - Schemas (use exact field names shown) (Only applies to Avatar/Vlog modes):
+        - hf_break:       {"title": "2-3 word punchy idea", "subtitle": "—", "metrics": "—", "background_prompt": "..."}
+        - hf_face_top:    {"title": "Impactful phrase max 6 words", "subtitle": "Complete context sentence in own words", "metrics": "KPI or —", "background_prompt": "..."}
+        - hf_focus:       {"title": "Focus keyword or short phrase", "subtitle": "Complete supporting sentence rephrasing the idea", "metrics": "— or KPI", "background_prompt": "..."}
+        - hf_double:      {"title": "Main concept (noun phrase)", "subtitle": "Complete analytical sentence in own words", "metrics": "— or data", "background_prompt": "..."}
+        - hf_floating:    {"title": "Central keyword", "subtitle": "Complete side-point sentence as synonym", "metrics": "Side impact or —", "background_prompt": "..."}
+        - hf_vertical:    {"title": "2-3 word insight", "subtitle": "Complete context sentence rephrasing the idea", "metrics": "— or data", "background_prompt": "..."}
+        - hf_holo:        {"title": "Insight headline (noun phrase)", "subtitle": "Complete analysis sentence in own words", "metrics": "Numeric data or —", "background_prompt": "..."}
+        - hf_documentary: {"title": "Investigation theme", "subtitle": "Complete context sentence as synonym phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
+        - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or complete short support sentence", "metrics": "—", "background_prompt": "..."}
+        - hf_face_bottom: {"title": "Analytical headline (noun phrase)", "subtitle": "Complete detail sentence in own words", "metrics": "Measurable result or —", "background_prompt": "..."}
+        - hf_x_post:       {"title": "Author Name / Channel", "subtitle": "Twitter @handle", "text": "Short punchy tweet message (1-2 sentences)", "metrics": "Likes count (e.g. 10.5K) or —", "background_prompt": "..."}
+        - hf_notification: {"title": "App Name or Alert Type", "subtitle": "Notification bubble body message", "metrics": "Time (e.g. 'agora', '2m') or —", "background_prompt": "..."}
+        - hf_world_map:    {"title": "Global network headline", "subtitle": "Short description of global/geographical connection", "metrics": "KPI percentage (e.g. '+320%') or —", "background_prompt": "..."}
+        - hf_data_chart:   {"title": "Data / Growth title", "subtitle": "Analytical sentence describing the metric trend", "metrics": "Key metric value (e.g. '94.2% Eficiência') or —", "background_prompt": "..."}
+        - hf_reddit:       {"title": "Subreddit / Community", "subtitle": "Thread Title or Topic", "text": "Reddit comment body (1-2 sentences)", "metrics": "Upvote count (e.g. 5.2K) or —", "background_prompt": "..."}
+        - hf_spotify:      {"title": "Track Title", "subtitle": "Artist Name", "metrics": "Time duration (e.g. '3:45') or —", "background_prompt": "..."}
+        - hf_code_terminal: {"title": "Terminal Title (e.g. bash, zsh, node)", "subtitle": "Directory path or —", "text": "Command or code segment to be typed out", "metrics": "—", "background_prompt": "..."}
+        - hf_quote:        {"title": "Author of the Quote", "subtitle": "Description or role of author (or —)", "text": "The quotation body sentence", "metrics": "—", "background_prompt": "..."}
+      - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
+    - If the format is FACELESS:
+      - CRITICAL OVERRIDE: Do NOT return layout JSON or any static HTML template overlay fields (do NOT output 'texto_adicional', keep it empty/undefined).
+      - Instead, generate a highly detailed, cinematic, kinetic and professional video generation prompt in the 'prompt' property.
+      - The prompt MUST be in English, highly detailed, and match the theme of the subtitle context.
+      - Every prompt MUST start exactly with the HeyGen official tag: "📷HyperFrames by HeyGen" (or "use 📷HyperFrames by HeyGen and Image Gen if you need it for assets or like png images of assets without backround to make..." if it involves isolated/cutout graphical assets).
+      - Choose and adapt one of these 10 premium blueprints based on the theme of the subtitle:
+        1. "Visualização de crescimento / Finanças": "📷HyperFrames by HeyGen. Create a 7-second Apple-style motion graphic. A progress bar fills smoothly from 0% to 100%. Clean background (dark or white), bold typography, subtle shadows, premium motion design. As the bar reaches 100%, a green checkmark appears with a soft flash. Modern YouTube B-roll style, 1920x1080, 60fps." (Adapt values, background, text to context).
+        2. "Timeline histórica animada": "📷HyperFrames by HeyGen. Create a cinematic historical timeline animation. A horizontal timeline draws itself across the screen. Key dates appear one by one with smooth Apple-style motion graphics. Camera slowly tracks along the timeline while dates and events fade in. Premium documentary style, dark background, glowing accents, 7 seconds." (Adapt exact dates/events to context).
+        3. "Fluxo de dinheiro / Economia": "📷HyperFrames by HeyGen. Create a clean motion graphic showing money flowing from multiple users into a central company/concept icon. Animated arrows connect users to the business. Numbers increase in real time. Modern fintech style, Apple presentation quality, subtle zoom movement, 1920x1080, 60fps." (Adapt icon and background to context).
+        4. "Arquitetura de sistemas / Fluxo técnico": "📷HyperFrames by HeyGen. Create a professional software architecture animation. Database, backend server, API gateway, and mobile app (or equivalent technology) icons appear one by one. Animated connection lines show data flow between components. Camera slowly zooms in. Clean dark theme, blue neon accents, enterprise SaaS style, 8 seconds." (Adapt names and icons to context).
+        5. "Zoom em código / Programação": "📷HyperFrames by HeyGen. Create a cinematic code visualization. Camera slowly zooms into a dark code editor. Specific lines of code become highlighted with glowing effects. A bug icon appears, then transforms into a green checkmark after the code updates. Modern developer aesthetic, YouTube documentary style." (Adapt code lines and topic to context).
+        6. "Anatomia simplificada / Saúde": "📷HyperFrames by HeyGen. Create a realistic medical visualization. A semi-transparent human body/organ (or specific body part) appears. The camera zooms in. Neural pathways or pathways light up in blue and gold. Labels animate in with premium typography. Documentary style, medical animation quality, 7 seconds." (Adapt organ, path, and text to context).
+        7. "Comparação antes e depois": "📷HyperFrames by HeyGen. Create a split-screen transformation animation. Left side labeled BEFORE, right side labeled AFTER (or equivalents). Camera slowly pushes forward while metrics increase on the right side. Clean typography, premium YouTube educational style, 1920x1080." (Adapt labels and metrics to context).
+        8. "Doodle explainer / Desenho manual": "📷HyperFrames by HeyGen. Create a hand-drawn doodle animation on a whiteboard/blackboard. Sketches appear as if drawn by hand in real time. Arrows, circles, and notes animate naturally. Educational YouTube style, smooth motion, 60fps." (Adapt doodle sketches and concept to context).
+        9. "Dashboard de IA / Interface futurista": "📷HyperFrames by HeyGen. Create a futuristic AI dashboard animation. Floating panels show analytics, charts, and neural network visualizations. Camera slowly pans across the interface. Blue and cyan accents, cinematic lighting, modern AI startup aesthetic." (Adapt charts/data to context).
+        10. "Mapa mundial com conexões / Geopolítica": "📷HyperFrames by HeyGen. Create a realistic satellite world map. Animated connection lines travel between major cities/locations around the globe. The camera smoothly zooms and rotates. Locations highlight with glowing markers and labels. Documentary-grade animation, premium motion graphics." (Adapt cities and markers to context).
 
 Context rules:
 - Use the current subtitle text as the main source of meaning. Interpret the ideas, actions, specific nouns, and deeper context of the narrative, and represent them visually in the prompt. Do not use generic scenes or repetitive placeholders.

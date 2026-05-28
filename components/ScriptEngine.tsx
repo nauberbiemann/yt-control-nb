@@ -2110,7 +2110,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
 
-    if (videoCharacterMode === 'custom' && !videoCharacterCustom.trim()) {
+    if (videoFormat !== 'faceless' && videoCharacterMode === 'custom' && !videoCharacterCustom.trim()) {
       alert('Descreva o personagem personalizado antes de processar os prompts de video.');
       return;
     }
@@ -3182,7 +3182,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return;
     }
     if (!externalSrtText.trim()) { alert('Anexe um arquivo .srt antes de iniciar o pipeline.'); return; }
-    if (videoCharacterMode === 'custom' && !videoCharacterCustom.trim()) {
+    if (videoFormat !== 'faceless' && videoCharacterMode === 'custom' && !videoCharacterCustom.trim()) {
       alert('Descreva o personagem personalizado antes de iniciar o pipeline.');
       return;
     }

@@ -2304,7 +2304,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         };
       });
 
-      const generatedData = buildPipelineResult(rowsWithPrompts);
+      const generatedData = buildPipelineResult(rowsWithPrompts, null, videoFormat);
 
       updateSrtObserverStep(
         'prompts',
@@ -2403,7 +2403,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const batchItems = fallbackRows.flatMap((row, index) => {
         const type = normalizeAssetType(row.asset);
-        const isEligible = type === 'vídeo' || type === 'imagem' || type === 'texto';
+        const isEligible = type === 'vídeo' || type === 'imagem' || type === 'texto' || type === 'hyperframe';
         if (!isEligible) return [];
         const allRows = externalSrtPipeline.rows;
         const idx = allRows.findIndex((r) => r.rowNumber === row.rowNumber);
@@ -2413,7 +2413,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         const endMs = parseSrtTimeToMs(row.endTime);
         return [{
           row_number: row.rowNumber,
-          asset: type === 'texto' ? ('text' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const)),
+          asset: type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const))),
+          template_name: type === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
           text: row.texto.trim(),
           start_time: row.startTime,
           end_time: row.endTime,
@@ -2498,7 +2499,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       });
 
       const { buildPipelineResult: rebuild } = await import('@/lib/srt-asset-pipeline');
-      const updatedPipeline = { ...rebuild(updatedRows), generatedAt: externalSrtPipeline.generatedAt };
+      const updatedPipeline = { ...rebuild(updatedRows, null, videoFormat), generatedAt: externalSrtPipeline.generatedAt };
       setExternalSrtPipeline(updatedPipeline);
       persistExecutionSnapshotLocally({ externalSrtPipeline: updatedPipeline });
       showToast(`✅ ${newPromptMap.size} prompt(s) regenerado(s) com sucesso.`);
@@ -2523,14 +2524,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
     const batchItems = fallbackRows.flatMap((row: any) => {
       const type = normalizeAssetType(row.asset);
-      if (type !== 'vídeo' && type !== 'imagem' && type !== 'texto') return [];
+      if (type !== 'vídeo' && type !== 'imagem' && type !== 'texto' && type !== 'hyperframe') return [];
       const allRows = pipeline.rows;
       const idx = allRows.findIndex((r: any) => r.rowNumber === row.rowNumber);
       const startMs = parseSrtTimeToMs(row.startTime);
       const endMs   = parseSrtTimeToMs(row.endTime);
       return [{
         row_number: row.rowNumber,
-        asset: type === 'texto' ? 'text' : (type === 'vídeo' ? 'video' : 'image'),
+        asset: type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const))),
+        template_name: type === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
         text: row.texto.trim(),
         start_time: row.startTime,
         end_time: row.endTime,
@@ -2567,7 +2569,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       return np ? { ...row, prompt: np, isFallback: false } : row;
     });
     const { buildPipelineResult: rebuild } = await import('@/lib/srt-asset-pipeline');
-    const updated = { ...rebuild(updatedRows), generatedAt: pipeline.generatedAt };
+    const updated = { ...rebuild(updatedRows, null, videoFormat), generatedAt: pipeline.generatedAt };
     _pipelineResultRef.current = updated;
     setExternalSrtPipeline(updated);
     persistExecutionSnapshotLocally({ externalSrtPipeline: updated });
@@ -4722,13 +4724,38 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
                   </button>
                   {externalSrtPipeline && (() => {
-                    const fallbackCount = externalSrtPipeline.rows.filter((r) => r.isFallback).length;
+                    const fallbackRowsList = externalSrtPipeline.rows.filter((r) => r.isFallback);
+                    const fallbackCount = fallbackRowsList.length;
                     if (fallbackCount === 0) return null;
                     return (
-                      <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-2">
-                        <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
-                          ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
-                        </p>
+                      <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-3">
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
+                            ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
+                          </p>
+                          <p className="text-[8px] text-orange-200/60 leading-normal">
+                            Os seguintes trechos falharam e usaram prompts de fallback. Clique abaixo para regenerar.
+                          </p>
+                        </div>
+
+                        <div className="max-h-[140px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-orange-500/20 scrollbar-track-transparent">
+                          {fallbackRowsList.map((row) => (
+                            <div
+                              key={row.rowNumber}
+                              className="flex flex-col gap-0.5 rounded border border-orange-500/10 bg-black/30 p-2 text-[9px] text-orange-200/80 font-mono"
+                            >
+                              <div className="flex justify-between items-center gap-1">
+                                <span className="text-orange-400 font-bold">Linha #{row.rowNumber}</span>
+                                <span className="rounded bg-orange-500/20 px-1 py-0.5 text-[8px] text-orange-300 font-bold uppercase shrink-0">
+                                  {row.asset}
+                                </span>
+                              </div>
+                              <div className="text-[8px] opacity-60 font-semibold">{row.startTime} - {row.endTime}</div>
+                              <div className="text-white/80 italic mt-0.5 line-clamp-2">&quot;{row.texto}&quot;</div>
+                            </div>
+                          ))}
+                        </div>
+
                         <button
                           type="button"
                           onClick={regenerateFallbackPrompts}

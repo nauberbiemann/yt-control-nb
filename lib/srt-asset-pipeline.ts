@@ -375,13 +375,15 @@ export const finalizeFacelessRows = (
 
 export const sanitizePrompt = (prompt: string) => String(prompt || '').replace(/\s+/g, ' ').trim();
 
-export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
+export const buildPromptTxtOutputs = (
+  rows: SrtAssetRow[],
+  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
+) => {
   const videoLines: string[] = [];
   const imageLines: string[] = [];
 
-  // Determine if the rows are from a faceless video by checking if there's a faceless video type.
-  // We can also check if we have kinetic/camera prompts in hyperframes.
-  const isFaceless = rows.some((row) => normalizeAssetType(row.asset) === 'hyperframe' && row.prompt.includes('📷'));
+  // Determine if the rows are from a faceless video by checking the explicit format.
+  const isFaceless = videoFormat === 'faceless';
 
   rows.forEach((row) => {
     const rawPrompt = sanitizePrompt(row.prompt || '');
@@ -391,7 +393,13 @@ export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
     
     // In AVATAR or VLOG modes, HyperFrames are simple overlay templates (e.g. "hf_focus").
     // They should NOT be treated as B-roll or visual prompts, and must be completely excluded from TXT files.
-    if (assetType === 'hyperframe' && !isFaceless) {
+    // Also include a bulletproof check for string prompts containing hf: or hf_ in non-faceless modes to guard against AI glitches.
+    const isHfString =
+      rawPrompt.startsWith('hf:') ||
+      rawPrompt.startsWith('hf_') ||
+      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote)/i.test(rawPrompt);
+
+    if ((assetType === 'hyperframe' || isHfString) && !isFaceless) {
       return;
     }
 
@@ -934,12 +942,13 @@ export const applyHyperframeExclusionZone = (
 export const buildPipelineResult = (
   rows: SrtAssetRow[],
   textRender: SrtTextRenderInfo | null = null,
+  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar',
 ): SrtAssetPipelineResult => {
   const normalizedRows = rows.map((row) => ({
     ...row,
     asset: normalizeAssetType(row.asset),
   }));
-  const { videoPromptsTxt, imagePromptsTxt } = buildPromptTxtOutputs(normalizedRows);
+  const { videoPromptsTxt, imagePromptsTxt } = buildPromptTxtOutputs(normalizedRows, videoFormat);
 
   return {
     rows: normalizedRows,

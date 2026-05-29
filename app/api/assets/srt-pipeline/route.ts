@@ -616,7 +616,7 @@ export async function POST(req: NextRequest) {
       }));
     }
 
-    return NextResponse.json(buildPipelineResult(rowsWithPrompts));
+    return NextResponse.json(buildPipelineResult(rowsWithPrompts, null, videoFormat));
   } catch (error) {
     console.error('[SRT Pipeline] Error:', error);
     return NextResponse.json(

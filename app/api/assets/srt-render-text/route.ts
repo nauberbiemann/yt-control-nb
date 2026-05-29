@@ -118,6 +118,8 @@ export async function POST(req: NextRequest) {
     const outputDir = path.join(RENDER_OUTPUTS_ROOT, artifactStem);
     const overwrite = Boolean(body?.overwrite);
 
+    const videoFormat: 'avatar' | 'faceless' | 'vlog' = body?.videoFormat === 'vlog' ? 'vlog' : (body?.videoFormat === 'faceless' ? 'faceless' : 'avatar');
+
     const normalizedRows = inputRows.map((row) => ({
       ...row,
       asset: normalizeAssetType(row.asset),
@@ -128,14 +130,18 @@ export async function POST(req: NextRequest) {
     const textRows = normalizedRows.filter((row) => normalizeAssetType(row.asset) === 'texto');
     if (!textRows.length) {
       return NextResponse.json(
-        buildPipelineResult(normalizedRows, {
-          csvPath,
-          outputDir,
-          renderedCount: 0,
-          reusedCount: 0,
-          log: 'Nenhuma linha marcada como texto. A etapa 5 nao precisou renderizar assets.',
-          lastRenderedAt: new Date().toISOString(),
-        }),
+        buildPipelineResult(
+          normalizedRows,
+          {
+            csvPath,
+            outputDir,
+            renderedCount: 0,
+            reusedCount: 0,
+            log: 'Nenhuma linha marcada como texto. A etapa 5 nao precisou renderizar assets.',
+            lastRenderedAt: new Date().toISOString(),
+          },
+          videoFormat
+        ),
       );
     }
 
@@ -146,14 +152,18 @@ export async function POST(req: NextRequest) {
     const reusedCount = countLogOccurrences(runResult.stdout, 'render existente reutilizado');
 
     return NextResponse.json(
-      buildPipelineResult(updatedRows, {
-        csvPath,
-        outputDir,
-        renderedCount,
-        reusedCount,
-        log: [runResult.commandLine, runResult.stdout.trim(), runResult.stderr.trim()].filter(Boolean).join('\n\n'),
-        lastRenderedAt: new Date().toISOString(),
-      }),
+      buildPipelineResult(
+        updatedRows,
+        {
+          csvPath,
+          outputDir,
+          renderedCount,
+          reusedCount,
+          log: [runResult.commandLine, runResult.stdout.trim(), runResult.stderr.trim()].filter(Boolean).join('\n\n'),
+          lastRenderedAt: new Date().toISOString(),
+        },
+        videoFormat
+      ),
     );
   } catch (error) {
     console.error('[SRT Render Text] Error:', error);

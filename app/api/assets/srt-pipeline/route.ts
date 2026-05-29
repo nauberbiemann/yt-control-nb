@@ -14,8 +14,8 @@ import {
   finalizeFacelessRows,
 } from '@/lib/srt-asset-pipeline';
 
-const BATCH_SIZE_DEFAULT = 4;
-const BATCH_SIZE_REASONING = 2; // Reasoning models handle smaller batches more reliably
+const BATCH_SIZE_DEFAULT = 10;
+const BATCH_SIZE_REASONING = 6; // Reasoning models handle smaller batches more reliably
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
 
 export const maxDuration = 60;
@@ -476,18 +476,35 @@ const generatePromptMap = async ({
     ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
     : '';
 
-  for (const batch of chunk(items, batchSize)) {
-    const payload = engine === 'gemini'
-      ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint })
-      : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint });
+  const batches = chunk(items, batchSize);
+  const CONCURRENCY = 4;
 
-    const validatedBatch = validatePromptBatch(batch, payload);
-    validatedBatch.forEach((val, rowNumber) => {
-      promptMap.set(rowNumber, val.prompt);
-      if (val.texto_adicional) {
-        textoAdicionalMap.set(rowNumber, val.texto_adicional);
-      }
-    });
+  for (let i = 0; i < batches.length; i += CONCURRENCY) {
+    const group = batches.slice(i, i + CONCURRENCY);
+    const groupResults = await Promise.all(
+      group.map(async (batch) => {
+        try {
+          const payload = engine === 'gemini'
+            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint })
+            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint });
+          return { batch, payload };
+        } catch (err) {
+          console.error(`[SRT Pipeline Batch Error]`, err);
+          // Fall back gracefully so the single batch retry system can recover it
+          return { batch, payload: { prompts: [] } };
+        }
+      })
+    );
+
+    for (const { batch, payload } of groupResults) {
+      const validatedBatch = validatePromptBatch(batch, payload);
+      validatedBatch.forEach((val, rowNumber) => {
+        promptMap.set(rowNumber, val.prompt);
+        if (val.texto_adicional) {
+          textoAdicionalMap.set(rowNumber, val.texto_adicional);
+        }
+      });
+    }
   }
 
   return { promptMap, textoAdicionalMap };

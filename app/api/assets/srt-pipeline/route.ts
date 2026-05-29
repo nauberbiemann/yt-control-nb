@@ -239,10 +239,11 @@ const parseJsonResponse = (rawContent: string): PromptResponseShape => {
   }
 };
 
-// Map also tracks which rows used a fallback so the UI can offer regeneration
-const fallbackRows = new Set<number>();
-
-const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseShape) => {
+const validatePromptBatch = (
+  items: PromptBatchItem[],
+  payload: PromptResponseShape,
+  localFallbackRows: Set<number>
+) => {
   const expectedRows = new Set(items.map((item) => item.row_number));
   const promptMap = new Map<number, { prompt: string; texto_adicional?: any }>();
 
@@ -272,7 +273,7 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
           fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
         }
         promptMap.set(item.row_number, { prompt: fallback });
-        fallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
+        localFallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
       }
     }
   }
@@ -470,6 +471,7 @@ const generatePromptMap = async ({
   const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
   const promptMap = new Map<number, string>();
   const textoAdicionalMap = new Map<number, any>();
+  const localFallbackRows = new Set<number>();
 
   // Dynamic hint based on video format (Faceless, Vlog, or Avatar)
   const facelessHint = videoFormat === 'faceless'
@@ -499,7 +501,7 @@ const generatePromptMap = async ({
     );
 
     for (const { batch, payload } of groupResults) {
-      const validatedBatch = validatePromptBatch(batch, payload);
+      const validatedBatch = validatePromptBatch(batch, payload, localFallbackRows);
       validatedBatch.forEach((val, rowNumber) => {
         promptMap.set(rowNumber, val.prompt);
         if (val.texto_adicional) {
@@ -509,7 +511,7 @@ const generatePromptMap = async ({
     }
   }
 
-  return { promptMap, textoAdicionalMap };
+  return { promptMap, textoAdicionalMap, localFallbackRows };
 };
 
 export async function POST(req: NextRequest) {
@@ -538,7 +540,7 @@ export async function POST(req: NextRequest) {
       }
 
       const promptItems = body.batchItems as PromptBatchItem[];
-      const { promptMap, textoAdicionalMap } = await generatePromptMap({
+      const { promptMap, textoAdicionalMap, localFallbackRows } = await generatePromptMap({
         engine,
         model,
         apiKey,
@@ -556,10 +558,10 @@ export async function POST(req: NextRequest) {
           ? enforceVideoPromptGuards(promptMap.get(item.row_number) || '', characterDescription)
           : promptMap.get(item.row_number) || '',
         texto_adicional: textoAdicionalMap.get(item.row_number),
-        isFallback: fallbackRows.has(item.row_number), // 🏷️ Let UI know which rows need regeneration
+        isFallback: localFallbackRows.has(item.row_number), // 🏷️ Let UI know which rows need regeneration
       }));
 
-      return NextResponse.json({ prompts, hasFallbacks: fallbackRows.size > 0 });
+      return NextResponse.json({ prompts, hasFallbacks: localFallbackRows.size > 0 });
     }
 
     // Legacy / Full-File Mode Branch

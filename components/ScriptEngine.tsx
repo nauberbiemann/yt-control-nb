@@ -2252,14 +2252,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                 console.error(`[Lote ${chunkIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
                 data = {
                   prompts: batch.map((item: any) => {
-                    const fallback =
-                      item.asset === 'text'
-                        ? 'Clean'
-                        : item.asset === 'hyperframe'
-                        ? item.template_name || 'hf_break'
-                        : item.asset === 'image'
-                        ? `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`
-                        : `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+                    let fallback = 'Clean';
+                    if (item.asset === 'text') {
+                      fallback = 'Clean';
+                    } else if (item.asset === 'hyperframe') {
+                      fallback = item.template_name || 'hf_break';
+                    } else if (item.asset === 'image') {
+                      fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
+                    } else {
+                      fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+                    }
                     return {
                       rowNumber: item.row_number,
                       prompt: fallback,

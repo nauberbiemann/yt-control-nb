@@ -379,12 +379,23 @@ export const buildPromptTxtOutputs = (rows: SrtAssetRow[]) => {
   const videoLines: string[] = [];
   const imageLines: string[] = [];
 
+  // Determine if the rows are from a faceless video by checking if there's a faceless video type.
+  // We can also check if we have kinetic/camera prompts in hyperframes.
+  const isFaceless = rows.some((row) => normalizeAssetType(row.asset) === 'hyperframe' && row.prompt.includes('📷'));
+
   rows.forEach((row) => {
     const rawPrompt = sanitizePrompt(row.prompt || '');
     if (!rawPrompt) return;
 
     const assetType = normalizeAssetType(row.asset);
-    const isFacelessHf = assetType === 'hyperframe' && rawPrompt.includes('📷');
+    
+    // In AVATAR or VLOG modes, HyperFrames are simple overlay templates (e.g. "hf_focus").
+    // They should NOT be treated as B-roll or visual prompts, and must be completely excluded from TXT files.
+    if (assetType === 'hyperframe' && !isFaceless) {
+      return;
+    }
+
+    const isFacelessHf = assetType === 'hyperframe' && isFaceless;
     const prefix = isFacelessHf ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
     
     // Clean up "📷HyperFrames by HeyGen" and other similar HeyGen camera prefixes dynamically

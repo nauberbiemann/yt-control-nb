@@ -261,14 +261,16 @@ const validatePromptBatch = (items: PromptBatchItem[], payload: PromptResponseSh
     );
     for (const item of items) {
       if (!promptMap.has(item.row_number)) {
-        const fallback =
-          item.asset === 'text'
-            ? 'Clean'
-            : item.asset === 'hyperframe'
-            ? item.template_name || 'hf_break'
-            : item.asset === 'image'
-            ? `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`
-            : `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+        let fallback = 'Clean';
+        if (item.asset === 'text') {
+          fallback = 'Clean';
+        } else if (item.asset === 'hyperframe') {
+          fallback = item.template_name || 'hf_break';
+        } else if (item.asset === 'image') {
+          fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
+        } else {
+          fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+        }
         promptMap.set(item.row_number, { prompt: fallback });
         fallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
       }

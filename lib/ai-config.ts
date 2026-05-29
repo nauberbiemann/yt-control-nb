@@ -89,7 +89,10 @@ export function resolveModel(modelId: string): string {
  */
 export function isReasoningModel(modelId: string): boolean {
   const resolved = resolveModel(modelId);
-  return (resolved.startsWith('o1') || resolved.startsWith('o3') || resolved.startsWith('gpt-5')) && !resolved.includes('mini') && !resolved.includes('nano');
+  if (resolved.startsWith('o1') || resolved.startsWith('o3') || resolved.startsWith('o4')) {
+    return true;
+  }
+  return resolved.startsWith('gpt-5') && !resolved.includes('mini') && !resolved.includes('nano');
 }
 
 /**

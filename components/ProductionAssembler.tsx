@@ -653,7 +653,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
   const hooks = uniqueComponents.filter(c => c.type === 'Hook');
   const ctas = uniqueComponents.filter(c => c.type === 'CTA');
   const titleStructures = uniqueComponents.filter(c => c.type === 'Title Structure');
-  const communityItems  = uniqueComponents.filter(c => c.type === 'Community');
+  const communityItems = uniqueComponents.filter(c => c.type === 'Community');
   const narrativeCurves = uniqueComponents.filter(c => c.type === 'Narrative Curve');
   const argumentModes = uniqueComponents.filter(c => c.type === 'Argument Mode');
   const repetitionRules = uniqueComponents.filter(c => c.type === 'Repetition Rule');
@@ -879,14 +879,14 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         : selectedPipelineLevel; // graceful fallback if no pillars configured yet
 
       const selectedHook = hooks.find(h => h.id === data.selectedHookId) || hooks[0];
-      const selectedCta  = ctas.find(c => c.id === data.selectedCtaId)   || ctas[0];
+      const selectedCta = ctas.find(c => c.id === data.selectedCtaId) || ctas[0];
       const selectedTitleStructure = titleStructures.find(t => t.id === data.selectedTitleStructureId) || titleStructures[0];
       const selectedNarrativeCurve = narrativeCurves.find(c => c.id === data.selectedCurveId);
       const selectedArgumentMode = argumentModes.find(c => c.id === data.selectedArgumentModeId);
       const selectedRepetitionRules = (Array.isArray(data.selectedRepetitionRuleIds) ? data.selectedRepetitionRuleIds : [])
         .map((id: string) => repetitionRules.find(rule => rule.id === id))
         .filter(Boolean);
-      const midCtaAsset  = data.midCta?.id ? ctas.find(c => c.id === data.midCta.id) : null;
+      const midCtaAsset = data.midCta?.id ? ctas.find(c => c.id === data.midCta.id) : null;
       const sessionHistoryCount = Number(data?.diagnostics?.recentUsage?.sourceBreakdown?.session || 0);
       const registeredHistoryCount = Number(data?.diagnostics?.recentUsage?.sourceBreakdown?.registered || 0);
       const historySourceLabel =
@@ -903,7 +903,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             : 'O motor usou apenas o historico registrado do projeto ativo para travar uma composicao menos repetitiva e menos previsivel.';
 
       // â”€â”€ HARD ENFORCE: duration must be within [minDuration, maxDuration] â”€â”€â”€â”€â”€â”€
-      const aiMinutes  = data.estimatedDurationMinutes;
+      const aiMinutes = data.estimatedDurationMinutes;
       const lockedMinutes = Number(data?.diagnostics?.locked?.durationMinutes || 0);
       const finalMinutes = (lockedMinutes && lockedMinutes >= minDuration && lockedMinutes <= maxDuration)
         ? lockedMinutes
@@ -1004,7 +1004,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
       const blockCount = blocks.length;
 
       const hookCode = (selectedHook?.id || 'HOOK').slice(0, 4).toUpperCase();
-      const ctaCode  = (selectedCta?.id  || 'CTA' ).slice(0, 4).toUpperCase();
+      const ctaCode = (selectedCta?.id || 'CTA').slice(0, 4).toUpperCase();
       const compositionLogId = `V15-${hookCode}-${ctaCode}-${Date.now().toString(36).toUpperCase()}`;
 
       setBriefing({
@@ -1192,7 +1192,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                   Analise Simplificada ({gatekeeperResult.fallbackReason === 'parse_error' ? 'Falha no Motor IA' : 'Sem Chave de API'})
                 </p>
                 <p className="text-xs text-yellow-300/60 leading-relaxed">
-                  {gatekeeperResult.fallbackMessage 
+                  {gatekeeperResult.fallbackMessage
                     ? `Erro da API: ${gatekeeperResult.fallbackMessage}`
                     : gatekeeperResult.fallbackReason === 'parse_error'
                       ? 'A Inteligencia Artificial retornou dados em um formato invalido. O Gatekeeper aplicou a analise algoritmica local como plano de seguranca.'
@@ -1330,14 +1330,14 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[ 
-                { label: 'Duracao',    value: briefing.estimatedDuration },
-                { label: 'Blocos',     value: `${briefing.blockCount} blocos` },
-                { label: 'Voz Dom.',   value: briefing.dominantVoice.split(' ')[0] },
+              {[
+                { label: 'Duracao', value: briefing.estimatedDuration },
+                { label: 'Blocos', value: `${briefing.blockCount} blocos` },
+                { label: 'Voz Dom.', value: briefing.dominantVoice.split(' ')[0] },
                 { label: 'Caracteres', value: `~${briefing.estimatedChars.toLocaleString('pt-BR')}` },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center p-3 bg-white/5 border border-white/10 rounded-xl">
-                <span className="text-[11px] font-black uppercase tracking-widest text-white/30 block mb-1">{label}</span>
+                  <span className="text-[11px] font-black uppercase tracking-widest text-white/30 block mb-1">{label}</span>
                   <span className="text-sm font-black text-white">{value}</span>
                 </div>
               ))}
@@ -1403,13 +1403,12 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               <div className="flex items-center justify-between px-3 py-2 bg-white/[0.02] border border-white/5 rounded-xl gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-black uppercase tracking-[2px] text-white/25">Motor Anti-Repetição</span>
-                  <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${
-                    briefing.diagnostics.noveltyScore >= 70
+                  <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${briefing.diagnostics.noveltyScore >= 70
                       ? 'border-green-500/30 text-green-400/80 bg-green-500/5'
                       : briefing.diagnostics.noveltyScore >= 40
                         ? 'border-yellow-500/30 text-yellow-400/80 bg-yellow-500/5'
                         : 'border-red-500/30 text-red-400/80 bg-red-500/5'
-                  }`}>
+                    }`}>
                     Score {briefing.diagnostics.noveltyScore}
                   </span>
                 </div>
@@ -1422,7 +1421,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
             {/* Modular Structure */}
             <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden mt-4">
-              <div 
+              <div
                 onClick={() => setIsLegoExpanded(!isLegoExpanded)}
                 className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-colors select-none group"
               >
@@ -1439,7 +1438,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                   <ChevronDown size={14} />
                 </div>
               </div>
-              
+
               <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isLegoExpanded ? 'grid-rows-[1fr] opacity-100 p-4 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
                 <div className="min-h-0">
                   <div className="space-y-2">
@@ -1453,11 +1452,10 @@ export default function ProductionAssembler({ components, componentsHydrated = t
                       return (
                         <div key={block.id}>
                           <div
-                            className={`flex items-start gap-3 p-3.5 border rounded-xl group transition-all ${
-                              isTwist
+                            className={`flex items-start gap-3 p-3.5 border rounded-xl group transition-all ${isTwist
                                 ? 'bg-amber-500/5 border-amber-500/30 ring-1 ring-amber-500/20'
                                 : 'bg-white/[0.02] border-white/5 hover:border-white/10'
-                            }`}
+                              }`}
                           >
                             <span className={`text-xs font-black w-5 shrink-0 pt-0.5 ${isTwist ? 'text-amber-400/60' : 'text-white/30'}`}>{String(i + 1).padStart(2, '0')}</span>
                             <div className="flex-1 min-w-0">

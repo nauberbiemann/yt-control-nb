@@ -3,11 +3,23 @@ import { z } from 'zod';
 export const AI_MODELS = {
   openai: [
     { id: 'gpt-5.1',       name: 'GPT-5.1',        isDefault: true  },
+    { id: 'gpt-5.4',       name: 'GPT-5.4',        isDefault: false },
     { id: 'gpt-5.4-mini',  name: 'GPT-5.4 Mini',   isDefault: false },
     { id: 'gpt-5.4-nano',  name: 'GPT-5.4 Nano',   isDefault: false },
+    { id: 'gpt-5.2',       name: 'GPT-5.2',        isDefault: false },
+    { id: 'gpt-5',         name: 'GPT-5',          isDefault: false },
     { id: 'gpt-5-mini',    name: 'GPT-5 Mini',     isDefault: false },
+    { id: 'gpt-5-nano',    name: 'GPT-5 Nano',     isDefault: false },
+    { id: 'gpt-4.1',       name: 'GPT-4.1',        isDefault: false },
+    { id: 'gpt-4.1-mini',  name: 'GPT-4.1 Mini',   isDefault: false },
+    { id: 'gpt-4.1-nano',  name: 'GPT-4.1 Nano',   isDefault: false },
     { id: 'gpt-4o',        name: 'GPT-4o',         isDefault: false },
     { id: 'gpt-4o-mini',   name: 'GPT-4o Mini',    isDefault: false },
+    { id: 'o1',            name: 'o1 (Reasoning)', isDefault: false },
+    { id: 'o1-mini',       name: 'o1-mini (Reasoning)', isDefault: false },
+    { id: 'o3',            name: 'o3 (Reasoning)', isDefault: false },
+    { id: 'o3-mini',       name: 'o3-mini (Reasoning)', isDefault: false },
+    { id: 'o4-mini',       name: 'o4-mini (Reasoning)', isDefault: false },
   ],
   gemini: [
     { id: 'gemini-3-flash',         name: 'Gemini 3 Flash',         isDefault: true  },
@@ -37,18 +49,30 @@ export const DEFAULT_CONFIG: AIConfig = {
  * The DB field ai_engine_rules.gemini_api_model takes priority over this map at runtime.
  */
 export const MODEL_ALIAS_MAP: Record<string, string> = {
-  // OpenAI
-  'gpt-5.1':       'gpt-4o',
+  // OpenAI Models Map
+  'gpt-5.1':       'gpt-5.1',
+  'gpt-5.4':       'gpt-5.4',
   'gpt-5.4-mini':  'gpt-5.4-mini',
   'gpt-5.4-nano':  'gpt-5.4-nano',
-  'gpt-5-mini':    'gpt-4o-mini',
+  'gpt-5.2':       'gpt-5.2',
+  'gpt-5':         'gpt-5',
+  'gpt-5-mini':    'gpt-5-mini',
+  'gpt-5-nano':    'gpt-5-nano',
+  'gpt-4.1':       'gpt-4.1',
+  'gpt-4.1-mini':  'gpt-4.1-mini',
+  'gpt-4.1-nano':  'gpt-4.1-nano',
   'gpt-4o':        'gpt-4o',
   'gpt-4o-mini':   'gpt-4o-mini',
+  'o1':            'o1',
+  'o1-mini':       'o1-mini',
+  'o3':            'o3',
+  'o3-mini':       'o3-mini',
+  'o4-mini':       'o4-mini',
 
-  // Google Gemini
-  'gemini-3-flash':         'gemini-2.5-flash',
-  'gemini-3.1-flash':       'gemini-2.5-flash',
-  'gemini-3.1-pro':         'gemini-2.5-flash',
+  // Google Gemini Models Map
+  'gemini-3-flash':         'gemini-3-flash',
+  'gemini-3.1-flash':       'gemini-3.1-flash',
+  'gemini-3.1-pro':         'gemini-3.1-pro',
   'gemini-2.5-flash':       'gemini-2.5-flash',
   'gemini-2.0-flash':       'gemini-2.0-flash',
   'gemini-3-flash-preview': 'gemini-3-flash-preview',

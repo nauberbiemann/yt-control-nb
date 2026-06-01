@@ -1871,6 +1871,28 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     return compiled;
   };
 
+  const compileUnifiedImagePrompts = (): string => {
+    if (!externalSrtPipeline) return '';
+    const baseText = compilePromptText(externalSrtPipeline.imagePromptsTxt);
+    
+    // In faceless mode, we don't append HyperFrame background image prompts.
+    if (videoFormat === 'faceless') {
+      return baseText;
+    }
+
+    const hfRows = externalSrtPipeline.rows.filter((r: any) => normalizeAssetType(r.asset) === 'hyperframe');
+    if (!hfRows.length) return baseText;
+
+    const hfLines = hfRows.map((r: any) => {
+      const generated = hfBgPrompts?.find((p) => p.rowNumber === r.rowNumber && p.rowNumber !== -1);
+      const promptText = generated?.prompt || `Photorealistic still image of a dark cinematic background representing ${r.texto.slice(0, 60).trim()}, high quality YouTube B-roll style.`;
+      return `HF${r.rowNumber}: ${compilePromptText(promptText)}`;
+    });
+
+    const separator = baseText.trim() ? '\n' : '';
+    return `${baseText}${separator}${hfLines.join('\n')}`;
+  };
+
   const getCharacterSheetPrompt = (char: { name: string; description: string }) => {
     const styleBlock = char.description.toLowerCase().includes('anime') || 
                        char.description.toLowerCase().includes('cartoon') || 
@@ -2500,6 +2522,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const { buildPipelineResult: rebuild } = await import('@/lib/srt-asset-pipeline');
       const updatedPipeline = { ...rebuild(updatedRows, null, videoFormat), generatedAt: externalSrtPipeline.generatedAt };
+      _pipelineResultRef.current = updatedPipeline;
       setExternalSrtPipeline(updatedPipeline);
       persistExecutionSnapshotLocally({ externalSrtPipeline: updatedPipeline });
       showToast(`✅ ${newPromptMap.size} prompt(s) regenerado(s) com sucesso.`);
@@ -3135,6 +3158,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
       setHfBgPrompts(data.prompts);
       try { localStorage.setItem(`yt_hf_bg_${executionStorageKey}`, JSON.stringify(data.prompts)); } catch { /* ignore */ }
+      persistExecutionSnapshotLocally({ hfBgPrompts: data.prompts });
       return data.prompts;
     } catch (err: any) {
       setHfBgPrompts([{ rowNumber: -1, prompt: err?.message || 'Falha desconhecida' }]);
@@ -5052,49 +5076,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                     alert('No formato Faceless, os HyperFrames já são gerados como prompts de vídeo completos na seção de vídeos acima. Não é necessário gerar fundos de imagem.');
                                     return;
                                   }
-                                  setIsGeneratingHfBg(true);
-                                  setHfBgPrompts(null);
-                                  try {
-                                    const hfRows = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe');
-                                    if (!hfRows.length) throw new Error('Nenhum HyperFrame encontrado. Processe o pipeline (Etapa 4) primeiro.');
-                                    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
-                                    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-4.1';
-                                    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
-                                    const res = await fetch('/api/hf-bg-prompts', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        engine,
-                                        model,
-                                        apiKeyOverwrite: apiKey,
-                                        theme: approvedTheme || externalSrtFileName || 'video',
-                                        hfRows: hfRows.map(r => ({
-                                          rowNumber: r.rowNumber,
-                                          startTime: r.startTime,
-                                          texto: r.texto,
-                                          visualState: postScriptPackage?.hfContextTitles?.find(c => {
-                                            if (!c?.timestamp) return false;
-                                            const clean = String(c.timestamp).replace(/[\[\]]/g,'');
-                                            const parts = clean.split(':').map(Number);
-                                            const cSec = parts.length === 2 ? parts[0]*60+parts[1] : parts[0]*3600+parts[1]*60+(parts[2]||0);
-                                            const [rh,rm,rs] = r.startTime.split(':');
-                                            const rSec = Number(rh)*3600 + Number(rm)*60 + Number((rs||'0').split(',')[0]);
-                                            return Math.abs(cSec - rSec) <= 12;
-                                          })?.visualState || 'hf_focus',
-                                        })),
-                                      }),
-                                    });
-                                    const data = await res.json();
-                                    if (!res.ok || data?.error) throw new Error(data?.error || `Erro ${res.status}`);
-                                    if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
-                                    setHfBgPrompts(data.prompts);
-                                    // Dedicated key — independent of snapshot to avoid race conditions
-                                    try { localStorage.setItem(`yt_hf_bg_${executionStorageKey}`, JSON.stringify(data.prompts)); } catch { /* ignore */ }
-                                  } catch (err: any) {
-                                    setHfBgPrompts([{ rowNumber: -1, prompt: err?.message || 'Falha desconhecida' }]);
-                                  } finally {
-                                    setIsGeneratingHfBg(false);
-                                  }
+                                  await generateHfBgPromptsInternal();
                                 }}
                                 disabled={isGeneratingHfBg}
                                 className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
@@ -5109,9 +5091,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const validHf = (hfBgPrompts || []).filter(p => p.rowNumber !== -1);
-                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${compilePromptText(p.prompt)}`).join('\n')) : '';
-                                  copyTextToClipboard(compilePromptText(externalSrtPipeline.imagePromptsTxt) + hfLines, 'Prompts copiados.');
+                                  copyTextToClipboard(compileUnifiedImagePrompts(), 'Prompts copiados.');
                                 }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
@@ -5120,9 +5100,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const validHf = (hfBgPrompts || []).filter(p => p.rowNumber !== -1);
-                                  const hfLines = validHf.length ? ('\n' + validHf.map(p => `HF${p.rowNumber}: ${compilePromptText(p.prompt)}`).join('\n')) : '';
-                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', compilePromptText(externalSrtPipeline.imagePromptsTxt) + hfLines);
+                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', compileUnifiedImagePrompts());
                                 }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                               >
@@ -5145,10 +5123,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           )}
                           <textarea
                             readOnly
-                            value={[
-                              compilePromptText(externalSrtPipeline.imagePromptsTxt),
-                              ...((hfBgPrompts || []).filter(p => p.rowNumber !== -1).map(p => `HF${p.rowNumber}: ${compilePromptText(p.prompt)}`)),
-                            ].filter(Boolean).join('\n') || 'Nenhum prompt de imagem foi gerado para este SRT.'}
+                            value={compileUnifiedImagePrompts() || 'Nenhum prompt de imagem foi gerado para este SRT.'}
                             className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
                           />
                         </div>

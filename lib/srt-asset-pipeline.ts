@@ -92,13 +92,67 @@ const getBrollAsset = (startMs: number, endMs: number): SrtAssetType => {
   return 'imagem';
 };
 
+export const formatMsToSrtTime = (ms: number): string => {
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  const milliseconds = ms % 1000;
+
+  const pad = (n: number, size: number) => String(n).padStart(size, '0');
+  return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(milliseconds, 3)}`;
+};
+
+export const splitLongRows = (rows: SrtAssetRow[], maxDurationMs = 10_000, targetSegmentMs = 6_500): SrtAssetRow[] => {
+  const result: SrtAssetRow[] = [];
+  let nextRowNumber = 1;
+
+  for (const row of rows) {
+    const startMs = parseSrtTimeToMs(row.startTime);
+    const endMs = parseSrtTimeToMs(row.endTime);
+    const totalDuration = endMs - startMs;
+
+    if (totalDuration > maxDurationMs) {
+      const numSegments = Math.ceil(totalDuration / targetSegmentMs);
+      const segmentDuration = Math.round(totalDuration / numSegments);
+      const words = row.texto.trim().split(/\s+/);
+      const totalWords = words.length;
+      const wordsPerSegment = Math.ceil(totalWords / numSegments);
+
+      for (let i = 0; i < numSegments; i++) {
+        const segStartMs = startMs + i * segmentDuration;
+        const segEndMs = i === numSegments - 1 ? endMs : startMs + (i + 1) * segmentDuration;
+
+        const partWords = words.slice(i * wordsPerSegment, (i + 1) * wordsPerSegment);
+        const partText = partWords.join(' ');
+
+        if (partText.trim()) {
+          result.push({
+            ...row,
+            rowNumber: nextRowNumber++,
+            startTime: formatMsToSrtTime(segStartMs),
+            endTime: formatMsToSrtTime(segEndMs),
+            texto: partText,
+          });
+        }
+      }
+    } else {
+      result.push({
+        ...row,
+        rowNumber: nextRowNumber++,
+      });
+    }
+  }
+
+  return result;
+};
+
 export const parseSrtToRows = (srtText: string): SrtAssetRow[] => {
   const content = normalizeLineBreaks(srtText).trim();
   if (!content) return [];
 
   const blocks = content.split(/\n\s*\n/g).map((block) => block.trim()).filter(Boolean);
 
-  return blocks.flatMap((block, index) => {
+  const rawRows = blocks.flatMap((block, index) => {
     const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
     if (lines.length < 3) return [];
 
@@ -113,11 +167,13 @@ export const parseSrtToRows = (srtText: string): SrtAssetRow[] => {
       startTime,
       endTime,
       texto,
-      asset: '',
+      asset: '' as SrtAssetType,
       prompt: '',
       caminho: '',
     }];
   });
+
+  return splitLongRows(rawRows);
 };
 
 export const parseCsvToRows = (csvContent: string): SrtAssetRow[] => {
@@ -398,25 +454,49 @@ export const buildPromptTxtOutputs = (
   const isFaceless = videoFormat === 'faceless';
 
   rows.forEach((row) => {
-    const rawPrompt = sanitizePrompt(row.prompt || '');
-    if (!rawPrompt) return;
-
     const assetType = normalizeAssetType(row.asset);
-    
-    // In AVATAR or VLOG modes, HyperFrames are simple overlay templates (e.g. "hf_focus").
-    // They should NOT be treated as B-roll or visual prompts, and must be completely excluded from TXT files.
-    // Also include a bulletproof check for string prompts containing hf: or hf_ in non-faceless modes to guard against AI glitches.
+    let rawPrompt = sanitizePrompt(row.prompt || '');
+
+    // Fallback dynamic generation if the prompt is empty to avoid omitting rows
+    if (!rawPrompt) {
+      if (assetType === 'texto') {
+        rawPrompt = 'Clean';
+      } else if (assetType === 'hyperframe') {
+        rawPrompt = isFaceless
+          ? `📷HyperFrames by HeyGen. Create a cinematic background animation representing ${row.texto.slice(0, 60).trim()}.`
+          : 'hf_focus';
+      } else if (assetType === 'imagem') {
+        rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
+      } else {
+        rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+      }
+    }
+
+    const isHf = assetType === 'hyperframe';
     const isHfString =
       rawPrompt.startsWith('hf:') ||
       rawPrompt.startsWith('hf_') ||
-      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote)/i.test(rawPrompt) ||
-      rawPrompt.includes('📷HyperFrames by HeyGen');
+      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote)/i.test(rawPrompt);
 
-    if ((assetType === 'hyperframe' || isHfString) && !isFaceless) {
+    // If it's a regular video/image row but the prompt is a hyperframe template, it's an AI glitch.
+    // Replace it with a robust visual prompt fallback instead of skipping, preserving the total count.
+    if (!isHf && isHfString) {
+      if (assetType === 'imagem') {
+        rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
+      } else if (assetType === 'vídeo') {
+        rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+      } else {
+        rawPrompt = 'Clean';
+      }
+    }
+
+    // In AVATAR or VLOG modes, HyperFrames are simple overlay templates (e.g. "hf_focus").
+    // They should NOT be treated as B-roll or visual prompts in the main TXT files.
+    if (isHf && !isFaceless) {
       return;
     }
 
-    const isFacelessHf = assetType === 'hyperframe' && isFaceless;
+    const isFacelessHf = isHf && isFaceless;
     const prefix = isFacelessHf ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
     
     // Globally clean up "📷HyperFrames by HeyGen" and other similar HeyGen camera prefixes dynamically from all prompts

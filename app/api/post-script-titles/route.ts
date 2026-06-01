@@ -114,7 +114,7 @@ const requestWithOpenAI = async ({
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
       { role: 'user', content: prompt },
     ],
     response_format: { type: 'json_object' },

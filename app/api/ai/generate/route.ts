@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       const supportsTemperature = !isReasoningModel(model);
       const requestBody: any = {
         model: apiModel,
-        messages: [{ role: 'system', content: prompt }],
+        messages: [{ role: isReasoningModel(model) ? 'user' : 'system', content: prompt }],
       };
       if (supportsTemperature) requestBody.temperature = 0.8;
       if (responseType === 'json') requestBody.response_format = { type: 'json_object' };

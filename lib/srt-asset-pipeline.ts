@@ -375,6 +375,18 @@ export const finalizeFacelessRows = (
 
 export const sanitizePrompt = (prompt: string) => String(prompt || '').replace(/\s+/g, ' ').trim();
 
+export const cleanHeyGenPrefixes = (prompt: string): string => {
+  let cleaned = String(prompt || '')
+    .replace(/^(?:use\s+)?📷\s*HyperFrames\s+by\s+HeyGen(?:\s+and\s+Image\s+Gen\s+if\s+you\s+need\s+it\s+for\s+assets\s+or\s+like\s+png\s+images\s+of\s+assets\s+without\s+backround\s+to\s+make)?[\s.,;!?]*/i, '')
+    .replace(/^📷\s*HyperFrames\s+by\s+HeyGen[\s.,;!?]*/i, '')
+    .trim();
+  
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return cleaned;
+};
+
 export const buildPromptTxtOutputs = (
   rows: SrtAssetRow[],
   videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
@@ -397,7 +409,8 @@ export const buildPromptTxtOutputs = (
     const isHfString =
       rawPrompt.startsWith('hf:') ||
       rawPrompt.startsWith('hf_') ||
-      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote)/i.test(rawPrompt);
+      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote)/i.test(rawPrompt) ||
+      rawPrompt.includes('📷HyperFrames by HeyGen');
 
     if ((assetType === 'hyperframe' || isHfString) && !isFaceless) {
       return;
@@ -406,20 +419,8 @@ export const buildPromptTxtOutputs = (
     const isFacelessHf = assetType === 'hyperframe' && isFaceless;
     const prefix = isFacelessHf ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
     
-    // Clean up "📷HyperFrames by HeyGen" and other similar HeyGen camera prefixes dynamically
-    let prompt = rawPrompt;
-    if (isFacelessHf) {
-      prompt = rawPrompt
-        .replace(/^(?:use\s+)?📷\s*HyperFrames\s+by\s+HeyGen(?:\s+and\s+Image\s+Gen\s+if\s+you\s+need\s+it\s+for\s+assets\s+or\s+like\s+png\s+images\s+of\s+assets\s+without\s+backround\s+to\s+make)?[\s.,;!?]*/i, '')
-        .replace(/^📷\s*HyperFrames\s+by\s+HeyGen[\s.,;!?]*/i, '')
-        .trim();
-      
-      // Capitalize the first letter of the cleaned prompt if needed
-      if (prompt.length > 0) {
-        prompt = prompt.charAt(0).toUpperCase() + prompt.slice(1);
-      }
-    }
-    
+    // Globally clean up "📷HyperFrames by HeyGen" and other similar HeyGen camera prefixes dynamically from all prompts
+    const prompt = cleanHeyGenPrefixes(rawPrompt);
     const line = `${prefix}: ${prompt}`;
 
     if (assetType === 'vídeo' || isFacelessHf) {

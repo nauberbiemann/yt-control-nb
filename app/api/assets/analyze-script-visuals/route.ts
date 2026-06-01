@@ -30,7 +30,7 @@ async function callOpenAI(apiKey: string, model: string, scriptText: string) {
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
       { role: 'user', content: `Script: \n\n${scriptText}` }
     ],
     response_format: { type: 'json_object' }

@@ -12,6 +12,7 @@ import {
   applyHyperframeRules,
   applyHyperframeExclusionZone,
   finalizeFacelessRows,
+  cleanHeyGenPrefixes,
 } from '@/lib/srt-asset-pipeline';
 
 const BATCH_SIZE_DEFAULT = 10;
@@ -19,7 +20,7 @@ const BATCH_SIZE_REASONING = 6; // Reasoning models handle smaller batches more 
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
 
 export const maxDuration = 60;
-const SYSTEM_INSTRUCTIONS = `
+const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
@@ -34,8 +35,10 @@ Rules for asset types:
 - asset == "video":
   - First, identify what is being described in the subtitle text: a character action, historical scene, feeling, concept, process, place, or personal moment.
   - CRITICAL - NARRATIVE CHARACTERS VS PRESENTERS (HOSTS):
-    - "Presenter/Host": This is the virtual speaker (e.g. a modern tech presenter, health mentor, or coach at a desk). In FACELESS MODE, the Presenter/Host is completely BANNED. Never show a presenter reacting, pointing, or speaking to the camera in home studio environments.
-    - "Narrative Characters": These are historical, epic, or fictional figures described in the story (e.g., "Fulgrim", "The Emperor", "soldiers", "knights", "primarchs"). In FACELESS MODE, if the subtitle text describes actions, thoughts, or settings involving these story characters, you MUST actively visualize these characters in cinematic, dramatic, and high-fidelity action or environmental compositions aligned with the visual style! Never drop them.
+    - "Presenter/Host": This is the virtual speaker (e.g. a modern tech presenter, health mentor, or coach at a desk).
+      - In FACELESS MODE, the Presenter/Host is completely BANNED. Never show a presenter reacting, pointing, or speaking to the camera.
+      - In AVATAR MODE, the Synthesized Avatar is already speaking on screen during 'avatar' parts. Therefore, in B-rolls (video/image assets), the presenter/host MUST NEVER be shown or visualized. Keep them out of B-roll prompts entirely and focus purely on setting/narrative/concepts. Only in VLOG mode can the presenter be shown in a handheld camera setup.
+    - "Narrative Characters": These are historical, epic, or fictional figures described in the story (e.g., "Fulgrim", "The Emperor", "soldiers", "knights", "primarchs"). In FACELESS or AVATAR modes, if the subtitle text describes actions, thoughts, or settings involving these story characters, you MUST actively visualize these characters in cinematic, dramatic, and high-fidelity action or environmental compositions aligned with the visual style! Never drop them.
   - CRITICAL - ANTI-LITERAL METAPHOR GUARD:
     - If the subtitle text uses corporate, technical, or structural metaphors (e.g. "machine", "gears", "mechanism", "cog", "architecture", "system", "vector", "corrosion"): Do NOT visualize these terms literally. NEVER generate generic factory cogs, mechanical brass gears, industrial robot arms, green digital matrix grids, or circuit boards unless the script is literally about mechanical clocks or computers.
     - Instead, translate these metaphors into grand, atmospheric visual symbols aligned with the aesthetic theme. For example, in a dark sci-fi/gothic (Grimdark) setting, "machine/system/architecture" should be visualized as colossal gothic spaceships, decaying cathedral structures in deep space, stone gargoyles crumbling under ash, or armor of ancient metal corroding under volumetric light.
@@ -43,11 +46,13 @@ Rules for asset types:
   - For live-action / cinematic prompts WITH narrative characters or environments: begin with "Realistic cinematic video of" or "Cinematic epic shot of" and describe the scene with dynamic details. Always add ambient sound only, no dialogue, no voice-over.
   - For 3D/abstract prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
   - For video prompts, include enquadramento e câmera details (e.g. volumetric dust, cinematic lighting, shallow depth of field, panning, macro shot, dramatic backlight).
+  - CRITICAL PREFIX RULE: Do NOT include "📷HyperFrames by HeyGen" or any HeyGen tag/prefix in video prompts. HeyGen tags are strictly banned for regular video assets in all formats.
 - asset == "image":
   - Always create a realistic still image prompt.
   - The image must directly and metaphorically illustrate the SPECIFIC concept, story character, object, emotion, or situation described in the subtitle text.
   - Follow the same NARRATIVE CHARACTER and ANTI-LITERAL rules as the video prompts.
   - The prompt must begin with "Photorealistic still image of".
+  - CRITICAL PREFIX RULE: Do NOT include "📷HyperFrames by HeyGen" or any HeyGen tag/prefix in image prompts. HeyGen tags are strictly banned for regular image assets in all formats.
 - asset == "text":
   - Read the current subtitle text provided as context.
   - Determine the emotion, urgency, and tone of what is being said.
@@ -63,6 +68,7 @@ Rules for asset types:
       - Return the JSON inside the 'texto_adicional' property. The 'prompt' property must echo just the template_name.
       - CRITICAL: The HTML templates read the fields 'title', 'subtitle', and 'metrics' from the JSON. Use exactly these keys.
       - ALL schemas must also include a 'background_prompt' field: a 1-sentence English image generation prompt for the background behind the overlay. This prompt MUST be aligned with the 'Channel Visual Identity' if provided, otherwise use a dark cinematic default. The background must be dark, have no readable text, and leave the overlay legible.
+      - CRITICAL: Do NOT write "📷HyperFrames by HeyGen" or HeyGen tags inside the background_prompt or title/subtitle fields.
       - CRITICAL TEXT RULES (apply to ALL schemas):
         - NEVER copy the subtitle text verbatim into any field. Always reinterpret the idea in your own words.
         - 'title' must be a short, punchy phrase (3-7 words max) that captures the CORE IDEA — not the literal subtitle.
@@ -317,7 +323,7 @@ const generateBatchWithOpenAI = async ({
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
       {
         role: 'user',
         content: [
@@ -326,10 +332,17 @@ const generateBatchWithOpenAI = async ({
           `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
           videoFormat === 'faceless'
             ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
-            : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
+            : videoFormat === 'vlog'
+            ? `Recurring presenter character reference: ${characterDescription}`
+            : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
           visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
           visualBlueprint?.cast && visualBlueprint.cast.length > 0
-            ? `Consistent Characters (Narrative Cast) - When any character listed here is mentioned, you MUST represent them using their name in brackets [Character Name], e.g. [Fulgrim] doing something: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
+            ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
+1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
+2. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
+3. NEVER write the name of the character in plain text without brackets.
+4. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
+Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
             : '',
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
@@ -404,10 +417,17 @@ const generateBatchWithGemini = async ({
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
               videoFormat === 'faceless'
                 ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
-                : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment): ${characterDescription}`,
+                : videoFormat === 'vlog'
+                ? `Recurring presenter character reference: ${characterDescription}`
+                : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
               visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
               visualBlueprint?.cast && visualBlueprint.cast.length > 0
-                ? `Consistent Characters (Narrative Cast) - When any character listed here is mentioned, you MUST represent them using their name in brackets [Character Name], e.g. [Fulgrim] doing something: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
+                ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
+1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
+2. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
+3. NEVER write the name of the character in plain text without brackets.
+4. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
+Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
                 : '',
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
@@ -552,14 +572,21 @@ export async function POST(req: NextRequest) {
         visualBlueprint,
       });
 
-      const prompts = promptItems.map((item) => ({
-        rowNumber: item.row_number,
-        prompt: item.asset === 'video'
-          ? enforceVideoPromptGuards(promptMap.get(item.row_number) || '', characterDescription)
-          : promptMap.get(item.row_number) || '',
-        texto_adicional: textoAdicionalMap.get(item.row_number),
-        isFallback: localFallbackRows.has(item.row_number), // 🏷️ Let UI know which rows need regeneration
-      }));
+      const prompts = promptItems.map((item) => {
+        let finalPrompt = promptMap.get(item.row_number) || '';
+        const isFacelessHf = item.asset === 'hyperframe' && videoFormat === 'faceless';
+        if (!isFacelessHf) {
+          finalPrompt = cleanHeyGenPrefixes(finalPrompt);
+        }
+        return {
+          rowNumber: item.row_number,
+          prompt: item.asset === 'video'
+            ? enforceVideoPromptGuards(finalPrompt, characterDescription)
+            : finalPrompt,
+          texto_adicional: textoAdicionalMap.get(item.row_number),
+          isFallback: localFallbackRows.has(item.row_number), // 🏷️ Let UI know which rows need regeneration
+        };
+      });
 
       return NextResponse.json({ prompts, hasFallbacks: localFallbackRows.size > 0 });
     }
@@ -597,7 +624,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { promptMap, textoAdicionalMap } = await generatePromptMap({
+      const { promptMap, textoAdicionalMap, localFallbackRows } = await generatePromptMap({
         engine,
         model,
         apiKey,
@@ -609,13 +636,21 @@ export async function POST(req: NextRequest) {
         visualBlueprint,
       });
 
-      rowsWithPrompts = finalRows.map((row) => ({
-        ...row,
-        prompt: normalizeAssetType(row.asset) === 'vídeo'
-          ? enforceVideoPromptGuards(promptMap.get(row.rowNumber) || row.prompt, characterDescription)
-          : promptMap.get(row.rowNumber) || row.prompt,
-        texto_adicional: textoAdicionalMap.get(row.rowNumber),
-      }));
+      rowsWithPrompts = finalRows.map((row) => {
+        let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;
+        const isFacelessHf = normalizeAssetType(row.asset) === 'hyperframe' && videoFormat === 'faceless';
+        if (!isFacelessHf) {
+          finalPrompt = cleanHeyGenPrefixes(finalPrompt);
+        }
+        return {
+          ...row,
+          prompt: normalizeAssetType(row.asset) === 'vídeo'
+            ? enforceVideoPromptGuards(finalPrompt, characterDescription)
+            : finalPrompt,
+          texto_adicional: textoAdicionalMap.get(row.rowNumber),
+          isFallback: localFallbackRows.has(row.rowNumber),
+        };
+      });
     }
 
     return NextResponse.json(buildPipelineResult(rowsWithPrompts, null, videoFormat));

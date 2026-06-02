@@ -275,10 +275,17 @@ export const calculateSrtSeed = (srtText: string): number => {
 
 export const applyAssetRules = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar',
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar',
   srtText = ''
 ) => {
   if (!rows.length) return rows;
+
+  if (videoFormat === 'avatar_flow') {
+    return rows.map((row) => ({
+      ...row,
+      asset: 'avatar' as SrtAssetType,
+    }));
+  }
 
   const combinedText = srtText || rows.map((r) => r.texto).join(' ');
   const seed = calculateSrtSeed(combinedText);
@@ -415,7 +422,7 @@ export const applyAssetRules = (
 
 export const finalizeFacelessRows = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
 ): SrtAssetRow[] => {
   if (videoFormat !== 'faceless') return rows;
   return rows.map((row) => {
@@ -445,8 +452,47 @@ export const cleanHeyGenPrefixes = (prompt: string): string => {
 
 export const buildPromptTxtOutputs = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
 ) => {
+  if (videoFormat === 'avatar_flow') {
+    const videoLines: string[] = [];
+    const AVATAR_FLOW_ANGLES = [
+      '3/4 view lado esquerdo',
+      '3/4 view lado direito',
+      'perfil lado esquerdo',
+      'perfil lado direito',
+      'over the shoulder',
+      'over view (de cima)',
+      'low angle',
+      'high angle',
+      'close-up frontal'
+    ];
+    let lastAngleUsed = '';
+
+    rows.forEach((row) => {
+      const rowNum = row.rowNumber;
+      const isOdd = rowNum % 2 !== 0;
+      const cleanText = row.texto.trim();
+
+      if (isOdd) {
+        const line = `Cena${String(rowNum).padStart(3, '0')} 4k. Camera fixa, Personagem001 falando: "${cleanText}"`;
+        videoLines.push(line);
+      } else {
+        const availableAngles = AVATAR_FLOW_ANGLES.filter((angle) => angle !== lastAngleUsed);
+        const chosenAngle = availableAngles[rowNum % availableAngles.length];
+        lastAngleUsed = chosenAngle;
+
+        const line = `Cena${String(rowNum).padStart(3, '0')} 4k. Camera fixa, Personagem001 ${chosenAngle} falando: "${cleanText}"`;
+        videoLines.push(line);
+      }
+    });
+
+    return {
+      videoPromptsTxt: videoLines.join('\n'),
+      imagePromptsTxt: '',
+    };
+  }
+
   const videoLines: string[] = [];
   const imageLines: string[] = [];
 
@@ -676,7 +722,7 @@ const findClosestAvatarRow = (
   rows: SrtAssetRow[],
   targetRatio: number,
   usedIndices: Set<number>,
-  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
 ): number => {
   const total = rows.length;
   const guardStart = Math.floor(total * 0.10);
@@ -754,8 +800,9 @@ const findClosestAvatarRow = (
  */
 export const applyHyperframeRules = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
 ): SrtAssetRow[] => {
+  if (videoFormat === 'avatar_flow') return rows;
   const result = rows.map((r) => ({ ...r }));
   const used          = new Set<number>();
   const usedTemplates = new Set<string>(); // Phase C: track assigned template names
@@ -1023,7 +1070,7 @@ export const applyHyperframeExclusionZone = (
 export const buildPipelineResult = (
   rows: SrtAssetRow[],
   textRender: SrtTextRenderInfo | null = null,
-  videoFormat: 'avatar' | 'faceless' | 'vlog' = 'avatar',
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar',
 ): SrtAssetPipelineResult => {
   const normalizedRows = rows.map((row) => ({
     ...row,

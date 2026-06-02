@@ -58,7 +58,7 @@ type ExecutionMode = 'internal' | 'external';
 type ScriptStage = 'blueprint' | 'final';
 type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
 type VideoCharacterMode = 'male' | 'female' | 'custom';
-type VideoFormat = 'avatar' | 'faceless' | 'vlog';
+type VideoFormat = 'avatar' | 'faceless' | 'vlog' | 'avatar_flow';
 
 const resolveCharacterProfileInFrontend = (
   mode: VideoCharacterMode,
@@ -955,7 +955,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                 if (typeof cloudSnapshot.externalSrtFileName === 'string') setExternalSrtFileName(cloudSnapshot.externalSrtFileName);
                 if (['male', 'female', 'custom'].includes(cloudSnapshot.videoCharacterMode)) setVideoCharacterMode(cloudSnapshot.videoCharacterMode);
                 if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
-                if (cloudSnapshot.videoFormat === 'faceless' || cloudSnapshot.videoFormat === 'avatar' || cloudSnapshot.videoFormat === 'vlog') setVideoFormat(cloudSnapshot.videoFormat);
+                if (['faceless', 'avatar', 'vlog', 'avatar_flow'].includes(cloudSnapshot.videoFormat)) setVideoFormat(cloudSnapshot.videoFormat);
                 if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
                 if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
                 if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
@@ -998,7 +998,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.externalSrtFileName === 'string') setExternalSrtFileName(snapshot.externalSrtFileName);
       if (['male', 'female', 'custom'].includes(snapshot?.videoCharacterMode)) setVideoCharacterMode(snapshot.videoCharacterMode);
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
-      if (snapshot?.videoFormat === 'faceless' || snapshot?.videoFormat === 'avatar' || snapshot?.videoFormat === 'vlog') setVideoFormat(snapshot.videoFormat);
+      if (['faceless', 'avatar', 'vlog', 'avatar_flow'].includes(snapshot?.videoFormat)) setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
       if (Array.isArray(snapshot?.visualBlueprintCast)) setVisualBlueprintCast(snapshot.visualBlueprintCast);
@@ -1211,7 +1211,20 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const promptBlocks = scriptBlocks.filter((block) => block.type === 'Development');
     const centralDevelopmentBlocks = bodyBlocks.length || promptBlocks.length;
     const totalOutputBlocks = centralDevelopmentBlocks;
-    const communityReferenceCatalog = buildCommunityReferenceCatalog(uniqueCommunityTemplates);
+
+    // Split community elements into Specific (bordões, apelidos, piadas curtas) and Open (posicionamentos, críticas, opiniões)
+    const specificCommunityItems = uniqueCommunityTemplates.filter((item: any) => {
+      const text = ((item?.name || '') + ' ' + (item?.description || '')).toLowerCase();
+      return text.length < 60 && !text.includes('posicionamento') && !text.includes('critica') && !text.includes('critico') && !text.includes('opiniao');
+    });
+    const openCommunityItems = uniqueCommunityTemplates.filter((item: any) => {
+      const text = ((item?.name || '') + ' ' + (item?.description || '')).toLowerCase();
+      return text.length >= 60 || text.includes('posicionamento') || text.includes('critica') || text.includes('critico') || text.includes('opiniao');
+    });
+
+    const specificCommunityCatalog = buildCommunityReferenceCatalog(specificCommunityItems) || 'Nenhum cadastrado';
+    const openCommunityCatalog = buildCommunityReferenceCatalog(openCommunityItems) || 'Nenhum cadastrado';
+
     const projectName = activeProject?.name || activeProject?.project_name || 'Projeto ativo';
     const persona = activeProject?.persona_matrix?.demographics || '';
     const pain = activeProject?.persona_matrix?.pain_alignment || '';
@@ -1349,6 +1362,39 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
           })()
         : null;
 
+      // Calculate progress relative to the entire script (from 0 to 1)
+      const relativeProgress = index / (promptBlocks.length - 1 || 1);
+      const isUnder30Percent = relativeProgress <= 0.3;
+      
+      const ctaType = isUnder30Percent ? 'Nativa/Engajamento' : 'Conversao/Externa';
+      const ctaGuidance = isUnder30Percent
+        ? `- CAMADA CTA (${ctaType} - ate 30% do video): Insira uma chamada sutil de engajamento nativo (ex: curtir, comentar usando piada ou apelido do canal, ou se inscrever) de forma extremamente integrada e sem parecer comercial.`
+        : `- CAMADA CTA (${ctaType} - apos 30% do video): Insira uma transicao/chamada focada em conversao para acao externa (ex: mentoria, produto, link na descricao). O convite deve ser uma evolucao obvia da entrega tecnica do bloco.`;
+
+      const communityReference = orchestratedBlock?.communityElement
+        ? orchestratedBlock.communityElement.replace(/[\p{Emoji}]/gu, '').replace(/\s{2,}/g, ' ').trim()
+        : '';
+
+      const cadenciaRhythmSpec = index === 0
+        ? [
+            `[ESTRUTURA DE CADENCIA - PORTAL DE ENTRADA]`,
+            `- Abertura: Inicie com impacto usando a Voz Dominante. PROIBIDO jargoes como 'Voce ja se perguntou...', 'Imagine que...'.`,
+            `- CTA: Insira uma chamada de engajamento nativo (baixo atrito) no fluxo de contextualizacao.`,
+            communityReference ? `- Elemento de Comunidade Ativo: "${communityReference}". Reinterprete de forma natural.` : '',
+            `- Informacao/Conteudo: Entregue a tese central inicial.`
+          ].filter(Boolean).join('\n')
+        : [
+            `[ESTRUTURA DE CADENCIA NARRATIVA EM 3 TEMPOS]`,
+            `Voce DEVE tecer este bloco intercalando estritamente estas 3 camadas de forma natural:`,
+            `1. CAMADA CTA:`,
+            `   ${ctaGuidance}`,
+            `2. CAMADA DE COMUNIDADE:`,
+            `   - Use e reinterprete ativos da comunidade.`,
+            communityReference ? `   - Ativo especifico selecionado para este bloco: "${communityReference}". Use-o como gatilho de pertencimento.` : '   - Integre referencias de identidade ou jargoes de forma leve.',
+            `3. CAMADA DE INFORMAÇÃO/CONTEÚDO:`,
+            `   - Entregue o nucleo tecnico e a tese de "${block.title}".`
+          ].join('\n');
+
       const blockLines = [
         `BLOCO ${index + 1} - DESENVOLVIMENTO`,
         `Titulo interno: ${block.title}`,
@@ -1359,6 +1405,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         buildExecutionPosture(orchestratedBlock?.voiceStyle, orchestratedBlock?.narrativeRole, selectedArgumentMode),
         `Diretriz estrutural: ${extractPrimaryDirective(block.content)}`,
         `SOP / entonacao: ${block.sop || 'Nao definido'}`,
+        cadenciaRhythmSpec,
         // Inject only the specific stage for this block position
         ...(curveStageForBlock
           ? [`Estagio atual da curva narrativa para este bloco: ${curveStageForBlock}`]
@@ -1380,19 +1427,6 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
         ...connectionLines,
         buildAlignedBridgeInstruction(nextBlock, nextNarrativeBlock),
       ];
-
-      if (orchestratedBlock?.communityElement) {
-        // Strip emojis and special symbols — this is a narration script, cannot be spoken
-        const communityText = orchestratedBlock.communityElement
-          .replace(/[\p{Emoji}]/gu, '')
-          .replace(/\s{2,}/g, ' ')
-          .trim();
-        blockLines.push(`Elemento de comunidade — referencia de identidade coletiva para este bloco: "${communityText}". Reinterprete sem copiar a formulacao literal; use como gatilho de pertencimento.`);
-      }
-
-      if (orchestratedBlock?.isNarrativeTwist) {
-        blockLines.push('Observacao: este e o bloco de virada narrativa e precisa marcar mudanca perceptivel de tensao ou perspectiva.');
-      }
 
       return blockLines.join('\n');
     });
@@ -1464,12 +1498,17 @@ CONTEXTO ESSENCIAL
 - Meta total de caracteres: ${formatCharsLabel(totalChars)}
 - SOP base: corte ${sop.cut_rhythm || 'Nao definido'}, zoom ${sop.zoom_style || 'Nao definido'}, trilha ${sop.soundtrack || 'Nao definido'}
 - Metaforas do projeto: ${metaphors || 'Nao definidas'}
-- Elementos de comunidade disponiveis: ${communityReferenceCatalog || 'Nao definidos'}
+- Elementos de comunidade ESPECIFICOS (bordoes, piadas, apelidos): ${specificCommunityCatalog}
+- Elementos de comunidade ABERTOS (posicionamentos, criticas, opinioes): ${openCommunityCatalog}
 
 IDENTIDADE DO NARRADOR
 ${narratorIdentity}
 - Esta identidade deve ser sentida na escolha de palavras, no nivel de intimidade, na postura diante do assunto e no ponto de entrada de cada bloco.
 - Nao declare a identidade do narrador no texto. Apenas encarne-a.
+
+[DIRETRIZ DE CONTROLE NARRATIVO - CUIDADO COM A IA]
+1. EVITE O EFEITO BARNUM: Nao use adjetivos ou descricoes genericas que se anulam (ex: ser 'acolhedora, firme, pratica e contemplativa' ao mesmo tempo). Assuma uma postura narrativa consistente, clara e sem contradiccoes vagas.
+2. EVITE A SUBMISSAO AO NICHO: As caracteristicas, habitos e gostos do narrador devem ser de uma pessoa real e NAO podem ser apenas redundancias do nicho do canal. Se o canal fala sobre emagrecimento, o habito do narrador nao deve ser apenas 'tomar shake', e sim traços cotidianos independentes (como colecionar vinil, praticar marcenaria ou ouvir lofi de madrugada). Isso gera tridimensionalidade autentica.
 
 DIRECAO ORQUESTRADA
 ${lockedCompositionSection}
@@ -1535,6 +1574,11 @@ REGRAS GERAIS DE ESCRITA
 
 BLUEPRINT BLOCO A BLOCO
 ${blockSpecifications.join('\n\n')}${midCtaSection ? `\n\n${midCtaSection}` : ''}
+${videoFormat === 'avatar_flow' ? `
+[ESTILO DE NARRATIVA OBRIGATÓRIO — AVATAR FLOW]
+- VOCÊ DEVE DIVIDIR RÍGIDAMENTE A NARRAÇÃO EM TRECHOS DE CERCA DE 24 A 26 PALAVRAS POR BLOCO. Cada bloco do blueprint deve conter estritamente essa quantidade de palavras.
+- NUNCA, SOB QUALQUER HIPÓTESE, ABREVIE "Inteligência Artificial" ou qualquer sigla/número que possa causar erro na narração de voz. Escreva tudo POR EXTENSO (ex: escreva "Inteligência Artificial", NUNCA "IA"; "cinquenta por cento" em vez de "50%"; "quinze dias" em vez de "15 dias"; etc.).
+- NÃO INSIRA SUBTÍTULOS SOLTOS. Como isso é uma narração contínua de cena por cena, qualquer subtítulo ou cabeçalho deve ser transformado em fala natural de transição (exemplo: transforme "Por que essa oportunidade não dura para sempre" em algo como "Agora deixa eu te explicar por que essa oportunidade não vai durar para sempre.").` : ''}
 
 FORMATO DE SAIDA
 - Escreva o roteiro inteiro como texto corrido de narrador, sem nenhuma divisao visual.
@@ -2961,6 +3005,88 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     URL.revokeObjectURL(url);
   };
 
+  const downloadAvatarFlowPackage = () => {
+    if (!scriptBlocks.length) {
+      alert('Ainda não há blocos para exportar.');
+      return;
+    }
+
+    const themeTitle = approvedBriefing?.title || approvedTheme || 'roteiro-avatar-flow';
+    const safeFileName = themeTitle
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\s/g, '_')
+      .slice(0, 80) || 'roteiro-avatar-flow';
+
+    const falasLines = scriptBlocks
+      .map((block) => block.content.trim())
+      .filter(Boolean);
+
+    if (falasLines.length === 0) {
+      alert('Os blocos de roteiro estão vazios.');
+      return;
+    }
+
+    const falasContent = falasLines.join('\n');
+    const videoLines: string[] = [];
+    const AVATAR_FLOW_ANGLES = [
+      '3/4 view lado esquerdo',
+      '3/4 view lado direito',
+      'perfil lado esquerdo',
+      'perfil lado direito',
+      'over the shoulder',
+      'over view (de cima)',
+      'low angle',
+      'high angle',
+      'close-up frontal'
+    ];
+    let lastAngleUsed = '';
+
+    falasLines.forEach((text, index) => {
+      const rowNum = index + 1;
+      const isOdd = rowNum % 2 !== 0;
+
+      if (isOdd) {
+        const line = `Cena${String(rowNum).padStart(3, '0')} 4k. Camera fixa, Personagem001 falando: "${text}"`;
+        videoLines.push(line);
+      } else {
+        const availableAngles = AVATAR_FLOW_ANGLES.filter((angle) => angle !== lastAngleUsed);
+        const chosenAngle = availableAngles[rowNum % availableAngles.length];
+        lastAngleUsed = chosenAngle;
+
+        const line = `Cena${String(rowNum).padStart(3, '0')} 4k. Camera fixa, Personagem001 ${chosenAngle} falando: "${text}"`;
+        videoLines.push(line);
+      }
+    });
+
+    const videoPromptsContent = videoLines.join('\n');
+
+    const blobVideo = new Blob([videoPromptsContent], { type: 'text/plain;charset=utf-8' });
+    const urlVideo = URL.createObjectURL(blobVideo);
+    const linkVideo = document.createElement('a');
+    linkVideo.href = urlVideo;
+    linkVideo.download = `${safeFileName}_prompts_video.txt`;
+    document.body.appendChild(linkVideo);
+    linkVideo.click();
+    document.body.removeChild(linkVideo);
+    URL.revokeObjectURL(urlVideo);
+
+    setTimeout(() => {
+      const blobFalas = new Blob([falasContent], { type: 'text/plain;charset=utf-8' });
+      const urlFalas = URL.createObjectURL(blobFalas);
+      const linkFalas = document.createElement('a');
+      linkFalas.href = urlFalas;
+      linkFalas.download = `${safeFileName}_falas.txt`;
+      document.body.appendChild(linkFalas);
+      linkFalas.click();
+      document.body.removeChild(linkFalas);
+      URL.revokeObjectURL(urlFalas);
+    }, 150);
+  };
+
   const hasFinalScript = scriptStage === 'final' && scriptBlocks.some((block) => String(block.content || '').trim());
   const hasExternalScriptSource = !!externalScriptText.trim();
   const canProcessPostScriptPackage = hasFinalScript || hasExternalScriptSource;
@@ -4058,13 +4184,23 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             >
               <Copy size={20} />
             </button>
-            <button
-              onClick={downloadScriptAsTxt}
-              className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
-              title="Baixar todos os blocos atuais em um unico arquivo .txt"
-            >
-              <FileText size={20} />
-            </button>
+            {videoFormat === 'avatar_flow' ? (
+              <button
+                onClick={downloadAvatarFlowPackage}
+                className="flex items-center gap-2 px-4 py-3 bg-violet-600/25 text-violet-200 rounded-xl hover:bg-violet-600/45 hover:text-white transition-all border border-violet-500/30 font-bold uppercase tracking-wider text-[10px]"
+                title="Exportar Pacote Avatar Flow (Prompts de Vídeo + Falas Limpas para Produção Sem SRT)"
+              >
+                🎬 Exportar Pacote Flow
+              </button>
+            ) : (
+              <button
+                onClick={downloadScriptAsTxt}
+                className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
+                title="Baixar todos os blocos atuais em um unico arquivo .txt"
+              >
+                <FileText size={20} />
+              </button>
+            )}
             <button 
               onClick={async () => {
                 if (!approvedBriefing) return alert('Aprove um assembly antes de gerar o roteiro.');
@@ -4558,11 +4694,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
                     <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {([
                         { value: 'avatar', label: 'Apresentador' },
                         { value: 'vlog', label: 'VLOG' },
                         { value: 'faceless', label: 'Faceless' },
+                        { value: 'avatar_flow', label: 'Avatar Flow' },
                       ] as { value: VideoFormat; label: string }[]).map((option) => {
                         const selected = videoFormat === option.value;
                         return (
@@ -4594,6 +4731,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                     {videoFormat === 'avatar' && (
                       <p className="text-[9px] text-purple-400/70 leading-relaxed">
                         Modo Apresentador: personagem no home office/cenário fixo com inserções de B-roll frequentes.
+                      </p>
+                    )}
+                    {videoFormat === 'avatar_flow' && (
+                      <p className="text-[9px] text-violet-400/80 leading-relaxed">
+                        Modo Avatar Flow: Roteiro em blocos de ~25 palavras. Prompts com alternância de ângulos cinematográficos para Personagem001 gerados de forma rápida, sem depender de SRT para começar.
                       </p>
                     )}
                   </div>

@@ -4694,7 +4694,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
                     <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {([
                         { value: 'avatar', label: 'Apresentador' },
                         { value: 'vlog', label: 'VLOG' },

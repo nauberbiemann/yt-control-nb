@@ -60,6 +60,15 @@ type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
 type VideoCharacterMode = 'male' | 'female' | 'custom';
 type VideoFormat = 'avatar' | 'faceless' | 'vlog' | 'avatar_flow';
 
+const resolveErrorMessage = (errPayload: any, fallback: string): string => {
+  if (!errPayload) return fallback;
+  if (typeof errPayload === 'string') return errPayload;
+  if (typeof errPayload === 'object') {
+    return errPayload.message || errPayload.code || JSON.stringify(errPayload);
+  }
+  return fallback;
+};
+
 const resolveCharacterProfileInFrontend = (
   mode: VideoCharacterMode,
   format: VideoFormat,
@@ -2000,7 +2009,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao analisar o roteiro.');
+        throw new Error(resolveErrorMessage(data?.error, 'Falha ao analisar o roteiro.'));
       }
 
       const setting = data.setting || '';
@@ -2307,7 +2316,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
               }
 
               if (!res.ok || data?.error) {
-                throw new Error(data?.error || `Falha do servidor (Status ${res.status})`);
+                throw new Error(resolveErrorMessage(data?.error, `Falha do servidor (Status ${res.status})`));
               }
 
               success = true;
@@ -2532,7 +2541,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           }
 
           if (!res.ok || data?.error) {
-            throw new Error(data?.error || `Falha do servidor (Status ${res?.status})`);
+            throw new Error(resolveErrorMessage(data?.error, `Falha do servidor (Status ${res?.status})`));
           }
 
           break;
@@ -2623,7 +2632,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }),
     });
     const data = await res.json();
-    if (!res.ok || data?.error) throw new Error(data?.error || 'Falha ao regenerar prompts incompletos.');
+    if (!res.ok || data?.error) throw new Error(resolveErrorMessage(data?.error, 'Falha ao regenerar prompts incompletos.'));
 
     const newPromptMap = new Map<number, string>();
     (data?.prompts || []).forEach((p: any) => {
@@ -2818,7 +2827,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Falha ao executar a etapa 5 do pipeline SRT.');
+        throw new Error(resolveErrorMessage(data?.error, 'Falha ao executar a etapa 5 do pipeline SRT.'));
       }
 
       const persistedAt = new Date().toISOString();
@@ -3170,7 +3179,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao gerar o pacote pos-roteiro.');
+        throw new Error(resolveErrorMessage(data?.error, 'Falha ao gerar o pacote pos-roteiro.'));
       }
 
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
@@ -3280,7 +3289,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }),
       });
       const data = await res.json();
-      if (!res.ok || data?.error) throw new Error(data?.error || `Erro ${res.status}`);
+      if (!res.ok || data?.error) throw new Error(resolveErrorMessage(data?.error, `Erro ${res.status}`));
       if (!data?.prompts?.length) throw new Error('IA retornou lista de prompts vazia.');
       setHfBgPrompts(data.prompts);
       try { localStorage.setItem(`yt_hf_bg_${executionStorageKey}`, JSON.stringify(data.prompts)); } catch { /* ignore */ }
@@ -3463,7 +3472,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao validar os títulos.');
+        throw new Error(resolveErrorMessage(data?.error, 'Falha ao validar os títulos.'));
       }
 
       if (Array.isArray(data?.results)) {
@@ -3555,7 +3564,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao regerar os títulos.');
+        throw new Error(resolveErrorMessage(data?.error, 'Falha ao regerar os títulos.'));
       }
 
       const newPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);

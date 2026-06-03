@@ -903,19 +903,38 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 
       // NEW: Check if the snapshot represents a finished (scheduled/published) script
       if (snapshot && snapshot.manualPublishDate && !pendingData) {
-        if (snapshot._isResume) {
-          // Deliberate resume: allow hydration, but strip the temporary flag from localStorage
-          console.log('[ScriptEngine] Resuming scheduled script explicitly from Theme Bank.');
-          delete snapshot._isResume;
-          try {
-            localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
-          } catch { /* ignore */ }
+        const activeSessionThemeId = sessionStorage.getItem(`active_script_theme_${activeProject.id}`);
+        const isCurrentlyActiveSession = activeSessionThemeId && (activeSessionThemeId === snapshot._themeId || activeSessionThemeId === snapshot.themeId || activeSessionThemeId === snapshot.id);
+
+        if (snapshot._isResume || isCurrentlyActiveSession) {
+          // Deliberate resume or active session refresh: allow hydration
+          console.log('[ScriptEngine] Resuming/hydrating scheduled script in active session.');
+          if (snapshot._themeId) {
+            sessionStorage.setItem(`active_script_theme_${activeProject.id}`, snapshot._themeId);
+          } else if (snapshot.themeId) {
+            sessionStorage.setItem(`active_script_theme_${activeProject.id}`, snapshot.themeId);
+          }
+
+          if (snapshot._isResume) {
+            delete snapshot._isResume;
+            try {
+              localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
+            } catch { /* ignore */ }
+          }
         } else {
           // Navigating via sidebar: bypass hydration of finished script to keep workspace clean
           console.log('[ScriptEngine] Bypassing hydration of finished/scheduled script for a clean workspace.');
           clearExecutionState();
           setExecutionHydrated(true);
           return;
+        }
+      }
+
+      if (snapshot) {
+        if (snapshot._themeId) {
+          sessionStorage.setItem(`active_script_theme_${activeProject.id}`, snapshot._themeId);
+        } else if (snapshot.themeId) {
+          sessionStorage.setItem(`active_script_theme_${activeProject.id}`, snapshot.themeId);
         }
       }
 
@@ -1040,6 +1059,25 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
           if (!loadedSrt && snapshot?.externalSrtPipeline) loadedSrt = snapshot.externalSrtPipeline; // old compat
         }
 
+        // Fallback to local themes list if still missing (useful for restored backups with inline assets)
+        if (!loadedSrt && snapshot?._themeId) {
+          try {
+            const themesStorageKey = `themes_${activeProject.id}`;
+            const localThemesRaw = localStorage.getItem(themesStorageKey);
+            if (localThemesRaw) {
+              const localThemes = JSON.parse(localThemesRaw);
+              const foundTheme = localThemes.find((t: any) => t.id === snapshot._themeId);
+              const themeSnapshot = foundTheme?.production_assets?.execution_snapshot;
+              if (themeSnapshot?.externalSrtPipeline) {
+                loadedSrt = themeSnapshot.externalSrtPipeline;
+                console.log(`[ScriptEngine] Fallback: carregou SRT pipeline da lista de temas para o tema ${snapshot._themeId}`);
+              }
+            }
+          } catch (e) {
+            console.warn('[ScriptEngine] Erro no fallback de carregar SRT pipeline da lista de temas:', e);
+          }
+        }
+
         if (!loadedPost) {
           try {
             const pkgRaw = localStorage.getItem(postPackageKey);
@@ -1048,8 +1086,62 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
           if (!loadedPost && snapshot?.postScriptPackage) loadedPost = snapshot.postScriptPackage; // old compat
         }
 
-        if (loadedSrt) setExternalSrtPipeline(loadedSrt);
-        if (loadedPost) setPostScriptPackage(loadedPost);
+        // Fallback to local themes list for post package if still missing
+        if (!loadedPost && snapshot?._themeId) {
+          try {
+            const themesStorageKey = `themes_${activeProject.id}`;
+            const localThemesRaw = localStorage.getItem(themesStorageKey);
+            if (localThemesRaw) {
+              const localThemes = JSON.parse(localThemesRaw);
+              const foundTheme = localThemes.find((t: any) => t.id === snapshot._themeId);
+              const themeSnapshot = foundTheme?.production_assets?.execution_snapshot;
+              if (themeSnapshot?.postScriptPackage) {
+                loadedPost = themeSnapshot.postScriptPackage;
+                console.log(`[ScriptEngine] Fallback: carregou post package da lista de temas para o tema ${snapshot._themeId}`);
+              }
+            }
+          } catch (e) {
+            console.warn('[ScriptEngine] Erro no fallback de carregar post package da lista de temas:', e);
+          }
+        }
+
+        if (loadedSrt) {
+          setExternalSrtPipeline(loadedSrt);
+          // Auto-repair local storage key if it was missing
+          if (snapshot?._themeId) {
+            const localKey = `${executionStorageKey}_srt_pipeline`;
+            if (!localStorage.getItem(localKey)) {
+              try {
+                localStorage.setItem(localKey, JSON.stringify(loadedSrt));
+              } catch {}
+            }
+            // Auto-repair/sync to cloud table (script_executions) if missing
+            if (supabase) {
+              getScriptExecution(snapshot._themeId).then(({ data }) => {
+                if (!data || !data.execution_snapshot || !data.execution_snapshot.externalSrtPipeline) {
+                  console.log(`[ScriptEngine] Auto-sync: salvando SRT pipeline e post package em script_executions na nuvem...`);
+                  upsertScriptExecution(snapshot._themeId, {
+                    externalSrtPipeline: loadedSrt || undefined,
+                    postScriptPackage: loadedPost || undefined,
+                  }).catch(err => console.warn('[ScriptEngine] Falha ao upsertar heavy assets em script_executions:', err));
+                }
+              });
+            }
+          }
+        }
+        
+        if (loadedPost) {
+          setPostScriptPackage(loadedPost);
+          // Auto-repair local storage key if it was missing
+          if (snapshot?._themeId) {
+            const localKey = `${executionStorageKey}_post_package`;
+            if (!localStorage.getItem(localKey)) {
+              try {
+                localStorage.setItem(localKey, JSON.stringify(loadedPost));
+              } catch {}
+            }
+          }
+        }
       };
 
       // Fire and forget: load heavy assets in background

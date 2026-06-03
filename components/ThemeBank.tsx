@@ -252,6 +252,49 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       const key = getThemeMergeKey(theme);
       if (!key) return;
       const local = merged.get(key);
+      
+      // Smart merge production_assets to prevent discarding local execution snapshots/pipelines
+      const mergedProductionAssets = (() => {
+        const remoteAssets = theme.production_assets;
+        const localAssets = local?.production_assets;
+        if (!remoteAssets) return localAssets || {};
+        if (!localAssets) return remoteAssets || {};
+        
+        const remoteSnapshot = remoteAssets.execution_snapshot;
+        const localSnapshot = localAssets.execution_snapshot;
+        
+        let mergedSnapshot = remoteSnapshot;
+        if (remoteSnapshot && localSnapshot) {
+          mergedSnapshot = {
+            ...localSnapshot,
+            ...remoteSnapshot,
+            scriptBlocks: (Array.isArray(remoteSnapshot.scriptBlocks) && remoteSnapshot.scriptBlocks.length > 0)
+              ? remoteSnapshot.scriptBlocks
+              : (localSnapshot.scriptBlocks || []),
+            externalScriptText: remoteSnapshot.externalScriptText || localSnapshot.externalScriptText || '',
+            externalSrtText: remoteSnapshot.externalSrtText || localSnapshot.externalSrtText || '',
+            externalSrtPipeline: remoteSnapshot.externalSrtPipeline || localSnapshot.externalSrtPipeline || undefined,
+            postScriptPackage: remoteSnapshot.postScriptPackage || localSnapshot.postScriptPackage || undefined,
+            externalSrtObserver: (Array.isArray(remoteSnapshot.externalSrtObserver) && remoteSnapshot.externalSrtObserver.length > 0)
+              ? remoteSnapshot.externalSrtObserver
+              : (localSnapshot.externalSrtObserver || []),
+          };
+        } else if (!remoteSnapshot && localSnapshot) {
+          mergedSnapshot = localSnapshot;
+        }
+        
+        const mergedAssets = {
+          ...localAssets,
+          ...remoteAssets,
+          execution_snapshot: mergedSnapshot,
+        };
+        
+        if (mergedAssets._compressed && (Object.keys(remoteAssets).length > 0 || mergedSnapshot)) {
+          delete mergedAssets._compressed;
+        }
+        return mergedAssets;
+      })();
+
       merged.set(
         key,
         normalizeThemeScheduleStatus({
@@ -259,8 +302,8 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
           ...(local || {}),
           // Remote fully overlays
           ...theme,
-          // production_assets: prefer remote if it has data, else keep local
-          production_assets: theme.production_assets ?? local?.production_assets,
+          // production_assets: smart merged
+          production_assets: mergedProductionAssets,
         } as Theme)
       );
     });
@@ -483,9 +526,18 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
          const mergedThemes = mergeThemes(localThemes, cloudThemes);
          
-         // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
+         // ⬆️ AUTO-PUSH UNSYNCED OR ENRICHED ITEMS TO CLOUD
          const cloudIds = new Set(cloudThemes.map((c: any) => c.id));
-         const unsyncedItems = localThemes.filter(l => l.id && !cloudIds.has(l.id));
+         const unsyncedItems = localThemes.filter(l => {
+           if (!l.id) return false;
+           // Case A: Theme is not present in the cloud at all
+           if (!cloudIds.has(l.id)) return true;
+           // Case B: Theme is present, but local has execution_snapshot while remote does not
+           const remote = cloudThemes.find((c: Theme) => c.id === l.id);
+           const localHasSnapshot = !!l.production_assets?.execution_snapshot;
+           const remoteHasSnapshot = !!remote?.production_assets?.execution_snapshot;
+           return localHasSnapshot && !remoteHasSnapshot;
+         });
          
          if (unsyncedItems.length > 0) {
            console.log(`[ThemeBank] ⬆️ Auto-syncing ${unsyncedItems.length} pending local themes to cloud...`);
@@ -505,6 +557,11 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          if (mergedStr !== JSON.stringify(localThemes)) {
            setThemes(mergedThemes);
            console.log(`[ThemeBank] ☁️ Background Sync applied: ${cloudThemes.length} cloud, ${mergedThemes.length} merged`);
+           try {
+             localStorage.setItem(`themes_${activeProject.id}`, mergedStr);
+           } catch (e) {
+             console.warn('[ThemeBank] Failed to persist merged themes to localStorage', e);
+           }
          }
          // Track which IDs are confirmed in the cloud
          const syncedIds: string[] = [...Array.from(cloudIds) as string[], ...unsyncedItems.filter((u: any) => !cloudIds.has(u.id)).map((u: any) => u.id as string)];
@@ -616,6 +673,13 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       newComponents = [normalizeThemeScheduleStatus({ ...payload, id: payload.id || crypto.randomUUID(), created_at: payload.created_at || new Date().toISOString() }), ...themes];
     }
     setThemes(newComponents as Theme[]);
+    if (activeProject?.id) {
+      try {
+        localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(newComponents));
+      } catch (e) {
+        console.warn('[ThemeBank] Failed to persist themes to localStorage in saveLocally', e);
+      }
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -647,6 +711,13 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     try {
       const updated = themes.filter(t => t.id !== id);
       setThemes(updated);
+      if (activeProject?.id) {
+        try {
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updated));
+        } catch (e) {
+          console.warn('[ThemeBank] Failed to persist themes to localStorage in handleDelete', e);
+        }
+      }
 
       if (editingTheme?.id === id) {
         closeForm();
@@ -807,6 +878,10 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       updated_at: new Date().toISOString(),
     };
 
+
+    if (activeProject?.id && theme.id) {
+      sessionStorage.setItem(`active_script_theme_${activeProject.id}`, theme.id);
+    }
 
     // The ScriptEngine's new split-storage logic expects SRT and Post-Script to be in separate keys
     const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
@@ -1032,7 +1107,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       return { ...t, production_assets: updatedAssets };
     }));
     // Persist to localStorage
-    const localKey = `ws_themes_${activeProject?.id}`;
+    const localKey = `themes_${activeProject?.id}`;
     try {
       const stored = JSON.parse(localStorage.getItem(localKey) || '[]');
       const updated = stored.map((t: any) => {

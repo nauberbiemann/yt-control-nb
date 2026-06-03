@@ -65,7 +65,15 @@ export function LocalRescueTool() {
       const backupData: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith('themes_') || key.startsWith('ws_narrative_') || key.startsWith('bi_') || key.startsWith('snapshot_'))) {
+        if (key && (
+          key.startsWith('themes_') || 
+          key.startsWith('ws_narrative_') || 
+          key.startsWith('bi_') || 
+          key.startsWith('snapshot_') ||
+          key.startsWith('ws_script_execution_') ||
+          key.startsWith('ws_assemblies_') ||
+          key === 'writer_studio_projects'
+        )) {
           backupData[key] = localStorage.getItem(key) || '';
         }
       }
@@ -216,7 +224,15 @@ export function LocalRescueTool() {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith('themes_') || key.startsWith('ws_narrative_') || key.startsWith('bi_') || key.startsWith('snapshot_') || key.startsWith('ws_script_execution_'))) {
+        if (key && (
+          key.startsWith('themes_') || 
+          key.startsWith('ws_narrative_') || 
+          key.startsWith('bi_') || 
+          key.startsWith('snapshot_') || 
+          key.startsWith('ws_script_execution_') ||
+          key.startsWith('ws_assemblies_') ||
+          key === 'writer_studio_projects'
+        )) {
           keysToRemove.push(key);
         }
       }
@@ -377,6 +393,67 @@ export function LocalRescueTool() {
           </div>
 
         </div>
+
+        {/* DIAGNÓSTICO DE TAMANHO DE CHAVES */}
+        <div className="mt-6 p-4 bg-slate-950/40 rounded-lg border border-slate-800 text-xs">
+          <h4 className="font-bold text-slate-300 mb-2 uppercase tracking-wider text-[10px]">Maiores Chaves na Memória do Navegador:</h4>
+          <div className="flex flex-col gap-1.5 font-mono text-[10px]">
+            {(() => {
+              if (typeof window === 'undefined') return null;
+              const keys = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i) || '';
+                const size = (localStorage.getItem(k) || '').length * 2;
+                keys.push({ key: k, sizeMB: size / (1024 * 1024) });
+              }
+              return keys.sort((a, b) => b.sizeMB - a.sizeMB).slice(0, 5).map((item, idx) => (
+                <div key={idx} className="flex justify-between text-slate-400">
+                  <span>{item.key}</span>
+                  <span className="font-bold text-slate-300">{item.sizeMB.toFixed(3)} MB</span>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+
+        {gcActionFeedback && (
+          <div className="mt-4 text-xs font-bold text-blue-400 bg-blue-500/5 border border-blue-500/20 px-3 py-2 rounded-lg flex items-center gap-2 animate-pulse">
+            <Info className="w-4 h-4 flex-shrink-0" />
+            {gcActionFeedback}
+          </div>
+        )}
+
+        {/* LOGS DO COLETOR NA VISTA DE EMERGÊNCIA */}
+        <div className="mt-4 flex justify-between items-center text-[10px] text-slate-500">
+          <span>Último Ciclo: {gcLog ? new Date(gcLog.lastRun).toLocaleTimeString() : 'Nunca'}</span>
+          <button 
+            onClick={() => setShowGcLogs(!showGcLogs)}
+            className="text-blue-400 hover:text-blue-300 font-bold"
+          >
+            {showGcLogs ? 'Ocultar Logs Detalhados' : 'Mostrar Logs Detalhados'}
+          </button>
+        </div>
+
+        {showGcLogs && (
+          <div className="mt-3 bg-slate-950/80 p-3 rounded-lg border border-slate-800 font-mono text-[10px] text-slate-400 max-h-48 overflow-y-auto flex flex-col gap-1 shadow-inner">
+            <p className="text-emerald-500 font-bold mb-1">// COLETOR DE LIXO SEGURO - LOGS DE EXECUÇÃO EM BACKGROUND</p>
+            {gcLog && gcLog.details && gcLog.details.length > 0 ? (
+              gcLog.details.map((detail, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="text-slate-600 select-none">[{idx + 1}]</span>
+                  <span className={
+                    detail.includes('[ERRO]') ? 'text-red-400' :
+                    detail.includes('[GC]') && detail.includes('sincronizado') ? 'text-blue-300' :
+                    detail.includes('comprimido') || detail.includes('removido') ? 'text-emerald-400/90' :
+                    'text-slate-300'
+                  }>{detail}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-500 italic">Nenhum log gravado no cache local até o momento.</p>
+            )}
+          </div>
+        )}
 
         {/* SUB-SEÇÃO INFORMATIVA DO COLETOR AUTOMÁTICO SEGURO */}
         <div className="mt-6 pt-4 border-t border-slate-800/60 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-950/20 p-4 rounded-lg">

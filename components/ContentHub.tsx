@@ -49,11 +49,7 @@ interface Theme {
   is_demand_vetted?: boolean;
   is_persona_vetted?: boolean;
   target_publish_date?: string;
-  production_assets?: {
-    thumb_prompt: string;
-    thumb_text: string[];
-    tags: string[];
-  };
+  production_assets?: any;
 }
 
 const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -107,12 +103,56 @@ const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
     const key = getThemeMergeKey(theme);
     if (!key) return;
     const local = merged.get(key);
+    
+    // Smart merge production_assets to prevent discarding local execution snapshots/pipelines
+    const mergedProductionAssets = (() => {
+      const remoteAssets = theme.production_assets;
+      const localAssets = local?.production_assets;
+      if (!remoteAssets) return localAssets || {};
+      if (!localAssets) return remoteAssets || {};
+      
+      const remoteSnapshot = remoteAssets.execution_snapshot;
+      const localSnapshot = localAssets.execution_snapshot;
+      
+      let mergedSnapshot = remoteSnapshot;
+      if (remoteSnapshot && localSnapshot) {
+        mergedSnapshot = {
+          ...localSnapshot,
+          ...remoteSnapshot,
+          scriptBlocks: (Array.isArray(remoteSnapshot.scriptBlocks) && remoteSnapshot.scriptBlocks.length > 0)
+            ? remoteSnapshot.scriptBlocks
+            : (localSnapshot.scriptBlocks || []),
+          externalScriptText: remoteSnapshot.externalScriptText || localSnapshot.externalScriptText || '',
+          externalSrtText: remoteSnapshot.externalSrtText || localSnapshot.externalSrtText || '',
+          externalSrtPipeline: remoteSnapshot.externalSrtPipeline || localSnapshot.externalSrtPipeline || undefined,
+          postScriptPackage: remoteSnapshot.postScriptPackage || localSnapshot.postScriptPackage || undefined,
+          externalSrtObserver: (Array.isArray(remoteSnapshot.externalSrtObserver) && remoteSnapshot.externalSrtObserver.length > 0)
+            ? remoteSnapshot.externalSrtObserver
+            : (localSnapshot.externalSrtObserver || []),
+        };
+      } else if (!remoteSnapshot && localSnapshot) {
+        mergedSnapshot = localSnapshot;
+      }
+      
+      const mergedAssets = {
+        ...localAssets,
+        ...remoteAssets,
+        execution_snapshot: mergedSnapshot,
+      };
+      
+      if (mergedAssets._compressed && (Object.keys(remoteAssets).length > 0 || mergedSnapshot)) {
+        delete mergedAssets._compressed;
+      }
+      return mergedAssets;
+    })();
+
     merged.set(
       key,
       normalizeTheme({
         ...(local || {}),
         ...theme,
-        production_assets: theme.production_assets ?? local?.production_assets,
+        // production_assets: smart merged
+        production_assets: mergedProductionAssets,
       } as Theme)
     );
   });
@@ -227,6 +267,7 @@ function sanitizeThemeForCloud(theme: Theme) {
     title_structure: theme.title_structure || '',
     priority: 0,
     notes: theme.notes || '',
+    production_assets: theme.production_assets || {},
     created_at: theme.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -385,7 +426,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
           const normalizedThemes = data.map((theme: Theme) => normalizeTheme(theme));
           const mergedThemes = mergeThemes(localThemes, normalizedThemes);
           setThemes(mergedThemes);
-          // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
+          localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(mergedThemes));
           return;
         }
       }
@@ -422,7 +463,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     try {
       const updatedThemes = [newTheme, ...themes];
       setThemes(updatedThemes);
-      // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
+      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const projectToSync = sanitizeProjectForCloud(activeProject);
@@ -451,7 +492,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     try {
       const filtered = themes.filter(t => t.id !== id);
       setThemes(filtered);
-      // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(filtered));
+      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(filtered));
 
       if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const { error } = await supabase.from('themes').delete().eq('id', id);
@@ -745,7 +786,7 @@ REGRAS:
       const updatedThemes = themes.map(t => t.id === themeId ? updatedTheme : t);
       
       setThemes(updatedThemes);
-      // localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
+      localStorage.setItem(`themes_${activeProject.id}`, JSON.stringify(updatedThemes));
 
       if (supabase && THEME_CLOUD_ID_PATTERN.test(activeProject.id)) {
         const cloudTheme = sanitizeThemeForCloud(updatedTheme);
@@ -1249,7 +1290,7 @@ Engenharia de Metáforas: ${activeProject?.metaphor_library || activeProject?.ai
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] uppercase font-black tracking-widest text-white/20">SEO Tags</label>
                   <div className="flex flex-wrap gap-1.5">
-                    {activeEditTheme.production_assets.tags.map(tag => (
+                    {Array.isArray(activeEditTheme.production_assets.tags) && activeEditTheme.production_assets.tags.map((tag: string) => (
                       <span key={tag} className="px-2 py-0.5 bg-white/5 rounded text-[9px] text-sage/80 border border-white/5">#{tag}</span>
                     ))}
                   </div>

@@ -378,6 +378,86 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
       }
     }
 
+    // -------------------------------------------------------------------------
+    // FASE D: Limpeza do Histórico de Projetos (writer_studio_projects_archive)
+    // -------------------------------------------------------------------------
+    logDetails.push('[GC] Fase D: Analisando histórico de projetos...');
+    const archiveRaw = localStorage.getItem('writer_studio_projects_archive');
+    if (archiveRaw) {
+      try {
+        const archive = JSON.parse(archiveRaw);
+        if (Array.isArray(archive) && archive.length > 1) {
+          const trimmed = archive.slice(0, 1); // Mantém apenas o snapshot mais recente
+          const trimmedRaw = JSON.stringify(trimmed);
+          const bytesCleaned = getStringSize(archiveRaw) - getStringSize(trimmedRaw);
+          localStorage.setItem('writer_studio_projects_archive', trimmedRaw);
+          totalBytesCleaned += bytesCleaned;
+          logDetails.push(`[GC] Histórico de projetos reduzido de ${archive.length} para 1 snapshot. Liberado: ${(bytesCleaned / 1024).toFixed(1)} KB`);
+        }
+      } catch (e: any) {
+        logDetails.push(`[Aviso] Falha ao processar histórico de projetos: ${e.message}`);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // FASE E: Limpeza Segura de Pipelines e Ativos do Workspace Sincronizados
+    // -------------------------------------------------------------------------
+    logDetails.push('[GC] Fase E: Analisando pipelines de workspace ativos...');
+    const wsKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || '';
+      if (key.startsWith('ws_script_execution_') && key.endsWith('_srt_pipeline')) {
+        wsKeys.push(key);
+      }
+    }
+
+    for (const srtKey of wsKeys) {
+      // ws_script_execution_${projectId}_srt_pipeline
+      const prefix = 'ws_script_execution_';
+      const suffix = '_srt_pipeline';
+      const projectId = srtKey.substring(prefix.length, srtKey.length - suffix.length);
+      const wsMainKey = `${prefix}${projectId}`;
+      const postKey = `${prefix}${projectId}_post_package`;
+
+      const wsMainRaw = localStorage.getItem(wsMainKey);
+      if (!wsMainRaw) continue;
+
+      try {
+        const wsMain = JSON.parse(wsMainRaw);
+        const themeId = wsMain._themeId || wsMain.themeId;
+
+        if (themeId) {
+          // Verifica na nuvem se a execução com o pipeline já está salva
+          const { data: remoteExecution, error: execError } = await supabase
+            .from('script_executions')
+            .select('theme_id, execution_snapshot')
+            .eq('theme_id', themeId)
+            .single();
+
+          if (remoteExecution && remoteExecution.execution_snapshot?.externalSrtPipeline) {
+            // Já está na nuvem! Podemos remover com segurança absoluta
+            const srtRaw = localStorage.getItem(srtKey);
+            const postRaw = localStorage.getItem(postKey);
+
+            let freed = 0;
+            if (srtRaw) {
+              freed += getStringSize(srtRaw);
+              localStorage.removeItem(srtKey);
+            }
+            if (postRaw) {
+              freed += getStringSize(postRaw);
+              localStorage.removeItem(postKey);
+            }
+
+            totalBytesCleaned += freed;
+            logDetails.push(`[GC] Pipeline de workspace para o tema ${themeId} já sincronizado. Removido localmente. Liberado: ${(freed / 1024).toFixed(1)} KB`);
+          }
+        }
+      } catch (e: any) {
+        logDetails.push(`[Aviso] Falha ao processar pipeline de workspace para ${projectId}: ${e.message}`);
+      }
+    }
+
     const finalSizeMB = getLocalStorageSizeMB();
     logDetails.push(`[GC] Limpeza concluída com sucesso! Tamanho final: ${finalSizeMB.toFixed(2)} MB. Total liberado: ${(totalBytesCleaned / 1024).toFixed(1)} KB`);
     

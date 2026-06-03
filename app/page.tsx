@@ -368,7 +368,7 @@ export default function Home() {
         const nextArchive = [
           { saved_at: new Date().toISOString(), projects: projectList || [] },
           ...archive,
-        ].slice(0, 15);
+        ].slice(0, 3);
 
         localStorage.setItem('writer_studio_projects_archive', JSON.stringify(nextArchive));
       }

@@ -3249,6 +3249,27 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       totalDurationSeconds: timelineContext.totalDurationSeconds,
     });
 
+    let titleStructures: any[] = [];
+    if (typeof window !== 'undefined' && activeProject?.id) {
+      const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            titleStructures = parsed
+              .filter((c: any) => c.type === 'Title Structure')
+              .map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                content_pattern: c.content_pattern || c.description || '',
+              }));
+          }
+        } catch (e) {
+          console.warn('[ScriptEngine] Erro ao ler titleStructures do localStorage:', e);
+        }
+      }
+    }
+
     setIsGeneratingPostScriptPackage(true);
     try {
       const response = await fetch('/api/post-script-package', {
@@ -3263,6 +3284,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           approvedBriefing,
           scriptBlocks: sourceBlocks,
           srtRows,
+          titleStructures,
           projectContext: {
             projectName: activeProject?.name || activeProject?.project_name || '',
             puc: activeProject?.puc || activeProject?.puc_promise || '',
@@ -3628,6 +3650,27 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       totalDurationSeconds: timelineContext.totalDurationSeconds,
     });
 
+    let titleStructures: any[] = [];
+    if (typeof window !== 'undefined' && activeProject?.id) {
+      const localData = localStorage.getItem(`ws_narrative_${activeProject.id}`);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            titleStructures = parsed
+              .filter((c: any) => c.type === 'Title Structure')
+              .map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                content_pattern: c.content_pattern || c.description || '',
+              }));
+          }
+        } catch (e) {
+          console.warn('[ScriptEngine] Erro ao ler titleStructures do localStorage:', e);
+        }
+      }
+    }
+
     setIsRegeneratingTitles(true);
     // Preserve approved scores; null out the slots being replaced so they show as unscored
     const partialValidations: (TitleValidationResult | null)[] | null = titleValidations
@@ -3648,6 +3691,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           scriptBlocks: sourceBlocks,
           srtRows,
           titleCountHint,
+          titleStructures,
           projectContext: {
             projectName: activeProject?.name || activeProject?.project_name || '',
             puc: activeProject?.puc || activeProject?.puc_promise || '',

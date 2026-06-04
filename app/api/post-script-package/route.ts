@@ -50,13 +50,19 @@ Return only valid JSON with this exact shape:
 }
 
 Rules:
-- "titles" must contain exactly 10 distinct title options in PT-BR.
-- Each title must organically combine these 5 structural components:
-  1. Tensão inicial (hook): cria desequilíbrio ou lacuna mental.
-  2. Promessa emocional: mostra o que o público vai descobrir, resolver ou entender.
-  3. Contraste: opõe duas ideias, criando tensão semântica.
-  4. Transformação: revela uma virada de entendimento.
-  5. Fechamento de recompensa: entrega o valor final ou insight.
+- "titles" must contain distinct title options in PT-BR, matching the exact number of titles requested in the user prompt (defaulting to 5 if not specified).
+- If specific "ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA" (Narrative Library Title Structures) are provided in the user prompt:
+  * Every generated title option MUST strictly follow one of those patterns.
+  * Replace all bracketed placeholders (e.g. [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details related to the video topic and script.
+  * The final output titles must NOT contain any bracketed placeholders and must be written fully in PT-BR.
+  * Distribute the titles across the provided structures (e.g., if there are 5 structures, generate at least one variation matching each structure).
+- If NO narrative library title structures are provided:
+  * Each title must organically combine these 5 structural components:
+    1. Tensão inicial (hook): cria desequilíbrio ou lacuna mental.
+    2. Promessa emocional: mostra o que o público vai descobrir, resolver ou entender.
+    3. Contraste: opõe duas ideias, criando tensão semântica.
+    4. Transformação: revela uma virada de entendimento.
+    5. Fechamento de recompensa: entrega o valor final ou insight.
 - Use emotional, curious and intense language. Avoid technical jargon.
 - Mix formats: questions ("Por que..."), paradoxical statements ("A verdade brutal sobre..."), comparative phrases ("O lado oculto de...").
 - Maximum 12 words per title.
@@ -127,6 +133,7 @@ interface RouteBody {
     soundtrack?: string;
   } | null;
   titleCountHint?: number;
+  titleStructures?: Array<{ id: string; name: string; content_pattern?: string }>;
 }
 
 const parseJsonResponse = (rawContent: string): Partial<PostScriptPackage> => {
@@ -151,6 +158,7 @@ const buildUserPrompt = ({
   projectContext,
   sfxPlan,
   titleCountHint,
+  titleStructures,
 }: {
   approvedTheme: string;
   approvedBriefing: RouteBody['approvedBriefing'];
@@ -161,8 +169,12 @@ const buildUserPrompt = ({
   projectContext?: RouteBody['projectContext'];
   sfxPlan: ReturnType<typeof buildSfxAnchorPlan>;
   titleCountHint?: number;
+  titleStructures?: RouteBody['titleStructures'];
 }) => {
   const transcript = buildScriptTranscript(scriptBlocks);
+  const titleStructuresStr = Array.isArray(titleStructures) && titleStructures.length > 0
+    ? titleStructures.map(t => `- [${t.name}]: "${t.content_pattern}"`).join('\n')
+    : '';
 
   return [
     'Build the complete post-script package for this approved video.',
@@ -175,6 +187,8 @@ const buildUserPrompt = ({
     'CONTEXTO DO PROJETO:',
     JSON.stringify(projectContext || {}, null, 2),
     '',
+    titleStructuresStr ? 'ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA (MANDATORIO SE DISPONIVEIS):' : '',
+    titleStructuresStr ? `${titleStructuresStr}\n` : '',
     `CAPITULOS EDITORIAIS DISPONIVEIS PARA A DESCRICAO SEO (use somente estes, em ordem crescente, com no maximo ${chapterAnchors.length} linhas):`,
     JSON.stringify(chapterAnchors, null, 2),
     '',
@@ -201,8 +215,10 @@ const buildUserPrompt = ({
     transcript,
     '',
     'Important output expectations:',
-    `- Generate exactly ${titleCountHint ?? 10} title options. Each title must combine: hook tension + emotional promise + contrast + transformation + reward.`,
-    '- Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.',
+    `- Generate exactly ${titleCountHint ?? 5} title options.`,
+    titleStructuresStr
+      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. The output titles must be fully written in PT-BR and must NOT contain any bracketed placeholders.`
+      : `- Each title must organically combine these 5 structural components: hook tension + emotional promise + contrast + transformation + reward. Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.`,
     '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',
     '- Do not output timestamps or the AI notice; the app will add them after generation.',
@@ -314,6 +330,7 @@ export async function POST(req: NextRequest) {
       srtRows,
       projectContext,
       titleCountHint,
+      titleStructures,
     } = body;
 
     if (!approvedTheme?.trim()) {
@@ -380,7 +397,7 @@ export async function POST(req: NextRequest) {
         texto: (row as any).texto || '',
       }));
 
-    const prompt = buildUserPrompt({
+        const prompt = buildUserPrompt({
       approvedTheme,
       approvedBriefing,
       scriptBlocks,
@@ -390,6 +407,7 @@ export async function POST(req: NextRequest) {
       projectContext,
       sfxPlan,
       titleCountHint,
+      titleStructures,
     });
 
     const rawPackage = engine === 'gemini'

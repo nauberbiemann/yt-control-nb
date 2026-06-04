@@ -1580,6 +1580,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
 OBJETIVO
 - Produzir um roteiro final humano, natural e variado.
 - Respeitar a engenharia narrativa definida pelo orquestrador.
+- Executar toda a geracao do roteiro em uma unica thread/fluxo continuo de geracao. E terminantemente proibido processar por meio de requisicoes independentes, prompts separados ou fragmentados para cada bloco.
 - Tratar a camada de abertura, a camada final de conversao, a estrutura de titulo e os elementos de comunidade apenas como referencia funcional e semantica.
 - Nunca copiar literalmente frases, slogans, quotes, patterns ou construcoes reconheciveis vindas da biblioteca narrativa.
 - Fazer os blocos soarem como uma fala continua de um humano, nao como pecas coladas.
@@ -1605,7 +1606,8 @@ CONTEXTO ESSENCIAL
 IDENTIDADE DO NARRADOR
 ${narratorIdentity}
 - Esta identidade deve ser sentida na escolha de palavras, no nivel de intimidade, na postura diante do assunto e no ponto de entrada de cada bloco.
-- Nao declare a identidade do narrador no texto. Apenas encarne-a.
+- O narrador deve ser uma presenca constante e ativa ao longo de todo o video. Ele nao e apenas um locutor passivo de informacoes, mas sim uma personalidade que se manifesta, comenta, reage e expressa suas opinioes e vivencias de forma natural e integrada ao longo de todo o roteiro.
+- Nao declare a identidade do narrador no texto. Apenas encarne-a com presenca marcante.
 
 [DIRETRIZ DE CONTROLE NARRATIVO - CUIDADO COM A IA]
 1. EVITE O EFEITO BARNUM: Nao use adjetivos ou descricoes genericas que se anulam (ex: ser 'acolhedora, firme, pratica e contemplativa' ao mesmo tempo). Assuma uma postura narrativa consistente, clara e sem contradiccoes vagas.
@@ -1670,7 +1672,7 @@ REGRAS GERAIS DE ESCRITA
 - Quando houver qualquer ambiguidade entre a funcao narrativa e a redacao bruta do bloco, obedeca primeiro a postura obrigatoria e a voz dominante declarada.
 - Marcadores explicitos de narracao devem ser tratados como prioridade maxima: primeira pessoa para vulnerabilidade, segunda pessoa para desafio direto e terceira pessoa para diagnostico tecnico.
 - Sempre que possivel, transforme abstracao em cena, sintoma observavel, metrica simples ou decisao concreta.
-- O roteiro completo precisa parecer escrito de uma vez so, com progressao, cadencia e memoria interna.
+- O roteiro completo precisa parecer escrito de uma vez so, com progressao, cadencia e memoria interna, mantendo a coerencia de uma unica thread de pensamento e narracao.
 - Nao devolver explicacoes, rotulos tecnicos, markdown, numeracoes, titulos de secao ou qualquer comentario fora da narracao.
 
 BLUEPRINT BLOCO A BLOCO
@@ -1683,6 +1685,7 @@ ${videoFormat === 'avatar_flow' ? `
 
 FORMATO DE SAIDA
 - Escreva o roteiro inteiro como texto corrido de narrador, sem nenhuma divisao visual.
+- Toda a geracao deve acontecer em um único turno de resposta continuo (thread unica). Nao use ou simule requisicoes independentes.
 - Nao use cabecalhos, numeracao de blocos, titulos de secao, marcadores de markdown, colchetes ou qualquer elemento estrutural no texto entregue.
 - PROIBIDO: emojis, icones ou simbolos graficos de qualquer tipo (ex: 🟢 🔴 ✅ ⚠️). Este roteiro sera narrado em voz — apenas palavras escritas por extenso. Se quiser convidar o publico a reagir, descreva a acao por extenso ("responda com verde ou vermelho"), nunca com simbolo.
 - O roteiro deve fluir do inicio ao fim como uma unica fala continua. A ordem e funcao interna de cada bloco devem ser respeitadas, mas nao devem ser visiveis no texto final.

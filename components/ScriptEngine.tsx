@@ -2365,101 +2365,101 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       let completedCount = 0;
       updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote 1 de ${chunks.length}...`);
 
-      await Promise.all(
-        chunks.map(async (batch, chunkIdx) => {
-          let res: Response | null = null;
-          let success = false;
-          let data: any = {};
-          const maxRetries = 2;
+      for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+        const batch = chunks[chunkIdx];
+        let res: Response | null = null;
+        let success = false;
+        let data: any = {};
+        const maxRetries = 2;
 
-          for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote ${chunkIdx + 1} de ${chunks.length}...`);
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            res = await fetch('/api/assets/srt-pipeline', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                batchItems: batch,
+                engine,
+                model,
+                apiKeyOverwrite: apiKey,
+                projectConfig: activeProject,
+                videoContext: buildVideoContext(),
+                videoFormat,
+                textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
+                characterProfile: {
+                  mode: videoCharacterMode,
+                  customDescription: videoCharacterCustom,
+                },
+                visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
+              }),
+            });
+
+            const responseText = await res.text();
+            if (res.status === 504) {
+              if (attempt < maxRetries) {
+                console.warn(`Lote ${chunkIdx + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
+                await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+                continue;
+              }
+              throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação.`);
+            }
+
             try {
-              res = await fetch('/api/assets/srt-pipeline', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  batchItems: batch,
-                  engine,
-                  model,
-                  apiKeyOverwrite: apiKey,
-                  projectConfig: activeProject,
-                  videoContext: buildVideoContext(),
-                  videoFormat,
-                  textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
-                  characterProfile: {
-                    mode: videoCharacterMode,
-                    customDescription: videoCharacterCustom,
-                  },
-                  visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
-                }),
-              });
+              data = JSON.parse(responseText);
+            } catch {
+              throw new Error(`Resposta inválida (não JSON): ${responseText.slice(0, 80)}`);
+            }
 
-              const responseText = await res.text();
-              if (res.status === 504) {
-                if (attempt < maxRetries) {
-                  console.warn(`Lote ${chunkIdx + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
-                  await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
-                  continue;
-                }
-                throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação.`);
-              }
+            if (!res.ok || data?.error) {
+              throw new Error(resolveErrorMessage(data?.error, `Falha do servidor (Status ${res.status})`));
+            }
 
-              try {
-                data = JSON.parse(responseText);
-              } catch {
-                throw new Error(`Resposta inválida (não JSON): ${responseText.slice(0, 80)}`);
-              }
-
-              if (!res.ok || data?.error) {
-                throw new Error(resolveErrorMessage(data?.error, `Falha do servidor (Status ${res.status})`));
-              }
-
+            success = true;
+            break;
+          } catch (err: any) {
+            console.warn(`[Lote ${chunkIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
+            if (attempt === maxRetries) {
+              console.error(`[Lote ${chunkIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
+              data = {
+                prompts: batch.map((item: any) => {
+                  let fallback = 'Clean';
+                  if (item.asset === 'text') {
+                    fallback = 'Clean';
+                  } else if (item.asset === 'hyperframe') {
+                    fallback = item.template_name || 'hf_break';
+                  } else if (item.asset === 'image') {
+                    fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
+                  } else {
+                    fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+                  }
+                  return {
+                    rowNumber: item.row_number,
+                    prompt: fallback,
+                    isFallback: true
+                  };
+                })
+              };
               success = true;
               break;
-            } catch (err: any) {
-              console.warn(`[Lote ${chunkIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
-              if (attempt === maxRetries) {
-                console.error(`[Lote ${chunkIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
-                data = {
-                  prompts: batch.map((item: any) => {
-                    let fallback = 'Clean';
-                    if (item.asset === 'text') {
-                      fallback = 'Clean';
-                    } else if (item.asset === 'hyperframe') {
-                      fallback = item.template_name || 'hf_break';
-                    } else if (item.asset === 'image') {
-                      fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
-                    } else {
-                      fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
-                    }
-                    return {
-                      rowNumber: item.row_number,
-                      prompt: fallback,
-                      isFallback: true
-                    };
-                  })
-                };
-                success = true;
-                break;
-              }
-              await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
             }
+            await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
           }
+        }
 
-          (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean; texto_adicional?: string }) => {
-            if (p.rowNumber && p.prompt) {
-              promptMap.set(p.rowNumber, p.prompt);
-              if (p.texto_adicional) {
-                textoAdicionalMap.set(p.rowNumber, typeof p.texto_adicional === 'string' ? p.texto_adicional : JSON.stringify(p.texto_adicional));
-              }
-              if (p.isFallback) fallbackRowNumbers.add(p.rowNumber);
+        (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean; texto_adicional?: string }) => {
+          if (p.rowNumber && p.prompt) {
+            promptMap.set(p.rowNumber, p.prompt);
+            if (p.texto_adicional) {
+              textoAdicionalMap.set(p.rowNumber, typeof p.texto_adicional === 'string' ? p.texto_adicional : JSON.stringify(p.texto_adicional));
             }
-          });
+            if (p.isFallback) fallbackRowNumbers.add(p.rowNumber);
+          }
+        });
 
-          completedCount++;
-          updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote ${Math.min(completedCount + 1, chunks.length)} de ${chunks.length}...`);
-        })
-      );
+        completedCount++;
+      }
 
       const rowsWithPrompts = finalRows.map((row) => {
         let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;

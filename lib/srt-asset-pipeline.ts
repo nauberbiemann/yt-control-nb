@@ -519,13 +519,15 @@ export const buildPromptTxtOutputs = (
     }
 
     const isHf = assetType === 'hyperframe';
+    const lowerPrompt = rawPrompt.toLowerCase();
     const isHfString =
-      rawPrompt.startsWith('hf:') ||
-      rawPrompt.startsWith('hf_') ||
-      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote)/i.test(rawPrompt);
+      lowerPrompt.startsWith('hf:') ||
+      lowerPrompt.startsWith('hf_') ||
+      /^(?:hf_focus|hf_double|hf_face_bottom|hf_face_top|hf_floating|hf_vertical|hf_holo|hf_documentary|hf_dynamic|hf_x_post|hf_notification|hf_world_map|hf_data_chart|hf_reddit|hf_spotify|hf_code_terminal|hf_quote|hf_break|hf_bento)/i.test(lowerPrompt);
 
     // If it's a regular video/image row but the prompt is a hyperframe template, it's an AI glitch.
-    // Replace it with a robust visual prompt fallback instead of skipping, preserving the total count.
+    // Replace it with a robust visual prompt fallback instead of skipping, preserving the total count,
+    // and mutate the row object so the correction persists in the CSV and database.
     if (!isHf && isHfString) {
       if (assetType === 'imagem') {
         rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
@@ -533,6 +535,23 @@ export const buildPromptTxtOutputs = (
         rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
       } else {
         rawPrompt = 'Clean';
+      }
+      row.prompt = rawPrompt;
+      row.texto_adicional = '';
+    }
+
+    // If it's a hyperframe row in presenter/vlog mode but the prompt is a regular visual prompt (AI glitch),
+    // force it to a fallback template name and ensure it has a basic JSON structure in texto_adicional.
+    if (isHf && !isFaceless && !isHfString) {
+      rawPrompt = 'hf_focus';
+      row.prompt = rawPrompt;
+      if (!row.texto_adicional || row.texto_adicional === '{}' || row.texto_adicional === '""') {
+        row.texto_adicional = JSON.stringify({
+          title: row.texto.slice(0, 30).trim(),
+          subtitle: row.texto.trim(),
+          metrics: "—",
+          background_prompt: "Dark cinematic studio background, professional lighting."
+        });
       }
     }
 

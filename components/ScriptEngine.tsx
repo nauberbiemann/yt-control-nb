@@ -2355,26 +2355,36 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       const promptMap = new Map<number, string>();
       const textoAdicionalMap = new Map<number, string>();
       const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
-      const isReasoning = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4') || model.startsWith('gpt-5') || model.startsWith('gpt-4.1');
-      const chunkSize = isReasoning ? 6 : 10;
+      const chunkSize = 8; // Tamanho fixo otimizado para manter qualidade/foco da IA sem "viajar"
       const chunks: any[][] = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));
       }
 
       let completedCount = 0;
-      const concurrency = isReasoning ? 2 : 4;
+      let currentConcurrency = 2; // Começa em concorrência = 2
+      let activeWorkers = 0;
       const results: any[] = new Array(chunks.length);
       let nextChunkIdx = 0;
 
       updateSrtObserverStep(
         'prompts',
         'running',
-        `Gerando prompts visuais: processando ${chunks.length} lotes com concorrência de ${concurrency}...`
+        `Gerando prompts visuais: processando ${chunks.length} lotes com concorrência auto-ajustável...`
       );
 
       const processNext = async (): Promise<void> => {
-        if (nextChunkIdx >= chunks.length) return;
+        // Se a concorrência diminuiu e este worker exceder o limite ativo, finaliza-se.
+        if (activeWorkers > currentConcurrency) {
+          activeWorkers--;
+          return;
+        }
+
+        if (nextChunkIdx >= chunks.length) {
+          activeWorkers--;
+          return;
+        }
+
         const currentIdx = nextChunkIdx++;
         const batch = chunks[currentIdx];
 
@@ -2406,6 +2416,21 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             });
 
             const responseText = await res.text();
+
+            if (res.status === 429) {
+              if (currentConcurrency > 1) {
+                currentConcurrency = 1;
+                updateSrtObserverStep(
+                  'prompts',
+                  'running',
+                  `[Limite de IA] Rate limit detectado. Reduzindo velocidade para modo sequencial seguro...`
+                );
+              }
+              console.warn(`Lote ${currentIdx + 1} recebeu 429 (Rate Limit). Reduzindo concorrência para 1 e aguardando respiro...`);
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              continue;
+            }
+
             if (res.status === 504) {
               if (attempt < maxRetries) {
                 console.warn(`Lote ${currentIdx + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
@@ -2429,6 +2454,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             break;
           } catch (err: any) {
             console.warn(`[Lote ${currentIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
+            
+            // Em caso de falha de rede ou timeout, também reduz a velocidade de forma preventiva
+            if (currentConcurrency > 1) {
+              currentConcurrency = 1;
+              updateSrtObserverStep(
+                'prompts',
+                'running',
+                `[Aviso] Falha de conexão. Ajustando automaticamente para concorrência segura...`
+              );
+            }
+
             if (attempt === maxRetries) {
               console.error(`[Lote ${currentIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
               data = {
@@ -2459,22 +2495,26 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
         results[currentIdx] = data;
         completedCount++;
-        updateSrtObserverStep(
-          'prompts',
-          'running',
-          `Gerando prompts visuais: processados ${completedCount} de ${chunks.length} lotes...`
-        );
+
+        const statusMsg = currentConcurrency === 1
+          ? `Gerando prompts: processados ${completedCount} de ${chunks.length} lotes (modo seguro)...`
+          : `Gerando prompts: processados ${completedCount} de ${chunks.length} lotes...`;
+
+        updateSrtObserverStep('prompts', 'running', statusMsg);
 
         await processNext();
       };
 
       const workers = [];
-      for (let i = 0; i < Math.min(concurrency, chunks.length); i++) {
+      const numWorkers = Math.min(currentConcurrency, chunks.length);
+      activeWorkers = numWorkers;
+
+      for (let i = 0; i < numWorkers; i++) {
         workers.push(processNext());
       }
       await Promise.all(workers);
 
-      // Process and insert all results into maps in order
+      // Processa e insere todos os resultados nos mapas ordenadamente
       results.forEach((data) => {
         (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean; texto_adicional?: string }) => {
           if (p.rowNumber && p.prompt) {

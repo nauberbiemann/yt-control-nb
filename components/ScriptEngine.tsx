@@ -2357,22 +2357,31 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
       const isReasoning = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4') || model.startsWith('gpt-5') || model.startsWith('gpt-4.1');
       const chunkSize = isReasoning ? 6 : 10;
-      const chunks = [];
+      const chunks: any[][] = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));
       }
 
       let completedCount = 0;
-      updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote 1 de ${chunks.length}...`);
+      const concurrency = isReasoning ? 2 : 4;
+      const results: any[] = new Array(chunks.length);
+      let nextChunkIdx = 0;
 
-      for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
-        const batch = chunks[chunkIdx];
+      updateSrtObserverStep(
+        'prompts',
+        'running',
+        `Gerando prompts visuais: processando ${chunks.length} lotes com concorrência de ${concurrency}...`
+      );
+
+      const processNext = async (): Promise<void> => {
+        if (nextChunkIdx >= chunks.length) return;
+        const currentIdx = nextChunkIdx++;
+        const batch = chunks[currentIdx];
+
         let res: Response | null = null;
         let success = false;
         let data: any = {};
         const maxRetries = 2;
-
-        updateSrtObserverStep('prompts', 'running', `Gerando prompts visuais: processando lote ${chunkIdx + 1} de ${chunks.length}...`);
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           try {
@@ -2399,7 +2408,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             const responseText = await res.text();
             if (res.status === 504) {
               if (attempt < maxRetries) {
-                console.warn(`Lote ${chunkIdx + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
+                console.warn(`Lote ${currentIdx + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
                 await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
                 continue;
               }
@@ -2419,9 +2428,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             success = true;
             break;
           } catch (err: any) {
-            console.warn(`[Lote ${chunkIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
+            console.warn(`[Lote ${currentIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
             if (attempt === maxRetries) {
-              console.error(`[Lote ${chunkIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
+              console.error(`[Lote ${currentIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
               data = {
                 prompts: batch.map((item: any) => {
                   let fallback = 'Clean';
@@ -2448,6 +2457,25 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           }
         }
 
+        results[currentIdx] = data;
+        completedCount++;
+        updateSrtObserverStep(
+          'prompts',
+          'running',
+          `Gerando prompts visuais: processados ${completedCount} de ${chunks.length} lotes...`
+        );
+
+        await processNext();
+      };
+
+      const workers = [];
+      for (let i = 0; i < Math.min(concurrency, chunks.length); i++) {
+        workers.push(processNext());
+      }
+      await Promise.all(workers);
+
+      // Process and insert all results into maps in order
+      results.forEach((data) => {
         (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean; texto_adicional?: string }) => {
           if (p.rowNumber && p.prompt) {
             promptMap.set(p.rowNumber, p.prompt);
@@ -2457,9 +2485,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             if (p.isFallback) fallbackRowNumbers.add(p.rowNumber);
           }
         });
-
-        completedCount++;
-      }
+      });
 
       const rowsWithPrompts = finalRows.map((row) => {
         let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;

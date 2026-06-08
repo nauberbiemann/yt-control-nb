@@ -1116,3 +1116,116 @@ export const sanitizeDownloadFileStem = (value: string) =>
     .trim()
     .replace(/\s/g, '_')
     .slice(0, 80) || 'assets-srt';
+
+export interface FcpxmlOptions {
+  baseDirectory?: string;
+  defaultVideoDuration?: number;
+  defaultImageDuration?: number;
+  namingTemplate?: 'index_prompt56' | 'index_only' | 'index_prompt_full';
+  videoExtension?: string;
+  imageExtension?: string;
+}
+
+export const sanitizePromptForFilename = (prompt: string): string => {
+  return String(prompt || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s-_]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, 56)
+    .replace(/_+$/, '');
+};
+
+export const buildFcpxmlTimeline = (
+  rows: SrtAssetRow[],
+  projectName: string = 'ContentOS_Project',
+  options?: FcpxmlOptions
+): string => {
+  const baseDir = options?.baseDirectory?.trim() || 'file:///C:/ContentOS/assets/';
+  const defaultVideoDuration = options?.defaultVideoDuration ?? 8.0;
+  const defaultImageDuration = options?.defaultImageDuration ?? 5.0;
+  const namingTemplate = options?.namingTemplate ?? 'index_prompt56';
+  const videoExt = options?.videoExtension || 'mp4';
+  const imageExt = options?.imageExtension || 'png';
+
+  // Ensure baseDir ends with a slash and has file:/// prefix
+  let normalizedBase = baseDir.replace(/\\/g, '/');
+  if (!normalizedBase.startsWith('file:///')) {
+    normalizedBase = 'file:///' + normalizedBase.replace(/^\/+/, '');
+  }
+  if (!normalizedBase.endsWith('/')) {
+    normalizedBase += '/';
+  }
+
+  // Filter video and image rows
+  const mediaRows = rows.filter(r => {
+    const type = normalizeAssetType(r.asset);
+    return type === 'vídeo' || type === 'imagem';
+  });
+
+  const assetsXml: string[] = [];
+  const clipsXml: string[] = [];
+  
+  let resourceId = 2; // start from r2 (r1 is format)
+  let totalProjectDuration = 0;
+
+  mediaRows.forEach((row) => {
+    const type = normalizeAssetType(row.asset);
+    const rowNum = row.rowNumber;
+    const cleanPrompt = sanitizePromptForFilename(row.prompt);
+
+    // 1. Determine local filename
+    let filename = '';
+    const ext = type === 'vídeo' ? videoExt : imageExt;
+    if (namingTemplate === 'index_only') {
+      filename = `${rowNum}.${ext}`;
+    } else {
+      // index_prompt56 / index_prompt_full (both use 56 chars in our current implementation)
+      filename = `${rowNum}_${cleanPrompt}.${ext}`;
+    }
+
+    const fileUrl = `${normalizedBase}${filename}`;
+    const assetId = `r${resourceId++}`;
+    const startMs = parseSrtTimeToMs(row.startTime);
+    const endMs = parseSrtTimeToMs(row.endTime);
+    const durationSeconds = Math.max(0.1, Number(((endMs - startMs) / 1000).toFixed(3)));
+    const offsetSeconds = Number((startMs / 1000).toFixed(3));
+
+    totalProjectDuration = Math.max(totalProjectDuration, offsetSeconds + durationSeconds);
+
+    const sourceDuration = type === 'vídeo' ? defaultVideoDuration : defaultImageDuration;
+
+    // 2. Calculate trim offset to centralize cut
+    let trimStart = 0;
+    if (type === 'vídeo' && sourceDuration > durationSeconds) {
+      trimStart = Number(((sourceDuration - durationSeconds) / 2).toFixed(3));
+    }
+
+    assetsXml.push(`    <asset id="${assetId}" name="${filename}" src="${fileUrl}" start="0s" duration="${sourceDuration}s" hasVideo="1" hasAudio="${type === 'vídeo' ? '1' : '0'}"/>`);
+    clipsXml.push(`            <asset-clip ref="${assetId}" name="${filename.replace(/\.[^.]+$/, '')}" offset="${offsetSeconds}s" start="${trimStart}s" duration="${durationSeconds}s"/>`);
+  });
+
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<!DOCTYPE fcpxml>`,
+    `<fcpxml version="1.8">`,
+    `  <resources>`,
+    `    <format id="r1" name="FFVideoFormat1080p30" frameDuration="100/3000s" width="1920" height="1080"/>`,
+    ...assetsXml,
+    `  </resources>`,
+    `  <library>`,
+    `    <event name="ContentOS_Event">`,
+    `      <project name="${projectName.replace(/[<>&'"]/g, '')}">`,
+    `        <sequence duration="${totalProjectDuration}s" format="r1" tcStart="0s" tcFormat="NDF">`,
+    `          <spine>`,
+    ...clipsXml,
+    `          </spine>`,
+    `        </sequence>`,
+    `      </project>`,
+    `    </event>`,
+    `  </library>`,
+    `</fcpxml>`
+  ].join('\n');
+};
+

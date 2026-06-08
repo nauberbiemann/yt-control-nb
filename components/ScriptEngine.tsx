@@ -18,6 +18,7 @@ import {
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
   finalizeFacelessRows,
+  buildFcpxmlTimeline,
 } from '@/lib/srt-asset-pipeline';
 import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
@@ -447,6 +448,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   };
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
   const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+  const [fcpxmlBaseDir, setFcpxmlBaseDir] = useState('D:/ContentFlow/assets/');
+  const [fcpxmlNaming, setFcpxmlNaming] = useState<'index_prompt56' | 'index_only' | 'index_prompt_full'>('index_prompt56');
+  const [fcpxmlVidDuration, setFcpxmlVidDuration] = useState(8.0);
+  const [fcpxmlImgDuration, setFcpxmlImgDuration] = useState(5.0);
   const [isPostPackageExpanded, setIsPostPackageExpanded] = useState(false);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
   const thumbnailPanelRef = useRef<HTMLDivElement | null>(null);
@@ -2289,7 +2294,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     stem: string,
     suffix: string,
     content: string,
-    options?: { extension?: 'txt' | 'csv' | 'bat'; mimeType?: string }
+    options?: { extension?: 'txt' | 'csv' | 'bat' | 'fcpxml'; mimeType?: string }
   ) => {
     if (!content.trim()) {
       alert('Nao ha conteudo disponivel para exportar.');
@@ -2308,6 +2313,38 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportFcpxml = () => {
+    if (!externalSrtPipeline?.rows?.length) {
+      alert('Não há pipeline de legenda (.srt) carregado ou processado para exportar.');
+      return;
+    }
+
+    try {
+      const fcpxmlContent = buildFcpxmlTimeline(
+        externalSrtPipeline.rows,
+        approvedBriefing?.title || approvedTheme || 'ContentOS_CapCut',
+        {
+          baseDirectory: fcpxmlBaseDir,
+          namingTemplate: fcpxmlNaming,
+          defaultVideoDuration: fcpxmlVidDuration,
+          defaultImageDuration: fcpxmlImgDuration,
+          videoExtension: 'mp4',
+          imageExtension: 'png',
+        }
+      );
+
+      downloadTextArtifact(
+        srtArtifactStem,
+        'capcut_timeline',
+        fcpxmlContent,
+        { extension: 'fcpxml', mimeType: 'application/xml;charset=utf-8' }
+      );
+    } catch (err) {
+      console.error('[ScriptEngine] Erro ao exportar FCPXML:', err);
+      alert('Erro ao gerar arquivo da timeline FCPXML.');
+    }
   };
 
 
@@ -5658,6 +5695,83 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                                 Preview mostrando as primeiras 8 linhas. O CSV completo fica persistido nesta execucao e pode ser exportado.
                               </p>
                             )}
+
+                            {/* FCPXML CapCut Timeline Synchronizer */}
+                            <div className="border-t border-white/5 pt-4 mt-3 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-cyan-400 text-xs">🎬</span>
+                                <p className="text-[11px] font-black uppercase tracking-[2px] text-cyan-400">Sincronizador CapCut (Exportar FCPXML)</p>
+                              </div>
+                              <p className="text-[10px] text-white/45 leading-relaxed">
+                                Gere um arquivo de linha de tempo XML (.fcpxml). Importe-o no CapCut PC (<strong>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</strong>) para criar uma timeline com os vídeos brutas já cortados e alinhados na duração exata de cada bloco da legenda automaticamente.
+                              </p>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Pasta Local dos Vídeos/Imagens</label>
+                                  <input
+                                    type="text"
+                                    value={fcpxmlBaseDir}
+                                    onChange={(e) => setFcpxmlBaseDir(e.target.value)}
+                                    placeholder="Ex: D:/ContentFlow/assets/"
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all placeholder:text-white/20"
+                                  />
+                                  <span className="text-[8px] text-white/30 block">Caminho da pasta local onde estão as mídias.</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Padrão de Nome dos Arquivos</label>
+                                  <select
+                                    value={fcpxmlNaming}
+                                    onChange={(e) => setFcpxmlNaming(e.target.value as any)}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                  >
+                                    <option value="index_prompt56">[Index]_[Prompt 56 Chars] (Ex: 1_Create_a_...)</option>
+                                    <option value="index_only">Apenas Número (Ex: 1.mp4, 2.png)</option>
+                                  </select>
+                                  <span className="text-[8px] text-white/30 block">Selecione o formato dos nomes das suas mídias locais.</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Duração Bruta das Mídias</label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min="1"
+                                        value={fcpxmlVidDuration}
+                                        onChange={(e) => setFcpxmlVidDuration(Number(e.target.value))}
+                                        placeholder="Vídeo (s)"
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
+                                        title="Duração padrão do vídeo bruto gerado (ex: Kling/Runway - 8s)"
+                                      />
+                                      <span className="text-[8px] text-white/30 text-center block">Vídeo (s)</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min="1"
+                                        value={fcpxmlImgDuration}
+                                        onChange={(e) => setFcpxmlImgDuration(Number(e.target.value))}
+                                        placeholder="Imagem (s)"
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
+                                        title="Duração padrão de exibição da imagem estática (ex: 5s)"
+                                      />
+                                      <span className="text-[8px] text-white/30 text-center block">Imagem (s)</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={handleExportFcpxml}
+                                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2"
+                                >
+                                  🎬 Exportar Timeline para CapCut (.fcpxml)
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>

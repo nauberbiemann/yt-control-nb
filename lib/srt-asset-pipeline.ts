@@ -1124,6 +1124,8 @@ export interface FcpxmlOptions {
   namingTemplate?: 'index_prompt56' | 'index_only' | 'index_prompt_full';
   videoExtension?: string;
   imageExtension?: string;
+  projectStem?: string;
+  videoFormat?: string;
 }
 
 export const sanitizePromptForFilename = (prompt: string): string => {
@@ -1167,10 +1169,12 @@ export const buildFcpxmlTimeline = (
   const videoSubDir = suffix ? `Videos ${suffix}/` : 'Videos/';
   const imageSubDir = suffix ? `Imagens ${suffix}/` : 'Imagens/';
 
-  // Filter video and image rows
+  // Filter video, image, text and hyperframe rows (if faceless)
   const mediaRows = rows.filter(r => {
     const type = normalizeAssetType(r.asset);
-    return type === 'vídeo' || type === 'imagem';
+    if (type === 'vídeo' || type === 'imagem' || type === 'texto') return true;
+    if (type === 'hyperframe' && options?.videoFormat === 'faceless') return true;
+    return false;
   });
 
   const assetsXml: string[] = [];
@@ -1183,19 +1187,28 @@ export const buildFcpxmlTimeline = (
     const type = normalizeAssetType(row.asset);
     const rowNum = row.rowNumber;
     const cleanPrompt = sanitizePromptForFilename(row.prompt);
+    const isFacelessHf = type === 'hyperframe' && options?.videoFormat === 'faceless';
 
-    // 1. Determine local filename
+    // 1. Determine local filename & path
     let filename = '';
-    const ext = type === 'vídeo' ? videoExt : imageExt;
-    if (namingTemplate === 'index_only') {
-      filename = `${rowNum}.${ext}`;
+    let fileUrl = '';
+    const ext = (type === 'vídeo' || isFacelessHf) ? videoExt : (type === 'imagem' ? imageExt : 'mp4');
+
+    if (type === 'texto') {
+      filename = `linha_${String(rowNum).padStart(4, '0')}_texto.mp4`;
+      const safeStem = sanitizeDownloadFileStem(options?.projectStem || projectName);
+      fileUrl = `${normalizedBase}renders_${safeStem}/${filename}`;
     } else {
-      // index_prompt56 / index_prompt_full (both use 56 chars in our current implementation)
-      filename = `${rowNum}_${cleanPrompt}.${ext}`;
+      const prefix = isFacelessHf ? `${rowNum}-HF` : `${rowNum}`;
+      if (namingTemplate === 'index_only') {
+        filename = `${prefix}.${ext}`;
+      } else {
+        filename = `${prefix}_${cleanPrompt}.${ext}`;
+      }
+      const subFolder = (type === 'vídeo' || isFacelessHf) ? videoSubDir : imageSubDir;
+      fileUrl = `${normalizedBase}${subFolder}${filename}`;
     }
 
-    const subFolder = type === 'vídeo' ? videoSubDir : imageSubDir;
-    const fileUrl = `${normalizedBase}${subFolder}${filename}`;
     const assetId = `r${resourceId++}`;
     const startMs = parseSrtTimeToMs(row.startTime);
     const endMs = parseSrtTimeToMs(row.endTime);
@@ -1204,15 +1217,19 @@ export const buildFcpxmlTimeline = (
 
     totalProjectDuration = Math.max(totalProjectDuration, offsetSeconds + durationSeconds);
 
-    const sourceDuration = type === 'vídeo' ? defaultVideoDuration : defaultImageDuration;
+    const sourceDuration = type === 'texto'
+      ? durationSeconds
+      : ((type === 'vídeo' || isFacelessHf) ? defaultVideoDuration : defaultImageDuration);
 
     // 2. Calculate trim offset to centralize cut
     let trimStart = 0;
-    if (type === 'vídeo' && sourceDuration > durationSeconds) {
+    if ((type === 'vídeo' || isFacelessHf) && sourceDuration > durationSeconds) {
       trimStart = Number(((sourceDuration - durationSeconds) / 2).toFixed(3));
     }
 
-    assetsXml.push(`    <asset id="${assetId}" name="${filename}" src="${fileUrl}" start="0s" duration="${sourceDuration}s" hasVideo="1" hasAudio="${type === 'vídeo' ? '1' : '0'}"/>`);
+    const hasAudio = (type === 'vídeo' || isFacelessHf || type === 'texto') ? '1' : '0';
+
+    assetsXml.push(`    <asset id="${assetId}" name="${filename}" src="${fileUrl}" start="0s" duration="${sourceDuration}s" hasVideo="1" hasAudio="${hasAudio}"/>`);
     clipsXml.push(`            <asset-clip ref="${assetId}" name="${filename.replace(/\.[^.]+$/, '')}" offset="${offsetSeconds}s" start="${trimStart}s" duration="${durationSeconds}s"/>`);
   });
 

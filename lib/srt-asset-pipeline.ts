@@ -1158,6 +1158,15 @@ export const buildFcpxmlTimeline = (
     normalizedBase += '/';
   }
 
+  // Detect suffix from the folder name (e.g. "V33" from "Fabrica V33/")
+  const partsForSuffix = normalizedBase.split('/').filter(Boolean);
+  const lastDir = partsForSuffix[partsForSuffix.length - 1] || '';
+  const suffixMatch = lastDir.match(/(V\d+|v\d+)$/) || lastDir.match(/\s+(\S+)$/);
+  const suffix = suffixMatch ? suffixMatch[1] : '';
+
+  const videoSubDir = suffix ? `Videos ${suffix}/` : 'Videos/';
+  const imageSubDir = suffix ? `Imagens ${suffix}/` : 'Imagens/';
+
   // Filter video and image rows
   const mediaRows = rows.filter(r => {
     const type = normalizeAssetType(r.asset);
@@ -1185,7 +1194,8 @@ export const buildFcpxmlTimeline = (
       filename = `${rowNum}_${cleanPrompt}.${ext}`;
     }
 
-    const fileUrl = `${normalizedBase}${filename}`;
+    const subFolder = type === 'vídeo' ? videoSubDir : imageSubDir;
+    const fileUrl = `${normalizedBase}${subFolder}${filename}`;
     const assetId = `r${resourceId++}`;
     const startMs = parseSrtTimeToMs(row.startTime);
     const endMs = parseSrtTimeToMs(row.endTime);

@@ -1335,21 +1335,54 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     const selectedArgumentMode = approvedBriefing?.selectedArgumentMode;
     const selectedRepetitionRules = (approvedBriefing?.selectedRepetitionRules || []) as Array<{ id?: string; name?: string; pattern?: string; description?: string }>;
 
-    // Narrator identity: use explicit profile if set, otherwise derive from voice + PUC
+    // Strategic project variables (currently neglected fields in prompting)
+    const languageStyle = activeProject?.persona_matrix?.language || '';
+    const desiredOutcome = activeProject?.persona_matrix?.desired_outcome || '';
+    const proofPoints = activeProject?.persona_matrix?.proof_points || '';
+    const positioningAngle = activeProject?.editorial_line?.positioning_angle || '';
+    const contentBoundaries = activeProject?.editorial_line?.content_boundaries || '';
+    const passion = activeProject?.phd_strategy?.passion || '';
+    const skill = activeProject?.phd_strategy?.skill || '';
+    const demand = activeProject?.phd_strategy?.demand || '';
+    const baseSystemInstruction = activeProject?.base_system_instruction || '';
+
+    // Narrator identity: combine positioning, tone, active voice and PHD strategies
     const narratorPositioning = activeProject?.narrative_voice?.positioning?.trim() || '';
     const atmosphereList = (activeProject?.narrative_voice?.atmosphere || []).join(', ');
     const dominantVoiceLabel = approvedBriefing?.dominantVoice || approvedBriefing?.diagnostics?.locked?.voicePatternId || '';
-    const narratorIdentity = narratorPositioning
-      ? narratorPositioning
-      : [
-          dominantVoiceLabel === 'Vulnerabilidade'
-            ? 'Fala em primeira pessoa, a partir da propria experiencia. Nao como especialista externo, mas como alguem que passou pelo mesmo problema e tem cicatriz para mostrar.'
-            : dominantVoiceLabel === 'Desafio Direto'
-            ? 'Fala como par senior que confronta sem agredir. Nao suaviza, nao enrola. Da o diagnostico e vai embora.'
-            : 'Fala com distancia tecnica analitica. Mostra o mecanismo, nao a emocao. A autoridade vem da clareza, nao da intensidade.',
-          atmosphereList ? `Tom predominante do canal: ${atmosphereList}.` : '',
-          activeProject?.puc ? `Posicionamento unico: ${activeProject.puc}.` : '',
-        ].filter(Boolean).join(' ');
+    const narratorIdentity = [
+      narratorPositioning ? `Posicionamento de Autoridade: ${narratorPositioning}` : '',
+      dominantVoiceLabel === 'Vulnerabilidade'
+        ? 'Estilo de fala ativo: Primeira pessoa, a partir da propria experiencia. Nao como especialista externo, mas como alguem que passou pelo mesmo problema e tem cicatriz para mostrar.'
+        : dominantVoiceLabel === 'Desafio Direto'
+        ? 'Estilo de fala ativo: Par senior que confronta sem agredir. Nao suaviza, nao enrola. Da o diagnostico e vai embora.'
+        : 'Estilo de fala ativo: Distancia tecnica analitica. Mostra o mecanismo, nao a emocao. A autoridade vem da clareza, nao da intensidade.',
+      atmosphereList ? `Atmosfera/Tom de voz predominante: ${atmosphereList}.` : '',
+      activeProject?.puc ? `Posicionamento Unico do Canal (PUC): ${activeProject.puc}.` : '',
+      passion ? `Paixao do criador (diretriz energetica): ${passion}` : '',
+      skill ? `Habilidade/Autoridade do criador: ${skill}` : '',
+    ].filter(Boolean).join('\n');
+
+    const languageSection = languageStyle || desiredOutcome || proofPoints
+      ? [
+          '\nESTILO LINGUISTICO E TONE OF VOICE',
+          languageStyle ? `- Diretriz de linguagem: ${languageStyle}` : '',
+          desiredOutcome ? `- Desfecho desejado a prometer no roteiro: ${desiredOutcome}` : '',
+          proofPoints ? `- Fatos/Pontos de prova a incorporar: ${proofPoints}` : '',
+        ].filter(Boolean).join('\n')
+      : '';
+
+    const boundariesSection = positioningAngle || contentBoundaries
+      ? [
+          '\nDIRETRIZES DE CONTEUDO E LIMITES (BOUNDARIES)',
+          positioningAngle ? `- Angulo de posicionamento editorial: ${positioningAngle}` : '',
+          contentBoundaries ? `- Limites de conteudo (O que entra e o que NAO entra):\n${contentBoundaries}` : '',
+        ].filter(Boolean).join('\n')
+      : '';
+
+    const customSystemSection = baseSystemInstruction
+      ? `\nINSTRUCOES ADICIONAIS DO SISTEMA DO PROJETO\n- Aplique estritamente estas regras de sistema do canal:\n${baseSystemInstruction}`
+      : '';
 
     const hookTensionMap = {
       tensionLevel: 'Alta',
@@ -1608,6 +1641,7 @@ ${narratorIdentity}
 - Esta identidade deve ser sentida na escolha de palavras, no nivel de intimidade, na postura diante do assunto e no ponto de entrada de cada bloco.
 - O narrador deve ser uma presenca constante e ativa ao longo de todo o video. Ele nao e apenas um locutor passivo de informacoes, mas sim uma personalidade que se manifesta, comenta, reage e expressa suas opinioes e vivencias de forma natural e integrada ao longo de todo o roteiro.
 - Nao declare a identidade do narrador no texto. Apenas encarne-a com presenca marcante.
+${languageSection}${boundariesSection}${customSystemSection}
 
 [DIRETRIZ DE CONTROLE NARRATIVO - CUIDADO COM A IA]
 1. EVITE O EFEITO BARNUM: Nao use adjetivos ou descricoes genericas que se anulam (ex: ser 'acolhedora, firme, pratica e contemplativa' ao mesmo tempo). Assuma uma postura narrativa consistente, clara e sem contradiccoes vagas.

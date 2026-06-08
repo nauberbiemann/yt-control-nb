@@ -3061,7 +3061,18 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       const persistedAt = new Date().toISOString();
-      const pipelineResult = { ...activePipeline, generatedAt: persistedAt };
+      const pipelineResult = {
+        ...activePipeline,
+        generatedAt: persistedAt,
+        textRender: activePipeline.textRender || {
+          csvPath: `${sanitizeDownloadFileStem(srtArtifactStem)}_pipeline_assets.csv`,
+          outputDir: `remotion-renderer/renders/${sanitizeDownloadFileStem(srtArtifactStem)}`,
+          renderedCount: activePipeline.rows.filter((r: any) => normalizeAssetType(r.asset) === 'texto').length,
+          reusedCount: 0,
+          log: 'Download do script .bat e do CSV realizado para execução offline.',
+          lastRenderedAt: persistedAt
+        }
+      };
       setExternalSrtPipeline(pipelineResult);
       setSrtPipelineStatus('Etapa 5 (Nuvem) concluída. Os arquivos .bat e .csv foram baixados para execução manual.');
       
@@ -5622,7 +5633,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       </div>
 
                       {/* FCPXML CapCut Timeline Synchronizer */}
-                      {!externalSrtPipeline?.textRender ? (
+                      {!externalSrtPipeline ? (
                         <div className="rounded-2xl border border-white/5 bg-midnight/20 opacity-60 p-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-white/40">
@@ -5632,7 +5643,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                             <span className="text-[9px] bg-white/5 px-2 py-0.5 rounded text-white/50 uppercase tracking-widest font-black">Pendente</span>
                           </div>
                           <p className="text-[10px] text-white/30 leading-relaxed">
-                            Gere um arquivo de linha de tempo XML (.fcpxml). <strong>Este recurso será liberado após a conclusão da Etapa 5 (Render de Texto)</strong> para que todos os brolls (vídeos, imagens e textos renderizados) sejam sincronizados na timeline automaticamente.
+                            Gere um arquivo de linha de tempo XML (.fcpxml). <strong>Este recurso será liberado após o processamento do pipeline SRT</strong> para que todos os brolls (vídeos, imagens e textos renderizados) sejam sincronizados na timeline automaticamente.
                           </p>
                         </div>
                       ) : (

@@ -73,7 +73,9 @@ const resolveCharacterProfileInFrontend = (
   mode: VideoCharacterMode,
   format: VideoFormat,
   projectName?: string,
-  customDescription?: string
+  customDescription?: string,
+  demographics?: string,
+  visualIdentity?: string
 ): string => {
   const resolvedMode = mode === 'female' || mode === 'custom' ? mode : 'male';
   const resolvedCustomDescription = String(customDescription || '').replace(/\s+/g, ' ').trim();
@@ -84,42 +86,97 @@ const resolveCharacterProfileInFrontend = (
 
   const resolvedProjectName = String(projectName || '').trim();
   const videoFormat = format || 'avatar';
-  const isDevZen = resolvedProjectName.toLowerCase().includes('dev') || resolvedProjectName.toLowerCase().includes('tech');
-  const isMetabolismo = resolvedProjectName.toLowerCase().includes('metabolismo') || resolvedProjectName.toLowerCase().includes('saude') || resolvedProjectName.toLowerCase().includes('longevidade') || resolvedProjectName.toLowerCase().includes('ouro');
+  const resolvedDemographics = String(demographics || '').trim();
+  const resolvedVisualIdentity = String(visualIdentity || '').trim();
 
-  if (isDevZen) {
-    if (videoFormat === 'vlog') {
-      return resolvedMode === 'female'
-        ? 'same recurring Brazilian female field researcher and software architect in her early 30s, intelligent and curious expression, wearing casual techwear travel jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie'
-        : 'same recurring Brazilian male field researcher and software engineer in his early 30s, intelligent and curious expression, wearing casual techwear travel jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie';
-    } else {
-      return resolvedMode === 'female'
-        ? 'same recurring Brazilian female senior software architect in her early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear'
-        : 'same recurring Brazilian male senior software architect in his early 40s, focused expression, subtle signs of fatigue, modern dark home office, premium casual techwear';
-    }
+  // 1. Detect Gender & Pronoun
+  const isFemaleVisual = resolvedVisualIdentity.toLowerCase().includes('mulher') || 
+                         resolvedVisualIdentity.toLowerCase().includes('senhora') || 
+                         resolvedVisualIdentity.toLowerCase().includes('female') ||
+                         resolvedDemographics.toLowerCase().includes('mulher') ||
+                         resolvedDemographics.toLowerCase().includes('female');
+  
+  const finalMode = mode === 'custom' ? (isFemaleVisual ? 'female' : 'male') : mode;
+  const pronoun = finalMode === 'female' ? 'her' : 'his';
+  const noun = finalMode === 'female' ? 'female' : 'male';
+
+  // 2. Detect Age
+  let ageDescriptor = 'in early 30s';
+  const ageLower = (resolvedDemographics + ' ' + resolvedVisualIdentity).toLowerCase();
+  if (ageLower.includes('70') || ageLower.includes('setenta') || ageLower.includes('late 60s')) {
+    ageDescriptor = 'in late 60s';
+  } else if (ageLower.includes('60') || ageLower.includes('sessenta')) {
+    ageDescriptor = 'in early 60s';
+  } else if (ageLower.includes('50') || ageLower.includes('cinquenta') || ageLower.includes('45')) {
+    ageDescriptor = 'in early 50s';
+  } else if (ageLower.includes('40') || ageLower.includes('quarenta')) {
+    ageDescriptor = 'in early 40s';
+  } else if (ageLower.includes('30') || ageLower.includes('trinta')) {
+    ageDescriptor = 'in early 30s';
   }
 
-  if (isMetabolismo) {
-    if (videoFormat === 'vlog') {
-      return resolvedMode === 'female'
-        ? 'same recurring Brazilian female health mentor and longevity explorer in her late 60s, radiant skin, elegant active expression, wearing an organic linen travel shirt, recording an educational vlog selfie in the natural or historical setting'
-        : 'same recurring Brazilian male health educator and longevity explorer in his late 60s, elegant active expression, wearing an organic linen travel shirt, recording an educational vlog selfie in the natural or historical setting';
-    } else {
-      return resolvedMode === 'female'
-        ? 'same recurring Brazilian female health mentor in her late 60s, radiant skin, vital active expression, elegant look, modern minimalist home office with organic textures and soft sunlight, wearing elegant natural fabrics'
-        : 'same recurring Brazilian male health mentor in his late 60s, healthy vital expression, elegant look, modern minimalist home office with natural wood and plants, soft lighting';
-    }
+  // 3. Detect Role
+  let roleDescriptor = 'presenter';
+  const roleLower = (resolvedProjectName + ' ' + resolvedDemographics).toLowerCase();
+  if (roleLower.includes('dev') || roleLower.includes('tech') || roleLower.includes('software') || roleLower.includes('code') || roleLower.includes('arquiteto')) {
+    roleDescriptor = finalMode === 'female' ? 'senior software architect and technology expert' : 'senior software engineer and technology expert';
+  } else if (roleLower.includes('metabolismo') || roleLower.includes('saude') || roleLower.includes('longevidade') || roleLower.includes('vitalidade') || roleLower.includes('nutri') || roleLower.includes('health')) {
+    roleDescriptor = 'health mentor and longevity educator';
+  } else if (roleLower.includes('finan') || roleLower.includes('negocio') || roleLower.includes('money') || roleLower.includes('invest') || roleLower.includes('lucro')) {
+    roleDescriptor = 'financial advisor and business strategist';
+  } else if (resolvedProjectName) {
+    roleDescriptor = `expert presenter and specialist in ${resolvedProjectName}`;
   }
 
-  // Generic fallback
+  // 4. Detect Attire / Appearance Style from visualIdentity
+  let clothingDescriptor = 'professional attire';
+  const visualLower = resolvedVisualIdentity.toLowerCase();
+  if (visualLower.includes('techwear')) {
+    clothingDescriptor = 'premium casual techwear';
+  } else if (visualLower.includes('linho') || visualLower.includes('linen') || visualLower.includes('organic') || visualLower.includes('natural')) {
+    clothingDescriptor = 'elegant clothing made of organic linen and natural fabrics';
+  } else if (visualLower.includes('quiet luxury') || visualLower.includes('luxo silencioso') || visualLower.includes('nobre')) {
+    clothingDescriptor = 'elegant quiet luxury style clothing in neutral tones';
+  } else if (visualLower.includes('casual')) {
+    clothingDescriptor = 'casual stylish attire';
+  }
+
+  // 5. Detect Expression
+  let expressionDescriptor = 'intelligent and friendly expression';
+  if (visualLower.includes('concentrado') || visualLower.includes('foco') || visualLower.includes('focused')) {
+    expressionDescriptor = 'focused and intelligent expression';
+  } else if (visualLower.includes('serena') || visualLower.includes('serenidade') || visualLower.includes('serene')) {
+    expressionDescriptor = 'elegant and serene expression with radiant skin';
+  } else if (visualLower.includes('vital') || visualLower.includes('ativa') || visualLower.includes('active')) {
+    expressionDescriptor = 'vital and active expression with radiant skin';
+  }
+
+  // 6. Detect Environment/Setting based on Format & Visual Identity
+  let settingDescriptor = 'modern minimalist home studio, professional setting with soft cinematic lighting';
   if (videoFormat === 'vlog') {
-    return resolvedMode === 'female'
-      ? 'same recurring Brazilian female field researcher and didactic educator in her early 30s, intelligent and curious expression, wearing a brown canvas explorer jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie'
-      : 'same recurring Brazilian male field researcher and didactic educator in his early 30s, intelligent and curious expression, wearing a brown canvas explorer jacket, standing directly in the historical setting, recording a high-quality educational vlog selfie';
+    let vlogSetting = 'standing directly in the historical or natural setting, recording a high-quality educational vlog selfie';
+    if (visualLower.includes('natural') || visualLower.includes('jardim') || visualLower.includes('natureza')) {
+      vlogSetting = 'standing directly in the serene natural or outdoor setting, recording a high-quality educational vlog selfie';
+    } else if (visualLower.includes('office') || visualLower.includes('escritorio')) {
+      vlogSetting = 'standing in a premium home office, recording a high-quality vlog selfie';
+    }
+    settingDescriptor = vlogSetting;
   } else {
-    return resolvedMode === 'female'
-      ? 'same recurring Brazilian female presenter in her early 30s, intelligent and friendly expression, modern dark home studio, professional attire'
-      : 'same recurring Brazilian male presenter in his early 30s, intelligent and friendly expression, modern dark home studio, professional attire';
+    // Studio Format
+    if (visualLower.includes('home office escuro') || visualLower.includes('dark home office') || visualLower.includes('midnight')) {
+      settingDescriptor = `modern dark home office with subtle glowing screens, cinematic depth of field`;
+    } else if (visualLower.includes('luz natural') || visualLower.includes('sol suave') || visualLower.includes('sunlight')) {
+      settingDescriptor = `sunlit minimalist room with wood textures and soft warm lighting`;
+    } else if (visualLower.includes('clean') || visualLower.includes('claro') || visualLower.includes('minimalista')) {
+      settingDescriptor = `bright minimalist workspace with clean white and wood textures`;
+    }
+  }
+
+  // Compile final prompt string
+  if (videoFormat === 'vlog') {
+    return `same recurring Brazilian ${noun} ${roleDescriptor} ${ageDescriptor}, ${expressionDescriptor}, wearing ${clothingDescriptor}, ${settingDescriptor}`;
+  } else {
+    return `same recurring Brazilian ${noun} ${roleDescriptor} ${ageDescriptor}, ${expressionDescriptor}, ${settingDescriptor}, wearing ${clothingDescriptor}`;
   }
 };
 
@@ -5018,7 +5075,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                       const resolvedPrompt = resolveCharacterProfileInFrontend(
                         videoCharacterMode,
                         videoFormat,
-                        activeProject?.name || activeProject?.project_name
+                        activeProject?.name || activeProject?.project_name,
+                        undefined,
+                        activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
+                        activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
                       );
                       return (
                         <div className="space-y-1.5 mt-2">
@@ -5052,9 +5112,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           type="button"
                           onClick={() => {
                             const resolved = resolveCharacterProfileInFrontend(
-                              'male',
+                              'custom',
                               videoFormat,
-                              activeProject?.name || activeProject?.project_name
+                              activeProject?.name || activeProject?.project_name,
+                              undefined,
+                              activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
+                              activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
                             );
                             setVideoCharacterCustom(resolved);
                           }}

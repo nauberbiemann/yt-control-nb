@@ -19,6 +19,7 @@ import {
   type SrtAssetPipelineResult,
   finalizeFacelessRows,
   buildFcpxmlTimeline,
+  buildCapCutDraft,
 } from '@/lib/srt-asset-pipeline';
 import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
@@ -2195,6 +2196,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           model,
           apiKeyOverwrite: apiKey,
           projectConfig: activeProject?.ai_engine_rules,
+          videoFormat,
         }),
       });
 
@@ -2346,6 +2348,122 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     } catch (err) {
       console.error('[ScriptEngine] Erro ao exportar FCPXML:', err);
       alert('Erro ao gerar arquivo da timeline FCPXML.');
+    }
+  };
+
+  const handleExportCapcutZip = async () => {
+    if (!externalSrtPipeline?.rows?.length) {
+      alert('Não há pipeline de legenda (.srt) carregado ou processado para exportar.');
+      return;
+    }
+
+    try {
+      const projectName = approvedBriefing?.title || approvedTheme || 'ContentOS_CapCut';
+      const safeStem = sanitizeDownloadFileStem(srtArtifactStem);
+      const audioFilename = `${safeStem}.mp3`;
+
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      const result = buildCapCutDraft(
+        externalSrtPipeline.rows,
+        projectName,
+        {
+          baseDirectory: fcpxmlBaseDir,
+          namingTemplate: fcpxmlNaming,
+          defaultVideoDuration: fcpxmlVidDuration,
+          defaultImageDuration: fcpxmlImgDuration,
+          videoExtension: 'mp4',
+          imageExtension: 'png',
+          projectStem: srtArtifactStem,
+          videoFormat: videoFormat,
+          audioFilename: audioFilename
+        }
+      );
+
+      const folderName = safeStem;
+      const folder = zip.folder(folderName);
+      if (folder) {
+        folder.file('draft_content.json', result.draftContent);
+        folder.file('draft_meta_info.json', result.draftMetaInfo);
+        folder.file('draft_settings', '{"is_work_space_changed":false,"ver_num":"1.0"}');
+        
+        const readmeContent = `PROJETO NATIVO CAPCUT PC (WINDOWS)
+Este arquivo ZIP contem a estrutura nativa do rascunho do CapCut.
+
+COMO USAR NO WINDOWS:
+1. Feche o CapCut PC.
+2. Extraia esta pasta inteira (${folderName}) diretamente dentro da sua pasta de rascunhos do CapCut:
+   Padrao: C:\\Users\\<SeuUsuario>\\AppData\\Local\\CapCut\\User Data\\CapCut Drafts\\
+   Ou na sua pasta OneDrive: D:\\onedrive\\Downloads\\Capcut\\CapCut Drafts\\
+3. Certifique-se de que a estrutura ficou assim:
+   ...\\CapCut Drafts\\${folderName}\\draft_content.json
+   ...\\CapCut Drafts\\${folderName}\\draft_meta_info.json
+   ...\\CapCut Drafts\\${folderName}\\draft_settings
+4. Abra o CapCut PC. O projeto "${projectName}" aparecera automaticamente na lista de projetos recentes.
+5. Ao abrir, se o CapCut nao encontrar os arquivos de midia automaticamente, use a opcao de "Vincular Midia" (Link Media) apontando para o seu diretorio:
+   ${fcpxmlBaseDir}
+`;
+        folder.file('COMO_USAR.txt', readmeContent);
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${safeStem}_CapCut_Projeto_Nativo.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error('[ScriptEngine] Erro ao exportar CapCut ZIP:', err);
+      alert('Erro ao gerar arquivo ZIP do projeto nativo.');
+    }
+  };
+
+  const handleExportCapcutJson = () => {
+    if (!externalSrtPipeline?.rows?.length) {
+      alert('Não há pipeline de legenda (.srt) carregado ou processado para exportar.');
+      return;
+    }
+
+    try {
+      const projectName = approvedBriefing?.title || approvedTheme || 'ContentOS_CapCut';
+      const safeStem = sanitizeDownloadFileStem(srtArtifactStem);
+      const audioFilename = `${safeStem}.mp3`;
+
+      const result = buildCapCutDraft(
+        externalSrtPipeline.rows,
+        projectName,
+        {
+          baseDirectory: fcpxmlBaseDir,
+          namingTemplate: fcpxmlNaming,
+          defaultVideoDuration: fcpxmlVidDuration,
+          defaultImageDuration: fcpxmlImgDuration,
+          videoExtension: 'mp4',
+          imageExtension: 'png',
+          projectStem: srtArtifactStem,
+          videoFormat: videoFormat,
+          audioFilename: audioFilename
+        }
+      );
+
+      // Download only draft_content.json
+      const blob = new Blob([result.draftContent], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'draft_content.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error('[ScriptEngine] Erro ao exportar draft_content.json:', err);
+      alert('Erro ao gerar arquivo draft_content.json.');
     }
   };
 
@@ -5651,13 +5769,18 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-cyan-400">
                               <span className="text-xs">🎬</span>
-                              <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (Exportar FCPXML)</p>
+                              <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (PC / Windows / Mac)</p>
                             </div>
                             <span className="text-[9px] bg-cyan-500/20 px-2 py-0.5 rounded text-cyan-300 uppercase tracking-widest font-black animate-pulse">Disponível</span>
                           </div>
                           <p className="text-[10px] text-white/45 leading-relaxed">
-                            Gere um arquivo de linha de tempo XML (.fcpxml). Importe-o no CapCut PC (<strong>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</strong>) para criar uma timeline com todos os vídeos, imagens e textos renderizados já cortados e alinhados automaticamente.
+                            Exporte a sua linha de tempo diretamente para o CapCut de três formas:
                           </p>
+                          <ul className="list-disc pl-4 text-[10px] text-white/40 space-y-1">
+                            <li><strong>Opção 1 (Substituir Rascunho - RECOMENDADO & MAIS SIMPLES):</strong> Baixe apenas o arquivo <code>draft_content.json</code>. No CapCut, crie um projeto novo (ou use um existente) e feche o programa. Vá na pasta desse projeto em <code>CapCut Drafts</code> (ex: <code>0608</code>) e substitua o <code>draft_content.json</code> existente pelo arquivo baixado. É o método mais rápido e direto!</li>
+                            <li><strong>Opção 2 (Projeto Completo .zip):</strong> Exporta um arquivo ZIP contendo toda a pasta do projeto configurada. Basta extrair a pasta inteira dentro de <code>CapCut Drafts</code>.</li>
+                            <li><strong>Opção 3 (FCPXML):</strong> Exporta uma timeline XML compatível. Importe no CapCut através do menu <em>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</em> (disponível em algumas versões).</li>
+                          </ul>
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
                             <div className="space-y-1.5">
@@ -5715,7 +5838,21 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
                               </div>
                             </div>
                           </div>
-                          <div className="flex justify-end gap-2 pt-1">
+                          <div className="flex flex-wrap justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={handleExportCapcutJson}
+                              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition-all hover:bg-emerald-500/20 active:scale-95 flex items-center gap-2"
+                            >
+                              📄 Baixar Apenas draft_content.json (Substituir Rascunho)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleExportCapcutZip}
+                              className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/20 active:scale-95 flex items-center gap-2"
+                            >
+                              📦 Exportar Projeto Completo (.zip)
+                            </button>
                             <button
                               type="button"
                               onClick={handleExportFcpxml}

@@ -1256,3 +1256,766 @@ export const buildFcpxmlTimeline = (
   ].join('\n');
 };
 
+export interface CapCutDraftOptions extends FcpxmlOptions {
+  audioFilename?: string;
+}
+
+export interface CapCutDraftResult {
+  draftContent: string;
+  draftMetaInfo: string;
+}
+
+export const buildCapCutDraft = (
+  rows: SrtAssetRow[],
+  projectName: string = 'ContentOS_Project',
+  options?: CapCutDraftOptions
+): CapCutDraftResult => {
+  const baseDir = options?.baseDirectory?.trim() || 'D:/onedrive/Downloads/Warhammer/War BR V127/';
+  const defaultVideoDuration = options?.defaultVideoDuration ?? 8.0;
+  const defaultImageDuration = options?.defaultImageDuration ?? 5.0;
+  const namingTemplate = options?.namingTemplate ?? 'index_prompt56';
+  const videoExt = options?.videoExtension || 'mp4';
+  const imageExt = options?.imageExtension || 'png';
+  const audioFilename = options?.audioFilename?.trim() || `${projectName}.mp3`;
+
+  // Normalize base directory path (ensure forward slashes and trailing slash)
+  let normalizedBase = baseDir.replace(/\\/g, '/');
+  if (normalizedBase.startsWith('file:///')) {
+    normalizedBase = normalizedBase.replace('file:///', '');
+  }
+  if (!normalizedBase.endsWith('/')) {
+    normalizedBase += '/';
+  }
+
+  // Detect suffix from the folder name (e.g. "V33" from "Fabrica V33/")
+  const partsForSuffix = normalizedBase.split('/').filter(Boolean);
+  const lastDir = partsForSuffix[partsForSuffix.length - 1] || '';
+  const suffixMatch = lastDir.match(/(V\d+|v\d+)$/) || lastDir.match(/\s+(\S+)$/);
+  const suffix = suffixMatch ? suffixMatch[1] : '';
+
+  const videoSubDir = suffix ? `Videos ${suffix}/` : 'Videos/';
+  const imageSubDir = suffix ? `Imagens ${suffix}/` : 'Imagens/';
+
+  // Filter video, image, text and hyperframe rows (if faceless)
+  const mediaRows = rows.filter(r => {
+    const type = normalizeAssetType(r.asset);
+    if (type === 'vídeo' || type === 'imagem' || type === 'texto') return true;
+    if (type === 'hyperframe' && options?.videoFormat === 'faceless') return true;
+    return false;
+  });
+
+  const projectUuid = generateUuid();
+  const videoTrackUuid = generateUuid();
+  const audioTrackUuid = generateUuid();
+
+  let totalDurationMs = 0;
+  rows.forEach(row => {
+    const endMs = parseSrtTimeToMs(row.endTime);
+    if (endMs > totalDurationMs) {
+      totalDurationMs = endMs;
+    }
+  });
+  const totalDurationUs = totalDurationMs * 1000;
+
+  // Setup arrays for draft_content.json materials and tracks
+  const videosMaterials: any[] = [];
+  const audiosMaterials: any[] = [];
+  const speedsMaterials: any[] = [];
+  const placeholdersMaterials: any[] = [];
+  const beatsMaterials: any[] = [];
+  const mappingsMaterials: any[] = [];
+  const separationsMaterials: any[] = [];
+
+  const videoSegments: any[] = [];
+  const audioSegments: any[] = [];
+
+  const draftMaterialsMeta: any[] = [];
+
+  // 1. Process Narration Audio
+  const narrationAudioUuid = generateUuid();
+  const narrationLocalAudioUuid = generateUuid();
+  const narrationSpeedUuid = generateUuid();
+  const narrationPlaceholderUuid = generateUuid();
+  const narrationBeatUuid = generateUuid();
+  const narrationMappingUuid = generateUuid();
+  const narrationSeparationUuid = generateUuid();
+
+  const narrationCleanPath = `${normalizedBase}${audioFilename}`.replace(/\/+/g, '/');
+
+  audiosMaterials.push({
+    "id": narrationAudioUuid,
+    "unique_id": "",
+    "type": "extract_music",
+    "name": audioFilename,
+    "duration": totalDurationUs,
+    "path": narrationCleanPath,
+    "category_name": "local",
+    "wave_points": [],
+    "music_id": generateUuid().toLowerCase(),
+    "app_id": 0,
+    "text_id": "",
+    "tone_type": "",
+    "source_platform": 0,
+    "video_id": "",
+    "effect_id": "",
+    "resource_id": "",
+    "third_resource_id": "",
+    "category_id": "",
+    "intensifies_path": "",
+    "formula_id": "",
+    "check_flag": 1,
+    "team_id": "",
+    "local_material_id": narrationLocalAudioUuid,
+    "tone_speaker": "",
+    "mock_tone_speaker": "",
+    "tone_effect_id": "",
+    "tone_effect_name": "",
+    "tone_platform": "",
+    "cloned_model_type": "",
+    "tone_category_id": "",
+    "tone_category_name": "",
+    "tone_second_category_id": "",
+    "tone_second_category_name": "",
+    "tone_emotion_name_key": "",
+    "tone_emotion_style": "",
+    "tone_emotion_role": "",
+    "tone_emotion_selection": "",
+    "tone_emotion_scale": 0.0,
+    "moyin_emotion": "",
+    "request_id": "",
+    "query": "",
+    "search_id": "",
+    "sound_separate_type": "",
+    "is_text_edit_overdub": false,
+    "is_ugc": false,
+    "is_ai_clone_tone": false,
+    "is_ai_clone_tone_post": false,
+    "source_from": "",
+    "copyright_limit_type": "none",
+    "aigc_history_id": "",
+    "aigc_item_id": "",
+    "music_source": "",
+    "pgc_id": "",
+    "pgc_name": "",
+    "similiar_music_info": { "original_song_id": "", "original_song_name": "" },
+    "ai_music_type": 0,
+    "ai_music_enter_from": "",
+    "lyric_type": 0,
+    "tts_task_id": "",
+    "tts_generate_scene": "",
+    "ai_music_generate_scene": 0,
+    "tts_benefit_info": { "benefit_type": "none", "benefit_log_id": "", "benefit_log_extra": "", "benefit_amount": -1 }
+  });
+
+  speedsMaterials.push({
+    "id": narrationSpeedUuid,
+    "type": "speed",
+    "mode": 0,
+    "speed": 1.0,
+    "curve_speed": null
+  });
+  placeholdersMaterials.push({
+    "id": narrationPlaceholderUuid,
+    "type": "placeholder_info",
+    "meta_type": "none",
+    "res_path": "",
+    "res_text": "",
+    "error_path": "",
+    "error_text": ""
+  });
+  beatsMaterials.push({
+    "id": narrationBeatUuid,
+    "type": "beats",
+    "enable_ai_beats": false,
+    "gear": 404,
+    "gear_count": 0,
+    "mode": 404,
+    "user_beats": [],
+    "user_delete_ai_beats": null,
+    "ai_beats": {
+      "melody_url": "",
+      "melody_path": "",
+      "beats_url": "",
+      "beats_path": "",
+      "melody_percents": [0.0],
+      "beat_speed_infos": []
+    }
+  });
+  mappingsMaterials.push({
+    "id": narrationMappingUuid,
+    "type": "",
+    "audio_channel_mapping": 0,
+    "is_config_open": false
+  });
+  separationsMaterials.push({
+    "id": narrationSeparationUuid,
+    "type": "vocal_separation",
+    "choice": 0,
+    "removed_sounds": [],
+    "time_range": null,
+    "production_path": "",
+    "final_algorithm": "",
+    "enter_from": ""
+  });
+
+  audioSegments.push({
+    "id": generateUuid(),
+    "source_timerange": { "start": 0, "duration": totalDurationUs },
+    "target_timerange": { "start": 0, "duration": totalDurationUs },
+    "render_timerange": { "start": 0, "duration": 0 },
+    "desc": "",
+    "state": 0,
+    "speed": 1.0,
+    "is_loop": false,
+    "is_tone_modify": false,
+    "reverse": false,
+    "intensifies_audio": false,
+    "cartoon": false,
+    "volume": 1.0,
+    "last_nonzero_volume": 1.0,
+    "clip": null,
+    "uniform_scale": null,
+    "material_id": narrationAudioUuid,
+    "extra_material_refs": [
+      narrationSpeedUuid,
+      narrationPlaceholderUuid,
+      narrationBeatUuid,
+      narrationMappingUuid,
+      narrationSeparationUuid
+    ],
+    "render_index": 0,
+    "keyframe_refs": [],
+    "enable_lut": false,
+    "enable_adjust": false,
+    "enable_hsl": false,
+    "visible": true,
+    "group_id": "",
+    "enable_color_curves": true,
+    "enable_hsl_curves": true,
+    "track_render_index": 1,
+    "hdr_settings": null,
+    "enable_color_wheels": true,
+    "track_attribute": 0,
+    "is_placeholder": false,
+    "template_id": "",
+    "enable_smart_color_adjust": false,
+    "template_scene": "default",
+    "common_keyframes": [],
+    "caption_info": null,
+    "responsive_layout": { "enable": false, "target_follow": "", "size_layout": 0, "horizontal_pos_layout": 0, "vertical_pos_layout": 0 },
+    "enable_color_match_adjust": false,
+    "enable_color_correct_adjust": false,
+    "enable_adjust_mask": false,
+    "raw_segment_id": "",
+    "lyric_keyframes": null,
+    "enable_video_mask": true,
+    "digital_human_template_group_id": "",
+    "color_correct_alg_result": "",
+    "source": "segmentsourcenormal",
+    "enable_mask_stroke": false,
+    "enable_mask_shadow": false,
+    "enable_color_adjust_pro": false
+  });
+
+  draftMaterialsMeta.push({
+    "ai_group_type": "",
+    "create_time": Math.floor(Date.now() / 1000),
+    "duration": totalDurationUs,
+    "enter_from": 0,
+    "extra_info": audioFilename,
+    "file_Path": narrationCleanPath,
+    "height": 0,
+    "id": narrationLocalAudioUuid,
+    "import_time": Math.floor(Date.now() / 1000),
+    "import_time_ms": Date.now() * 1000,
+    "item_source": 1,
+    "md5": "",
+    "metetype": "music",
+    "roughcut_time_range": { "duration": totalDurationUs, "start": 0 },
+    "sub_time_range": { "duration": -1, "start": -1 },
+    "type": 0,
+    "width": 0
+  });
+
+  // 2. Process Media Rows (Videos/Images/Texts)
+  mediaRows.forEach((row, index) => {
+    const type = normalizeAssetType(row.asset);
+    const rowNum = row.rowNumber;
+    const cleanPrompt = sanitizePromptForFilename(row.prompt);
+    const isFacelessHf = type === 'hyperframe' && options?.videoFormat === 'faceless';
+
+    let filename = '';
+    const ext = (type === 'vídeo' || isFacelessHf) ? videoExt : (type === 'imagem' ? imageExt : 'mp4');
+
+    if (type === 'texto') {
+      filename = `linha_${String(rowNum).padStart(4, '0')}_texto.mp4`;
+    } else {
+      const prefix = isFacelessHf ? `${rowNum}-HF` : `${rowNum}`;
+      if (namingTemplate === 'index_only') {
+        filename = `${prefix}.${ext}`;
+      } else {
+        filename = `${prefix}_${cleanPrompt}.${ext}`;
+      }
+    }
+
+    let fileUrl = '';
+    const subFolder = (type === 'vídeo' || isFacelessHf) ? videoSubDir : imageSubDir;
+    if (type === 'texto') {
+      const safeStem = sanitizeDownloadFileStem(options?.projectStem || projectName);
+      fileUrl = `${normalizedBase}renders_${safeStem}/${filename}`;
+    } else {
+      fileUrl = `${normalizedBase}${subFolder}${filename}`;
+    }
+
+    const cleanPath = fileUrl.replace(/\/+/g, '/');
+
+    const startMs = parseSrtTimeToMs(row.startTime);
+    const endMs = parseSrtTimeToMs(row.endTime);
+    const durationMs = endMs - startMs;
+    
+    const offsetUs = startMs * 1000;
+    const durationUs = durationMs * 1000;
+    
+    const sourceDurationSeconds = (type === 'vídeo' || isFacelessHf) 
+      ? defaultVideoDuration 
+      : ((type === 'imagem') ? defaultImageDuration : (durationMs / 1000));
+    
+    const sourceDurationUs = Math.floor(sourceDurationSeconds * 1000000);
+
+    let trimStartUs = 0;
+    if ((type === 'vídeo' || isFacelessHf) && sourceDurationUs > durationUs) {
+      trimStartUs = Math.floor((sourceDurationUs - durationUs) / 2);
+    }
+
+    const videoMaterialUuid = generateUuid();
+    const videoLocalMaterialUuid = generateUuid();
+    const videoSpeedUuid = generateUuid();
+    const videoPlaceholderUuid = generateUuid();
+    const videoMappingUuid = generateUuid();
+    const videoSeparationUuid = generateUuid();
+
+    // Add material configs
+    videosMaterials.push({
+      "id": videoMaterialUuid,
+      "unique_id": "",
+      "type": "video",
+      "duration": sourceDurationUs,
+      "path": cleanPath,
+      "media_path": "",
+      "local_id": "",
+      "has_audio": (type === 'vídeo' || isFacelessHf),
+      "reverse_path": "",
+      "intensifies_path": "",
+      "reverse_intensifies_path": "",
+      "intensifies_audio_path": "",
+      "cartoon_path": "",
+      "width": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1920 : 1080,
+      "height": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1080 : 1920,
+      "category_id": "",
+      "category_name": "local",
+      "material_id": "",
+      "material_name": filename,
+      "material_url": "",
+      "crop": { "upper_left_x": 0.0, "upper_left_y": 0.0, "upper_right_x": 1.0, "upper_right_y": 0.0, "lower_left_x": 0.0, "lower_left_y": 1.0, "lower_right_x": 1.0, "lower_right_y": 1.0 },
+      "crop_ratio": "free",
+      "audio_fade": null,
+      "crop_scale": 1.0,
+      "extra_type_option": 0,
+      "stable": { "stable_level": 0, "matrix_path": "", "time_range": { "start": 0, "duration": 0 } },
+      "matting": { "flag": 0, "path": "", "interactiveTime": [], "has_use_quick_brush": false, "strokes": [], "has_use_quick_eraser": false, "expansion": 0.0, "feather": 0.0, "reverse": false, "custom_matting_id": "", "enable_matting_stroke": false, "is_clould": false, "mask_video_path": "", "cloud_product_fps": 0.0 },
+      "source": 0,
+      "source_platform": 0,
+      "formula_id": "",
+      "check_flag": 0,
+      "video_algorithm": {
+        "algorithms": [], "time_range": null, "path": "", "gameplay_configs": [], "ai_in_painting_config": [], "complement_frame_config": null, "motion_blur_config": null, "deflicker": null, "noise_reduction": null, "quality_enhance": null, "super_resolution": null, "ai_background_configs": [], "smart_complement_frame": null, "aigc_generate": null, "aigc_generate_list": [], "mouth_shape_driver": null, "ai_expression_driven": null, "ai_motion_driven": null, "image_interpretation": null, "story_video_modify_video_config": { "task_id": "", "is_overwrite_last_video": false, "tracker_task_id": "" }, "skip_algorithm_index": []
+      },
+      "is_unified_beauty_mode": false,
+      "is_set_beauty_mode": false,
+      "object_locked": null,
+      "smart_motion": null,
+      "multi_camera_info": null,
+      "freeze": null,
+      "picture_from": "none",
+      "picture_set_category_id": "",
+      "picture_set_category_name": "",
+      "team_id": "",
+      "local_material_id": videoLocalMaterialUuid,
+      "origin_material_id": "",
+      "request_id": "",
+      "has_sound_separated": false,
+      "is_text_edit_overdub": false,
+      "is_ai_generate_content": false,
+      "aigc_type": "none",
+      "is_copyright": false,
+      "aigc_history_id": "",
+      "aigc_item_id": "",
+      "local_material_from": "",
+      "smart_match_info": null,
+      "beauty_face_preset_infos": [],
+      "beauty_body_preset_id": "",
+      "beauty_face_auto_preset": { "preset_id": "", "name": "", "rate_map": "", "scene": "" },
+      "beauty_face_auto_preset_infos": [],
+      "beauty_body_auto_preset": null,
+      "live_photo_timestamp": -1,
+      "live_photo_cover_path": "",
+      "content_feature_info": null,
+      "corner_pin": null,
+      "surface_trackings": [],
+      "video_mask_stroke": null,
+      "video_mask_shadow": null
+    });
+
+    speedsMaterials.push({
+      "id": videoSpeedUuid,
+      "type": "speed",
+      "mode": 0,
+      "speed": 1.0,
+      "curve_speed": null
+    });
+    placeholdersMaterials.push({
+      "id": videoPlaceholderUuid,
+      "type": "placeholder_info",
+      "meta_type": "none",
+      "res_path": "",
+      "res_text": "",
+      "error_path": "",
+      "error_text": ""
+    });
+    mappingsMaterials.push({
+      "id": videoMappingUuid,
+      "type": "",
+      "audio_channel_mapping": 0,
+      "is_config_open": false
+    });
+    separationsMaterials.push({
+      "id": videoSeparationUuid,
+      "type": "vocal_separation",
+      "choice": 0,
+      "removed_sounds": [],
+      "time_range": null,
+      "production_path": "",
+      "final_algorithm": "",
+      "enter_from": ""
+    });
+
+    // Add segment to video track
+    videoSegments.push({
+      "id": generateUuid(),
+      "source_timerange": { "start": trimStartUs, "duration": durationUs },
+      "target_timerange": { "start": offsetUs, "duration": durationUs },
+      "render_timerange": { "start": 0, "duration": 0 },
+      "desc": "",
+      "state": 0,
+      "speed": 1.0,
+      "is_loop": false,
+      "is_tone_modify": false,
+      "reverse": false,
+      "intensifies_audio": false,
+      "cartoon": false,
+      "volume": 1.0,
+      "last_nonzero_volume": 1.0,
+      "clip": {
+        "scale": { "x": 1.0, "y": 1.0 },
+        "rotation": 0.0,
+        "transform": { "x": 0.0, "y": 0.0 },
+        "flip": { "vertical": false, "horizontal": false },
+        "alpha": 1.0
+      },
+      "uniform_scale": { "on": true, "value": 1.0 },
+      "material_id": videoMaterialUuid,
+      "extra_material_refs": [
+        videoSpeedUuid,
+        videoPlaceholderUuid,
+        videoMappingUuid,
+        videoSeparationUuid
+      ],
+      "render_index": index,
+      "keyframe_refs": [],
+      "enable_lut": false,
+      "enable_adjust": false,
+      "enable_hsl": false,
+      "visible": true,
+      "group_id": "",
+      "enable_color_curves": false,
+      "enable_hsl_curves": false,
+      "track_render_index": index,
+      "hdr_settings": null,
+      "enable_color_wheels": false,
+      "track_attribute": 0,
+      "is_placeholder": false,
+      "template_id": "",
+      "enable_smart_color_adjust": false,
+      "template_scene": "default",
+      "common_keyframes": [],
+      "caption_info": null,
+      "responsive_layout": { "enable": false, "target_follow": "", "size_layout": 0, "horizontal_pos_layout": 0, "vertical_pos_layout": 0 },
+      "enable_color_match_adjust": false,
+      "enable_color_correct_adjust": false,
+      "enable_adjust_mask": false,
+      "raw_segment_id": "",
+      "lyric_keyframes": null,
+      "enable_video_mask": false,
+      "digital_human_template_group_id": "",
+      "color_correct_alg_result": "",
+      "source": "segmentsourcenormal",
+      "enable_mask_stroke": false,
+      "enable_mask_shadow": false,
+      "enable_color_adjust_pro": false
+    });
+
+    draftMaterialsMeta.push({
+      "ai_group_type": "",
+      "create_time": Math.floor(Date.now() / 1000),
+      "duration": sourceDurationUs,
+      "enter_from": 0,
+      "extra_info": filename,
+      "file_Path": cleanPath,
+      "height": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1080 : 1920,
+      "id": videoLocalMaterialUuid,
+      "import_time": Math.floor(Date.now() / 1000),
+      "import_time_ms": Date.now() * 1000,
+      "item_source": 1,
+      "md5": "",
+      "metetype": "video",
+      "roughcut_time_range": { "duration": sourceDurationUs, "start": 0 },
+      "sub_time_range": { "duration": -1, "start": -1 },
+      "type": 0,
+      "width": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1920 : 1080
+    });
+  });
+
+  // Construct draft_content.json object
+  const draftContentObj = {
+    "id": projectUuid,
+    "version": 360000,
+    "new_version": "171.0.0",
+    "name": "",
+    "duration": totalDurationUs,
+    "create_time": 0,
+    "update_time": 0,
+    "fps": 30.0,
+    "is_drop_frame_timecode": false,
+    "color_space": 0,
+    "config": {
+      "video_mute": false,
+      "record_audio_last_index": 1,
+      "extract_audio_last_index": 1,
+      "original_sound_last_index": 1,
+      "subtitle_recognition_id": "",
+      "subtitle_taskinfo": [],
+      "lyrics_recognition_id": "",
+      "lyrics_taskinfo": [],
+      "subtitle_sync": true,
+      "lyrics_sync": true,
+      "voice_change_sync": false,
+      "sticker_max_index": 1,
+      "adjust_max_index": 1,
+      "material_save_mode": 0,
+      "export_range": null,
+      "maintrack_adsorb": true,
+      "combination_max_index": 1,
+      "attachment_info": [],
+      "zoom_info_params": null,
+      "system_font_list": [],
+      "multi_language_mode": "none",
+      "multi_language_main": "none",
+      "multi_language_current": "none",
+      "multi_language_list": [],
+      "subtitle_keywords_config": null,
+      "use_float_render": false
+    },
+    "canvas_config": {
+      "ratio": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? "original" : "9:16",
+      "width": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1920 : 1080,
+      "height": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1080 : 1920,
+      "background": null
+    },
+    "tracks": [
+      {
+        "id": videoTrackUuid,
+        "type": "video",
+        "segments": videoSegments,
+        "flag": 0,
+        "attribute": 0,
+        "name": "",
+        "is_default_name": true
+      },
+      {
+        "id": audioTrackUuid,
+        "type": "audio",
+        "segments": audioSegments,
+        "flag": 0,
+        "attribute": 0,
+        "name": "",
+        "is_default_name": true
+      }
+    ],
+    "group_container": null,
+    "materials": {
+      "flowers": [],
+      "videos": videosMaterials,
+      "tail_leaders": [],
+      "audios": audiosMaterials,
+      "images": [],
+      "texts": [],
+      "effects": [],
+      "stickers": [],
+      "canvases": [],
+      "transitions": [],
+      "audio_effects": [],
+      "audio_fades": [],
+      "beats": beatsMaterials,
+      "material_animations": [],
+      "placeholders": [],
+      "placeholder_infos": placeholdersMaterials,
+      "speeds": speedsMaterials,
+      "common_mask": [],
+      "chromas": [],
+      "text_templates": [],
+      "realtime_denoises": [],
+      "audio_pannings": [],
+      "audio_pitch_shifts": [],
+      "video_trackings": [],
+      "hsl": [],
+      "drafts": [],
+      "color_curves": [],
+      "hsl_curves": [],
+      "primary_color_wheels": [],
+      "log_color_wheels": [],
+      "video_effects": [],
+      "audio_balances": [],
+      "handwrites": [],
+      "manual_deformations": [],
+      "manual_beautys": [],
+      "plugin_effects": [],
+      "sound_channel_mappings": mappingsMaterials,
+      "green_screens": [],
+      "shapes": [],
+      "material_colors": [],
+      "digital_humans": [],
+      "digital_human_model_dressing": [],
+      "smart_crops": [],
+      "ai_translates": [],
+      "audio_track_indexes": [],
+      "loudnesses": [],
+      "vocal_beautifys": [],
+      "vocal_separations": separationsMaterials,
+      "smart_relights": [],
+      "time_marks": [],
+      "multi_language_refs": [],
+      "video_shadows": [],
+      "video_strokes": [],
+      "video_radius": []
+    },
+    "keyframes": {
+      "videos": [], "audios": [], "texts": [], "stickers": [], "filters": [], "adjusts": [], "handwrites": [], "effects": []
+    },
+    "keyframe_graph_list": [],
+    "platform": {
+      "os": "windows",
+      "os_version": "10.0.22631",
+      "app_id": 359289,
+      "app_version": "8.7.0",
+      "app_source": "cc",
+      "device_id": "031594bee0cca504bbbcd2dff68678a0"
+    },
+    "last_modified_platform": {
+      "os": "windows",
+      "os_version": "10.0.22631",
+      "app_id": 359289,
+      "app_version": "8.7.0",
+      "app_source": "cc",
+      "device_id": "031594bee0cca504bbbcd2dff68678a0"
+    },
+    "mutable_config": null,
+    "cover": null,
+    "retouch_cover": null,
+    "extra_info": null,
+    "relationships": [],
+    "render_index_track_mode_on": true,
+    "free_render_index_mode_on": false,
+    "static_cover_image_path": "",
+    "source": "default",
+    "time_marks": null,
+    "path": "",
+    "lyrics_effects": [],
+    "uneven_animation_template_info": { "composition": "", "content": "", "order": "", "sub_template_info_list": [] },
+    "draft_type": "video"
+  };
+
+  // Construct draft_meta_info.json object
+  const draftMetaObj = {
+    "cloud_draft_cover": false,
+    "cloud_draft_sync": false,
+    "cloud_package_completed_time": "",
+    "draft_cloud_capcut_purchase_info": "",
+    "draft_cloud_last_action_download": false,
+    "draft_cloud_package_type": "",
+    "draft_cloud_purchase_info": "",
+    "draft_cloud_template_id": "",
+    "draft_cloud_tutorial_info": "",
+    "draft_cloud_videocut_purchase_info": "",
+    "draft_cover": "",
+    "draft_deeplink_url": "",
+    "draft_enterprise_info": { "draft_enterprise_extra": "", "draft_enterprise_id": "", "draft_enterprise_name": "", "enterprise_material": [] },
+    "draft_fold_path": `${normalizedBase}${projectName}`.replace(/\/+/g, '/'),
+    "draft_id": projectUuid,
+    "draft_is_ae_produce": false,
+    "draft_is_ai_packaging_used": false,
+    "draft_is_ai_shorts": false,
+    "draft_is_ai_translate": false,
+    "draft_is_article_video_draft": false,
+    "draft_is_cloud_temp_draft": false,
+    "draft_is_from_deeplink": "false",
+    "draft_is_invisible": false,
+    "draft_is_pippit_draft": false,
+    "draft_is_web_article_video": false,
+    "draft_materials": [
+      {
+        "type": 0,
+        "value": draftMaterialsMeta
+      },
+      { "type": 1, "value": [] },
+      { "type": 2, "value": [] },
+      { "type": 3, "value": [] },
+      { "type": 6, "value": [] },
+      { "type": 7, "value": [] },
+      { "type": 8, "value": [] }
+    ],
+    "draft_materials_copied_info": [],
+    "draft_name": projectName,
+    "draft_need_rename_folder": false,
+    "draft_new_version": "",
+    "draft_removable_storage_device": "",
+    "draft_root_path": "C:\\Users\\naube\\AppData\\Local\\CapCut\\User Data\\CapCut Drafts",
+    "draft_segment_extra_info": [],
+    "draft_timeline_materials_size_": 0,
+    "draft_type": "",
+    "draft_web_article_video_enter_from": "",
+    "tm_draft_cloud_completed": "",
+    "tm_draft_cloud_entry_id": -1,
+    "tm_draft_cloud_modified": 0,
+    "tm_draft_cloud_parent_entry_id": -1,
+    "tm_draft_cloud_space_id": -1,
+    "tm_draft_cloud_user_id": -1,
+    "tm_draft_create": Math.floor(Date.now() * 1000),
+    "tm_draft_modified": Math.floor(Date.now() * 1000),
+    "tm_draft_removed": 0,
+    "tm_duration": totalDurationUs
+  };
+
+  return {
+    draftContent: JSON.stringify(draftContentObj, null, 2),
+    draftMetaInfo: JSON.stringify(draftMetaObj, null, 2)
+  };
+};
+
+const generateUuid = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16).toUpperCase();
+  });
+};
+
+

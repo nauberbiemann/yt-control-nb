@@ -26,11 +26,11 @@ Instructions:
 - Never include markdown ticks (\`\`\`json) or explanations in the response. Return ONLY the JSON object.
 `.trim();
 
-async function callOpenAI(apiKey: string, model: string, scriptText: string) {
+async function callOpenAI(apiKey: string, model: string, scriptText: string, systemInstructions: string) {
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(model) ? 'developer' : 'system', content: systemInstructions },
       { role: 'user', content: `Script: \n\n${scriptText}` }
     ],
     response_format: { type: 'json_object' }
@@ -59,7 +59,7 @@ async function callOpenAI(apiKey: string, model: string, scriptText: string) {
   return parseJsonResponse(content);
 }
 
-async function callGemini(apiKey: string, model: string, scriptText: string) {
+async function callGemini(apiKey: string, model: string, scriptText: string, systemInstructions: string) {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -68,7 +68,7 @@ async function callGemini(apiKey: string, model: string, scriptText: string) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `${SYSTEM_INSTRUCTIONS}\n\nScript: \n\n${scriptText}`
+            text: `${systemInstructions}\n\nScript: \n\n${scriptText}`
           }]
         }],
         generationConfig: {
@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
     const engine = body?.engine === 'gemini' ? 'gemini' : 'openai';
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
+    const videoFormat = String(body?.videoFormat || '').trim();
 
     const resolvedModel = engine === 'gemini'
       ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -128,9 +129,14 @@ export async function POST(req: NextRequest) {
     // Limit character count of script to avoid token overflow
     const sanitizedScript = scriptText.substring(0, 15000);
 
+    let dynamicSystemInstructions = SYSTEM_INSTRUCTIONS;
+    if (videoFormat === 'faceless') {
+      dynamicSystemInstructions += '\n\nCRITICAL FACELESS RULE: Since the video format is FACELESS, the narrator/presenter is not shown on screen. Therefore, you MUST NOT include the narrator/presenter (e.g. "Narrador", "Apresentador", "Narrador Analista dos Registros", etc.) in the characters list under any circumstance. Focus only on narrative, story, or setting characters that are described or act in the script (e.g. space-marines, inquisitors, tech-priests, soldiers).';
+    }
+
     const result = engine === 'gemini'
-      ? await callGemini(apiKey, resolvedModel, sanitizedScript)
-      : await callOpenAI(apiKey, resolvedModel, sanitizedScript);
+      ? await callGemini(apiKey, resolvedModel, sanitizedScript, dynamicSystemInstructions)
+      : await callOpenAI(apiKey, resolvedModel, sanitizedScript, dynamicSystemInstructions);
 
     return NextResponse.json(result);
   } catch (error) {

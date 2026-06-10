@@ -20,6 +20,8 @@ import {
   finalizeFacelessRows,
   buildFcpxmlTimeline,
   buildCapCutDraft,
+  sanitizePrompt,
+  cleanHeyGenPrefixes,
 } from '@/lib/srt-asset-pipeline';
 import { buildHyperframesBat } from '@/lib/hyperframes-overlay';
 import { downloadTemplateZip } from '@/lib/template-studio-zip';
@@ -28,8 +30,11 @@ import {
   buildPostScriptTimelineContext,
   buildSeoChapterPlan,
   sanitizePostScriptPackage,
+  buildScriptTranscript,
+  buildSfxAnchorPlan,
   type PostScriptPackage,
 } from '@/lib/post-script-package';
+import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 import ProductionAssembler from './ProductionAssembler';
 import ScrollToTopButton from './ScrollToTopButton';
 
@@ -69,6 +74,611 @@ const resolveErrorMessage = (errPayload: any, fallback: string): string => {
     return errPayload.message || errPayload.code || JSON.stringify(errPayload);
   }
   return fallback;
+};
+
+const SRT_PIPELINE_SYSTEM_INSTRUCTIONS = `
+You generate production-ready visual prompts for subtitle-driven videos.
+
+Return only valid JSON.
+Write every visual prompt (video, image) in English (except for text styles which should match the provided list). Hyperframe title/subtitle/metrics fields must always be written in the exact same language as the subtitle text — never in English unless the subtitle itself is in English.
+Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI overlays.
+Keep prompts concise, vivid, and generator-friendly.
+Use one sentence per prompt, usually between 18 and 40 words.
+
+CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
+
+Rules for asset types:
+- asset == "video":
+  - First, identify what is being described in the subtitle text: a character action, historical scene, feeling, concept, process, place, or personal moment.
+  - CRITICAL - NARRATIVE CHARACTERS VS PRESENTERS (HOSTS):
+    - "Presenter/Host": This is the virtual speaker (e.g. a modern tech presenter, health mentor, or coach at a desk).
+      - In FACELESS MODE, the Presenter/Host is completely BANNED. Never show a presenter reacting, pointing, or speaking to the camera.
+      - In AVATAR MODE, the Synthesized Avatar is already speaking on screen during 'avatar' parts. Therefore, in B-rolls (video/image assets), the presenter/host MUST NEVER be shown or visualized. Keep them out of B-roll prompts entirely and focus purely on setting/narrative/concepts. Only in VLOG mode can the presenter be shown in a handheld camera setup.
+    - "Narrative Characters": These are historical, epic, or fictional figures described in the story (e.g., "Fulgrim", "The Emperor", "soldiers", "knights", "primarchs"). In FACELESS or AVATAR modes, if the subtitle text describes actions, thoughts, or settings involving these story characters, you MUST actively visualize these characters in cinematic, dramatic, and high-fidelity action or environmental compositions aligned with the visual style! Never drop them.
+  - CRITICAL - ANTI-LITERAL METAPHOR GUARD:
+    - If the subtitle text uses corporate, technical, or structural metaphors (e.g. "machine", "gears", "mechanism", "cog", "architecture", "system", "vector", "corrosion"): Do NOT visualize these terms literally. NEVER generate generic factory cogs, mechanical brass gears, industrial robot arms, green digital matrix grids, or circuit boards unless the script is literally about mechanical clocks or computers.
+    - Instead, translate these metaphors into grand, atmospheric visual symbols aligned with the aesthetic theme. For example, in a dark sci-fi/gothic (Grimdark) setting, "machine/system/architecture" should be visualized as colossal gothic spaceships, decaying cathedral structures in deep space, stone gargoyles crumbling under ash, or armor of ancient metal corroding under volumetric light.
+  - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (e.g., databases, calculations, files, processes, systems, networks):
+    - If a character from the provided Cast has a role or description that fits the theme, you are highly encouraged to show that character interacting with the technical element in a dynamic, illustrative way (e.g., "[Character Name] operating a glowing terminal...", "[Character Name] installing nodes on a machine...").
+    - If no character fits the context, or if you choose to focus purely on the concept, use a 3D technical animation starting with "3D technical animation of".
+  - For live-action / cinematic prompts WITH narrative characters or environments: begin with "Realistic cinematic video of" or "Cinematic epic shot of" and describe the scene with dynamic details. Always add ambient sound only, no dialogue, no voice-over.
+  - For 3D/abstract prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
+  - For video prompts, include enquadramento e câmera details (e.g. volumetric dust, cinematic lighting, shallow depth of field, panning, macro shot, dramatic backlight).
+  - CRITICAL PREFIX RULE: Do NOT include "📷HyperFrames by HeyGen" or any HeyGen tag/prefix in video prompts. HeyGen tags are strictly banned for regular video assets in all formats.
+- asset == "image":
+  - Always create a realistic still image prompt.
+  - The image must directly and metaphorically illustrate the SPECIFIC concept, story character, object, emotion, or situation described in the subtitle text.
+  - Follow the same NARRATIVE CHARACTER and ANTI-LITERAL rules as the video prompts.
+  - The prompt must begin with "Photorealistic still image of".
+  - CRITICAL PREFIX RULE: Do NOT include "📷HyperFrames by HeyGen" or any HeyGen tag/prefix in image prompts. HeyGen tags are strictly banned for regular image assets in all formats.
+- asset == "text":
+  - Read the current subtitle text provided as context.
+  - Determine the emotion, urgency, and tone of what is being said.
+  - Based on your analysis, choose exactly ONE visual style from the 'Available Text Styles' list provided below that best matches the tone.
+  - Your prompt MUST ONLY be the EXACT name of the chosen style as written in the list. Do not add any other words.
+  - Vary your choices across the sequence to create visual diversity. Do not use the same style for every text entry.
+  - Style guidance: Neon = tech/hacker/matrix energy. Clean = calm/reflective/minimal. Impact = urgency/alarm/strong statements. Frost = futuristic/analytical/cool. Gold = elegant/important/prestigious.
+- asset == "hyperframe":
+  - Check the requested Video Format:
+    - If the format is NOT Faceless (e.g. Avatar or Vlog mode):
+      - The template_name specifies the layout schema required.
+      - Do NOT generate a visual prompt. Instead, extract the key message from the subtitle text and return structured JSON.
+      - Return the JSON inside the 'texto_adicional' property. The 'prompt' property must echo just the template_name.
+      - CRITICAL: The HTML templates read the fields 'title', 'subtitle', and 'metrics' from the JSON. Use exactly these keys.
+      - ALL schemas must also include a 'background_prompt' field: a 1-sentence English image generation prompt for the background behind the overlay. This prompt MUST be aligned with the 'Channel Visual Identity' if provided, otherwise use a dark cinematic default. The background must be dark, have no readable text, and leave the overlay legible.
+      - CRITICAL: Do NOT write "📷HyperFrames by HeyGen" or HeyGen tags inside the background_prompt or title/subtitle fields.
+      - CRITICAL TEXT RULES (apply to ALL schemas):
+        - NEVER copy the subtitle text verbatim into any field. Always reinterpret the idea in your own words.
+        - 'title' must be a short, punchy phrase (3-7 words max) that captures the CORE IDEA — not the literal subtitle.
+        - 'subtitle' must be a COMPLETE, standalone sentence that ADDS CONTEXT or REPHRASES the idea as a synonym. It must never be the same sentence as the subtitle text, never a fragment, and never end mid-word. Write at least one full verb-subject clause.
+        - 'metrics' must be a specific KPI, number, or "—" if no data is present. Never leave it empty.
+        - All text fields must be short enough to fit in one line of an overlay (title: max 40 chars, subtitle: max 80 chars, metrics: max 20 chars).
+      - Schemas (use exact field names shown) (Only applies to Avatar/Vlog modes):
+        - hf_break:       {"title": "2-3 word punchy idea", "subtitle": "—", "metrics": "—", "background_prompt": "..."}
+        - hf_face_top:    {"title": "Impactful phrase max 6 words", "subtitle": "Complete context sentence in own words", "metrics": "KPI or —", "background_prompt": "..."}
+        - hf_focus:       {"title": "Focus keyword or short phrase", "subtitle": "Complete supporting sentence rephrasing the idea", "metrics": "— or KPI", "background_prompt": "..."}
+        - hf_double:      {"title": "Main concept (noun phrase)", "subtitle": "Complete analytical sentence in own words", "metrics": "— or data", "background_prompt": "..."}
+        - hf_floating:    {"title": "Central keyword", "subtitle": "Complete side-point sentence as synonym", "metrics": "Side impact or —", "background_prompt": "..."}
+        - hf_vertical:    {"title": "2-3 word insight", "subtitle": "Complete context sentence rephrasing the idea", "metrics": "— or data", "background_prompt": "..."}
+        - hf_holo:        {"title": "Insight headline (noun phrase)", "subtitle": "Complete analysis sentence in own words", "metrics": "Numeric data or —", "background_prompt": "..."}
+        - hf_documentary: {"title": "Investigation theme", "subtitle": "Complete context sentence as synonym phrase", "metrics": "Verified fact or —", "background_prompt": "..."}
+        - hf_dynamic:     {"title": "Punchy headline", "subtitle": "— or complete short support sentence", "metrics": "—", "background_prompt": "..."}
+        - hf_face_bottom: {"title": "Analytical headline (noun phrase)", "subtitle": "Complete detail sentence in own words", "metrics": "Measurable result or —", "background_prompt": "..."}
+        - hf_x_post:       {"title": "Author Name / Channel", "subtitle": "Twitter @handle", "text": "Short punchy tweet message (1-2 sentences)", "metrics": "Likes count (e.g. 10.5K) or —", "background_prompt": "..."}
+        - hf_notification: {"title": "App Name or Alert Type", "subtitle": "Notification bubble body message", "metrics": "Time (e.g. 'agora', '2m') or —", "background_prompt": "..."}
+        - hf_world_map:    {"title": "Global network headline", "subtitle": "Short description of global/geographical connection", "metrics": "KPI percentage (e.g. '+320%') or —", "background_prompt": "..."}
+        - hf_data_chart:   {"title": "Data / Growth title", "subtitle": "Analytical sentence describing the metric trend", "metrics": "Key metric value (e.g. '94.2% Eficiência') or —", "background_prompt": "..."}
+        - hf_reddit:       {"title": "Subreddit / Community", "subtitle": "Thread Title or Topic", "text": "Reddit comment body (1-2 sentences)", "metrics": "Upvote count (e.g. 5.2K) or —", "background_prompt": "..."}
+        - hf_spotify:      {"title": "Track Title", "subtitle": "Artist Name", "metrics": "Time duration (e.g. '3:45') or —", "background_prompt": "..."}
+        - hf_code_terminal: {"title": "Terminal Title (e.g. bash, zsh, node)", "subtitle": "Directory path or —", "text": "Command or code segment to be typed out", "metrics": "—", "background_prompt": "..."}
+        - hf_quote:        {"title": "Author of the Quote", "subtitle": "Description or role of author (or —)", "text": "The quotation body sentence", "metrics": "—", "background_prompt": "..."}
+      - Write all title/subtitle/metrics text in the exact language of the subtitle (usually Portuguese). Write background_prompt in English only.
+    - If the format is FACELESS:
+      - CRITICAL OVERRIDE: Do NOT return layout JSON or any static HTML template overlay fields (do NOT output 'texto_adicional', keep it empty/undefined).
+      - Instead, generate a highly detailed, cinematic, kinetic and professional video generation prompt in the 'prompt' property.
+      - The prompt MUST be in English, highly detailed, and match the theme of the subtitle context.
+      - Every prompt MUST start exactly with the HeyGen official tag: "📷HyperFrames by HeyGen" (or "use 📷HyperFrames by HeyGen and Image Gen if you need it for assets or like png images of assets without backround to make..." if it involves isolated/cutout graphical assets).
+      - Choose and adapt one of these 10 premium blueprints based on the theme of the subtitle:
+        1. "Visualização de crescimento / Finanças": "📷HyperFrames by HeyGen. Create a 7-second Apple-style motion graphic. A progress bar fills smoothly from 0% to 100%. Clean background (dark or white), bold typography, subtle shadows, premium motion design. As the bar reaches 100%, a green checkmark appears with a soft flash. Modern YouTube B-roll style, 1920x1080, 60fps." (Adapt values, background, text to context).
+        2. "Timeline histórica animada": "📷HyperFrames by HeyGen. Create a cinematic historical timeline animation. A horizontal timeline draws itself across the screen. Key dates appear one by one with smooth Apple-style motion graphics. Camera slowly tracks along the timeline while dates and events fade in. Premium documentary style, dark background, glowing accents, 7 seconds." (Adapt exact dates/events to context).
+        3. "Fluxo de dinheiro / Economia": "📷HyperFrames by HeyGen. Create a clean motion graphic showing money flowing from multiple users into a central company/concept icon. Animated arrows connect users to the business. Numbers increase in real time. Modern fintech style, Apple presentation quality, subtle zoom movement, 1920x1080, 60fps." (Adapt icon and background to context).
+        4. "Arquitetura de sistemas / Fluxo técnico": "📷HyperFrames by HeyGen. Create a professional software architecture animation. Database, backend server, API gateway, and mobile app (or equivalent technology) icons appear one by one. Animated connection lines show data flow between components. Camera slowly zooms in. Clean dark theme, blue neon accents, enterprise SaaS style, 8 seconds." (Adapt names and icons to context).
+        5. "Zoom em código / Programação": "📷HyperFrames by HeyGen. Create a cinematic code visualization. Camera slowly zooms into a dark code editor. Specific lines of code become highlighted with glowing effects. A bug icon appears, then transforms into a green checkmark after the code updates. Modern developer aesthetic, YouTube documentary style." (Adapt code lines and topic to context).
+        6. "Anatomia simplificada / Saúde": "📷HyperFrames by HeyGen. Create a realistic medical visualization. A semi-transparent human body/organ (or specific body part) appears. The camera zooms in. Neural pathways or pathways light up in blue and gold. Labels animate in with premium typography. Documentary style, medical animation quality, 7 seconds." (Adapt organ, path, and text to context).
+        7. "Comparação antes e depois": "📷HyperFrames by HeyGen. Create a split-screen transformation animation. Left side labeled BEFORE, right side labeled AFTER (or equivalents). Camera slowly pushes forward while metrics increase on the right side. Clean typography, premium YouTube educational style, 1920x1080." (Adapt labels and metrics to context).
+        8. "Doodle explainer / Desenho manual": "📷HyperFrames by HeyGen. Create a hand-drawn doodle animation on a whiteboard/blackboard. Sketches appear as if drawn by hand in real time. Arrows, circles, and notes animate naturally. Educational YouTube style, smooth motion, 60fps." (Adapt doodle sketches and concept to context).
+        9. "Dashboard de IA / Interface futurista": "📷HyperFrames by HeyGen. Create a futuristic AI dashboard animation. Floating panels show analytics, charts, and neural network visualizations. Camera slowly pans across the interface. Blue and cyan accents, cinematic lighting, modern AI startup aesthetic." (Adapt charts/data to context).
+        10. "Mapa mundial com conexões / Geopolítica": "📷HyperFrames by HeyGen. Create a realistic satellite world map. Animated connection lines travel between major cities/locations around the globe. The camera smoothly zooms and rotates. Locations highlight with glowing markers and labels. Documentary-grade animation, premium motion graphics." (Adapt cities and markers to context).
+
+Context rules:
+- Use the current subtitle text as the main source of meaning. Interpret the ideas, actions, specific nouns, and deeper context of the narrative, and represent them visually in the prompt. Do not use generic scenes or repetitive placeholders.
+- Use previous and next subtitle lines only to disambiguate.
+- Avoid repeating the line literally.
+
+- Prefer concrete subjects, environments, actions, materials, and mood.
+- If 'Channel Visual Identity' is provided, align the visual style, atmosphere, and shot types with it.
+- If 'Video Context' is provided, use it to inform the specific theme and visual direction of ALL prompts in this batch.
+- If 'Visual Identity and Aesthetic Style reference' is provided, you MUST strictly apply this aesthetic direction, color palette, lighting, and thematic atmosphere to EVERY video and image prompt. Integrate these style elements seamlessly.
+- CONSISTENT CHARACTERS BRACKET SYSTEM:
+  - If a list of 'Consistent Characters' (Narrative Cast) is provided, scan the subtitle text. If the subtitle references any character by name (or clear pronoun/role), you MUST represent them in the prompt by writing their name in brackets, e.g. "[Fulgrim]" or "[The Emperor]".
+  - DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named in the subtitle text, if the text describes a concept, theme, action, or context that aligns with a character's description or role in the Cast list, you should feature them in brackets (e.g., [Character Name]). Crucially, the character's action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator locking a terminal; if the text is about logs, show an archivist researching files). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept being narrated.
+  - NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
+  - Do NOT write out their full physical description in the prompt. The compiler will swap the brackets with their description later. Just output the short tag like "[Fulgrim] looking distraught" or "Close-up shot of [Fulgrim] drawing his glowing purple sword".
+  - Only use character names from the provided Cast list in brackets. If a character is described but is NOT in the Cast list, describe them normally.
+  - In FACELESS MODE, virtual presenters/hosts speaking to the camera are completely banned, but story characters from the Cast list (e.g. "[Fulgrim]") are welcome and must be visualized in action sequences or environmental scenes in brackets!
+`.trim();
+
+const POST_SCRIPT_SYSTEM_INSTRUCTIONS = `
+You generate a post-script production package for a Brazilian Portuguese YouTube video.
+
+Return only valid JSON with this exact shape:
+{
+  "titles": ["...", "...", "...", "...", "..."],
+  "seoDescription": "...",
+  "sunoPrompt": "...",
+  "sunoSuggestedTitle": "...",
+  "hfContextTitles": [
+    {
+      "timestamp": "[02:15]",
+      "headline": "Custo Invisível",
+      "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
+      "metrics": "—",
+      "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
+    },
+    {
+      "timestamp": "[07:30]",
+      "headline": "Esgotamento Silencioso",
+      "subtitle": "O que seu corpo tenta te dizer antes do colapso.",
+      "metrics": "—",
+      "bgPrompt": "Warm amber light in an empty living room at dusk, soft bokeh, emotional and intimate atmosphere."
+    },
+    {
+      "timestamp": "[13:05]",
+      "headline": "Virada de Chave",
+      "subtitle": "O momento que separa quem avança de quem estagna.",
+      "metrics": "3x",
+      "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
+    }
+  ],
+  "sfxTimelineTxt": "..."
+}
+
+Rules:
+- "titles" must contain distinct title options in PT-BR, matching the exact number of titles requested in the user prompt (defaulting to 5 if not specified).
+- If specific "ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA" (Narrative Library Title Structures) are provided in the user prompt:
+  * Every generated title option MUST strictly follow one of those patterns.
+  * Replace all bracketed placeholders (e.g. [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details related to the video topic and script.
+  * The final output titles must NOT contain any bracketed placeholders and must be written fully in PT-BR.
+  * Distribute the titles across the provided structures (e.g., if there are 5 structures, generate at least one variation matching each structure).
+- If NO narrative library title structures are provided:
+  * Each title must organically combine these 5 structural components:
+    1. Tensão inicial (hook): cria desequilíbrio ou lacuna mental.
+    2. Promessa emocional: mostra o que o público vai descobrir, resolver ou entender.
+    3. Contraste: opõe duas ideias, criando tensionamento semântico.
+    4. Transformação: revela uma virada de entendimento.
+    5. Fechamento de recompensa: entrega o valor final ou insight.
+- Use emotional, curious and intense language. Avoid technical jargon.
+- Mix formats: questions ("Por que..."), paradoxical statements ("A verdade brutal sobre..."), comparative phrases ("O lado oculto de...").
+- Maximum 12 words per title.
+- Vary tones across titles: provocative, philosophical, inspirational, narrative.
+- Titles must feel clickable and relevant to the specific video topic.
+- "seoDescription" must be in PT-BR and should focus on writing only the human opening paragraph of the YouTube description.
+- Use correct Brazilian Portuguese spelling and accentuation in every PT-BR field.
+- The SEO description must follow this formatting:
+  1. One short opening paragraph with 2 to 4 sentences introducing the promise of the video.
+  2. Do not write timestamp lines yourself.
+  3. Do not write the AVISO DE IA yourself.
+- The app will normalize timestamps and the AI notice after your response.
+- Keep the opening paragraph natural, human and useful, not robotic.
+- Avoid quotation marks around technical metaphors unless absolutely necessary.
+- "sunoPrompt" must be written in English and must be rich, thematic, and detailed — reflecting the specific emotional arc, subject matter, and atmosphere of this video.
+- The Suno prompt MUST reference the theme of the video (e.g. if the video is about developer burnout, the prompt should evoke that feeling through musical language).
+- Structure the prompt as a layered description covering: genre/subgenre, mood and atmosphere, key instruments, dynamic evolution (how the music builds or shifts), and any thematic or textural references.
+- Use comma-separated descriptors, but write multiple layers — not just one line. Think of it as a production brief that a composer would use to score a short film.
+- Maximum length: 800 characters. Stay under this limit but use as much of it as needed to be specific and evocative.
+- Do NOT use generic phrases like "epic cinematic orchestral" without grounding them in the specific theme.
+- Avoid BPM numbers, key signatures, stem breakdowns, or technical production jargon.
+- "sunoSuggestedTitle" should be short and in English.
+- "sfxTimelineTxt" must be in PT-BR and formatted as a clean plain-text timeline, not JSON.
+- In "sfxTimelineTxt", keep labels EFEITO/FUNCAO/TRECHO/OBS in PT-BR, but the value after EFEITO must be an English searchable sound effect name for CapCut PC.
+- Prefer simple English SFX names such as "Digital Glitch", "Low Rumble", "Cinematic Whoosh", "Keyboard Clicks", "Sub Bass Hit", "Notification Ping", "Metallic Impact", "Tension Riser", "Ambient Room Tone".
+- The SFX timeline must respect a minimum interval of 25 seconds between events.
+- Use the suggested SFX anchors as the primary map, but you may skip weak points if they would feel artificial.
+- In SFX timeline, use this format repeatedly:
+  [MM:SS]
+  EFEITO: ...
+  FUNCAO: ...
+  TRECHO: ...
+  OBS: ...
+- For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
+  DO NOT include a "visualState" field — the template is assigned automatically by the app.
+  For each anchor generate ONLY:
+  1. "timestamp": The anchor timestamp in [MM:SS] format.
+  2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
+  3. "subtitle": Contextual phrase (max 15 words) that reflects what is being said at that moment.
+  4. "metrics": Optional support metric (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
+  5. "bgPrompt": A cinematic image/video generation prompt in English for the background behind the avatar.
+     - Must be visually descriptive, environment-based, and match the emotional tone of that specific narrative moment.
+     - Do NOT describe the person or avatar. Describe only the scene, setting, textures, and atmosphere.
+     - Examples: "Soft morning light filtering through kitchen window, organic produce on marble counter, shallow depth of field", "Dark laboratory with glowing chemical flasks, blue neon reflections on glass surfaces, cinematic wide shot"
+     - Write 1-2 sentences. Maximum 200 characters.
+     - This prompt will be used with AI image/video generators (Midjourney, Kling, RunwayML). Make it generator-ready.
+- Do not include markdown fences.
+- Do not explain the process.
+`.trim();
+
+const parseJsonResponse = (rawContent: string): any => {
+  try {
+    return JSON.parse(rawContent);
+  } catch {
+    const fencedMatch = rawContent.match(/\{[\s\S]*\}/);
+    if (!fencedMatch) {
+      throw new Error('A IA nao retornou JSON valido.');
+    }
+    return JSON.parse(fencedMatch[0]);
+  }
+};
+
+const validatePromptBatch = (
+  items: any[],
+  payload: any,
+  localFallbackRows: Set<number>
+) => {
+  const expectedRows = new Set(items.map((item) => item.row_number));
+  const promptMap = new Map<number, { prompt: string; texto_adicional?: any }>();
+
+  for (const promptItem of payload?.prompts || []) {
+    const rowNumber = Number(promptItem?.row_number || promptItem?.rowNumber);
+    const prompt = sanitizePrompt(promptItem?.prompt || '');
+    if (!expectedRows.has(rowNumber) || (!prompt && promptItem.texto_adicional === undefined)) continue;
+    promptMap.set(rowNumber, { prompt, texto_adicional: promptItem.texto_adicional });
+  }
+
+  if (promptMap.size !== expectedRows.size) {
+    console.warn(
+      `[SRT Pipeline] ⚠️ AI returned ${promptMap.size}/${expectedRows.size} prompts. Filling missing with fallback.`
+    );
+    for (const item of items) {
+      if (!promptMap.has(item.row_number)) {
+        let fallback = 'Clean';
+        if (item.asset === 'text') {
+          fallback = 'Clean';
+        } else if (item.asset === 'hyperframe') {
+          fallback = item.template_name || 'hf_break';
+        } else if (item.asset === 'image') {
+          fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
+        } else {
+          fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+        }
+        promptMap.set(item.row_number, { prompt: fallback });
+        localFallbackRows.add(item.row_number);
+      }
+    }
+  }
+
+  return promptMap;
+};
+
+const enforceVideoPromptGuards = (prompt: string) => {
+  const normalized = sanitizePrompt(prompt);
+  const hasAmbientCue = /ambient sound only|no dialogue|no voice-over|no voiceover/i.test(normalized);
+  const audioClause = hasAmbientCue ? '' : ' Ambient sound only, no dialogue, no voice-over.';
+  return sanitizePrompt(`${normalized}${audioClause}`);
+};
+
+const directGenerateBatchOpenAI = async ({
+  apiKey,
+  model,
+  batchItems,
+  characterDescription,
+  textStyles,
+  visualIdentity,
+  videoContext,
+  facelessHint,
+  videoFormat,
+  visualBlueprint,
+}: {
+  apiKey: string;
+  model: string;
+  batchItems: any[];
+  characterDescription: string;
+  textStyles: string;
+  visualIdentity: string;
+  videoContext: string;
+  facelessHint: string;
+  videoFormat?: string;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+}) => {
+  const resolvedModel = resolveModel(model);
+  const requestBody: Record<string, unknown> = {
+    model: resolvedModel,
+    messages: [
+      { role: isReasoningModel(resolvedModel) ? 'developer' : 'system', content: SRT_PIPELINE_SYSTEM_INSTRUCTIONS },
+      {
+        role: 'user',
+        content: [
+          'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
+          'Include exactly one prompt per row_number.',
+          `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
+          videoFormat === 'faceless'
+            ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
+            : videoFormat === 'vlog'
+            ? `Recurring presenter character reference: ${characterDescription}`
+            : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
+          visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
+          visualBlueprint?.cast && visualBlueprint.cast.length > 0
+            ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
+1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
+2. DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named, if the text describes a concept, action, or theme that aligns with their description or role (e.g., tech, analysis, secrets, authority), you should feature them in brackets (e.g., [Character Name]). Their action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator character locking a console; if the text is about data, show a tech character calibrating a holographic node). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept.
+3. NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
+4. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
+5. NEVER write the name of the character in plain text without brackets.
+6. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
+Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
+            : '',
+          `Available Text Styles: ${textStyles}`,
+          visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
+          videoContext ? `Video Context for this batch: ${videoContext}` : '',
+          facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
+          'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
+          JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
+        ].filter(Boolean).join('\n\n'),
+      },
+    ],
+    response_format: { type: 'json_object' },
+  };
+
+  if (!isReasoningModel(resolvedModel)) {
+    requestBody.temperature = 0.7;
+  }
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || 'Falha ao gerar prompts com OpenAI.');
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('A OpenAI respondeu sem conteudo para o lote de prompts.');
+  return parseJsonResponse(content);
+};
+
+const directGenerateBatchGemini = async ({
+  apiKey,
+  model,
+  batchItems,
+  characterDescription,
+  textStyles,
+  visualIdentity,
+  videoContext,
+  facelessHint,
+  videoFormat,
+  visualBlueprint,
+}: {
+  apiKey: string;
+  model: string;
+  batchItems: any[];
+  characterDescription: string;
+  textStyles: string;
+  visualIdentity: string;
+  videoContext: string;
+  facelessHint: string;
+  videoFormat?: string;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+}) => {
+  const resolvedModel = resolveModel(model);
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: [
+              SRT_PIPELINE_SYSTEM_INSTRUCTIONS,
+              'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
+              'Include exactly one prompt per row_number.',
+              `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
+              videoFormat === 'faceless'
+                ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
+                : videoFormat === 'vlog'
+                ? `Recurring presenter character reference: ${characterDescription}`
+                : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
+              visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
+              visualBlueprint?.cast && visualBlueprint.cast.length > 0
+                ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
+1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
+2. DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named, if the text describes a concept, action, or theme that aligns with their description or role (e.g., tech, analysis, secrets, authority), you should feature them in brackets (e.g., [Character Name]). Their action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator character locking a console; if the text is about data, show a tech character calibrating a holographic node). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept.
+3. NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
+4. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
+5. NEVER write the name of the character in plain text without brackets.
+6. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
+Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
+                : '',
+              `Available Text Styles: ${textStyles}`,
+              visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
+              videoContext ? `Video Context for this batch: ${videoContext}` : '',
+              facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
+              'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
+              JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
+            ].filter(Boolean).join('\n\n'),
+          }],
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          response_mime_type: 'application/json',
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || 'Falha ao gerar prompts com Gemini.');
+  }
+
+  const content = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('\n') || '';
+  if (!content) throw new Error('O Gemini respondeu sem conteudo para o lote de prompts.');
+  return parseJsonResponse(content);
+};
+
+const directGeneratePostScriptOpenAI = async ({
+  apiKey,
+  model,
+  prompt,
+}: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+}) => {
+  const resolvedModel = resolveModel(model);
+  const requestBody: Record<string, unknown> = {
+    model: resolvedModel,
+    messages: [
+      { role: isReasoningModel(resolvedModel) ? 'developer' : 'system', content: POST_SCRIPT_SYSTEM_INSTRUCTIONS },
+      { role: 'user', content: prompt },
+    ],
+    response_format: { type: 'json_object' },
+  };
+
+  if (!isReasoningModel(resolvedModel)) {
+    requestBody.temperature = 0.8;
+  }
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || 'Falha ao gerar pacote pos-roteiro com OpenAI.');
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('A OpenAI respondeu sem conteudo para o pacote pos-roteiro.');
+  return parseJsonResponse(content);
+};
+
+const directGeneratePostScriptGemini = async ({
+  apiKey,
+  model,
+  prompt,
+}: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+}) => {
+  const resolvedModel = resolveModel(model);
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: [POST_SCRIPT_SYSTEM_INSTRUCTIONS, prompt].join('\n\n'),
+          }],
+        }],
+        generationConfig: {
+          temperature: 0.8,
+          response_mime_type: 'application/json',
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || 'Falha ao gerar pacote pos-roteiro com Gemini.');
+  }
+
+  const content = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('\n') || '';
+  if (!content) throw new Error('O Gemini respondeu sem conteudo para o pacote pos-roteiro.');
+  return parseJsonResponse(content);
+};
+
+const buildUserPrompt = ({
+  approvedTheme,
+  approvedBriefing,
+  scriptBlocks,
+  chapterAnchors,
+  hfAnchors,
+  timelineSource,
+  projectContext,
+  sfxPlan,
+  titleCountHint,
+  titleStructures,
+}: {
+  approvedTheme: string;
+  approvedBriefing: any;
+  scriptBlocks: any[];
+  chapterAnchors: any[];
+  hfAnchors: Array<{ timestamp: string; texto: string }>;
+  timelineSource: 'srt' | 'estimated';
+  projectContext?: any;
+  sfxPlan: any;
+  titleCountHint?: number;
+  titleStructures?: any[];
+}) => {
+  const transcript = buildScriptTranscript(scriptBlocks);
+  const titleStructuresStr = Array.isArray(titleStructures) && titleStructures.length > 0
+    ? titleStructures.map(t => `- [${t.name}]: "${t.content_pattern}"`).join('\n')
+    : '';
+
+  return [
+    'Build the complete post-script package for this approved video.',
+    '',
+    `TEMA: ${approvedTheme}`,
+    `TITULO APROVADO: ${approvedBriefing?.title || approvedTheme}`,
+    `VOZ DOMINANTE: ${approvedBriefing?.dominantVoice || 'Nao definida'}`,
+    `FONTE DOS TIMESTAMPS: ${timelineSource === 'srt' ? 'timestamps derivados do SRT anexado' : 'timestamps estimados pelo roteiro aprovado'}`,
+    '',
+    'CONTEXTO DO PROJETO:',
+    JSON.stringify(projectContext || {}, null, 2),
+    '',
+    titleStructuresStr ? 'ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA (MANDATORIO SE DISPONIVEIS):' : '',
+    titleStructuresStr ? `${titleStructuresStr}\n` : '',
+    `CAPITULOS EDITORIAIS DISPONIVEIS PARA A DESCRICAO SEO (use somente estes, em ordem crescente, com no maximo ${chapterAnchors.length} linhas):`,
+    JSON.stringify(chapterAnchors, null, 2),
+    '',
+    'HYPERFRAME ANCHORS (Gere um hfContextTitles para CADA um destes timestamps exatos):',
+    '-- Para cada anchor abaixo, o campo "bgPrompt" DEVE retratar visualmente o que esta sendo falado no campo "texto".',
+    '-- O bgPrompt e um prompt cinematic em ingles para gerador de imagem/video (Midjourney, Kling, etc.).',
+    '-- Descreva o CENARIO, AMBIENTE, LUZ e TEXTURA — nunca a pessoa ou avatar.',
+    '-- IMPORTANTE: use o timestamp exatamente como aparece abaixo (formato [MM:SS]) — nao converta nem abrevie.',
+    hfAnchors.length > 0 ? JSON.stringify(hfAnchors, null, 2) : 'Nenhum hyperframe detectado neste roteiro.',
+    '',
+    'PLANO DE SFX (Obrigatorio seguir a logica abaixo):',
+    JSON.stringify({
+      targetCount: sfxPlan.targetCount,
+      minSpacingSeconds: sfxPlan.minSpacingSeconds,
+      anchors: sfxPlan.anchors.map((anchor: any) => ({
+        timestamp: anchor.timestamp,
+        layer: anchor.layer,
+        rationale: anchor.rationale,
+        excerpt: anchor.excerpt,
+      })),
+    }, null, 2),
+    '',
+    'ROTEIRO FINAL:',
+    transcript,
+    '',
+    'Important output expectations:',
+    `- Generate exactly ${titleCountHint ?? 5} title options.`,
+    titleStructuresStr
+      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. The output titles must be fully written in PT-BR and must NOT contain any bracketed placeholders.`
+      : `- Each title must organically combine these 5 structural components: hook tension + emotional promise + contrast + transformation + reward. Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.`,
+    '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
+    '- SEO description should be only the opening paragraph, written in a human editorial voice.',
+    '- Do not output timestamps or the AI notice; the app will add them after generation.',
+    '- Make the opening paragraph sound like a real YouTube description, not like a system summary.',
+    '- Suno prompt MUST be rich, specific, and thematic — directly referencing the emotional journey, subject matter, and atmosphere of this video.',
+    '- Describe genre, mood, instruments, dynamics/evolution, and thematic references. Write multiple layers of description, not just one phrase.',
+    '- The Suno prompt must not exceed 800 characters. Use as much of that space as needed to be evocative and specific.',
+    '- AVOID generic openers like "Epic cinematic orchestral" unless grounded in the specific theme of this video.',
+    '- SFX timeline should feel editorially useful for a human video editor.',
+    '- In every EFEITO line, write only an English SFX name that is easy to search in CapCut PC.',
+    '- In every TRECHO line, you MUST copy the exact text snippet provided in the "excerpt" field of the SFX plan. DO NOT summarize, paraphrase, or invent new text.',
+    '- Use the three decision layers: structural anchors, semantic anchors and rhythmic anchors.',
+    '- Do not create SFX events closer than 25 seconds from each other.',
+    '- IMPORTANT: You MUST generate SFX events spanning the ENTIRE video duration, from the first anchor to the very last anchor. Do not stop early. Process all proposed anchors.',
+    '- CRITICAL: Every hfContextTitles entry MUST include a non-empty "bgPrompt" field. This field must visually translate the "texto" excerpt of that anchor into a cinematic scene description in English. It must describe only environment, setting, light, and texture — never the person or avatar. Length: 1-2 sentences, max 200 chars.',
+  ].join('\n');
 };
 
 const resolveCharacterProfileInFrontend = (
@@ -2524,6 +3134,109 @@ COMO USAR NO WINDOWS:
     return parts.filter(Boolean).join('\n');
   };
 
+  const generatePromptBatchDirectOrAPI = async (batch: any[], isDirect: boolean, apiKey: string, engine: 'openai' | 'gemini', model: string) => {
+    const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
+    const projectStyles = activeProject?.ai_engine_rules?.editing_sop?.text_styles || activeProject?.ai_engine_rules?.text_styles || '';
+    const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
+    const visualIdentity = activeProject?.ai_engine_rules?.editing_sop?.visual_identity || '';
+    const characterDescription = resolveCharacterProfileInFrontend(
+      videoCharacterMode,
+      videoFormat,
+      activeProject?.name,
+      videoCharacterCustom,
+      activeProject?.persona_matrix?.demographics,
+      activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
+    );
+
+    if (isDirect) {
+      const facelessHint = videoFormat === 'faceless'
+        ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
+        : videoFormat === 'vlog'
+        ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
+        : '';
+
+      const payload = engine === 'gemini'
+        ? await directGenerateBatchGemini({
+            apiKey,
+            model,
+            batchItems: batch,
+            characterDescription,
+            textStyles,
+            visualIdentity,
+            videoContext: buildVideoContext(),
+            facelessHint,
+            videoFormat,
+            visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast }
+          })
+        : await directGenerateBatchOpenAI({
+            apiKey,
+            model,
+            batchItems: batch,
+            characterDescription,
+            textStyles,
+            visualIdentity,
+            videoContext: buildVideoContext(),
+            facelessHint,
+            videoFormat,
+            visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast }
+          });
+
+      const localFallbackRowsObj = new Set<number>();
+      const validatedBatch = validatePromptBatch(batch, payload, localFallbackRowsObj);
+      const prompts = batch.map((item) => {
+        let finalPrompt = validatedBatch.get(item.row_number)?.prompt || '';
+        const isFacelessHf = item.asset === 'hyperframe' && videoFormat === 'faceless';
+        if (!isFacelessHf) {
+          finalPrompt = cleanHeyGenPrefixes(finalPrompt);
+        }
+        return {
+          rowNumber: item.row_number,
+          prompt: item.asset === 'video'
+            ? enforceVideoPromptGuards(finalPrompt)
+            : finalPrompt,
+          texto_adicional: validatedBatch.get(item.row_number)?.texto_adicional,
+          isFallback: localFallbackRowsObj.has(item.row_number),
+        };
+      });
+
+      return { prompts, hasFallbacks: localFallbackRowsObj.size > 0 };
+    } else {
+      const res = await fetch('/api/assets/srt-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchItems: batch,
+          engine,
+          model,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject,
+          videoContext: buildVideoContext(),
+          videoFormat,
+          textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
+          characterProfile: {
+            mode: videoCharacterMode,
+            customDescription: videoCharacterCustom,
+          },
+          visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
+        }),
+      });
+
+      const responseText = await res.text();
+
+      if (res.status === 429) {
+        throw new Error('429');
+      }
+
+      if (!res.ok) {
+        let errData: any = {};
+        try { errData = JSON.parse(responseText); } catch { /* ignore */ }
+        throw new Error(resolveErrorMessage(errData?.error, `Falha do servidor (Status ${res.status})`));
+      }
+
+      return JSON.parse(responseText);
+    }
+  };
+
   const processAttachedSrtAssets = async () => {
     if (!externalSrtText.trim()) {
       alert('Anexe um arquivo .srt antes de processar os assets.');
@@ -2603,14 +3316,15 @@ COMO USAR NO WINDOWS:
       const promptMap = new Map<number, string>();
       const textoAdicionalMap = new Map<number, string>();
       const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
-      const chunkSize = 8; // Tamanho fixo otimizado para manter qualidade/foco da IA sem "viajar"
+      const isDirect = !!apiKey;
+      const chunkSize = isDirect ? 10 : 8; // Lotes maiores no browser direto
       const chunks: any[][] = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));
       }
 
       let completedCount = 0;
-      let currentConcurrency = 2; // Começa em concorrência = 2
+      let currentConcurrency = isDirect ? 4 : 2; // Maior concorrência se for direto no browser
       let activeWorkers = 0;
       const results: any[] = new Array(chunks.length);
       let nextChunkIdx = 0;
@@ -2636,36 +3350,19 @@ COMO USAR NO WINDOWS:
         const currentIdx = nextChunkIdx++;
         const batch = chunks[currentIdx];
 
-        let res: Response | null = null;
         let success = false;
         let data: any = {};
         const maxRetries = 2;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           try {
-            res = await fetch('/api/assets/srt-pipeline', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                batchItems: batch,
-                engine,
-                model,
-                apiKeyOverwrite: apiKey,
-                projectConfig: activeProject,
-                videoContext: buildVideoContext(),
-                videoFormat,
-                textStyleOverride: textStyleMode === 'custom' ? customTextStyle : (textStyleMode === 'auto' ? '' : textStyleMode),
-                characterProfile: {
-                  mode: videoCharacterMode,
-                  customDescription: videoCharacterCustom,
-                },
-                visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
-              }),
-            });
-
-            const responseText = await res.text();
-
-            if (res.status === 429) {
+            data = await generatePromptBatchDirectOrAPI(batch, isDirect, apiKey, engine as 'openai' | 'gemini', model);
+            success = true;
+            break;
+          } catch (err: any) {
+            console.warn(`[Lote ${currentIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
+            
+            if (err.message === '429') {
               if (currentConcurrency > 1) {
                 currentConcurrency = 1;
                 updateSrtObserverStep(
@@ -2679,30 +3376,6 @@ COMO USAR NO WINDOWS:
               continue;
             }
 
-            if (res.status === 504) {
-              if (attempt < maxRetries) {
-                console.warn(`Lote ${currentIdx + 1} falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
-                await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
-                continue;
-              }
-              throw new Error(`Timeout (Erro 504): A Vercel cancelou a operação.`);
-            }
-
-            try {
-              data = JSON.parse(responseText);
-            } catch {
-              throw new Error(`Resposta inválida (não JSON): ${responseText.slice(0, 80)}`);
-            }
-
-            if (!res.ok || data?.error) {
-              throw new Error(resolveErrorMessage(data?.error, `Falha do servidor (Status ${res.status})`));
-            }
-
-            success = true;
-            break;
-          } catch (err: any) {
-            console.warn(`[Lote ${currentIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
-            
             // Em caso de falha de rede ou timeout, também reduz a velocidade de forma preventiva
             if (currentConcurrency > 1) {
               currentConcurrency = 1;
@@ -2715,25 +3388,20 @@ COMO USAR NO WINDOWS:
 
             if (attempt === maxRetries) {
               console.error(`[Lote ${currentIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
-              data = {
-                prompts: batch.map((item: any) => {
-                  let fallback = 'Clean';
-                  if (item.asset === 'text') {
-                    fallback = 'Clean';
-                  } else if (item.asset === 'hyperframe') {
-                    fallback = item.template_name || 'hf_break';
-                  } else if (item.asset === 'image') {
-                    fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
-                  } else {
-                    fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
-                  }
-                  return {
-                    rowNumber: item.row_number,
-                    prompt: fallback,
-                    isFallback: true
-                  };
-                })
-              };
+              
+              const localFallbackRowsObj = new Set<number>();
+              const fallbackMap = validatePromptBatch(batch, { prompts: [] }, localFallbackRowsObj);
+              const fallbackPrompts: any[] = [];
+              fallbackMap.forEach((v, k) => {
+                fallbackPrompts.push({
+                  rowNumber: k,
+                  prompt: v.prompt,
+                  texto_adicional: v.texto_adicional,
+                  isFallback: true
+                });
+              });
+
+              data = { prompts: fallbackPrompts };
               success = true;
               break;
             }
@@ -2910,49 +3578,13 @@ COMO USAR NO WINDOWS:
 
       if (batchItems.length === 0) return;
 
-      let res: Response | null = null;
-      let responseText = '';
+      const isDirect = !!apiKey;
       let data: any = {};
       const maxRetries = 2;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-          res = await fetch('/api/assets/srt-pipeline', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              batchItems,
-              engine,
-              model,
-              apiKeyOverwrite: apiKey,
-              projectConfig: activeProject,
-              videoContext: buildVideoContext(),
-              videoFormat,
-              characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
-              visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
-            }),
-          });
-
-          responseText = await res.text();
-          if (res.status === 504) {
-            if (attempt < maxRetries) {
-              console.warn(`Tentativa de regeneração falhou com timeout 504. Tentando novamente tentativa ${attempt + 1} de ${maxRetries}...`);
-              await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
-              continue;
-            }
-            throw new Error('Timeout (504): A operação demorou demais.');
-          }
-
-          try {
-            data = JSON.parse(responseText);
-          } catch {
-            throw new Error(`Resposta inválida (não JSON): ${responseText.slice(0, 80)}`);
-          }
-
-          if (!res.ok || data?.error) {
-            throw new Error(resolveErrorMessage(data?.error, `Falha do servidor (Status ${res?.status})`));
-          }
-
+          data = await generatePromptBatchDirectOrAPI(batchItems, isDirect, apiKey, engine as 'openai' | 'gemini', model);
           break;
         } catch (err: any) {
           if (attempt === maxRetries) {
@@ -2963,9 +3595,6 @@ COMO USAR NO WINDOWS:
       }
 
       // Merge: replace fallback rows with the new prompts.
-      // Accept the prompt regardless of isFallback flag on the response — the LLM sometimes
-      // still marks it as fallback even when a real prompt was generated (template-like output).
-      // What matters is that a non-empty prompt string came back for the row number.
       const newPromptMap = new Map<number, string>();
       (data?.prompts || []).forEach((p: { rowNumber: number; prompt: string; isFallback?: boolean }) => {
         if (p.rowNumber && p.prompt?.trim()) newPromptMap.set(p.rowNumber, p.prompt.trim());
@@ -3028,20 +3657,8 @@ COMO USAR NO WINDOWS:
     });
     if (!batchItems.length) return 0;
 
-    const res = await fetch('/api/assets/srt-pipeline', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        batchItems, engine, model, apiKeyOverwrite: apiKey,
-        projectConfig: activeProject,
-        videoContext: buildVideoContext(),
-        videoFormat,
-        characterProfile: { mode: videoCharacterMode, customDescription: videoCharacterCustom },
-        visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || data?.error) throw new Error(resolveErrorMessage(data?.error, 'Falha ao regenerar prompts incompletos.'));
+    const isDirect = !!apiKey;
+    const data = await generatePromptBatchDirectOrAPI(batchItems, isDirect, apiKey, engine as 'openai' | 'gemini', model);
 
     const newPromptMap = new Map<number, string>();
     (data?.prompts || []).forEach((p: any) => {
@@ -3546,10 +4163,6 @@ COMO USAR NO WINDOWS:
     const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
     const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
     const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
-    if (!apiKey) {
-      alert('Configure sua chave de API em Ajustes Globais para gerar o pacote pos-roteiro.');
-      return;
-    }
 
     const sourceBlocks = resolvePostScriptSourceBlocks();
     if (!sourceBlocks.length) {
@@ -3597,31 +4210,91 @@ COMO USAR NO WINDOWS:
 
     setIsGeneratingPostScriptPackage(true);
     try {
-      const response = await fetch('/api/post-script-package', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          engine,
-          model,
-          apiKeyOverwrite: apiKey,
-          projectConfig: activeProject?.ai_engine_rules,
+      let data: any = {};
+      if (apiKey) {
+        // Direct browser calling
+        const seoChapterPlan = buildSeoChapterPlan({
+          scriptBlocks: sourceBlocks,
+          totalDurationSeconds: timelineContext.totalDurationSeconds,
+          srtRows,
+        });
+        const sfxPlan = buildSfxAnchorPlan({
+          scriptBlocks: sourceBlocks,
+          totalDurationSeconds: timelineContext.totalDurationSeconds,
+          minSpacingSeconds: 25,
+          srtRows,
+        });
+
+        const srtToMinSec = (t: string): string => {
+          if (!t) return '';
+          const parts = t.replace(',', '.').trim().split(':');
+          if (parts.length === 3) {
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) + h * 60;
+            const s = Math.floor(parseFloat(parts[2]));
+            return `[${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}]`;
+          }
+          return t;
+        };
+
+        const hfAnchors = (srtRows || [])
+          .filter((row: any) => row.asset === 'hyperframe')
+          .map((row: any) => ({
+            timestamp: srtToMinSec(row.startTime || ''),
+            texto: row.texto || '',
+          }));
+
+        const projectContext = {
+          projectName: activeProject?.name || activeProject?.project_name || '',
+          puc: activeProject?.puc || activeProject?.puc_promise || '',
+          persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
+          soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+        };
+
+        const prompt = buildUserPrompt({
           approvedTheme,
           approvedBriefing,
           scriptBlocks: sourceBlocks,
-          srtRows,
+          chapterAnchors: seoChapterPlan.anchors,
+          hfAnchors,
+          timelineSource: timelineContext.source,
+          projectContext,
+          sfxPlan,
+          titleCountHint: 5,
           titleStructures,
-          projectContext: {
-            projectName: activeProject?.name || activeProject?.project_name || '',
-            puc: activeProject?.puc || activeProject?.puc_promise || '',
-            persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
-            soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
-          },
-        }),
-      });
+        });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(resolveErrorMessage(data?.error, 'Falha ao gerar o pacote pos-roteiro.'));
+        data = engine === 'gemini'
+          ? await directGeneratePostScriptGemini({ apiKey, model, prompt })
+          : await directGeneratePostScriptOpenAI({ apiKey, model, prompt });
+      } else {
+        // Server fallback calling
+        const response = await fetch('/api/post-script-package', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            engine,
+            model,
+            apiKeyOverwrite: apiKey,
+            projectConfig: activeProject?.ai_engine_rules,
+            approvedTheme,
+            approvedBriefing,
+            scriptBlocks: sourceBlocks,
+            srtRows,
+            titleStructures,
+            projectContext: {
+              projectName: activeProject?.name || activeProject?.project_name || '',
+              puc: activeProject?.puc || activeProject?.puc_promise || '',
+              persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
+              soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+            },
+          }),
+        });
+
+        data = await response.json();
+        if (!response.ok) {
+          throw new Error(resolveErrorMessage(data?.error, 'Falha ao gerar o pacote pos-roteiro.'));
+        }
       }
 
       const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);

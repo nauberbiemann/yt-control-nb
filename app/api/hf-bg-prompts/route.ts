@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // ─── Reuses the same battle-tested functions from srt-pipeline ─────────────────
 // We send HF rows as 'image' batchItems with a special videoContext that instructs

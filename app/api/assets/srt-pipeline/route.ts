@@ -19,7 +19,7 @@ const BATCH_SIZE_DEFAULT = 10;
 const BATCH_SIZE_REASONING = 6; // Reasoning models handle smaller batches more reliably
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 

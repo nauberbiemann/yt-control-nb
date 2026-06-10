@@ -3,6 +3,7 @@ import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 const SYSTEM_INSTRUCTIONS = `
 You are an expert script analyzer and visual designer.

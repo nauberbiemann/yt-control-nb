@@ -13,6 +13,7 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 const SYSTEM_INSTRUCTIONS = `
 You generate a post-script production package for a Brazilian Portuguese YouTube video.

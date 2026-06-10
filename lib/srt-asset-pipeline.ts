@@ -821,7 +821,7 @@ export const applyHyperframeRules = (
   rows: SrtAssetRow[],
   videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
 ): SrtAssetRow[] => {
-  if (videoFormat === 'avatar_flow') return rows;
+  if (videoFormat === 'avatar_flow' || videoFormat === 'faceless') return rows;
   const result = rows.map((r) => ({ ...r }));
   const used          = new Set<number>();
   const usedTemplates = new Set<string>(); // Phase C: track assigned template names
@@ -844,7 +844,7 @@ export const applyHyperframeRules = (
     used.add(idx);
   };
 
-  const isFaceless = videoFormat === 'faceless';
+  const isFaceless = false;
 
   // ── Adaptive HyperFrame budget ────────────────────────────────────────────
   // Scale the number of HyperFrames to the video length so short SRTs don't

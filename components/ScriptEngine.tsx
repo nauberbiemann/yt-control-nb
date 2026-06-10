@@ -385,12 +385,6 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const _pipelineResultRef  = useRef<any>(null);  // captura pipeline SRT entre setState assíncronos
   const _postScriptResultRef = useRef<any>(null); // captura pacote pós-roteiro entre setState assíncronos
   const [pipelineWarnings, setPipelineWarnings] = useState<string[]>([]); // avisos não-fatais
-  const [pipelineSpeedMode, setPipelineSpeedMode] = useState<'fast' | 'safe'>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('yt_pipeline_speed_mode') as 'fast' | 'safe') || 'fast';
-    }
-    return 'fast';
-  });
   // Template Studio
   const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
@@ -2609,15 +2603,14 @@ COMO USAR NO WINDOWS:
       const promptMap = new Map<number, string>();
       const textoAdicionalMap = new Map<number, string>();
       const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
-      const isFastMode = pipelineSpeedMode === 'fast';
-      const chunkSize = isFastMode ? 10 : 3;
+      const chunkSize = 3; // Reduzido de 8 para 3 para evitar timeouts (504) em servidores Vercel Hobby (limite de 10s)
       const chunks: any[][] = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));
       }
 
       let completedCount = 0;
-      let currentConcurrency = isFastMode ? 4 : 2; // Começa em concorrência = 4 no modo rápido e 2 no seguro
+      let currentConcurrency = 2; // Começa em concorrência = 2
       let activeWorkers = 0;
       const results: any[] = new Array(chunks.length);
       let nextChunkIdx = 0;
@@ -5307,40 +5300,6 @@ COMO USAR NO WINDOWS:
 
                 {/* Col 3: Botoes de Acao */}
                 <div className="space-y-3">
-                  {/* ── SELETOR DE VELOCIDADE DO PIPELINE ── */}
-                  <div className="flex rounded-xl border border-white/10 bg-black/20 p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPipelineSpeedMode('fast');
-                        localStorage.setItem('yt_pipeline_speed_mode', 'fast');
-                      }}
-                      disabled={isPipelineRunning || isProcessingSrtPipeline}
-                      className={`flex-1 rounded-lg py-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${
-                        pipelineSpeedMode === 'fast'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'text-white/45 hover:text-white'
-                      }`}
-                    >
-                      ⚡ Rápido (Local/Pro)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPipelineSpeedMode('safe');
-                        localStorage.setItem('yt_pipeline_speed_mode', 'safe');
-                      }}
-                      disabled={isPipelineRunning || isProcessingSrtPipeline}
-                      className={`flex-1 rounded-lg py-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${
-                        pipelineSpeedMode === 'safe'
-                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                          : 'text-white/45 hover:text-white'
-                      }`}
-                    >
-                      🛡️ Seguro (Hobby)
-                    </button>
-                  </div>
-
                   {/* ── BOTÃO PRINCIPAL: PIPELINE COMPLETO ────────────────── */}
                   <div className="flex gap-2 items-stretch">
                     <button

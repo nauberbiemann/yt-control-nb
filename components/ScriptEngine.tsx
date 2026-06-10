@@ -2603,7 +2603,7 @@ COMO USAR NO WINDOWS:
       const promptMap = new Map<number, string>();
       const textoAdicionalMap = new Map<number, string>();
       const fallbackRowNumbers = new Set<number>(); // 🏷️ Track rows that used a fallback
-      const chunkSize = 3; // Reduzido de 8 para 3 para evitar timeouts (504) em servidores Vercel Hobby (limite de 10s)
+      const chunkSize = 8; // Tamanho fixo otimizado para manter qualidade/foco da IA sem "viajar"
       const chunks: any[][] = [];
       for (let i = 0; i < promptItems.length; i += chunkSize) {
         chunks.push(promptItems.slice(i, i + chunkSize));

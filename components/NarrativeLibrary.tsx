@@ -327,28 +327,9 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
         console.warn('⚠️ Supabase Background Fetch Error:', error.message);
       } else {
         const cloudItems = (data ?? []) as NarrativeComponent[];
-        const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudItems));
-        
-        // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
-        const cloudIds = new Set(cloudItems.map(c => c.id));
-        const unsyncedItems = localItems.filter(l => l.id && !cloudIds.has(l.id));
-        
-        if (unsyncedItems.length > 0) {
-          console.log(`[ContentOS] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
-          supabase.from('narrative_components').upsert(
-            unsyncedItems.map(item => ({ ...item, project_id: activeProject.id }))
-          ).then(({ error: upsertError }: { error: any }) => {
-            if (upsertError) console.warn('⚠️ Falha no auto-sync (em background):', upsertError.message || upsertError);
-            else console.log('✅ Auto-sync concluído.');
-          });
-        }
-
-        const mergedStr = JSON.stringify(merged);
-        if (mergedStr !== JSON.stringify(localItems)) {
-          setComponents(merged);
-          // localStorage.setItem(`ws_narrative_${activeProject.id}`, mergedStr);
-          console.log(`[ContentOS] ☁️ Background Sync applied: ${cloudItems.length} cloud, ${merged.length} merged`);
-        }
+        setComponents(cloudItems);
+        localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(cloudItems));
+        console.log(`[ContentOS] ☁️ Background Sync applied: ${cloudItems.length} cloud`);
       }
     } catch (e) {
       console.error('❌ Erro crítico ao buscar componentes background:', e);
@@ -388,7 +369,7 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
 
       const dedupedLocal = dedupeNarrativeComponents(newComponents);
       setComponents(dedupedLocal);
-      // localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
+      localStorage.setItem(`ws_narrative_${activeProject.id}`, JSON.stringify(dedupedLocal));
       
       // 🏁 UI Feedback: Fecha modal e limpa form
       setIsModalOpen(false);
@@ -421,13 +402,17 @@ export default function NarrativeLibrary({ activeProject: propProject }: Narrati
 
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este padrão da biblioteca?')) {
+      const newComponents = components.filter(c => c.id !== id);
+      setComponents(newComponents);
+      localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(newComponents));
+
       if (supabase) {
-        await supabase.from('narrative_components').delete().eq('id', id);
-        fetchComponents();
-      } else {
-        const newComponents = components.filter(c => c.id !== id);
-        setComponents(newComponents);
-        // localStorage.setItem(`ws_narrative_${activeProject?.id}`, JSON.stringify(newComponents));
+        try {
+          await supabase.from('narrative_components').delete().eq('id', id);
+          fetchComponents();
+        } catch (e) {
+          console.error('Error deleting from Supabase:', e);
+        }
       }
     }
   };

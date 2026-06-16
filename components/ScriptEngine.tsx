@@ -65,7 +65,7 @@ type ExecutionMode = 'internal' | 'external';
 type ScriptStage = 'blueprint' | 'final';
 type SrtPipelineStepStatus = 'pending' | 'running' | 'done' | 'error';
 type VideoCharacterMode = 'male' | 'female' | 'custom';
-type VideoFormat = 'avatar' | 'faceless' | 'vlog' | 'avatar_flow';
+type VideoFormat = 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog';
 
 const resolveErrorMessage = (errPayload: any, fallback: string): string => {
   if (!errPayload) return fallback;
@@ -689,6 +689,9 @@ const resolveCharacterProfileInFrontend = (
   demographics?: string,
   visualIdentity?: string
 ): string => {
+  if (format === 'catalog') {
+    return 'premium documentary presentation slide style, clean minimalist off-white textured stucco background, high-fidelity details, soft drop shadows, clean graphic layout';
+  }
   const resolvedMode = mode === 'female' || mode === 'custom' ? mode : 'male';
   const resolvedCustomDescription = String(customDescription || '').replace(/\s+/g, ' ').trim();
 
@@ -1656,7 +1659,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                 if (typeof cloudSnapshot.externalSrtFileName === 'string') setExternalSrtFileName(cloudSnapshot.externalSrtFileName);
                 if (['male', 'female', 'custom'].includes(cloudSnapshot.videoCharacterMode)) setVideoCharacterMode(cloudSnapshot.videoCharacterMode);
                 if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
-                if (['faceless', 'avatar', 'vlog', 'avatar_flow'].includes(cloudSnapshot.videoFormat)) setVideoFormat(cloudSnapshot.videoFormat);
+                if (['faceless', 'avatar', 'vlog', 'avatar_flow', 'catalog'].includes(cloudSnapshot.videoFormat)) setVideoFormat(cloudSnapshot.videoFormat);
                 if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
                 if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
                 if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
@@ -1699,7 +1702,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.externalSrtFileName === 'string') setExternalSrtFileName(snapshot.externalSrtFileName);
       if (['male', 'female', 'custom'].includes(snapshot?.videoCharacterMode)) setVideoCharacterMode(snapshot.videoCharacterMode);
       if (typeof snapshot?.videoCharacterCustom === 'string') setVideoCharacterCustom(snapshot.videoCharacterCustom);
-      if (['faceless', 'avatar', 'vlog', 'avatar_flow'].includes(snapshot?.videoFormat)) setVideoFormat(snapshot.videoFormat);
+      if (['faceless', 'avatar', 'vlog', 'avatar_flow', 'catalog'].includes(snapshot?.videoFormat)) setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
       if (Array.isArray(snapshot?.visualBlueprintCast)) setVisualBlueprintCast(snapshot.visualBlueprintCast);
@@ -2389,6 +2392,21 @@ ${videoFormat === 'avatar_flow' ? `
 - VOCÊ DEVE DIVIDIR RÍGIDAMENTE A NARRAÇÃO EM TRECHOS DE CERCA DE 24 A 26 PALAVRAS POR BLOCO. Cada bloco do blueprint deve conter estritamente essa quantidade de palavras.
 - NUNCA, SOB QUALQUER HIPÓTESE, ABREVIE "Inteligência Artificial" ou qualquer sigla/número que possa causar erro na narração de voz. Escreva tudo POR EXTENSO (ex: escreva "Inteligência Artificial", NUNCA "IA"; "cinquenta por cento" em vez de "50%"; "quinze dias" em vez de "15 dias"; etc.).
 - NÃO INSIRA SUBTÍTULOS SOLTOS. Como isso é uma narração contínua de cena por cena, qualquer subtítulo ou cabeçalho deve ser transformado em fala natural de transição (exemplo: transforme "Por que essa oportunidade não dura para sempre" em algo como "Agora deixa eu te explicar por que essa oportunidade não vai durar para sempre.").` : ''}
+${videoFormat === 'catalog' ? `
+[ESTILO DE NARRATIVA OBRIGATÓRIO — CATÁLOGO]
+- NARRATIVA MODULAR ENCICLOPÉDICA: O roteiro deve ser estruturado em micro-capítulos ou módulos temáticos autônomos. Cada entrada (ex: tipo de produto, raça, estilo) funciona como uma cápsula narrativa autônoma com início, meio e fim.
+- CURVA NARRATIVA OBRIGATÓRIA: Siga estritamente esta progressão de curva narrativa ao longo do roteiro:
+  1. Âncora Inicial (Hook/Abertura): Apresentação do tema sob uma ótica surpreendente ou intrigante.
+  2. Camadas de Complexidade Crescente: Aprofundamento em ordem progressiva de mistério, complexidade ou valor.
+  3. Ponto de Virada no Meio / Mito de Origem: Uma história de origem fascinante, lenda ou reviravolta no meio do vídeo.
+  4. Tensão Ética ou Histórica: Apresentação de um dilema, conflito ético, proibição ou mistério não resolvido sobre o tema.
+  5. Retorno Circular / Fechamento: Conexão com o ponto inicial, amarrando a tese do vídeo com uma frase final de impacto.
+- RITMO MODULAR INTERNO (ESTRUTURA DE 3 BEATS POR MÓDULO): Cada item/entrada do catálogo no roteiro deve seguir um micro-roteiro interno de 3 beats:
+  1. Definição: O que é o item, sua característica mais chamativa ou única.
+  2. Origem/Contexto: História, de onde veio, quem criou ou como surgiu.
+  3. Distinção: O que o diferencia completamente de todos os outros.
+- RIGOR HISTÓRICO E FATOS REAIS: É expressamente proibido alucinar ou inventar qualquer dado. Todas as datas, nomes, localizações, dados científicos e históricos devem ser estritamente reais, precisos, documentados e verificáveis. Se não tiver certeza absoluta de um fato, use um fato real conhecido semelhante.
+- FORMATO DE IMAGEM/VÍDEO CLEAN BRANDING: O roteiro fará referências a marcas comerciais ou produtos consagrados de forma puramente descritiva ou usando placeholders como "[Product Placeholder: Nome do Produto/Marca]", facilitando a identificação visual.` : ''}
 
 FORMATO DE SAIDA
 - Escreva o roteiro inteiro como texto corrido de narrador, sem nenhuma divisao visual.
@@ -2730,8 +2748,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     if (!externalSrtPipeline) return '';
     const baseText = compilePromptText(externalSrtPipeline.imagePromptsTxt);
     
-    // In faceless mode, we don't append HyperFrame background image prompts.
-    if (videoFormat === 'faceless') {
+    // In faceless and catalog modes, we don't append HyperFrame background image prompts.
+    if (videoFormat === 'faceless' || videoFormat === 'catalog') {
       return baseText;
     }
 
@@ -3149,7 +3167,21 @@ COMO USAR NO WINDOWS:
     );
 
     if (isDirect) {
-      const facelessHint = videoFormat === 'faceless'
+      const facelessHint = videoFormat === 'catalog'
+        ? `CATALOG VIDEO MODE: This format is styled like a premium presentation slide or documentary collage. Banish all modern studio presenters, talking heads, or hosts speaking to the camera. Follow these layout structure rules for every scene:
+1. LAYOUT VISUALS: All image and video prompts MUST describe a clean slide composition. Specifically state: "a minimalist off-white textured stucco background with smooth drop shadows" to ensure style consistency.
+2. CONTENT CARDS: Visualize the narrative concepts, historical objects, maps, or portraits inside floating cards or boards with rounded corners (e.g. "a floating rounded card showing...").
+3. CARD VARIATIONS: Use diverse card composition styles based on context:
+   - Single center card for main focus (e.g. "a centered floating card showing...").
+   - Two cards side-by-side for comparison or context (e.g. "two floating cards side-by-side: the left card showing the city facade, the right card showing a clean vector map of the region").
+   - Three cards side-by-side for recipe ingredients or steps.
+   - Focal emphasis: describe one central card in focus while surrounding cards are blurred.
+4. TEXT OVERLAYS: If a key phrase, name, or date is prominent, describe it as bold black text centered on the slide or above the cards (e.g. "bold black text reading [Name] at the top of the slide, above a floating card...").
+5. COMMERCIAL BRANDS/PRODUCTS: If a commercially recognizable product (e.g. Coca-Cola, Nutella, Starbucks) is mentioned, do not write a generic prompt. Instead: 
+   - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"
+   - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.
+6. NO studio presenters or virtual talking heads.`
+        : videoFormat === 'faceless'
         ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
         : videoFormat === 'vlog'
         ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
@@ -3185,7 +3217,7 @@ COMO USAR NO WINDOWS:
       const validatedBatch = validatePromptBatch(batch, payload, localFallbackRowsObj);
       const prompts = batch.map((item) => {
         let finalPrompt = validatedBatch.get(item.row_number)?.prompt || '';
-        const isFacelessHf = item.asset === 'hyperframe' && videoFormat === 'faceless';
+        const isFacelessHf = item.asset === 'hyperframe' && (videoFormat === 'faceless' || videoFormat === 'catalog');
         if (!isFacelessHf) {
           finalPrompt = cleanHeyGenPrefixes(finalPrompt);
         }
@@ -4131,6 +4163,448 @@ COMO USAR NO WINDOWS:
       document.body.removeChild(linkFalas);
       URL.revokeObjectURL(urlFalas);
     }, 150);
+  };
+
+  const generateSceneSvgPreview = (row: any, format: string): string => {
+    const promptLower = (row.prompt || '').toLowerCase();
+    const isProduct = promptLower.includes('product placeholder') || (row.prompt && row.prompt.trim().startsWith('['));
+    const isMap = promptLower.includes('map') || promptLower.includes('mapa');
+    const isTwoCards = promptLower.includes('two cards') || promptLower.includes('2 cards') || promptLower.includes('side-by-side') || promptLower.includes('lado a lado') || promptLower.includes('comparison');
+    const isThreeCards = promptLower.includes('three cards') || promptLower.includes('3 cards') || promptLower.includes('recipe') || promptLower.includes('steps');
+    const isPortrait = promptLower.includes('portrait') || promptLower.includes('person') || promptLower.includes('man') || promptLower.includes('woman') || promptLower.includes('narrator');
+
+    let productName = 'PRODUTO COMERCIAL';
+    if (isProduct && row.prompt) {
+      const match = row.prompt.match(/\[Product Placeholder:\s*([^\]]+)\]/i);
+      if (match && match[1]) {
+        productName = match[1].trim().toUpperCase();
+      }
+    }
+
+    if (format === 'avatar') {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <!-- Office background -->
+          <rect width="480" height="270" fill="#1e1b4b" />
+          <path d="M 0 200 L 480 200 L 480 270 L 0 270 Z" fill="#111827" opacity="0.4" />
+          <!-- presenter silhouette -->
+          <ellipse cx="240" cy="170" rx="55" ry="75" fill="#312e81" stroke="#4338ca" stroke-width="2" />
+          <circle cx="240" cy="95" r="28" fill="#312e81" stroke="#4338ca" stroke-width="2" />
+          <!-- overlay screen B-roll preview if present -->
+          ${row.asset !== 'avatar' ? `
+            <rect x="290" y="30" width="160" height="90" rx="8" fill="#1f2937" stroke="#4b5563" stroke-width="2" />
+            <text x="370" y="80" font-family="sans-serif" font-size="10" fill="#9ca3af" text-anchor="middle">B-Roll: ${row.asset}</text>
+          ` : `
+            <text x="240" y="240" font-family="sans-serif" font-size="11" fill="#818cf8" text-anchor="middle" font-weight="bold">APRESENTADOR FALANDO</text>
+          `}
+        </svg>
+      `;
+    }
+    if (format === 'vlog') {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <!-- Vlog scenic background -->
+          <rect width="480" height="270" fill="#064e3b" />
+          <circle cx="120" cy="160" r="80" fill="#047857" opacity="0.5" />
+          <circle cx="380" cy="100" r="120" fill="#047857" opacity="0.3" />
+          <!-- presenter holding camera silhouette -->
+          <circle cx="240" cy="120" r="45" fill="#022c22" stroke="#064e3b" stroke-width="2" />
+          <path d="M 170 270 Q 240 200 310 270 Z" fill="#022c22" />
+          <!-- Camera Rec overlay UI -->
+          <rect x="20" y="20" width="12" height="12" fill="#ef4444" rx="6" />
+          <text x="38" y="30" font-family="monospace" font-size="10" font-weight="bold" fill="#ef4444">REC</text>
+          <text x="420" y="30" font-family="monospace" font-size="10" fill="#ffffff">4K</text>
+          <path d="M 20 230 L 20 250 L 40 250" fill="none" stroke="#ffffff" stroke-width="2" />
+          <path d="M 460 230 L 460 250 L 440 250" fill="none" stroke="#ffffff" stroke-width="2" />
+          <path d="M 20 70 L 20 50 L 40 50" fill="none" stroke="#ffffff" stroke-width="2" />
+          <path d="M 460 70 L 460 50 L 440 50" fill="none" stroke="#ffffff" stroke-width="2" />
+        </svg>
+      `;
+    }
+    if (format === 'faceless') {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <!-- Cinematic B-Roll mockup -->
+          <rect width="480" height="270" fill="#18181b" />
+          <path d="M 0 180 L 120 100 L 280 220 L 480 150 L 480 270 L 0 270 Z" fill="#27272a" />
+          <path d="M 0 220 L 180 160 L 320 240 L 480 190 L 480 270 L 0 270 Z" fill="#3f3f46" />
+          <circle cx="380" cy="70" r="30" fill="#facc15" opacity="0.9" />
+          <text x="240" y="140" font-family="sans-serif" font-size="12" font-weight="bold" fill="#a1a1aa" text-anchor="middle" letter-spacing="1">CINEMATIC B-ROLL</text>
+        </svg>
+      `;
+    }
+
+    if (isProduct) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="170" y="40" width="140" height="190" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <path d="M 220 90 Q 220 80 230 80 L 250 80 Q 260 80 260 90 L 255 120 L 265 180 Q 265 190 255 190 L 225 190 Q 215 190 215 180 L 225 120 Z" fill="#b91c1c" opacity="0.85" />
+          <rect x="223" y="130" width="34" height="20" rx="2" fill="#facc15" />
+          <text x="240" y="215" font-family="'DM Sans', sans-serif" font-size="9" font-weight="700" fill="#1f2937" text-anchor="middle">
+            [${productName}]
+          </text>
+          <rect x="180" y="10" width="120" height="18" rx="9" fill="#ef4444" opacity="0.9" />
+          <text x="240" y="22" font-family="'Space Mono', monospace" font-size="7" font-weight="700" fill="#ffffff" text-anchor="middle">
+            EDITOR OVERRIDE
+          </text>
+        </svg>
+      `;
+    }
+
+    if (isMap) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="80" y="45" width="320" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <path d="M 110 90 Q 140 80 160 110 Q 180 80 210 100 Q 230 130 200 150 Q 150 170 110 140 Z" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5" />
+          <path d="M 280 130 Q 310 100 340 120 Q 370 140 350 170 Q 320 180 290 160 Z" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5" />
+          <path d="M 150 120 Q 200 100 240 140 T 320 140" fill="none" stroke="#818cf8" stroke-width="3" stroke-dasharray="6,4" />
+          <circle cx="320" cy="140" r="6" fill="#ef4444" />
+          <circle cx="320" cy="140" r="2" fill="#ffffff" />
+          <text x="240" y="210" font-family="'DM Sans', sans-serif" font-size="10" font-weight="700" fill="#4b5563" text-anchor="middle">
+            VETOR DE MAPA &amp; ROTA
+          </text>
+        </svg>
+      `;
+    }
+
+    if (isTwoCards) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="50" y="55" width="175" height="160" rx="14" fill="#ffffff" filter="url(#shadow)" />
+          <rect x="70" y="80" width="135" height="70" rx="6" fill="#f3f4f6" />
+          <circle cx="100" cy="115" r="15" fill="#c084fc" opacity="0.7" />
+          <rect x="75" y="170" width="125" height="8" rx="2" fill="#e5e7eb" />
+          <rect x="75" y="185" width="80" height="8" rx="2" fill="#e5e7eb" />
+          
+          <rect x="255" y="55" width="175" height="160" rx="14" fill="#ffffff" filter="url(#shadow)" />
+          <rect x="275" y="80" width="135" height="70" rx="6" fill="#f3f4f6" />
+          <path d="M 310 130 L 340 100 L 370 120" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" />
+          <rect x="280" y="170" width="125" height="8" rx="2" fill="#e5e7eb" />
+          <rect x="280" y="185" width="100" height="8" rx="2" fill="#e5e7eb" />
+        </svg>
+      `;
+    }
+
+    if (isThreeCards) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="35" y="65" width="125" height="140" rx="12" fill="#ffffff" filter="url(#shadow)" />
+          <circle cx="97" cy="105" r="18" fill="#fca5a5" opacity="0.6" />
+          <rect x="50" y="145" width="95" height="6" rx="2" fill="#e5e7eb" />
+          <rect x="50" y="160" width="65" height="6" rx="2" fill="#e5e7eb" />
+          <text x="97" y="188" font-family="'Space Mono', monospace" font-size="10" font-weight="700" fill="#b91c1c" text-anchor="middle">01</text>
+          
+          <rect x="177" y="65" width="125" height="140" rx="12" fill="#ffffff" filter="url(#shadow)" />
+          <rect x="220" y="87" width="40" height="36" rx="4" fill="#fef08a" opacity="0.7" />
+          <rect x="192" y="145" width="95" height="6" rx="2" fill="#e5e7eb" />
+          <rect x="192" y="160" width="80" height="6" rx="2" fill="#e5e7eb" />
+          <text x="239" y="188" font-family="'Space Mono', monospace" font-size="10" font-weight="700" fill="#a16207" text-anchor="middle">02</text>
+          
+          <rect x="320" y="65" width="125" height="140" rx="12" fill="#ffffff" filter="url(#shadow)" />
+          <polygon points="382,87 362,123 402,123" fill="#93c5fd" opacity="0.7" />
+          <rect x="335" y="145" width="95" height="6" rx="2" fill="#e5e7eb" />
+          <rect x="335" y="160" width="55" height="6" rx="2" fill="#e5e7eb" />
+          <text x="382" y="188" font-family="'Space Mono', monospace" font-size="10" font-weight="700" fill="#1d4ed8" text-anchor="middle">03</text>
+        </svg>
+      `;
+    }
+
+    if (isPortrait) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="165" y="45" width="150" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <circle cx="240" cy="110" r="28" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5" />
+          <path d="M 205 175 C 205 150 220 145 240 145 C 260 145 275 150 275 175 Z" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5" />
+          <rect x="185" y="195" width="110" height="6" rx="2" fill="#e5e7eb" />
+        </svg>
+      `;
+    }
+
+    return `
+      <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+          </filter>
+          <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+            <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="480" height="270" fill="#f6f5f0" />
+        <rect width="480" height="270" fill="url(#grid)" />
+        
+        <rect x="100" y="45" width="280" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+        <circle cx="240" cy="120" r="30" fill="none" stroke="#cbd5e1" stroke-width="2" />
+        <circle cx="240" cy="120" r="20" fill="none" stroke="#818cf8" stroke-width="3" />
+        <line x1="200" y1="120" x2="280" y2="120" stroke="#cbd5e1" stroke-width="1.5" />
+        <line x1="240" y1="80" x2="240" y2="160" stroke="#cbd5e1" stroke-width="1.5" />
+        <rect x="130" y="195" width="220" height="6" rx="2" fill="#e5e7eb" />
+      </svg>
+    `;
+  };
+
+  const generateStoryboardHtmlString = (pipeline: any): string => {
+    if (!pipeline || !pipeline.rows || !pipeline.rows.length) return '';
+    const themeTitle = approvedBriefing?.title || approvedTheme || 'Roteiro de Vídeo';
+    const rows = pipeline.rows;
+    
+    const gridItems = rows.map((row: any) => {
+      const svgCode = generateSceneSvgPreview(row, videoFormat);
+      const isFallback = !!row.isFallback;
+      
+      let assetBadgeColor = 'bg-gray-800 text-gray-400 border-gray-700';
+      if (row.asset === 'vídeo') {
+        assetBadgeColor = 'bg-green-500/10 text-green-400 border-green-500/30';
+      } else if (row.asset === 'imagem') {
+        assetBadgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+      } else if (row.asset === 'hyperframe') {
+        assetBadgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+      } else if (row.asset === 'texto') {
+        assetBadgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      } else if (row.asset === 'avatar') {
+        assetBadgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+      }
+
+      return `
+        <div class="scene-card bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl flex flex-col transition-all hover:border-zinc-700">
+          <div class="w-full bg-zinc-950 aspect-video relative flex items-center justify-center border-b border-zinc-800 overflow-hidden">
+            ${svgCode}
+            <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-purple-300 border border-purple-500/20 uppercase tracking-widest">
+              CENA #${row.rowNumber}
+            </div>
+            <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-semibold text-zinc-300">
+              ${row.startTime} - ${row.endTime}
+            </div>
+          </div>
+          
+          <div class="p-5 flex-1 flex flex-col space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
+                ${(row.asset || 'SEM ASSET').toUpperCase()}
+              </span>
+              ${isFallback ? '<span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border bg-orange-500/10 text-orange-400 border-orange-500/30">FALLBACK (IA)</span>' : ''}
+            </div>
+            
+            <div class="space-y-1.5">
+              <h4 class="text-[9px] font-black uppercase tracking-widest text-zinc-500">Legenda (Locução)</h4>
+              <p class="text-[12px] text-zinc-200 leading-relaxed font-medium bg-zinc-950/45 border border-zinc-800/40 rounded-xl p-3 select-all italic">&quot;${row.texto}&quot;</p>
+            </div>
+            
+            <div class="space-y-1.5 flex-1 flex flex-col">
+              <div class="flex items-center justify-between">
+                <h4 class="text-[9px] font-black uppercase tracking-widest text-zinc-500">Prompt Visual (Inglês)</h4>
+                <button 
+                  onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(row.prompt || '')}')); this.textContent = 'COPIADO!'; setTimeout(() => this.textContent = 'COPIAR', 1000);" 
+                  class="text-[9px] font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider"
+                >
+                  Copiar
+                </button>
+              </div>
+              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 flex-1 select-all">${row.prompt || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('\n');
+
+    return `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Storyboard — ${themeTitle}</title>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                fontFamily: {
+                  sans: ['"DM Sans"', 'sans-serif'],
+                  mono: ['"Space Mono"', 'monospace'],
+                }
+              }
+            }
+          }
+        </script>
+        <style>
+          body {
+            background-color: #0e0e10;
+            color: #e4e4e7;
+          }
+          @media print {
+            body {
+              background-color: #ffffff;
+              color: #000000;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .scene-card {
+              break-inside: avoid;
+              background-color: #ffffff !important;
+              border-color: #d4d4d8 !important;
+              box-shadow: none !important;
+              color: #000000 !important;
+            }
+            .scene-card p {
+              color: #18181b !important;
+              background-color: #f4f4f5 !important;
+              border-color: #e4e4e7 !important;
+            }
+            .scene-card text {
+              fill: #000000 !important;
+            }
+            .scene-card rect[fill="#ffffff"] {
+              stroke: #cbd5e1 !important;
+              stroke-width: 1px !important;
+            }
+            .scene-card rect[fill="#f6f5f0"] {
+              fill: #f8fafc !important;
+            }
+          }
+        </style>
+      </head>
+      <body class="font-sans antialiased min-h-screen pb-16">
+        <header class="no-print sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div class="space-y-0.5">
+            <div class="flex items-center gap-2">
+              <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">STORYBOARD GENERATOR</span>
+              <span class="bg-zinc-800 text-zinc-300 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
+            </div>
+            <h1 class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <button 
+              onclick="window.print()" 
+              class="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-lg shadow-purple-600/15 flex items-center gap-2"
+            >
+              <span>🖨️ IMPRIMIR / PDF</span>
+            </button>
+            <button 
+              onclick="downloadSelfHTML()" 
+              class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl border border-zinc-700 flex items-center gap-2"
+            >
+              <span>💾 SALVAR HTML</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-6 py-8">
+          <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 mb-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Total de Cenas</span>
+              <span class="text-2xl font-bold text-zinc-100">${rows.length}</span>
+            </div>
+            <div>
+              <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Formato Ativo</span>
+              <span class="text-2xl font-bold text-purple-400 uppercase">${videoFormat}</span>
+            </div>
+            <div>
+              <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Duração Estimada</span>
+              <span class="text-2xl font-bold text-zinc-100">${rows[rows.length - 1]?.endTime || '00:00'}</span>
+            </div>
+            <div>
+              <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Gerado em</span>
+              <span class="text-xs font-semibold text-zinc-400 mt-2 block">${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            ${gridItems}
+          </div>
+        </main>
+
+        <script>
+          function downloadSelfHTML() {
+            const docSource = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+            const blob = new Blob([docSource], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'storyboard_${sanitizeDownloadFileStem(themeTitle)}.html';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+  };
+
+  const openStoryboardInNewTab = () => {
+    if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
+      alert('Não há dados do pipeline para visualizar no storyboard.');
+      return;
+    }
+    try {
+      const htmlContent = generateStoryboardHtmlString(externalSrtPipeline);
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err) {
+      console.error('Erro ao abrir o storyboard:', err);
+      alert('Falha ao abrir storyboard: ' + (err instanceof Error ? err.message : String(err)));
+    }
   };
 
   const hasFinalScript = scriptStage === 'final' && scriptBlocks.some((block) => String(block.content || '').trim());
@@ -5846,6 +6320,7 @@ COMO USAR NO WINDOWS:
                         { value: 'vlog', label: 'VLOG' },
                         { value: 'faceless', label: 'Faceless' },
                         { value: 'avatar_flow', label: 'Avatar Flow' },
+                        { value: 'catalog', label: 'Catálogo' },
                       ] as { value: VideoFormat; label: string }[]).map((option) => {
                         const selected = videoFormat === option.value;
                         return (
@@ -5884,6 +6359,11 @@ COMO USAR NO WINDOWS:
                         Modo Avatar Flow: Roteiro em blocos de ~25 palavras. Prompts com alternância de ângulos cinematográficos para Personagem001 gerados de forma rápida, sem depender de SRT para começar.
                       </p>
                     )}
+                    {videoFormat === 'catalog' && (
+                      <p className="text-[9px] text-emerald-400/80 leading-relaxed">
+                        Modo Catálogo: Estilo apresentação de slides e colagens com design premium minimalista, sem apresentadores reais e com foco em fatos e produtos reais.
+                      </p>
+                    )}
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
                     <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
@@ -5912,7 +6392,7 @@ COMO USAR NO WINDOWS:
                     </div>
                     
                     {/* Visual Preview / Customizer Interface */}
-                    {videoFormat !== 'faceless' && (videoCharacterMode === 'male' || videoCharacterMode === 'female') && (() => {
+                    {videoFormat !== 'faceless' && videoFormat !== 'catalog' && (videoCharacterMode === 'male' || videoCharacterMode === 'female') && (() => {
                       const resolvedPrompt = resolveCharacterProfileInFrontend(
                         videoCharacterMode,
                         videoFormat,
@@ -6118,6 +6598,21 @@ COMO USAR NO WINDOWS:
                           : 'Nenhum pacote pos-roteiro processado ainda.'}
                     </div>
                   </div>
+                  {externalSrtPipeline && (
+                    <div className="space-y-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02] p-3">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Visualização de Storyboard</label>
+                      <button
+                        type="button"
+                        onClick={openStoryboardInNewTab}
+                        className="w-full rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:bg-emerald-500/25 active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <span>🎬 ABRIR STORYBOARD EM NOVA ABA</span>
+                      </button>
+                      <div className="rounded-xl border border-emerald-500/10 bg-black/15 px-3 py-2 text-[10px] text-emerald-300/70">
+                        Gere a visualização instantânea do roteiro com ilustrações SVG dinâmicas.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -6366,20 +6861,20 @@ COMO USAR NO WINDOWS:
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  if (videoFormat === 'faceless') {
-                                    alert('No formato Faceless, os HyperFrames já são gerados como prompts de vídeo completos na seção de vídeos acima. Não é necessário gerar fundos de imagem.');
+                                  if (videoFormat === 'faceless' || videoFormat === 'catalog') {
+                                    alert('Nos formatos Faceless e Catálogo, os HyperFrames já são gerados como prompts de vídeo completos na seção de vídeos acima. Não é necessário gerar fundos de imagem.');
                                     return;
                                   }
                                   await generateHfBgPromptsInternal();
                                 }}
                                 disabled={isGeneratingHfBg}
                                 className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
-                                  videoFormat === 'faceless'
+                                  (videoFormat === 'faceless' || videoFormat === 'catalog')
                                     ? 'border-white/10 text-white/35 hover:bg-transparent cursor-pointer'
                                     : 'border-violet-500/30 text-violet-300 hover:border-violet-400/60 hover:text-violet-200'
                                 }`}
                               >
-                                {videoFormat === 'faceless' ? '🚫 Sem Fundos' : (isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF')}
+                                {(videoFormat === 'faceless' || videoFormat === 'catalog') ? '🚫 Sem Fundos' : (isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF')}
                               </button>
                               <div className="flex gap-2">
                               <button

@@ -156,7 +156,7 @@ interface CharacterProfileInput {
   mode?: 'male' | 'female' | 'custom';
   customDescription?: string;
   projectName?: string;
-  videoFormat?: 'avatar' | 'faceless' | 'vlog';
+  videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
   demographics?: string;
   visualIdentity?: string;
 }
@@ -173,6 +173,10 @@ const resolveCharacterProfile = (input?: CharacterProfileInput | null) => {
   const videoFormat = input?.videoFormat || 'avatar';
   const demographics = String(input?.demographics || '').trim();
   const visualIdentity = String(input?.visualIdentity || '').trim();
+
+  if (videoFormat === 'catalog') {
+    return 'premium documentary presentation slide style, clean minimalist off-white textured stucco background, high-fidelity details, soft drop shadows, clean graphic layout';
+  }
 
   // 1. Detect Gender & Pronoun
   const isFemaleVisual = visualIdentity.toLowerCase().includes('mulher') || 
@@ -539,7 +543,7 @@ const generatePromptMap = async ({
   items: PromptBatchItem[];
   characterDescription: string;
   videoContext?: string;
-  videoFormat?: 'avatar' | 'faceless' | 'vlog';
+  videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
 }) => {
   const resolvedModel = engine === 'gemini'
@@ -558,8 +562,22 @@ const generatePromptMap = async ({
   const textoAdicionalMap = new Map<number, any>();
   const localFallbackRows = new Set<number>();
 
-  // Dynamic hint based on video format (Faceless, Vlog, or Avatar)
-  const facelessHint = videoFormat === 'faceless'
+  // Dynamic hint based on video format (Faceless, Vlog, or Catalog)
+  const facelessHint = videoFormat === 'catalog'
+    ? 'CATALOG VIDEO MODE: You MUST generate visual prompts styled as clean, premium documentary presentation slides. Follow these guidelines strictly: \n' +
+      '1. BACKGROUND: Every prompt must feature a consistent "minimalist off-white textured background" (or clean stucco/paper texture).\n' +
+      '2. CARDS/PANELS: Describe subjects, products, maps, or figures as appearing inside "floating rounded-corner panels/cards with soft drop shadows".\n' +
+      '3. LAYOUT VARIATIONS: Vary the layout based on the subtitle context: \n' +
+      '   - Single center card for main focus (e.g. "a centered floating card showing...").\n' +
+      '   - Two cards side-by-side for comparison or context (e.g. "two floating cards side-by-side: the left card showing the city facade, the right card showing a clean vector map of the region").\n' +
+      '   - Three cards side-by-side for recipe ingredients or steps.\n' +
+      '   - Focal emphasis: describe one central card in focus while surrounding cards are blurred.\n' +
+      '4. TEXT OVERLAYS: If a key phrase, name, or date is prominent, describe it as bold black sans-serif text centered on the slide or above the cards (e.g. "bold black text reading [Name] at the top of the slide, above a floating card...").\n' +
+      '5. COMMERCIAL BRANDS/PRODUCTS: If a commercially recognizable product (e.g. Coca-Cola, Nutella, Starbucks) is mentioned, do not write a generic prompt. Instead: \n' +
+      '   - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"\n' +
+      '   - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.\n' +
+      '6. NO studio presenters or virtual talking heads.'
+    : videoFormat === 'faceless'
     ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
     : videoFormat === 'vlog'
     ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
@@ -605,7 +623,10 @@ export async function POST(req: NextRequest) {
     const engine = body?.engine === 'gemini' ? 'gemini' : 'openai';
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
-    const videoFormat: 'avatar' | 'faceless' | 'vlog' = body?.videoFormat === 'vlog' ? 'vlog' : (body?.videoFormat === 'faceless' ? 'faceless' : 'avatar');
+    const videoFormat: 'avatar' | 'faceless' | 'vlog' | 'catalog' =
+      body?.videoFormat === 'vlog' ? 'vlog' :
+      (body?.videoFormat === 'faceless' ? 'faceless' :
+      (body?.videoFormat === 'catalog' ? 'catalog' : 'avatar'));
     const visualBlueprint = body?.visualBlueprint || null;
     const characterDescription = resolveCharacterProfile({
       ...(body?.characterProfile || {}),

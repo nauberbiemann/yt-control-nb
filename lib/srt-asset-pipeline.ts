@@ -275,7 +275,7 @@ export const calculateSrtSeed = (srtText: string): number => {
 
 export const applyAssetRules = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar',
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
   srtText = ''
 ) => {
   if (!rows.length) return rows;
@@ -312,7 +312,7 @@ export const applyAssetRules = (
       return { ...row, asset: 'texto' as const };
     }
 
-    const isFaceless = videoFormat === 'faceless';
+    const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
     const isVlog = videoFormat === 'vlog';
     const cleanZoneMs = isVlog
       ? HOOK_CLEAN_ZONE_VLOG_MS
@@ -422,9 +422,9 @@ export const applyAssetRules = (
 
 export const finalizeFacelessRows = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
 ): SrtAssetRow[] => {
-  if (videoFormat !== 'faceless') return rows;
+  if (videoFormat !== 'faceless' && videoFormat !== 'catalog') return rows;
   return rows.map((row) => {
     if (normalizeAssetType(row.asset) === 'avatar') {
       const startMs = parseSrtTimeToMs(row.startTime);
@@ -452,7 +452,7 @@ export const cleanHeyGenPrefixes = (prompt: string): string => {
 
 export const buildPromptTxtOutputs = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
 ) => {
   if (videoFormat === 'avatar_flow') {
     const videoLines: string[] = [];
@@ -497,7 +497,7 @@ export const buildPromptTxtOutputs = (
   const imageLines: string[] = [];
 
   // Determine if the rows are from a faceless video by checking the explicit format.
-  const isFaceless = videoFormat === 'faceless';
+  const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
 
   rows.forEach((row) => {
     const assetType = normalizeAssetType(row.asset);
@@ -741,14 +741,14 @@ const findClosestAvatarRow = (
   rows: SrtAssetRow[],
   targetRatio: number,
   usedIndices: Set<number>,
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
 ): number => {
   const total = rows.length;
   const guardStart = Math.floor(total * 0.10);
   const guardEnd   = Math.ceil(total * 0.90);
   const target     = Math.round(targetRatio * total);
 
-  const isFaceless = videoFormat === 'faceless';
+  const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
 
   let bestIdx = -1;
   let bestDist = Infinity;
@@ -819,9 +819,9 @@ const findClosestAvatarRow = (
  */
 export const applyHyperframeRules = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
 ): SrtAssetRow[] => {
-  if (videoFormat === 'avatar_flow' || videoFormat === 'faceless') return rows;
+  if (videoFormat === 'avatar_flow' || videoFormat === 'faceless' || videoFormat === 'catalog') return rows;
   const result = rows.map((r) => ({ ...r }));
   const used          = new Set<number>();
   const usedTemplates = new Set<string>(); // Phase C: track assigned template names
@@ -1089,7 +1089,7 @@ export const applyHyperframeExclusionZone = (
 export const buildPipelineResult = (
   rows: SrtAssetRow[],
   textRender: SrtTextRenderInfo | null = null,
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' = 'avatar',
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
 ): SrtAssetPipelineResult => {
   const normalizedRows = rows.map((row) => ({
     ...row,

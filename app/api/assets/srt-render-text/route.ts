@@ -118,7 +118,10 @@ export async function POST(req: NextRequest) {
     const outputDir = path.join(RENDER_OUTPUTS_ROOT, artifactStem);
     const overwrite = Boolean(body?.overwrite);
 
-    const videoFormat: 'avatar' | 'faceless' | 'vlog' = body?.videoFormat === 'vlog' ? 'vlog' : (body?.videoFormat === 'faceless' ? 'faceless' : 'avatar');
+    const videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' =
+      ['vlog', 'faceless', 'avatar_flow', 'catalog'].includes(body?.videoFormat)
+        ? body.videoFormat
+        : 'avatar';
 
     const normalizedRows = inputRows.map((row) => ({
       ...row,

@@ -2221,7 +2221,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
           ? [`Estagio atual da curva narrativa para este bloco: ${curveStageForBlock}`]
           : []),
         // For block 0: translate the hook into a writing directive — orientation, not text to copy
-        ...(index === 0 && (approvedBriefing?.openingHook?.name || approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description)
+        ...(index === 0 && videoFormat !== 'catalog' && (approvedBriefing?.openingHook?.name || approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description)
           ? (() => {
               const hookName = approvedBriefing.openingHook?.name || '';
               const hookRef = approvedBriefing.openingHook?.pattern || approvedBriefing.openingHook?.description || '';
@@ -2255,11 +2255,16 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       : '';
 
     const lockedCompositionSection = approvedBriefing?.diagnostics ? [
-      `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
-      // Translate opening hook into a functional writing directive — orientation, not text to copy
-      ...(approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description
-        ? [`Diretriz de abertura (orientacao funcional — nao copie, use como bussola de escrita): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
-        : []),
+      ...(videoFormat === 'catalog'
+        ? [`Camada de abertura selecionada: Nenhuma (Formato Catálogo começa diretamente no primeiro item)`]
+        : [
+            `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
+            // Translate opening hook into a functional writing directive — orientation, not text to copy
+            ...(approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description
+              ? [`Diretriz de abertura (orientacao funcional — nao copie, use como bussola de escrita): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
+              : [])
+          ]
+      ),
       `Camada final de conversao selecionada: ${approvedBriefing?.selectedCta?.name || 'Nao definida'}`,
       `Estrutura selecionada: ${approvedBriefing?.selectedTitleStructure?.name || 'Nao definida'}`,
       `Curva selecionada: ${selectedNarrativeCurve?.name || 'Nao definida'}`,
@@ -2293,7 +2298,8 @@ Desta forma, você DEVE seguir as seguintes regras:
 2. Em vez disso, divida o roteiro em blocos onde CADA BLOCO (BLOCO 1, BLOCO 2, etc.) representa um ITEM real, específico e concreto pertencente ao tema "${approvedBriefing?.title || 'tema principal'}".
 3. Por exemplo, como o tema é "Cada Tipo de Creatina Explicado em 8 Minutos", os blocos centrais devem detalhar os tipos reais de creatina (ex: Creatina Monohidratada, Creatina HCL, Creatina Micronizada, Creatina Alcalina, Creatina Etil Éster, etc.).
 4. O início de cada bloco de item deve conter OBRIGATORIAMENTE o nome do item em destaque como a primeira frase (ex: "Creatina Monohidratada. O padrão ouro da suplementação..." ou "Espresso. A base da maioria das cafés..."), seguido da explicação técnica estruturada em 3 beats (Definição do item, Origem/Bioquímica, Distinção em relação aos outros).
-5. NÃO escreva nenhuma introdução, história pessoal ou transições como "vamos ao catálogo". Comece a primeira palavra do BLOCO 1 diretamente com o nome do primeiro item da lista.
+5. NÃO escreva nenhuma introdução, história pessoal, transição (como "vamos ao catálogo") ou parágrafo inicial de gancho/hook geral antes do primeiro item. A primeira palavra do roteiro inteiro deve ser diretamente o nome do primeiro item do Bloco 1.
+6. Se o blueprint abaixo sugerir uma camada de abertura, gancho ou hook para o Bloco 1, ignore-a inteiramente. O roteiro começa 100% diretamente com o primeiro item.
 \n\n`
       : '';
 
@@ -2340,7 +2346,7 @@ DIRECAO ORQUESTRADA
 ${lockedCompositionSection}
 - Blueprint macro da curva: ${selectedNarrativeCurve?.pattern || 'Nao definido'}
 - Diretriz do argumento: ${selectedArgumentMode?.pattern || 'Nao definida'}
-- A camada de abertura deve viver no inicio do primeiro bloco, e a camada final de conversao deve fechar o ultimo bloco, sem criar blocos extras.
+${videoFormat === 'catalog' ? '- O roteiro começa diretamente no primeiro item (sem camada de abertura), e a camada final de conversao deve fechar o ultimo bloco, sem criar blocos extras.' : '- A camada de abertura deve viver no inicio do primeiro bloco, e a camada final de conversao deve fechar o ultimo bloco, sem criar blocos extras.'}
 ${hasMidCta ? '- Se houver intervencao intermediaria, ela deve ser embutida na passagem indicada, sem virar bloco extra.\n' : ''}
 RESTRICOES DE REPETICAO
 ${repetitionRulesSection}
@@ -2361,7 +2367,7 @@ CURVA DEFINIDA PELO ORQUESTRADOR
 ${centralDevelopmentBlocks > 0 ? '- A curva abaixo vale para os blocos centrais de desenvolvimento; a abertura e o fechamento funcionam como camadas narrativas acopladas ao primeiro e ao ultimo bloco.\n' : ''}${narrativeArcSummary || 'Curva narrativa nao definida.'}
 
 MECANICAS DE RETENCAO OBRIGATORIAS
-- Os primeiros 5 segundos devem gerar impacto imediato, sem preambulo, apresentacao ou contexto. O tipo de abertura deve ser guiado pela voz dominante declarada e pelo ativo de abertura selecionado no briefing, nao por uma formula padrao.
+${videoFormat === 'catalog' ? '- O roteiro deve começar imediatamente na primeira palavra do primeiro item (ex: "Creatina Monohidratada..."), sem qualquer tipo de introdução ou gancho geral.' : '- Os primeiros 5 segundos devem gerar impacto imediato, sem preambulo, apresentacao ou contexto. O tipo de abertura deve ser guiado pela voz dominante declarada e pelo ativo de abertura selecionado no briefing, nao por uma formula padrao.'}
 - Voz Vulnerabilidade: abra com cena concreta de falha, tensao pessoal ou momento de decisao. Nao use pergunta retorica como entrada padrao.
 - Voz Desafio Direto: abra com afirmacao polarizadora, diagnostico provocativo ou problema imediato sem introducao. Nao use "Imagine que..." ou "Voce ja se perguntou..." como primeiro movimento.
 - Voz Tecnica: abra com dado surpreendente, contradicao observavel ou mecanismo revelado. Nao use narrativa pessoal como ponto de entrada.
@@ -2615,8 +2621,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     const structureReference = describeNarrativeAssetReference('Estrutura de titulo', briefing.selectedTitleStructure);
     const midCtaPosition = Number(briefing?.midCta?.position ?? -1);
 
+    const currentFormat = briefing?.videoFormat || videoFormat;
     return (briefing?.blocks || []).map((b: any, i: number) => {
-      const openingLayer = i === 0
+      const openingLayer = i === 0 && currentFormat !== 'catalog'
         ? `Abra este primeiro bloco incorporando a camada de abertura abaixo, sem copiar a formulacao original e sem transformar isso em um bloco separado.\n\n${hookReference}\n`
         : '';
       const midCtaLayer = briefing?.midCta && i === midCtaPosition

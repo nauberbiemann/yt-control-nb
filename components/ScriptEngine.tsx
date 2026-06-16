@@ -2293,13 +2293,12 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       ? `[ATENÇÃO: INSTRUÇÃO DE PRECEDÊNCIA MÁXIMA - FORMATO CATÁLOGO]
 Você está escrevendo um roteiro no formato de CATÁLOGO (estilo documentário enciclopédico direto ao ponto). No canal de referência, não há nenhuma introdução, enrolação, ou história de vulnerabilidade pessoal longa. O vídeo começa diretamente apresentando o primeiro item.
 
-Desta forma, você DEVE seguir as seguintes regras:
-1. DESCONSIDERE COMPLETAMENTE os títulos internos, funções narrativas, sentimentos de vulnerabilidade e diretrizes individuais de cada bloco do blueprint abaixo se eles tratarem de conceitos abstratos que não sejam itens diretos da lista.
-2. Em vez disso, divida o roteiro em blocos onde CADA BLOCO (BLOCO 1, BLOCO 2, etc.) representa um ITEM real, específico e concreto pertencente ao tema "${approvedBriefing?.title || 'tema principal'}".
-3. Por exemplo, como o tema é "Cada Tipo de Creatina Explicado em 8 Minutos", os blocos centrais devem detalhar os tipos reais de creatina (ex: Creatina Monohidratada, Creatina HCL, Creatina Micronizada, Creatina Alcalina, Creatina Etil Éster, etc.).
-4. O início de cada bloco de item deve conter OBRIGATORIAMENTE o nome do item em destaque como a primeira frase (ex: "Creatina Monohidratada. O padrão ouro da suplementação..." ou "Espresso. A base da maioria das cafés..."), seguido da explicação técnica estruturada em 3 beats (Definição do item, Origem/Bioquímica, Distinção em relação aos outros).
-5. NÃO escreva nenhuma introdução, história pessoal, transição (como "vamos ao catálogo") ou parágrafo inicial de gancho/hook geral antes do primeiro item. A primeira palavra do roteiro inteiro deve ser diretamente o nome do primeiro item do Bloco 1.
-6. Se o blueprint abaixo sugerir uma camada de abertura, gancho ou hook para o Bloco 1, ignore-a inteiramente. O roteiro começa 100% diretamente com o primeiro item.
+Desta forma, você DEVE seguir rigorosamente as seguintes regras:
+1. DESCONSIDERE COMPLETAMENTE os títulos internos, funções narrativas, sentimentos de vulnerabilidade e diretrizes de abertura se eles sugerirem ganchos pessoais ou narrativas longas fora do item técnico.
+2. CADA BLOCO (BLOCO 1, BLOCO 2, etc.) do blueprint abaixo representa um item técnico real. Você DEVE escrever todos os blocos na ordem exata e NUNCA pular, mesclar ou ignorar nenhum item do blueprint (ex: se o Bloco 3 for Creatina HCl, você deve obrigatoriamente escrever o bloco de Creatina HCl).
+3. O início de CADA bloco de item deve obrigatoriamente começar com o nome do item em destaque como a primeira frase (ex: "Creatina Monohidratada. ...", "Creatina HCl. ...", "Creatina Micronizada. ..."). É terminantemente proibido iniciar qualquer bloco com verbos ou histórias como "Eu comprei...", "Já caí na...", "Vamos falar de...". A primeiríssima frase do bloco deve ser o rótulo do item seguido de ponto final.
+4. NÃO escreva nenhuma introdução, gancho, história pessoal ou parágrafo geral de transição no início do roteiro. A primeira frase do roteiro inteiro (Bloco 1) deve ser diretamente o nome do primeiro item (ex: "Creatina Monohidratada. ...").
+5. Siga a explicação técnica estruturada em 3 beats para cada item: Definição do item, Origem/Bioquímica, Distinção em relação aos outros.
 \n\n`
       : '';
 

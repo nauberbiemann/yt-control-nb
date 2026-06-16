@@ -24,7 +24,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 
-// â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——— TYPES ——————————————————————————————————————————————————————————————————————————————————————
+
+type VideoFormat = 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog';
 
 interface GatekeeperResult {
   matchScore: number;
@@ -57,6 +59,7 @@ interface AssemblerBlock {
 
 interface ProductionBriefing {
   title: string;
+  videoFormat?: VideoFormat;
   estimatedDuration: string;
   estimatedChars: number;
   hookChars?: number;
@@ -639,6 +642,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
   const activeProject = useActiveProject();
 
   const [theme, setTheme] = useState('');
+  const [selectedFormat, setSelectedFormat] = useState<VideoFormat>('avatar');
   const [useRefactored, setUseRefactored] = useState(false);
   const [editingRefactored, setEditingRefactored] = useState(false);
   const [editedRefactoredTheme, setEditedRefactoredTheme] = useState('');
@@ -828,6 +832,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           theme: chosenTheme,
+          videoFormat: selectedFormat,
           projectConfig: {
             minBlocks, maxBlocks, minDuration, maxDuration, lastBlockCount,
             targetChars: midDuration * 1200, // use mid-range, not min
@@ -1009,6 +1014,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
       setBriefing({
         title: chosenTheme,
+        videoFormat: selectedFormat,
         editorialPillar: selectedEditorialPillar,
         pipelineLevel: selectedPipelineLevel,
         estimatedDuration: `~${finalMinutes} minutos`,
@@ -1133,6 +1139,21 @@ export default function ProductionAssembler({ components, componentsHydrated = t
               rows={3}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-sage/40 font-medium resize-none"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Formato do Video</label>
+            <select
+              value={selectedFormat}
+              onChange={e => setSelectedFormat(e.target.value as VideoFormat)}
+              className="w-full bg-midnight border border-white/10 rounded-xl px-4 py-3 text-xs uppercase font-black tracking-widest text-white outline-none focus:border-sage/40"
+            >
+              <option value="avatar">Apresentador (Vlog/Avatar)</option>
+              <option value="vlog">VLOG</option>
+              <option value="faceless">Faceless</option>
+              <option value="avatar_flow">Avatar Flow</option>
+              <option value="catalog">Catálogo</option>
+            </select>
           </div>
 
           {/* Library Status */}

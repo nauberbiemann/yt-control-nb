@@ -5,6 +5,7 @@ import { resolveModel, isReasoningModel } from '@/lib/ai-config';
 
 interface ShuffleRequest {
   theme: string;
+  videoFormat?: string;
   projectConfig: {
     minBlocks: number;
     maxBlocks: number;
@@ -586,9 +587,9 @@ function localShuffleFallback(req: ShuffleRequest) {
   };
 }
 
-// â”€â”€â”€ AI Prompt Builder (V15 â€” Total Intelligence) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——— AI Prompt Builder (V15 — Total Intelligence) ————————————————————————————
 
-function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan): string {
+function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan, videoFormat?: string): string {
   const { theme, projectConfig, narrativeLibrary, metaphorLibrary, titleStructures, controlLog } = req;
   const { minDuration, maxDuration, targetChars } = projectConfig;
 
@@ -601,7 +602,7 @@ function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan): string {
 
   const hooksStr = narrativeLibrary.hooks.map(h => `- [${h.id}] ${h.name}: "${h.content_pattern || ''}"`).join('\n');
   const allCtas = narrativeLibrary.ctas;
-  const ctasStr = allCtas.map(c => `- [${c.id}] ${c.name}${c.is_soft ? ' [SOFT/INTERMEDIÃRIA]' : ' [HARD/FINAL]'}: "${c.content_pattern || ''}"`).join('\n');
+  const ctasStr = allCtas.map(c => `- [${c.id}] ${c.name}${c.is_soft ? ' [SOFT/INTERMEDIÁRIA]' : ' [HARD/FINAL]'}: "${c.content_pattern || ''}"`).join('\n');
   const communityStr = (narrativeLibrary.communityElements || []).map(e => `- [${e.id}] "${e.content_pattern || e.name}"`).join('\n') || 'Nenhum cadastrado ainda.';
   const narrativeCurvesStr = (narrativeLibrary.narrativeCurves || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhuma curva cadastrada ainda.';
   const argumentModesStr = (narrativeLibrary.argumentModes || []).map(item => `- [${item.id}] ${item.name}${item.category ? ` [${item.category}]` : ''}: "${item.content_pattern || item.description || ''}"`).join('\n') || 'Nenhum modo cadastrado ainda.';
@@ -615,11 +616,20 @@ function buildShufflePrompt(req: ShuffleRequest, plan: SelectionPlan): string {
   const lastTitleStructureId = controlLog[0]?.selectedTitleStructureId || 'none';
   const lastCount = controlLog[0]?.blockCount || 0;
 
-  return `You are the STRATEGIC NARRATIVE ARCHITECT V15 â€” TOTAL INTELLIGENCE. Produce a modular video briefing with mathematical precision, traceable brand identity, and absolute narrative flow.
+  const catalogInstructions = videoFormat === 'catalog'
+    ? `\nSPECIAL CATÁLOGO STRUCTURING INSTRUCTIONS (MANDATORY):
+- Since the format is "catalog" (an encyclopedic documentary listing items or types), you MUST NOT generate generic or abstract topic blocks (e.g., "Proteína = XP", "Carboidrato = Stamina", "Nootrópicos").
+- Instead, you MUST generate blocks where each development block represents one SPECIFIC, CONCRETE, REAL item or category to be cataloged for the given theme "${theme}".
+- For example, if the theme is "Cada Tipo de Creatina Explicado em 8 Minutos", your development blocks must be the actual types of creatine (e.g. Creatina Monohidratada, Creatina HCL, Creatina Micronizada, Creatina Alcalina, etc.).
+- The blocks must be ordered logically (e.g., standard to advanced, or simple to complex).
+- The "missionNarrative" for each block must describe the technical properties, biochemical mechanism, origin, and distinction of that specific item.`
+    : '';
+
+  return `You are the STRATEGIC NARRATIVE ARCHITECT V15 — TOTAL INTELLIGENCE. Produce a modular video briefing with mathematical precision, traceable brand identity, and absolute narrative flow.${catalogInstructions}
 
 THEME: "${theme}"
 
-PROJECT_CONFIG (âš ï¸ ALL values are MANDATORY â€” ignoring them makes the output invalid):
+PROJECT_CONFIG (⚠ ALL values are MANDATORY — ignoring them makes the output invalid):
 - Body block count: MUST be exactly ${plan.blockCount}. The "blocks" array in your JSON MUST contain exactly ${plan.blockCount} items.
 - Duration: MUST be an integer between ${minDuration} and ${maxDuration} minutes. DO NOT output a value outside this range.
 - Target total characters: ${computedTargetChars} chars
@@ -725,8 +735,8 @@ Respond ONLY with raw JSON (no markdown fences):
 
 export async function POST(req: NextRequest) {
   try {
-    const body: ShuffleRequest = await req.json();
-    const { engine, model, apiKey } = body;
+    const body: ShuffleRequest & { videoFormat?: string } = await req.json();
+    const { engine, model, apiKey, videoFormat } = body;
     const selectionPlan = buildSelectionPlan(body);
 
     if (!body.theme || !body.narrativeLibrary) {
@@ -748,7 +758,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...fallback, isFallback: true, fallbackReason: 'no_key' }, { status: 200 });
     }
 
-    const prompt = buildShufflePrompt(body, selectionPlan);
+    const prompt = buildShufflePrompt(body, selectionPlan, videoFormat);
     const apiModel = resolveModel(model || 'gemini-2.0-flash');
 
     let responseData: Record<string, unknown>;

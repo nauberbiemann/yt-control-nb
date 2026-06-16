@@ -5572,6 +5572,9 @@ COMO USAR NO WINDOWS:
   const handleAssemblerApprove = (briefing: any, theme: string) => {
     setApprovedTheme(theme);
     setApprovedBriefing(briefing);
+    if (briefing?.videoFormat) {
+      setVideoFormat(briefing.videoFormat);
+    }
     const newBlocks = buildScriptBlocksFromBriefing(briefing, theme);
 
     void saveManualThemeToBank(theme, briefing, {

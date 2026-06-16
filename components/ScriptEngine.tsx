@@ -2395,6 +2395,9 @@ ${videoFormat === 'avatar_flow' ? `
 ${videoFormat === 'catalog' ? `
 [ESTILO DE NARRATIVA OBRIGATÓRIO — CATÁLOGO]
 - NARRATIVA MODULAR ENCICLOPÉDICA: O roteiro deve ser estruturado em micro-capítulos ou módulos temáticos autônomos. Cada entrada (ex: tipo de produto, raça, estilo) funciona como uma cápsula narrativa autônoma com início, meio e fim.
+- PRECEDÊNCIA ABSOLUTA DO CATÁLOGO SOBRE O BLUEPRINT: Se o blueprint contiver blocos com títulos ou missões de conteúdo abstrato (como "Carboidrato", "Proteína", "Nootrópicos") que não condizem diretamente com o tema específico do catálogo ("Cada Tipo de Creatina"), você DEVE obrigatoriamente ignorar/adaptar esses títulos e missões genéricas para focar 100% dos blocos de desenvolvimento nos itens reais da lista do catálogo (ex: Creatina Monohidratada, Creatina HCL, Micronizada, Alcalina, etc.). O roteiro final deve ser um catálogo de itens real e linear.
+- ABERTURA ULTRA DIRETA E CONCISA: No formato de catálogo, a introdução (Voz Vulnerabilidade do Bloco 1) NÃO deve conter histórias ou narrativas longas de múltiplos parágrafos. A abertura deve ser curta, contendo no máximo 1 ou 2 parágrafos pequenos (máximo de 120 a 150 palavras para a introdução inteira), partindo de uma confissão pessoal rápida e conectando imediatamente ao link do comentário fixado e ao primeiro item do catálogo.
+- SEM TRANSIÇÕES ARTIFICIAIS: Evite introduções demoradas ou frases como "antes de entrar no catálogo", "vamos ao que interessa". Comece o roteiro gerando curiosidade sobre a substância do tema e entre diretamente na descrição do primeiro item do catálogo de forma contínua.
 - CURVA NARRATIVA OBRIGATÓRIA: Siga estritamente esta progressão de curva narrativa ao longo do roteiro:
   1. Âncora Inicial (Hook/Abertura): Apresentação do tema sob uma ótica surpreendente ou intrigante.
   2. Camadas de Complexidade Crescente: Aprofundamento em ordem progressiva de mistério, complexidade ou valor.

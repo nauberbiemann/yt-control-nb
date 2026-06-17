@@ -228,6 +228,7 @@ Rules:
 - If specific "ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA" (Narrative Library Title Structures) are provided in the user prompt:
   * Every generated title option MUST strictly follow one of those patterns.
   * Replace all bracketed placeholders (e.g. [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details related to the video topic and script.
+  * CRITICAL RE-THEMING RULE: If any Title Structure pattern is a concrete sentence/example (e.g., it contains specific subjects/nouns like "Magnésio-Quelato" or "alimento fit" instead of bracketed placeholders), you MUST identify these concrete subjects/nouns and adapt/replace them with the current video topic (e.g. "Creatina") and script context. Under no circumstances should you copy the original subjects/nouns of the pattern if they do not match the current video's topic.
   * The final output titles must NOT contain any bracketed placeholders and must be written fully in PT-BR.
   * Distribute the titles across the provided structures (e.g., if there are 5 structures, generate at least one variation matching each structure).
 - If NO narrative library title structures are provided:
@@ -661,7 +662,7 @@ const buildUserPrompt = ({
     'Important output expectations:',
     `- Generate exactly ${titleCountHint ?? 5} title options.`,
     titleStructuresStr
-      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. The output titles must be fully written in PT-BR and must NOT contain any bracketed placeholders.`
+      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. RE-THEMING RULE: If a pattern is a concrete sentence/example (e.g. references "Magnésio-Quelato" or "alimento fit"), you MUST adapt and replace these subjects/nouns with the current video topic (e.g. "Creatina"). The output titles must be fully written in PT-BR and must NOT contain any bracketed placeholders or unrelated subjects.`
       : `- Each title must organically combine these 5 structural components: hook tension + emotional promise + contrast + transformation + reward. Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.`,
     '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',

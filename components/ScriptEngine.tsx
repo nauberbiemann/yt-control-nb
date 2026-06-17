@@ -4713,16 +4713,22 @@ COMO USAR NO WINDOWS:
       const isFallback = !!row.isFallback;
       
       let assetBadgeColor = 'bg-gray-800 text-gray-400 border-gray-700';
+      let timeColorClass = 'text-zinc-400';
       if (row.asset === 'vídeo') {
         assetBadgeColor = 'bg-green-500/10 text-green-400 border-green-500/30';
+        timeColorClass = 'text-green-400';
       } else if (row.asset === 'imagem') {
         assetBadgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+        timeColorClass = 'text-blue-400';
       } else if (row.asset === 'hyperframe') {
         assetBadgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+        timeColorClass = 'text-cyan-400';
       } else if (row.asset === 'texto') {
         assetBadgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+        timeColorClass = 'text-amber-400';
       } else if (row.asset === 'avatar') {
         assetBadgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+        timeColorClass = 'text-purple-400';
       }
 
       return `
@@ -4740,7 +4746,7 @@ COMO USAR NO WINDOWS:
                 <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
                   ${(row.asset || 'SEM ASSET').toUpperCase()}
                 </span>
-                <span class="text-[12px] font-bold text-zinc-400 font-mono tracking-tight">
+                <span class="text-[12px] font-bold ${timeColorClass} font-mono tracking-tight">
                   ${row.startTime} - ${row.endTime}
                 </span>
               </div>
@@ -4766,6 +4772,43 @@ COMO USAR NO WINDOWS:
             </div>
           </div>
         </div>
+      `;
+    }).join('\n');
+
+    const spreadsheetRows = rows.map((row: any) => {
+      let assetBadgeColor = 'bg-gray-800 text-gray-400 border-gray-700';
+      let timeColorClass = 'text-zinc-400';
+      if (row.asset === 'vídeo') {
+        assetBadgeColor = 'bg-green-500/10 text-green-400 border-green-500/30';
+        timeColorClass = 'text-green-400';
+      } else if (row.asset === 'imagem') {
+        assetBadgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+        timeColorClass = 'text-blue-400';
+      } else if (row.asset === 'hyperframe') {
+        assetBadgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+        timeColorClass = 'text-cyan-400';
+      } else if (row.asset === 'texto') {
+        assetBadgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+        timeColorClass = 'text-amber-400';
+      } else if (row.asset === 'avatar') {
+        assetBadgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+        timeColorClass = 'text-purple-400';
+      }
+
+      return `
+        <tr class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
+              ${(row.asset || 'SEM ASSET').toUpperCase()}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap font-mono font-bold ${timeColorClass}">
+            ${row.startTime} - ${row.endTime}
+          </td>
+          <td class="px-6 py-4 text-zinc-200 font-medium italic">
+            &quot;${row.texto}&quot;
+          </td>
+        </tr>
       `;
     }).join('\n');
 
@@ -4797,8 +4840,8 @@ COMO USAR NO WINDOWS:
           }
           @media print {
             body {
-              background-color: #ffffff;
-              color: #000000;
+              background-color: #ffffff !important;
+              color: #000000 !important;
             }
             .no-print {
               display: none !important;
@@ -4825,6 +4868,28 @@ COMO USAR NO WINDOWS:
             .scene-card rect[fill="#f6f5f0"] {
               fill: #f8fafc !important;
             }
+            /* Spreadsheet print overrides */
+            #spreadsheet-view {
+              background-color: #ffffff !important;
+              border-color: #d4d4d8 !important;
+              box-shadow: none !important;
+              display: block !important;
+            }
+            #spreadsheet-view table {
+              border-color: #d4d4d8 !important;
+            }
+            #spreadsheet-view tr {
+              border-bottom-color: #cbd5e1 !important;
+              background-color: #ffffff !important;
+            }
+            #spreadsheet-view th {
+              background-color: #f1f5f9 !important;
+              color: #000000 !important;
+              border-bottom-color: #cbd5e1 !important;
+            }
+            #spreadsheet-view td {
+              color: #18181b !important;
+            }
           }
         </style>
       </head>
@@ -4839,6 +4904,13 @@ COMO USAR NO WINDOWS:
           </div>
           
           <div class="flex items-center gap-3">
+            <button 
+              id="toggle-view-btn"
+              onclick="toggleViewMode()" 
+              class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl flex items-center gap-2"
+            >
+              <span id="toggle-view-text">📊 EXIBIR PLANILHA</span>
+            </button>
             <button 
               onclick="window.print()" 
               class="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-lg shadow-purple-600/15 flex items-center gap-2"
@@ -4874,12 +4946,47 @@ COMO USAR NO WINDOWS:
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div id="grid-view" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             ${gridItems}
+          </div>
+
+          <div id="spreadsheet-view" class="hidden overflow-x-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                  <th class="px-6 py-4 w-40">Asset</th>
+                  <th class="px-6 py-4 w-60">Posição Temporal</th>
+                  <th class="px-6 py-4">Legenda (Locução)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-800/60 text-sm">
+                ${spreadsheetRows}
+              </tbody>
+            </table>
           </div>
         </main>
 
         <script>
+          let currentViewMode = 'grid';
+
+          function toggleViewMode() {
+            const gridView = document.getElementById('grid-view');
+            const spreadsheetView = document.getElementById('spreadsheet-view');
+            const toggleBtnText = document.getElementById('toggle-view-text');
+
+            if (currentViewMode === 'grid') {
+              gridView.classList.add('hidden');
+              spreadsheetView.classList.remove('hidden');
+              toggleBtnText.textContent = '🎬 EXIBIR QUADRICULADO';
+              currentViewMode = 'spreadsheet';
+            } else {
+              gridView.classList.remove('hidden');
+              spreadsheetView.classList.add('hidden');
+              toggleBtnText.textContent = '📊 EXIBIR PLANILHA';
+              currentViewMode = 'grid';
+            }
+          }
+
           function downloadSelfHTML() {
             const docSource = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
             const blob = new Blob([docSource], { type: 'text/html;charset=utf-8' });

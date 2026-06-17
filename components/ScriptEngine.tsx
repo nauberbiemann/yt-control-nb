@@ -4449,16 +4449,18 @@ COMO USAR NO WINDOWS:
             <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-purple-300 border border-purple-500/20 uppercase tracking-widest">
               CENA #${row.rowNumber}
             </div>
-            <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-semibold text-zinc-300">
-              ${row.startTime} - ${row.endTime}
-            </div>
           </div>
           
           <div class="p-5 flex-1 flex flex-col space-y-4">
             <div class="flex items-center justify-between">
-              <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
-                ${(row.asset || 'SEM ASSET').toUpperCase()}
-              </span>
+              <div class="flex items-center gap-3">
+                <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
+                  ${(row.asset || 'SEM ASSET').toUpperCase()}
+                </span>
+                <span class="text-[12px] font-bold text-zinc-400 font-mono tracking-tight">
+                  ${row.startTime} - ${row.endTime}
+                </span>
+              </div>
               ${isFallback ? '<span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border bg-orange-500/10 text-orange-400 border-orange-500/30">FALLBACK (IA)</span>' : ''}
             </div>
             

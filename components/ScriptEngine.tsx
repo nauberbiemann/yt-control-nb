@@ -80,7 +80,7 @@ const SRT_PIPELINE_SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
-Write every visual prompt (video, image) in English (except for text styles which should match the provided list). Hyperframe title/subtitle/metrics fields must always be written in the exact same language as the subtitle text — never in English unless the subtitle itself is in English.
+Write every visual prompt (video, image) in English (except for text styles which should match the provided list). Hyperframe title/subtitle/metrics fields must always be written in the exact same language as the subtitle text — never in English unless the subtitle itself is in English. In CATALOG mode, if a visual prompt describes text to be rendered on screen (like overlays, card labels, chart/diagram text), that text must be written in the exact language of the subtitle text (usually Portuguese) inside double quotes (e.g., text reading "CREATINA" or label reading "RESULTADOS CONFLITANTES").
 Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI overlays.
 Keep prompts concise, vivid, and generator-friendly.
 Use one sentence per prompt, usually between 18 and 40 words.
@@ -3207,7 +3207,8 @@ COMO USAR NO WINDOWS:
 5. COMMERCIAL BRANDS/PRODUCTS: If a commercially recognizable product (e.g. Coca-Cola, Nutella, Starbucks) is mentioned, do not write a generic prompt. Instead: 
    - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"
    - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.
-6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.`
+6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.
+7. TEXT LANGUAGE: Any text, titles, labels, or words that should appear written/rendered inside the image or video (such as card titles, labels on diagrams, or slide headers) MUST be specified in the language of the script (Portuguese). For example, describe them as: bold black text reading "RESULTADOS CONFLITANTES" (not "conflicting results"), or "label reading 'CREATINA'". Keep the prompt description in English, but the actual text in quotes must be in Portuguese.`
         : videoFormat === 'faceless'
         ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
         : videoFormat === 'vlog'

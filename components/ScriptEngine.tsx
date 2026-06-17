@@ -4802,6 +4802,9 @@ COMO USAR NO WINDOWS:
 
       return `
         <tr class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
+          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
+            #${row.rowNumber}
+          </td>
           <td class="px-6 py-4 whitespace-nowrap">
             <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
               ${(row.asset || 'SEM ASSET').toUpperCase()}
@@ -4959,6 +4962,7 @@ COMO USAR NO WINDOWS:
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                  <th class="px-6 py-4 w-28">Cena</th>
                   <th class="px-6 py-4 w-40">Asset</th>
                   <th class="px-6 py-4 w-60">Posição Temporal</th>
                   <th class="px-6 py-4">Legenda (Locução)</th>

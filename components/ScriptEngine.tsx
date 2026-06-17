@@ -381,7 +381,9 @@ const directGenerateBatchOpenAI = async ({
           'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
           `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
-          videoFormat === 'faceless'
+          videoFormat === 'catalog'
+            ? `Visual Style reference (APPLY this presentation design style to ALL video and image prompts in this batch): ${characterDescription}`
+            : videoFormat === 'faceless'
             ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
             : videoFormat === 'vlog'
             ? `Recurring presenter character reference: ${characterDescription}`
@@ -469,7 +471,9 @@ const directGenerateBatchGemini = async ({
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
-              videoFormat === 'faceless'
+              videoFormat === 'catalog'
+                ? `Visual Style reference (APPLY this presentation design style to ALL video and image prompts in this batch): ${characterDescription}`
+                : videoFormat === 'faceless'
                 ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
                 : videoFormat === 'vlog'
                 ? `Recurring presenter character reference: ${characterDescription}`
@@ -2756,7 +2760,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const compilePromptText = (text: string) => {
     if (!text) return '';
-    if (preserveBrackets) return text;
+    if (preserveBrackets || videoFormat === 'catalog') return text;
     let compiled = text;
     visualBlueprintCast.forEach((char) => {
       if (!char.name || !char.description) return;
@@ -3203,7 +3207,7 @@ COMO USAR NO WINDOWS:
 5. COMMERCIAL BRANDS/PRODUCTS: If a commercially recognizable product (e.g. Coca-Cola, Nutella, Starbucks) is mentioned, do not write a generic prompt. Instead: 
    - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"
    - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.
-6. NO studio presenters or virtual talking heads.`
+6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.`
         : videoFormat === 'faceless'
         ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
         : videoFormat === 'vlog'
@@ -3221,7 +3225,7 @@ COMO USAR NO WINDOWS:
             videoContext: buildVideoContext(),
             facelessHint,
             videoFormat,
-            visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast }
+            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast }
           })
         : await directGenerateBatchOpenAI({
             apiKey,
@@ -3233,7 +3237,7 @@ COMO USAR NO WINDOWS:
             videoContext: buildVideoContext(),
             facelessHint,
             videoFormat,
-            visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast }
+            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast }
           });
 
       const localFallbackRowsObj = new Set<number>();
@@ -3272,7 +3276,7 @@ COMO USAR NO WINDOWS:
             mode: videoCharacterMode,
             customDescription: videoCharacterCustom,
           },
-          visualBlueprint: { setting: visualBlueprintSetting, cast: visualBlueprintCast },
+          visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
         }),
       });
 

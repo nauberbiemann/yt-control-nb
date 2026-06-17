@@ -4190,6 +4190,13 @@ COMO USAR NO WINDOWS:
   const generateSceneSvgPreview = (row: any, format: string): string => {
     const promptLower = (row.prompt || '').toLowerCase();
     const isProduct = promptLower.includes('product placeholder') || (row.prompt && row.prompt.trim().startsWith('['));
+    const isChart = promptLower.includes('chart') || promptLower.includes('graph') || promptLower.includes('analytics') || promptLower.includes('growth') || promptLower.includes('percentage') || promptLower.includes('kpi') || promptLower.includes('dashboard') || promptLower.includes('grafico');
+    const isCode = promptLower.includes('code') || promptLower.includes('terminal') || promptLower.includes('console') || promptLower.includes('programming') || promptLower.includes('developer') || promptLower.includes('lines of code') || promptLower.includes('script') || promptLower.includes('editor');
+    const isTimeline = promptLower.includes('timeline') || promptLower.includes('history') || promptLower.includes('evolution') || promptLower.includes('chronology') || promptLower.includes('sequencia');
+    const isDoc = promptLower.includes('document') || promptLower.includes('paper') || promptLower.includes('pdf') || promptLower.includes('research') || promptLower.includes('sheet') || promptLower.includes('article') || promptLower.includes('contract');
+    const isNetwork = promptLower.includes('network') || promptLower.includes('nodes') || promptLower.includes('neural') || promptLower.includes('particles') || promptLower.includes('ai') || promptLower.includes('brain') || promptLower.includes('connection');
+    const isSocial = promptLower.includes('tweet') || promptLower.includes('x-post') || promptLower.includes('reddit') || promptLower.includes('comment') || promptLower.includes('facebook') || promptLower.includes('post') || promptLower.includes('quote') || promptLower.includes('quotation');
+    const isVs = promptLower.includes('before and after') || promptLower.includes('vs') || promptLower.includes('versus') || promptLower.includes('split screen') || promptLower.includes('left and right');
     const isMap = promptLower.includes('map') || promptLower.includes('mapa');
     const isTwoCards = promptLower.includes('two cards') || promptLower.includes('2 cards') || promptLower.includes('side-by-side') || promptLower.includes('lado a lado') || promptLower.includes('comparison');
     const isThreeCards = promptLower.includes('three cards') || promptLower.includes('3 cards') || promptLower.includes('recipe') || promptLower.includes('steps');
@@ -4280,6 +4287,281 @@ COMO USAR NO WINDOWS:
           <text x="240" y="22" font-family="'Space Mono', monospace" font-size="7" font-weight="700" fill="#ffffff" text-anchor="middle">
             EDITOR OVERRIDE
           </text>
+        </svg>
+      `;
+    }
+
+    if (isChart) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+            <linearGradient id="chart-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#3b82f6" />
+              <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="50" y="45" width="380" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <line x1="80" y1="180" x2="400" y2="180" stroke="#e2e8f0" stroke-width="2" />
+          <line x1="80" y1="140" x2="400" y2="140" stroke="#f1f5f9" stroke-width="1" />
+          <line x1="80" y1="100" x2="400" y2="100" stroke="#f1f5f9" stroke-width="1" />
+          <line x1="80" y1="65" x2="400" y2="65" stroke="#f1f5f9" stroke-width="1" />
+          
+          <path d="M 80 160 Q 140 170 180 120 T 280 110 T 340 75 L 400 70" fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round" />
+          <path d="M 80 160 Q 140 170 180 120 T 280 110 T 340 75 L 400 70 L 400 180 L 80 180 Z" fill="url(#chart-grad)" opacity="0.15" />
+          
+          <circle cx="340" cy="75" r="5" fill="#3b82f6" />
+          <circle cx="400" cy="70" r="6" fill="#10b981" />
+          <circle cx="400" cy="70" r="3" fill="#ffffff" />
+          
+          <rect x="95" y="60" width="90" height="30" rx="6" fill="#eff6ff" />
+          <text x="140" y="78" font-family="'DM Sans', sans-serif" font-size="9" font-weight="700" fill="#1e3a8a" text-anchor="middle">METRICS +84%</text>
+        </svg>
+      `;
+    }
+
+    if (isCode) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="60" y="45" width="360" height="180" rx="12" fill="#1e1e24" filter="url(#shadow)" />
+          <rect x="60" y="45" width="360" height="25" rx="12" fill="#121214" />
+          <circle cx="80" cy="57" r="4" fill="#ef4444" />
+          <circle cx="92" cy="57" r="4" fill="#f59e0b" />
+          <circle cx="104" cy="57" r="4" fill="#10b981" />
+          <text x="240" y="61" font-family="'Space Mono', monospace" font-size="8" fill="#6b7280" text-anchor="middle">terminal - node</text>
+          
+          <text x="80" y="95" font-family="'Space Mono', monospace" font-size="9" font-weight="bold" fill="#f43f5e">const</text>
+          <text x="120" y="95" font-family="'Space Mono', monospace" font-size="9" fill="#e2e8f0">engine = </text>
+          <text x="180" y="95" font-family="'Space Mono', monospace" font-size="9" font-weight="bold" fill="#3b82f6">require</text>
+          <text x="230" y="95" font-family="'Space Mono', monospace" font-size="9" fill="#10b981">("orchestrator");</text>
+          
+          <text x="80" y="115" font-family="'Space Mono', monospace" font-size="9" font-weight="bold" fill="#f59e0b">await</text>
+          <text x="120" y="115" font-family="'Space Mono', monospace" font-size="9" fill="#e2e8f0">engine.</text>
+          <text x="165" y="115" font-family="'Space Mono', monospace" font-size="9" font-weight="bold" fill="#a855f7">compile</text>
+          <text x="215" y="115" font-family="'Space Mono', monospace" font-size="9" fill="#e2e8f0">({</text>
+          
+          <text x="100" y="135" font-family="'Space Mono', monospace" font-size="9" fill="#60a5fa">format: </text>
+          <text x="150" y="135" font-family="'Space Mono', monospace" font-size="9" fill="#10b981">"catalog"</text>
+          <text x="205" y="135" font-family="'Space Mono', monospace" font-size="9" fill="#e2e8f0">,</text>
+          
+          <text x="100" y="155" font-family="'Space Mono', monospace" font-size="9" fill="#60a5fa">cost: </text>
+          <text x="138" y="155" font-family="'Space Mono', monospace" font-size="9" fill="#f59e0b">0</text>
+          
+          <text x="80" y="175" font-family="'Space Mono', monospace" font-size="9" fill="#e2e8f0">});</text>
+          
+          <text x="80" y="200" font-family="'Space Mono', monospace" font-size="9" fill="#10b981">$</text>
+          <rect x="95" y="190" width="6" height="11" fill="#10b981" opacity="0.8" />
+        </svg>
+      `;
+    }
+
+    if (isTimeline) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="50" y="45" width="380" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <line x1="80" y1="135" x2="400" y2="135" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round" />
+          <line x1="80" y1="135" x2="280" y2="135" stroke="#6366f1" stroke-width="4" stroke-linecap="round" />
+          
+          <circle cx="120" cy="135" r="10" fill="#ffffff" stroke="#6366f1" stroke-width="3" />
+          <circle cx="120" cy="135" r="4" fill="#6366f1" />
+          <text x="120" y="105" font-family="'Space Mono', monospace" font-size="8" font-weight="700" fill="#6366f1" text-anchor="middle">FASE 01</text>
+          <text x="120" y="170" font-family="'DM Sans', sans-serif" font-size="8" font-weight="700" fill="#374151" text-anchor="middle">Origem</text>
+          
+          <circle cx="240" cy="135" r="10" fill="#ffffff" stroke="#6366f1" stroke-width="3" />
+          <circle cx="240" cy="135" r="4" fill="#6366f1" />
+          <text x="240" y="105" font-family="'Space Mono', monospace" font-size="8" font-weight="700" fill="#6366f1" text-anchor="middle">FASE 02</text>
+          <text x="240" y="170" font-family="'DM Sans', sans-serif" font-size="8" font-weight="700" fill="#374151" text-anchor="middle">Evolução</text>
+          
+          <circle cx="360" cy="135" r="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2" />
+          <text x="360" y="105" font-family="'Space Mono', monospace" font-size="8" font-weight="700" fill="#94a3b8" text-anchor="middle">FASE 03</text>
+          <text x="360" y="170" font-family="'DM Sans', sans-serif" font-size="8" font-weight="700" fill="#6b7280" text-anchor="middle">Ápice</text>
+        </svg>
+      `;
+    }
+
+    if (isDoc) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="195" y="45" width="115" height="155" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)" transform="rotate(-6 250 120)" />
+          <rect x="175" y="55" width="120" height="160" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" filter="url(#shadow)" />
+          
+          <rect x="190" y="75" width="90" height="10" rx="2" fill="#1e3a8a" opacity="0.8" />
+          <rect x="190" y="100" width="90" height="5" rx="1.5" fill="#e2e8f0" />
+          <rect x="190" y="115" width="90" height="5" rx="1.5" fill="#e2e8f0" />
+          <rect x="190" y="130" width="75" height="5" rx="1.5" fill="#e2e8f0" />
+          <rect x="190" y="145" width="90" height="5" rx="1.5" fill="#e2e8f0" />
+          <rect x="190" y="160" width="60" height="5" rx="1.5" fill="#e2e8f0" />
+          
+          <circle cx="265" cy="180" r="16" fill="#3b82f6" opacity="0.15" />
+          <circle cx="265" cy="180" r="12" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="3,2" />
+          <path d="M 259 180 L 263 184 L 272 175" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          
+          <text x="240" y="238" font-family="'DM Sans', sans-serif" font-size="9" font-weight="700" fill="#4b5563" text-anchor="middle">
+            DOCUMENTO CIENTÍFICO VERIFICADO
+          </text>
+        </svg>
+      `;
+    }
+
+    if (isNetwork) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="50" y="45" width="380" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          
+          <line x1="120" y1="90" x2="240" y2="70" stroke="#a78bfa" stroke-width="1.5" />
+          <line x1="120" y1="90" x2="160" y2="160" stroke="#a78bfa" stroke-width="1.5" />
+          <line x1="240" y1="70" x2="320" y2="100" stroke="#a78bfa" stroke-width="1.5" />
+          <line x1="240" y1="70" x2="260" y2="180" stroke="#a78bfa" stroke-width="1.5" />
+          <line x1="160" y1="160" x2="260" y2="180" stroke="#a78bfa" stroke-width="1.5" />
+          <line x1="320" y1="100" x2="260" y2="180" stroke="#a78bfa" stroke-width="1.5" />
+          <line x1="320" y1="100" x2="360" y2="160" stroke="#a78bfa" stroke-width="1.5" />
+          
+          <circle cx="120" cy="90" r="8" fill="#8b5cf6" />
+          <circle cx="120" cy="90" r="3" fill="#ffffff" />
+          
+          <circle cx="240" cy="70" r="10" fill="#3b82f6" />
+          <circle cx="240" cy="70" r="4" fill="#ffffff" />
+          
+          <circle cx="320" cy="100" r="8" fill="#8b5cf6" />
+          <circle cx="320" cy="100" r="3" fill="#ffffff" />
+          
+          <circle cx="160" cy="160" r="6" fill="#ec4899" />
+          <circle cx="260" cy="180" r="12" fill="#ffffff" stroke="#ec4899" stroke-width="3" />
+          <circle cx="260" cy="180" r="5" fill="#ec4899" />
+          
+          <circle cx="360" cy="160" r="6" fill="#ec4899" />
+          
+          <text x="240" y="212" font-family="'DM Sans', sans-serif" font-size="9" font-weight="700" fill="#6b7280" text-anchor="middle">
+            REDE DE DADOS &amp; NEURÔNIOS
+          </text>
+        </svg>
+      `;
+    }
+
+    if (isSocial) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="60" y="55" width="360" height="160" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          
+          <circle cx="100" cy="95" r="18" fill="#e2e8f0" />
+          <circle cx="100" cy="88" r="7" fill="#cbd5e1" />
+          <path d="M 88 107 C 88 100 93 99 100 99 C 107 99 112 100 112 107 Z" fill="#cbd5e1" />
+          
+          <rect x="130" y="80" width="80" height="8" rx="2" fill="#1f2937" />
+          <rect x="130" y="94" width="50" height="6" rx="2" fill="#9ca3af" />
+          
+          <rect x="375" y="75" width="20" height="20" rx="10" fill="#1da1f2" />
+          <path d="M 381 85 L 384 88 L 391 81" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+          
+          <rect x="80" y="130" width="320" height="8" rx="2" fill="#e5e7eb" />
+          <rect x="80" y="145" width="320" height="8" rx="2" fill="#e5e7eb" />
+          <rect x="80" y="160" width="200" height="8" rx="2" fill="#e5e7eb" />
+          
+          <circle cx="95" cy="195" r="4" fill="#9ca3af" />
+          <rect x="105" y="193" width="20" height="4" rx="2" fill="#cbd5e1" />
+          
+          <circle cx="195" cy="195" r="4" fill="#9ca3af" />
+          <rect x="205" y="193" width="20" height="4" rx="2" fill="#cbd5e1" />
+          
+          <circle cx="295" cy="195" r="4" fill="#9ca3af" />
+          <rect x="305" y="193" width="20" height="4" rx="2" fill="#cbd5e1" />
+        </svg>
+      `;
+    }
+
+    if (isVs) {
+      return `
+        <svg viewBox="0 0 480 270" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.1" />
+            </filter>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(0,0,0,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="270" fill="#f6f5f0" />
+          <rect width="480" height="270" fill="url(#grid)" />
+          
+          <rect x="50" y="45" width="180" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <rect x="65" y="60" width="150" height="70" rx="8" fill="#fef2f2" />
+          <text x="140" y="102" font-family="'DM Sans', sans-serif" font-size="20" font-weight="700" fill="#ef4444" text-anchor="middle">ANTERIOR</text>
+          <rect x="80" y="150" width="120" height="8" rx="2" fill="#ef4444" opacity="0.3" />
+          <rect x="80" y="165" width="120" height="8" rx="2" fill="#ef4444" opacity="0.3" />
+          <rect x="80" y="180" width="90" height="8" rx="2" fill="#ef4444" opacity="0.3" />
+          
+          <rect x="250" y="45" width="180" height="180" rx="16" fill="#ffffff" filter="url(#shadow)" />
+          <rect x="265" y="60" width="150" height="70" rx="8" fill="#f0fdf4" />
+          <text x="340" y="102" font-family="'DM Sans', sans-serif" font-size="20" font-weight="700" fill="#22c55e" text-anchor="middle">EVOLUÍDO</text>
+          <rect x="280" y="150" width="120" height="8" rx="2" fill="#22c55e" opacity="0.3" />
+          <rect x="280" y="165" width="120" height="8" rx="2" fill="#22c55e" opacity="0.3" />
+          <rect x="280" y="180" width="100" height="8" rx="2" fill="#22c55e" opacity="0.3" />
+          
+          <circle cx="240" cy="135" r="18" fill="#1e293b" />
+          <text x="240" y="141" font-family="'Space Mono', monospace" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">VS</text>
         </svg>
       `;
     }

@@ -285,9 +285,10 @@ const chunk = <T,>(items: T[], size: number) => {
   return batches;
 };
 
-const buildPromptItems = (rows: SrtAssetRow[]) =>
+const buildPromptItems = (rows: SrtAssetRow[], forceAllAsVideo?: boolean) =>
   rows.flatMap((row, index) => {
-    if (!SUPPORTED_PROMPT_ASSETS.has(normalizeAssetType(row.asset))) return [];
+    const type = normalizeAssetType(row.asset);
+    if (!SUPPORTED_PROMPT_ASSETS.has(type)) return [];
 
     const previousText = rows[index - 1]?.texto?.trim() || '';
     const nextText = rows[index + 1]?.texto?.trim() || '';
@@ -295,8 +296,16 @@ const buildPromptItems = (rows: SrtAssetRow[]) =>
 
     return [{
       row_number: row.rowNumber,
-      asset: normalizeAssetType(row.asset) === 'texto' ? ('text' as const) : (normalizeAssetType(row.asset) === 'hyperframe' ? ('hyperframe' as const) : (normalizeAssetType(row.asset) === 'vídeo' ? ('video' as const) : ('image' as const))),
-      template_name: normalizeAssetType(row.asset) === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
+      asset: forceAllAsVideo
+        ? ('video' as const)
+        : type === 'texto'
+        ? ('text' as const)
+        : type === 'hyperframe'
+        ? ('hyperframe' as const)
+        : type === 'vídeo'
+        ? ('video' as const)
+        : ('image' as const),
+      template_name: type === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
       text: (row.texto || '').trim(),
       start_time: row.startTime,
       end_time: row.endTime,
@@ -636,6 +645,7 @@ export async function POST(req: NextRequest) {
     const engine = body?.engine === 'gemini' ? 'gemini' : 'openai';
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
+    const forceAllAsVideo = !!body?.forceAllAsVideo;
     const videoFormat: 'avatar' | 'faceless' | 'vlog' | 'catalog' =
       body?.videoFormat === 'vlog' ? 'vlog' :
       (body?.videoFormat === 'faceless' ? 'faceless' :
@@ -684,7 +694,7 @@ export async function POST(req: NextRequest) {
         }
         return {
           rowNumber: item.row_number,
-          prompt: item.asset === 'video'
+          prompt: (forceAllAsVideo || item.asset === 'video')
             ? enforceVideoPromptGuards(finalPrompt, characterDescription)
             : finalPrompt,
           texto_adicional: textoAdicionalMap.get(item.row_number),
@@ -711,7 +721,7 @@ export async function POST(req: NextRequest) {
     const hfRows         = applyHyperframeRules(cooledRows, videoFormat);
     const excludedRows   = applyHyperframeExclusionZone(hfRows);
     const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
-    const promptItems    = buildPromptItems(finalRows);
+    const promptItems    = buildPromptItems(finalRows, forceAllAsVideo);
 
     let rowsWithPrompts = finalRows;
     if (promptItems.length > 0) {
@@ -748,7 +758,7 @@ export async function POST(req: NextRequest) {
         }
         return {
           ...row,
-          prompt: normalizeAssetType(row.asset) === 'vídeo'
+          prompt: (forceAllAsVideo || normalizeAssetType(row.asset) === 'vídeo')
             ? enforceVideoPromptGuards(finalPrompt, characterDescription)
             : finalPrompt,
           texto_adicional: textoAdicionalMap.get(row.rowNumber),

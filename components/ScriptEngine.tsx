@@ -847,6 +847,7 @@ interface ExecutionSnapshot {
   hfBgPrompts?: Array<{ rowNumber: number; prompt: string }> | null;
   visualBlueprintSetting?: string;
   visualBlueprintCast?: Array<{ name: string; description: string }>;
+  forceAllAsVideo?: boolean;
   _themeId?: string; // stable ID to find the theme even after a title rename
 }
 
@@ -985,6 +986,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
   const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
   const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
+  const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
   // Consistent Characters (Visual Blueprint & Cast)
   const [visualBlueprintSetting, setVisualBlueprintSetting] = useState<string>('');
   const [visualBlueprintCast, setVisualBlueprintCast] = useState<Array<{ name: string; description: string }>>([]);
@@ -1304,6 +1306,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     hfBgPrompts,
     visualBlueprintSetting,
     visualBlueprintCast,
+    forceAllAsVideo,
     ...overrides,
   });
 
@@ -1421,6 +1424,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       manualPublishDate: executionSnapshot.manualPublishDate,
       visualBlueprintSetting: executionSnapshot.visualBlueprintSetting,
       visualBlueprintCast: executionSnapshot.visualBlueprintCast,
+      forceAllAsVideo: executionSnapshot.forceAllAsVideo,
       // Stripped: externalScriptText, externalSrtText, scriptBlocks, externalSrtPipeline, postScriptPackage, externalSrtObserver
       scriptBlocks: [],     // stripped - regenerated from briefing when needed
       externalScriptText: '',  // stripped
@@ -1676,6 +1680,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                 if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
                 if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
                 if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
+                if (typeof cloudSnapshot.forceAllAsVideo === 'boolean') setForceAllAsVideo(cloudSnapshot.forceAllAsVideo);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
@@ -1719,6 +1724,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
       if (Array.isArray(snapshot?.visualBlueprintCast)) setVisualBlueprintCast(snapshot.visualBlueprintCast);
+      if (typeof snapshot?.forceAllAsVideo === 'boolean') setForceAllAsVideo(snapshot.forceAllAsVideo);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
@@ -3359,7 +3365,9 @@ COMO USAR NO WINDOWS:
 
       const promptItems = finalRows.flatMap((row, index) => {
         const type = normalizeAssetType(row.asset);
-        const isEligible = type === 'vídeo' || type === 'imagem' || type === 'hyperframe' || (type === 'texto' && textStyleMode === 'auto');
+        const isEligible = forceAllAsVideo
+          ? (type === 'vídeo' || type === 'imagem' || type === 'hyperframe' || type === 'texto')
+          : (type === 'vídeo' || type === 'imagem' || type === 'hyperframe' || (type === 'texto' && textStyleMode === 'auto'));
         if (!isEligible) return [];
 
         const previousText = assetRows[index - 1]?.texto?.trim() || '';
@@ -3370,7 +3378,7 @@ COMO USAR NO WINDOWS:
   
         return [{
           row_number: row.rowNumber,
-          asset: type === 'texto' ? 'text' : (type === 'hyperframe' ? 'hyperframe' : (type === 'vídeo' ? 'video' : 'image')),
+          asset: forceAllAsVideo ? 'video' : (type === 'texto' ? 'text' : (type === 'hyperframe' ? 'hyperframe' : (type === 'vídeo' ? 'video' : 'image'))),
           template_name: type === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
           text: row.texto.trim(),
           start_time: row.startTime,
@@ -3633,7 +3641,7 @@ COMO USAR NO WINDOWS:
         const endMs = parseSrtTimeToMs(row.endTime);
         return [{
           row_number: row.rowNumber,
-          asset: type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const))),
+          asset: forceAllAsVideo ? ('video' as const) : (type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const)))),
           template_name: type === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
           text: row.texto.trim(),
           start_time: row.startTime,
@@ -3713,7 +3721,7 @@ COMO USAR NO WINDOWS:
       const endMs   = parseSrtTimeToMs(row.endTime);
       return [{
         row_number: row.rowNumber,
-        asset: type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const))),
+        asset: forceAllAsVideo ? ('video' as const) : (type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const)))),
         template_name: type === 'hyperframe' ? String(row.prompt || '').replace('hf:', '') : undefined,
         text: row.texto.trim(),
         start_time: row.startTime,
@@ -6823,6 +6831,29 @@ COMO USAR NO WINDOWS:
                           </button>
                         );
                       })}
+                    </div>
+
+                    {/* Checkbox Forçar Todos os Assets como Vídeo */}
+                    <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
+                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={forceAllAsVideo}
+                          onChange={(e) => {
+                            setForceAllAsVideo(e.target.checked);
+                            persistExecutionSnapshotLocally({ forceAllAsVideo: e.target.checked });
+                          }}
+                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
+                        />
+                        <div>
+                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                            Forçar todos os assets como vídeo
+                          </span>
+                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                            Substitui imagens, HFs e textos por prompts de vídeo completos na geração de IA. Útil para ferramentas/testes que aceitam apenas vídeos.
+                          </span>
+                        </div>
+                      </label>
                     </div>
                     
                     {/* Visual Preview / Customizer Interface */}

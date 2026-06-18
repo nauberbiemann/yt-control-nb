@@ -24,7 +24,15 @@ const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
-Write every visual prompt (video, image) in English (except for text styles which should match the provided list). Hyperframe title/subtitle/metrics fields must always be written in the exact same language as the subtitle text — never in English unless the subtitle itself is in English. In CATALOG mode, if a visual prompt describes text to be rendered on screen (like overlays, card labels, chart/diagram text), that text must be written in the exact language of the subtitle text (usually Portuguese) inside double quotes (e.g., text reading "CREATINA" or label reading "RESULTADOS CONFLITANTES").
+Write every visual prompt (video, image) in English (except for text styles which should match the provided list). Hyperframe title/subtitle/metrics fields must always be written in the exact same language as the subtitle text — never in English unless the subtitle itself is in English.
+
+CRITICAL RULE - ON-SCREEN WRITTEN TEXT LANGUAGE (NO IMPLICIT TEXT):
+Whenever a visual prompt describes or implies any written information, text, labels, chart axes, diagrams, slide titles, list points, or headings to be visible inside the video or image:
+1. You MUST NEVER leave the text implicit (do NOT write generic prompts like "a card showing claims" or "a chart of study results" without specifying the labels). If the text is left implicit in English, the image/video generator will render English words or gibberish (e.g. "LADDED CLAIMS").
+2. Instead, you MUST explicitly specify the text to be rendered on screen inside double quotes, and that text MUST be written exactly in the language of the script (usually Portuguese).
+3. Example of BAD implicit prompt: "a centered rounded card showing a polished marketing storyboard of layered claims"
+4. Example of GOOD explicit prompt: "a centered rounded card showing a polished marketing storyboard with bold text reading 'ALEGAÇÕES ACUMULADAS'"
+5. Always keep the background and scenery description in English, but force all on-screen written text to be in the script's language by using the phrase: "text reading '...'" or "label reading '...'" or "title reading '...'".
 Do not include markdown, subtitles, on-screen text, logos, watermarks, or UI overlays.
 Keep prompts concise, vivid, and generator-friendly.
 Use one sentence per prompt, usually between 18 and 40 words.
@@ -581,7 +589,7 @@ const generatePromptMap = async ({
       '   - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"\n' +
       '   - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.\n' +
       '6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.\n' +
-      '7. TEXT LANGUAGE: Any text, titles, labels, or words that should appear written/rendered inside the image or video (such as card titles, labels on diagrams, or slide headers) MUST be specified in the language of the script (Portuguese). For example, describe them as: bold black text reading "RESULTADOS CONFLITANTES" (not "conflicting results"), or "label reading \'CREATINA\'". Keep the prompt description in English, but the actual text in quotes must be in Portuguese.'
+      '7. EXPLICIT TEXT LANGUAGE (NO IMPLICIT TEXT): Any text, titles, labels, or words that should appear written or rendered inside the image or video (such as card titles, labels on diagrams, list points, or slide headers) MUST be explicitly described in the prompt and MUST be written in the language of the script (Portuguese) inside double quotes. Do NOT leave text implicit (e.g. do NOT say "a card showing claims" as this results in English gibberish like "LADDED CLAIMS"; instead say "a card with text reading \'ALEGAÇÕES\'"). Keep the prompt description in English, but define all on-screen written words in Portuguese using: text/label/title reading "...".'
     : videoFormat === 'faceless'
     ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
     : videoFormat === 'vlog'

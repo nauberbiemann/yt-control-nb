@@ -192,9 +192,31 @@ Context rules:
   - DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named in the subtitle text, if the text describes a concept, theme, action, or context that aligns with a character's description or role in the Cast list, you should feature them in brackets (e.g., [Character Name]). Crucially, the character's action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator locking a terminal; if the text is about logs, show an archivist researching files). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept being narrated.
   - NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
   - Do NOT write out their full physical description in the prompt. The compiler will swap the brackets with their description later. Just output the short tag like "[Fulgrim] looking distraught" or "Close-up shot of [Fulgrim] drawing his glowing purple sword".
-  - Only use character names from the provided Cast list in brackets. If a character is described but is NOT in the Cast list, describe them normally.
-  - In FACELESS MODE, virtual presenters/hosts speaking to the camera are completely banned, but story characters from the Cast list (e.g. "[Fulgrim]") are welcome and must be visualized in action sequences or environmental scenes in brackets!
 `.trim();
+
+const ULTRA_CINEMATIC_INSTRUCTIONS_STR = `
+CRITICAL SIZE & WORD COUNT:
+You MUST generate detailed visual prompts between 80 and 150 words for every video or image asset. Never write short prompts.
+
+MANDATORY PROMPT STRUCTURE:
+For each prompt, you MUST follow this exact semantic order of fields, separated by spaces:
+[Main character/subject description] [Main action and movement] [Facial expression and emotion] [Location/setting details] [Historically accurate elements based on context] [Lighting style] [Cinematic composition and framing] [Lens specification] [Depth of field] [Photographic quality]
+
+AESTHETIC STYLE SUFFIX:
+You MUST append this exact visual style description at the very end of every video or image prompt:
+"ultra realistic cinematic photography, historically accurate, movie frame, authentic costumes, authentic architecture, natural skin texture, realistic lighting, volumetric light, dramatic atmosphere, cinematic composition, depth of field, Sony Alpha 7R V, 85mm lens, masterpiece, ultra detailed, 8K"
+(If a structured style JSON is provided, you may merge/adapt this suffix to include its art style, palette, lighting, texture, and atmosphere properties accordingly).
+
+NARRATIVE VISUAL RULES:
+- Thought/Reflection: Focus on extreme facial detail, micro-expressions, looking away, reflecting light in eyes.
+- Battle/Conflict: Focus on high-speed kinetic motion, flying debris, dust, sweat, physical clash.
+- Travel/Displacement: Focus on panning camera, motion blur, tracking shot, landscape movement.
+- Prayer/Devotion: Focus on soft backlight, closed eyes, folded hands, serene tilt, soft shadows.
+- Sadness/Despair: Focus on slumped body language, casting shadows, downcast head, soft cold lighting.
+- Fear/Tension: Focus on high-contrast lighting (chiaroscuro), sweat droplets, wide eyes, extreme close-up.
+- Hope/Optimism: Focus on golden hour light, warm tones, bright background elements, upward gaze.
+- Revelation/Emotional Impact: Focus on sudden expression shift, shallow depth of field, dramatic backlight.
+`;
 
 const POST_SCRIPT_SYSTEM_INSTRUCTIONS = `
 You generate a post-script production package for a Brazilian Portuguese YouTube video.
@@ -366,6 +388,7 @@ const directGenerateBatchOpenAI = async ({
   facelessHint,
   videoFormat,
   visualBlueprint,
+  ultraCinematic,
 }: {
   apiKey: string;
   model: string;
@@ -377,12 +400,18 @@ const directGenerateBatchOpenAI = async ({
   facelessHint: string;
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  ultraCinematic?: boolean;
 }) => {
   const resolvedModel = resolveModel(model);
   const requestBody: Record<string, unknown> = {
     model: resolvedModel,
     messages: [
-      { role: isReasoningModel(resolvedModel) ? 'developer' : 'system', content: SRT_PIPELINE_SYSTEM_INSTRUCTIONS },
+      { 
+        role: isReasoningModel(resolvedModel) ? 'developer' : 'system', 
+        content: ultraCinematic 
+          ? `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+          : SRT_PIPELINE_SYSTEM_INSTRUCTIONS 
+      },
       {
         role: 'user',
         content: [
@@ -410,6 +439,33 @@ Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
+          (() => {
+            try {
+              const trimmed = String(characterDescription || '').trim();
+              if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                const parsed = JSON.parse(trimmed);
+                if (parsed && typeof parsed === 'object') {
+                  return `
+CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
+You MUST strictly apply the following style configurations to every video or image prompt:
+- Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
+- Color Palette (paleta_de_cores): ${parsed.paleta_de_cores || ''}
+- Lighting (iluminacao): ${parsed.iluminacao || ''}
+- Characters (personagens): ${parsed.personagens || ''}
+- Setting/Background (cenario): ${parsed.cenario || ''}
+- Composition (composicao): ${parsed.composicao || ''}
+- Texture (textura): ${parsed.textura || ''}
+- Atmosphere (atmosfera): ${parsed.atmosfera || ''}
+- Mandatory Rules (regras_obrigatorias): ${Array.isArray(parsed.regras_obrigatorias) ? parsed.regras_obrigatorias.join(', ') : (parsed.regras_obrigatorias || '')}
+- Negative Prompt (negative_prompt - EXCLUDE these elements entirely): ${parsed.negative_prompt || ''}
+
+When constructing the prompt suffix, merge these details dynamically instead of using the standard suffix.
+`;
+                }
+              }
+            } catch (e) {}
+            return '';
+          })(),
           facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
@@ -453,6 +509,7 @@ const directGenerateBatchGemini = async ({
   facelessHint,
   videoFormat,
   visualBlueprint,
+  ultraCinematic,
 }: {
   apiKey: string;
   model: string;
@@ -464,6 +521,7 @@ const directGenerateBatchGemini = async ({
   facelessHint: string;
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  ultraCinematic?: boolean;
 }) => {
   const resolvedModel = resolveModel(model);
   const response = await fetch(
@@ -475,7 +533,9 @@ const directGenerateBatchGemini = async ({
         contents: [{
           parts: [{
             text: [
-              SRT_PIPELINE_SYSTEM_INSTRUCTIONS,
+              ultraCinematic 
+                ? `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+                : SRT_PIPELINE_SYSTEM_INSTRUCTIONS,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -500,6 +560,33 @@ Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
+              (() => {
+                try {
+                  const trimmed = String(characterDescription || '').trim();
+                  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                    const parsed = JSON.parse(trimmed);
+                    if (parsed && typeof parsed === 'object') {
+                      return `
+CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
+You MUST strictly apply the following style configurations to every video or image prompt:
+- Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
+- Color Palette (paleta_de_cores): ${parsed.paleta_de_cores || ''}
+- Lighting (iluminacao): ${parsed.iluminacao || ''}
+- Characters (personagens): ${parsed.personagens || ''}
+- Setting/Background (cenario): ${parsed.cenario || ''}
+- Composition (composicao): ${parsed.composicao || ''}
+- Texture (textura): ${parsed.textura || ''}
+- Atmosphere (atmosfera): ${parsed.atmosfera || ''}
+- Mandatory Rules (regras_obrigatorias): ${Array.isArray(parsed.regras_obrigatorias) ? parsed.regras_obrigatorias.join(', ') : (parsed.regras_obrigatorias || '')}
+- Negative Prompt (negative_prompt - EXCLUDE these elements entirely): ${parsed.negative_prompt || ''}
+
+When constructing the prompt suffix, merge these details dynamically instead of using the standard suffix.
+`;
+                    }
+                  }
+                } catch (e) {}
+                return '';
+              })(),
               facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
@@ -848,6 +935,7 @@ interface ExecutionSnapshot {
   visualBlueprintSetting?: string;
   visualBlueprintCast?: Array<{ name: string; description: string }>;
   forceAllAsVideo?: boolean;
+  ultraCinematic?: boolean;
   _themeId?: string; // stable ID to find the theme even after a title rename
 }
 
@@ -987,6 +1075,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
   const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
   const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
+  const [ultraCinematic, setUltraCinematic] = useState<boolean>(false);
+  const [isSuggestingStyle, setIsSuggestingStyle] = useState<boolean>(false);
   // Consistent Characters (Visual Blueprint & Cast)
   const [visualBlueprintSetting, setVisualBlueprintSetting] = useState<string>('');
   const [visualBlueprintCast, setVisualBlueprintCast] = useState<Array<{ name: string; description: string }>>([]);
@@ -1281,6 +1371,99 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     }
   };
 
+  const suggestVisualStyleWithAI = async () => {
+    const channelStyle = activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity || '';
+    const videoTheme = approvedBriefing?.title || approvedTheme || pendingData?.title || pendingData?.raw_theme || '';
+
+    const fallbackSuggest = () => {
+      const resolved = resolveCharacterProfileInFrontend(
+        'custom',
+        videoFormat,
+        activeProject?.name || activeProject?.project_name,
+        undefined,
+        activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
+        channelStyle
+      );
+      setVideoCharacterCustom(resolved);
+      persistExecutionSnapshotLocally({ videoCharacterCustom: resolved });
+      showToast('⚠️ Usando sugestão heurística local (configure sua chave de API nos Ajustes Globais para a sugestão com IA).');
+    };
+
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+
+    if (!apiKey) {
+      fallbackSuggest();
+      return;
+    }
+
+    setIsSuggestingStyle(true);
+    try {
+      const prompt = `Dada a identidade visual base do canal e o tema específico do vídeo atual, gere um objeto JSON estruturado de direção de arte reutilizável para a criação de prompts visuais consistentes.
+
+Identidade Visual Base do Canal:
+"${channelStyle || 'Estilo cinematográfico realista'}"
+
+Tema do Vídeo Atual:
+"${videoTheme || 'Vídeo educativo informativo'}"
+
+Retorne APENAS um objeto JSON válido contendo exatamente as seguintes chaves (as chaves devem ser escritas exatamente como listadas abaixo):
+{
+  "tipo_de_arte": "...",
+  "paleta_de_cores": "...",
+  "iluminacao": "...",
+  "personagens": "...",
+  "cenario": "...",
+  "composicao": "...",
+  "textura": "...",
+  "atmosfera": "...",
+  "regras_obrigatorias": ["...", "..."],
+  "negative_prompt": "..."
+}
+
+Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione explicações ou markdown fora do JSON.`;
+
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine,
+          model,
+          prompt,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+          responseType: 'json'
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Erro na API: ${res.status}`);
+      }
+
+      const data = await res.json();
+      let text = '';
+      if (engine === 'gemini') {
+        text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        text = data.choices?.[0]?.message?.content || '';
+      }
+
+      // Validação de JSON básico antes de setar
+      const cleanText = text.trim().replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+      JSON.parse(cleanText); // verifica se lança exceção
+
+      setVideoCharacterCustom(cleanText);
+      persistExecutionSnapshotLocally({ videoCharacterCustom: cleanText });
+      showToast('✨ Estilo visual em JSON gerado com sucesso por IA!');
+    } catch (err) {
+      console.warn('[ScriptEngine] Erro ao sugerir estilo com IA, usando fallback:', err);
+      fallbackSuggest();
+    } finally {
+      setIsSuggestingStyle(false);
+    }
+  };
+
   const buildExecutionSnapshot = (overrides: Partial<ExecutionSnapshot> = {}): ExecutionSnapshot => ({
     approvedTheme,
     approvedBriefing,
@@ -1307,6 +1490,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
     visualBlueprintSetting,
     visualBlueprintCast,
     forceAllAsVideo,
+    ultraCinematic,
     ...overrides,
   });
 
@@ -1425,6 +1609,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       visualBlueprintSetting: executionSnapshot.visualBlueprintSetting,
       visualBlueprintCast: executionSnapshot.visualBlueprintCast,
       forceAllAsVideo: executionSnapshot.forceAllAsVideo,
+      ultraCinematic: executionSnapshot.ultraCinematic,
       // Stripped: externalScriptText, externalSrtText, scriptBlocks, externalSrtPipeline, postScriptPackage, externalSrtObserver
       scriptBlocks: [],     // stripped - regenerated from briefing when needed
       externalScriptText: '',  // stripped
@@ -1681,6 +1866,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
                 if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
                 if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
                 if (typeof cloudSnapshot.forceAllAsVideo === 'boolean') setForceAllAsVideo(cloudSnapshot.forceAllAsVideo);
+                if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
@@ -1723,8 +1909,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (['faceless', 'avatar', 'vlog', 'avatar_flow', 'catalog'].includes(snapshot?.videoFormat)) setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
-      if (Array.isArray(snapshot?.visualBlueprintCast)) setVisualBlueprintCast(snapshot.visualBlueprintCast);
+      if (typeof snapshot?.visualBlueprintCast === 'object') setVisualBlueprintCast(snapshot.visualBlueprintCast);
       if (typeof snapshot?.forceAllAsVideo === 'boolean') setForceAllAsVideo(snapshot.forceAllAsVideo);
+      if (typeof snapshot?.ultraCinematic === 'boolean') setUltraCinematic(snapshot.ultraCinematic);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
@@ -3193,7 +3380,16 @@ COMO USAR NO WINDOWS:
     return parts.filter(Boolean).join('\n');
   };
 
-  const generatePromptBatchDirectOrAPI = async (batch: any[], isDirect: boolean, apiKey: string, engine: 'openai' | 'gemini', model: string) => {
+    const characterDescription = resolveCharacterProfileInFrontend(
+      videoCharacterMode,
+      videoFormat,
+      activeProject?.name,
+      videoCharacterCustom,
+      activeProject?.persona_matrix?.demographics,
+      activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
+    );
+
+    const generatePromptBatchDirectOrAPI = async (batch: any[], isDirect: boolean, apiKey: string, engine: 'openai' | 'gemini', model: string) => {
     const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
     const projectStyles = activeProject?.ai_engine_rules?.editing_sop?.text_styles || activeProject?.ai_engine_rules?.text_styles || '';
     const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
@@ -3240,7 +3436,8 @@ COMO USAR NO WINDOWS:
             videoContext: buildVideoContext(),
             facelessHint,
             videoFormat,
-            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast }
+            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
+            ultraCinematic
           })
         : await directGenerateBatchOpenAI({
             apiKey,
@@ -3252,7 +3449,8 @@ COMO USAR NO WINDOWS:
             videoContext: buildVideoContext(),
             facelessHint,
             videoFormat,
-            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast }
+            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
+            ultraCinematic
           });
 
       const localFallbackRowsObj = new Set<number>();
@@ -3292,6 +3490,7 @@ COMO USAR NO WINDOWS:
             customDescription: videoCharacterCustom,
           },
           visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
+          ultraCinematic,
         }),
       });
 
@@ -6860,6 +7059,29 @@ COMO USAR NO WINDOWS:
                         </div>
                       </label>
                     </div>
+
+                    {/* Checkbox Direção de Arte Ultra-Cinematográfica */}
+                    <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
+                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={ultraCinematic}
+                          onChange={(e) => {
+                            setUltraCinematic(e.target.checked);
+                            persistExecutionSnapshotLocally({ ultraCinematic: e.target.checked });
+                          }}
+                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-purple-500 mt-0.5"
+                        />
+                        <div>
+                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                            Direção de Arte Ultra-Cinematográfica
+                          </span>
+                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                            Gera prompts densos (80-150 palavras) com enquadramento de lente, detalhes de época e narrativa visual sob a estrutura cinematográfica.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
                     
                     {/* Visual Preview / Customizer Interface */}
                     {videoFormat !== 'faceless' && videoFormat !== 'catalog' && (videoCharacterMode === 'male' || videoCharacterMode === 'female') && (() => {
@@ -6901,20 +7123,11 @@ COMO USAR NO WINDOWS:
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            const resolved = resolveCharacterProfileInFrontend(
-                              'custom',
-                              videoFormat,
-                              activeProject?.name || activeProject?.project_name,
-                              undefined,
-                              activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
-                              activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
-                            );
-                            setVideoCharacterCustom(resolved);
-                          }}
-                          className="flex items-center justify-center gap-1 w-full rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/60 transition-all hover:bg-white/10 hover:text-white/80"
+                          disabled={isSuggestingStyle}
+                          onClick={() => suggestVisualStyleWithAI()}
+                          className="flex items-center justify-center gap-1 w-full rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/60 transition-all hover:bg-white/10 hover:text-white/80 disabled:opacity-50"
                         >
-                          ✨ Sugerir com base no Canal
+                          {isSuggestingStyle ? '⏳ Gerando com IA...' : '✨ Sugerir com base no Canal'}
                         </button>
                       </div>
                     )}

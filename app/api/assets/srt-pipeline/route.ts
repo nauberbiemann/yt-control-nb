@@ -140,6 +140,30 @@ Context rules:
   - In FACELESS MODE, virtual presenters/hosts speaking to the camera are completely banned, but story characters from the Cast list (e.g. "[Fulgrim]") are welcome and must be visualized in action sequences or environmental scenes in brackets!
 `.trim();
 
+const ULTRA_CINEMATIC_INSTRUCTIONS_STR = `
+CRITICAL SIZE & WORD COUNT:
+You MUST generate detailed visual prompts between 80 and 150 words for every video or image asset. Never write short prompts.
+
+MANDATORY PROMPT STRUCTURE:
+For each prompt, you MUST follow this exact semantic order of fields, separated by spaces:
+[Main character/subject description] [Main action and movement] [Facial expression and emotion] [Location/setting details] [Historically accurate elements based on context] [Lighting style] [Cinematic composition and framing] [Lens specification] [Depth of field] [Photographic quality]
+
+AESTHETIC STYLE SUFFIX:
+You MUST append this exact visual style description at the very end of every video or image prompt:
+"ultra realistic cinematic photography, historically accurate, movie frame, authentic costumes, authentic architecture, natural skin texture, realistic lighting, volumetric light, dramatic atmosphere, cinematic composition, depth of field, Sony Alpha 7R V, 85mm lens, masterpiece, ultra detailed, 8K"
+(If a structured style JSON is provided, you may merge/adapt this suffix to include its art style, palette, lighting, texture, and atmosphere properties accordingly).
+
+NARRATIVE VISUAL RULES:
+- Thought/Reflection: Focus on extreme facial detail, micro-expressions, looking away, reflecting light in eyes.
+- Battle/Conflict: Focus on high-speed kinetic motion, flying debris, dust, sweat, physical clash.
+- Travel/Displacement: Focus on panning camera, motion blur, tracking shot, landscape movement.
+- Prayer/Devotion: Focus on soft backlight, closed eyes, folded hands, serene tilt, soft shadows.
+- Sadness/Despair: Focus on slumped body language, casting shadows, downcast head, soft cold lighting.
+- Fear/Tension: Focus on high-contrast lighting (chiaroscuro), sweat droplets, wide eyes, extreme close-up.
+- Hope/Optimism: Focus on golden hour light, warm tones, bright background elements, upward gaze.
+- Revelation/Emotional Impact: Focus on sudden expression shift, shallow depth of field, dramatic backlight.
+`.trim();
+
 interface PromptBatchItem {
   row_number: number;
   asset: 'video' | 'image' | 'text' | 'hyperframe';
@@ -390,6 +414,7 @@ const generateBatchWithOpenAI = async ({
   facelessHint,
   videoFormat,
   visualBlueprint,
+  ultraCinematic,
 }: {
   apiKey: string;
   model: string;
@@ -401,11 +426,17 @@ const generateBatchWithOpenAI = async ({
   facelessHint: string;
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  ultraCinematic?: boolean;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
+      {
+        role: isReasoningModel(model) ? 'developer' : 'system',
+        content: ultraCinematic
+          ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+          : SYSTEM_INSTRUCTIONS
+      },
       {
         role: 'user',
         content: [
@@ -433,6 +464,33 @@ Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
+          (() => {
+            try {
+              const trimmed = String(characterDescription || '').trim();
+              if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                const parsed = JSON.parse(trimmed);
+                if (parsed && typeof parsed === 'object') {
+                  return `
+CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
+You MUST strictly apply the following style configurations to every video or image prompt:
+- Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
+- Color Palette (paleta_de_cores): ${parsed.paleta_de_cores || ''}
+- Lighting (iluminacao): ${parsed.iluminacao || ''}
+- Characters (personagens): ${parsed.personagens || ''}
+- Setting/Background (cenario): ${parsed.cenario || ''}
+- Composition (composicao): ${parsed.composicao || ''}
+- Texture (textura): ${parsed.textura || ''}
+- Atmosphere (atmosfera): ${parsed.atmosfera || ''}
+- Mandatory Rules (regras_obrigatorias): ${Array.isArray(parsed.regras_obrigatorias) ? parsed.regras_obrigatorias.join(', ') : (parsed.regras_obrigatorias || '')}
+- Negative Prompt (negative_prompt - EXCLUDE these elements entirely): ${parsed.negative_prompt || ''}
+
+When constructing the prompt suffix, merge these details dynamically instead of using the standard suffix.
+`;
+                }
+              }
+            } catch (e) {}
+            return '';
+          })(),
           facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
@@ -476,6 +534,7 @@ const generateBatchWithGemini = async ({
   facelessHint,
   videoFormat,
   visualBlueprint,
+  ultraCinematic,
 }: {
   apiKey: string;
   model: string;
@@ -487,6 +546,7 @@ const generateBatchWithGemini = async ({
   facelessHint: string;
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  ultraCinematic?: boolean;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -497,7 +557,9 @@ const generateBatchWithGemini = async ({
         contents: [{
           parts: [{
             text: [
-              SYSTEM_INSTRUCTIONS,
+              ultraCinematic
+                ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+                : SYSTEM_INSTRUCTIONS,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -522,6 +584,33 @@ Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
+              (() => {
+                try {
+                  const trimmed = String(characterDescription || '').trim();
+                  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                    const parsed = JSON.parse(trimmed);
+                    if (parsed && typeof parsed === 'object') {
+                      return `
+CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
+You MUST strictly apply the following style configurations to every video or image prompt:
+- Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
+- Color Palette (paleta_de_cores): ${parsed.paleta_de_cores || ''}
+- Lighting (iluminacao): ${parsed.iluminacao || ''}
+- Characters (personagens): ${parsed.personagens || ''}
+- Setting/Background (cenario): ${parsed.cenario || ''}
+- Composition (composicao): ${parsed.composicao || ''}
+- Texture (textura): ${parsed.textura || ''}
+- Atmosphere (atmosfera): ${parsed.atmosfera || ''}
+- Mandatory Rules (regras_obrigatorias): ${Array.isArray(parsed.regras_obrigatorias) ? parsed.regras_obrigatorias.join(', ') : (parsed.regras_obrigatorias || '')}
+- Negative Prompt (negative_prompt - EXCLUDE these elements entirely): ${parsed.negative_prompt || ''}
+
+When constructing the prompt suffix, merge these details dynamically instead of using the standard suffix.
+`;
+                    }
+                  }
+                } catch (e) {}
+                return '';
+              })(),
               facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
@@ -556,6 +645,7 @@ const generatePromptMap = async ({
   videoContext,
   videoFormat,
   visualBlueprint,
+  ultraCinematic,
 }: {
   engine: 'openai' | 'gemini';
   model: string;
@@ -566,6 +656,7 @@ const generatePromptMap = async ({
   videoContext?: string;
   videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  ultraCinematic?: boolean;
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -614,8 +705,8 @@ const generatePromptMap = async ({
       group.map(async (batch) => {
         try {
           const payload = engine === 'gemini'
-            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint })
-            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint });
+            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic })
+            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic });
           return { batch, payload };
         } catch (err) {
           console.error(`[SRT Pipeline Batch Error]`, err);
@@ -646,6 +737,7 @@ export async function POST(req: NextRequest) {
     const model = String(body?.model || (engine === 'gemini' ? 'gemini-2.5-flash' : 'gpt-5.1'));
     const projectConfig = body?.projectConfig || {};
     const forceAllAsVideo = !!body?.forceAllAsVideo;
+    const ultraCinematic = !!body?.ultraCinematic;
     const videoFormat: 'avatar' | 'faceless' | 'vlog' | 'catalog' =
       body?.videoFormat === 'vlog' ? 'vlog' :
       (body?.videoFormat === 'faceless' ? 'faceless' :
@@ -684,6 +776,7 @@ export async function POST(req: NextRequest) {
         videoContext,
         videoFormat,
         visualBlueprint,
+        ultraCinematic,
       });
 
       const prompts = promptItems.map((item) => {
@@ -748,6 +841,7 @@ export async function POST(req: NextRequest) {
         videoContext,
         videoFormat,
         visualBlueprint,
+        ultraCinematic,
       });
 
       rowsWithPrompts = finalRows.map((row) => {

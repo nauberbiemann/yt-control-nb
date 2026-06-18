@@ -752,16 +752,21 @@ export async function POST(req: NextRequest) {
 
       rowsWithPrompts = finalRows.map((row) => {
         let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;
-        const isFacelessHf = normalizeAssetType(row.asset) === 'hyperframe' && videoFormat === 'faceless';
+        const originalType = normalizeAssetType(row.asset);
+        const shouldForce = forceAllAsVideo && (originalType === 'texto' || originalType === 'imagem' || originalType === 'hyperframe');
+        const finalAsset = shouldForce ? ('vídeo' as const) : row.asset;
+
+        const isFacelessHf = originalType === 'hyperframe' && videoFormat === 'faceless';
         if (!isFacelessHf) {
           finalPrompt = cleanHeyGenPrefixes(finalPrompt);
         }
         return {
           ...row,
-          prompt: (forceAllAsVideo || normalizeAssetType(row.asset) === 'vídeo')
+          asset: finalAsset,
+          prompt: (forceAllAsVideo || originalType === 'vídeo')
             ? enforceVideoPromptGuards(finalPrompt, characterDescription)
             : finalPrompt,
-          texto_adicional: textoAdicionalMap.get(row.rowNumber),
+          texto_adicional: shouldForce ? '' : (textoAdicionalMap.get(row.rowNumber) || row.texto_adicional),
           isFallback: localFallbackRows.has(row.rowNumber),
         };
       });

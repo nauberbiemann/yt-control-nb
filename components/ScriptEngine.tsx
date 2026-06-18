@@ -3521,13 +3521,18 @@ COMO USAR NO WINDOWS:
 
       const rowsWithPrompts = finalRows.map((row) => {
         let finalPrompt = promptMap.get(row.rowNumber) || row.prompt;
-        if (normalizeAssetType(row.asset) === 'texto' && textStyleMode !== 'auto') {
+        const originalType = normalizeAssetType(row.asset);
+        const shouldForce = forceAllAsVideo && (originalType === 'texto' || originalType === 'imagem' || originalType === 'hyperframe');
+        const finalAsset = shouldForce ? ('vídeo' as const) : row.asset;
+
+        if (originalType === 'texto' && textStyleMode !== 'auto' && !forceAllAsVideo) {
           finalPrompt = textStyleMode === 'custom' ? customTextStyle : textStyleMode;
         }
         return {
           ...row,
+          asset: finalAsset,
           prompt: finalPrompt,
-          texto_adicional: textoAdicionalMap.get(row.rowNumber) || row.texto_adicional,
+          texto_adicional: shouldForce ? '' : (textoAdicionalMap.get(row.rowNumber) || row.texto_adicional),
           isFallback: fallbackRowNumbers.has(row.rowNumber), // 🏷️ Used for regeneration UI
         };
       });

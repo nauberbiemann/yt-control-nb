@@ -804,7 +804,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'O conteudo do .srt ou o array batchItems e obrigatorio.' }, { status: 400 });
     }
 
-    const parsedRows = parseSrtToRows(srtText);
+    const parsedRows = parseSrtToRows(srtText, forceAllAsVideo);
     if (!parsedRows.length) {
       return NextResponse.json({ error: 'Nao foi possivel extrair blocos validos do .srt enviado.' }, { status: 400 });
     }

@@ -3537,7 +3537,7 @@ COMO USAR NO WINDOWS:
     updateSrtObserverStep('persist', 'pending', 'Aguardando persistencia local do resultado.');
 
     try {
-      const parsedRows = parseSrtToRows(externalSrtText);
+      const parsedRows = parseSrtToRows(externalSrtText, forceAllAsVideo);
       if (!parsedRows.length) {
         throw new Error('Nao foi possivel extrair blocos validos do .srt enviado.');
       }
@@ -5290,7 +5290,7 @@ COMO USAR NO WINDOWS:
     // Em pipeline mode, usa _pipelineResultRef para evitar stale closure (externalSrtPipeline ainda null)
     const srtRows = (_isPipelineMode.current && _pipelineResultRef.current?.rows)
       ? _pipelineResultRef.current.rows
-      : (externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []));
+      : (externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText, forceAllAsVideo) : []));
     const hfCount = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe').length;
       console.log(`[HF] Enviando para API: ${hfCount} HF rows de ${(srtRows as any[]).length} total (fonte: ${_isPipelineMode.current ? 'pipeline' : 'externo'})`);
     if (_isPipelineMode.current) setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro — ${hfCount} anchors HF enviados à IA...`);
@@ -5754,7 +5754,7 @@ COMO USAR NO WINDOWS:
     const sourceBlocks = resolvePostScriptSourceBlocks();
     if (!sourceBlocks.length) return;
 
-    const srtRows = externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText) : []);
+    const srtRows = externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText, forceAllAsVideo) : []);
     const timelineContext = buildPostScriptTimelineContext({
       scriptBlocks: sourceBlocks,
       estimatedDuration: approvedBriefing?.estimatedDuration,

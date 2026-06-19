@@ -146,7 +146,7 @@ export const splitLongRows = (rows: SrtAssetRow[], maxDurationMs = 10_000, targe
   return result;
 };
 
-export const parseSrtToRows = (srtText: string): SrtAssetRow[] => {
+export const parseSrtToRows = (srtText: string, skipSplit = false): SrtAssetRow[] => {
   const content = normalizeLineBreaks(srtText).trim();
   if (!content) return [];
 
@@ -173,7 +173,7 @@ export const parseSrtToRows = (srtText: string): SrtAssetRow[] => {
     }];
   });
 
-  return splitLongRows(rawRows);
+  return skipSplit ? rawRows : splitLongRows(rawRows);
 };
 
 export const parseCsvToRows = (csvContent: string): SrtAssetRow[] => {

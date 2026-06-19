@@ -1126,6 +1126,17 @@ export interface FcpxmlOptions {
   imageExtension?: string;
   projectStem?: string;
   videoFormat?: string;
+  aspectRatio?: 'horizontal' | 'vertical';
+}
+
+export interface CapCutDraftOptions extends FcpxmlOptions {
+  audioFilename?: string;
+  cutMode?: 'middle' | 'start' | 'end';
+  smartSpeedUp?: boolean;
+  targetMinDuration?: number;
+  smartSlowDown?: boolean;
+  targetMaxDuration?: number;
+  scannedFilesMap?: Record<number, { name: string; realDuration: number }>;
 }
 
 export const sanitizePromptForFilename = (prompt: string): string => {
@@ -1256,10 +1267,6 @@ export const buildFcpxmlTimeline = (
   ].join('\n');
 };
 
-export interface CapCutDraftOptions extends FcpxmlOptions {
-  audioFilename?: string;
-}
-
 export interface CapCutDraftResult {
   draftContent: string;
   draftMetaInfo: string;
@@ -1278,6 +1285,22 @@ export const buildCapCutDraft = (
   const imageExt = options?.imageExtension || 'png';
   const audioFilename = options?.audioFilename?.trim() || `${projectName}.mp3`;
 
+  // Aspect Ratio and Resolution
+  const aspectRatio = options?.aspectRatio || 
+    (options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 'horizontal' : 'vertical');
+  const isHorizontal = aspectRatio === 'horizontal';
+  const canvasWidth = isHorizontal ? 1920 : 1080;
+  const canvasHeight = isHorizontal ? 1080 : 1920;
+  const canvasRatio = isHorizontal ? "original" : "9:16";
+
+  // Naming and Cut Options
+  const cutMode = options?.cutMode || 'middle';
+  const smartSpeedUp = !!options?.smartSpeedUp;
+  const targetMinDuration = options?.targetMinDuration ?? 7.5;
+  const smartSlowDown = !!options?.smartSlowDown;
+  const targetMaxDuration = options?.targetMaxDuration ?? 10.0;
+  const scannedFilesMap = options?.scannedFilesMap || {};
+
   // Normalize base directory path (ensure forward slashes and trailing slash)
   let normalizedBase = baseDir.replace(/\\/g, '/');
   if (normalizedBase.startsWith('file:///')) {
@@ -1287,7 +1310,7 @@ export const buildCapCutDraft = (
     normalizedBase += '/';
   }
 
-  // Detect suffix from the folder name (e.g. "V33" from "Fabrica V33/")
+  // Detect suffix from the folder name
   const partsForSuffix = normalizedBase.split('/').filter(Boolean);
   const lastDir = partsForSuffix[partsForSuffix.length - 1] || '';
   const suffixMatch = lastDir.match(/(V\d+|v\d+)$/) || lastDir.match(/\s+(\S+)$/);
@@ -1296,12 +1319,9 @@ export const buildCapCutDraft = (
   const videoSubDir = suffix ? `Videos ${suffix}/` : 'Videos/';
   const imageSubDir = suffix ? `Imagens ${suffix}/` : 'Imagens/';
 
-  // Filter video, image, text and hyperframe rows (if faceless)
   const mediaRows = rows.filter(r => {
     const type = normalizeAssetType(r.asset);
-    if (type === 'vídeo' || type === 'imagem' || type === 'texto') return true;
-    if (type === 'hyperframe' && options?.videoFormat === 'faceless') return true;
-    return false;
+    return type === 'vídeo' || type === 'imagem' || type === 'texto' || (type === 'hyperframe' && options?.videoFormat === 'faceless');
   });
 
   const projectUuid = generateUuid();
@@ -1311,13 +1331,10 @@ export const buildCapCutDraft = (
   let totalDurationMs = 0;
   rows.forEach(row => {
     const endMs = parseSrtTimeToMs(row.endTime);
-    if (endMs > totalDurationMs) {
-      totalDurationMs = endMs;
-    }
+    if (endMs > totalDurationMs) totalDurationMs = endMs;
   });
   const totalDurationUs = totalDurationMs * 1000;
 
-  // Setup arrays for draft_content.json materials and tracks
   const videosMaterials: any[] = [];
   const audiosMaterials: any[] = [];
   const speedsMaterials: any[] = [];
@@ -1325,6 +1342,8 @@ export const buildCapCutDraft = (
   const beatsMaterials: any[] = [];
   const mappingsMaterials: any[] = [];
   const separationsMaterials: any[] = [];
+  const canvasesMaterials: any[] = [];
+  const colorsMaterials: any[] = [];
 
   const videoSegments: any[] = [];
   const audioSegments: any[] = [];
@@ -1353,209 +1372,64 @@ export const buildCapCutDraft = (
     "wave_points": [],
     "music_id": generateUuid().toLowerCase(),
     "app_id": 0,
-    "text_id": "",
-    "tone_type": "",
-    "source_platform": 0,
-    "video_id": "",
-    "effect_id": "",
-    "resource_id": "",
-    "third_resource_id": "",
-    "category_id": "",
-    "intensifies_path": "",
-    "formula_id": "",
     "check_flag": 1,
-    "team_id": "",
     "local_material_id": narrationLocalAudioUuid,
-    "tone_speaker": "",
-    "mock_tone_speaker": "",
-    "tone_effect_id": "",
-    "tone_effect_name": "",
-    "tone_platform": "",
-    "cloned_model_type": "",
-    "tone_category_id": "",
-    "tone_category_name": "",
-    "tone_second_category_id": "",
-    "tone_second_category_name": "",
-    "tone_emotion_name_key": "",
-    "tone_emotion_style": "",
-    "tone_emotion_role": "",
-    "tone_emotion_selection": "",
-    "tone_emotion_scale": 0.0,
-    "moyin_emotion": "",
-    "request_id": "",
-    "query": "",
-    "search_id": "",
-    "sound_separate_type": "",
-    "is_text_edit_overdub": false,
-    "is_ugc": false,
-    "is_ai_clone_tone": false,
-    "is_ai_clone_tone_post": false,
-    "source_from": "",
     "copyright_limit_type": "none",
-    "aigc_history_id": "",
-    "aigc_item_id": "",
-    "music_source": "",
-    "pgc_id": "",
-    "pgc_name": "",
-    "similiar_music_info": { "original_song_id": "", "original_song_name": "" },
-    "ai_music_type": 0,
-    "ai_music_enter_from": "",
-    "lyric_type": 0,
-    "tts_task_id": "",
-    "tts_generate_scene": "",
-    "ai_music_generate_scene": 0,
-    "tts_benefit_info": { "benefit_type": "none", "benefit_log_id": "", "benefit_log_extra": "", "benefit_amount": -1 }
   });
 
-  speedsMaterials.push({
-    "id": narrationSpeedUuid,
-    "type": "speed",
-    "mode": 0,
-    "speed": 1.0,
-    "curve_speed": null
-  });
-  placeholdersMaterials.push({
-    "id": narrationPlaceholderUuid,
-    "type": "placeholder_info",
-    "meta_type": "none",
-    "res_path": "",
-    "res_text": "",
-    "error_path": "",
-    "error_text": ""
-  });
-  beatsMaterials.push({
-    "id": narrationBeatUuid,
-    "type": "beats",
-    "enable_ai_beats": false,
-    "gear": 404,
-    "gear_count": 0,
-    "mode": 404,
-    "user_beats": [],
-    "user_delete_ai_beats": null,
-    "ai_beats": {
-      "melody_url": "",
-      "melody_path": "",
-      "beats_url": "",
-      "beats_path": "",
-      "melody_percents": [0.0],
-      "beat_speed_infos": []
-    }
-  });
-  mappingsMaterials.push({
-    "id": narrationMappingUuid,
-    "type": "",
-    "audio_channel_mapping": 0,
-    "is_config_open": false
-  });
-  separationsMaterials.push({
-    "id": narrationSeparationUuid,
-    "type": "vocal_separation",
-    "choice": 0,
-    "removed_sounds": [],
-    "time_range": null,
-    "production_path": "",
-    "final_algorithm": "",
-    "enter_from": ""
-  });
+  speedsMaterials.push({ "id": narrationSpeedUuid, "type": "speed", "mode": 0, "speed": 1.0, "curve_speed": null });
+  placeholdersMaterials.push({ "id": narrationPlaceholderUuid, "type": "placeholder_info", "meta_type": "none", "res_path": "", "res_text": "", "error_path": "", "error_text": "" });
+  beatsMaterials.push({ "id": narrationBeatUuid, "type": "beats", "enable_ai_beats": false, "gear": 404, "gear_count": 0, "mode": 404, "user_beats": [], "ai_beats": { "melody_url": "", "melody_path": "", "beats_url": "", "beats_path": "", "melody_percents": [0.0], "beat_speed_infos": [] } });
+  mappingsMaterials.push({ "id": narrationMappingUuid, "type": "", "audio_channel_mapping": 0, "is_config_open": false });
+  separationsMaterials.push({ "id": narrationSeparationUuid, "type": "vocal_separation", "choice": 0, "removed_sounds": [], "time_range": null, "production_path": "", "final_algorithm": "", "enter_from": "" });
 
   audioSegments.push({
     "id": generateUuid(),
     "source_timerange": { "start": 0, "duration": totalDurationUs },
     "target_timerange": { "start": 0, "duration": totalDurationUs },
     "render_timerange": { "start": 0, "duration": 0 },
-    "desc": "",
-    "state": 0,
-    "speed": 1.0,
-    "is_loop": false,
-    "is_tone_modify": false,
-    "reverse": false,
-    "intensifies_audio": false,
-    "cartoon": false,
-    "volume": 1.0,
-    "last_nonzero_volume": 1.0,
-    "clip": null,
-    "uniform_scale": null,
     "material_id": narrationAudioUuid,
-    "extra_material_refs": [
-      narrationSpeedUuid,
-      narrationPlaceholderUuid,
-      narrationBeatUuid,
-      narrationMappingUuid,
-      narrationSeparationUuid
-    ],
-    "render_index": 0,
+    "extra_material_refs": [narrationSpeedUuid, narrationPlaceholderUuid, narrationBeatUuid, narrationMappingUuid, narrationSeparationUuid],
+    "render_index": 1,
     "keyframe_refs": [],
     "enable_lut": false,
     "enable_adjust": false,
     "enable_hsl": false,
     "visible": true,
-    "group_id": "",
-    "enable_color_curves": true,
-    "enable_hsl_curves": true,
     "track_render_index": 1,
-    "hdr_settings": null,
-    "enable_color_wheels": true,
-    "track_attribute": 0,
-    "is_placeholder": false,
-    "template_id": "",
-    "enable_smart_color_adjust": false,
-    "template_scene": "default",
-    "common_keyframes": [],
-    "caption_info": null,
-    "responsive_layout": { "enable": false, "target_follow": "", "size_layout": 0, "horizontal_pos_layout": 0, "vertical_pos_layout": 0 },
-    "enable_color_match_adjust": false,
-    "enable_color_correct_adjust": false,
-    "enable_adjust_mask": false,
-    "raw_segment_id": "",
-    "lyric_keyframes": null,
-    "enable_video_mask": true,
-    "digital_human_template_group_id": "",
-    "color_correct_alg_result": "",
-    "source": "segmentsourcenormal",
-    "enable_mask_stroke": false,
-    "enable_mask_shadow": false,
-    "enable_color_adjust_pro": false
   });
 
   draftMaterialsMeta.push({
-    "ai_group_type": "",
     "create_time": Math.floor(Date.now() / 1000),
     "duration": totalDurationUs,
-    "enter_from": 0,
     "extra_info": audioFilename,
     "file_Path": narrationCleanPath,
-    "height": 0,
     "id": narrationLocalAudioUuid,
     "import_time": Math.floor(Date.now() / 1000),
     "import_time_ms": Date.now() * 1000,
-    "item_source": 1,
-    "md5": "",
     "metetype": "music",
     "roughcut_time_range": { "duration": totalDurationUs, "start": 0 },
-    "sub_time_range": { "duration": -1, "start": -1 },
-    "type": 0,
-    "width": 0
+    "type": 0
   });
 
-  // 2. Process Media Rows (Videos/Images/Texts)
+  // 2. Process Media Rows
   mediaRows.forEach((row, index) => {
     const type = normalizeAssetType(row.asset);
     const rowNum = row.rowNumber;
     const cleanPrompt = sanitizePromptForFilename(row.prompt);
     const isFacelessHf = type === 'hyperframe' && options?.videoFormat === 'faceless';
 
+    const localFile = scannedFilesMap[rowNum];
     let filename = '';
     const ext = (type === 'vídeo' || isFacelessHf) ? videoExt : (type === 'imagem' ? imageExt : 'mp4');
 
     if (type === 'texto') {
       filename = `linha_${String(rowNum).padStart(4, '0')}_texto.mp4`;
+    } else if (localFile) {
+      filename = localFile.name;
     } else {
       const prefix = isFacelessHf ? `${rowNum}-HF` : `${rowNum}`;
-      if (namingTemplate === 'index_only') {
-        filename = `${prefix}.${ext}`;
-      } else {
-        filename = `${prefix}_${cleanPrompt}.${ext}`;
-      }
+      filename = namingTemplate === 'index_only' ? `${prefix}.${ext}` : `${prefix}_${cleanPrompt}.${ext}`;
     }
 
     let fileUrl = '';
@@ -1568,24 +1442,46 @@ export const buildCapCutDraft = (
     }
 
     const cleanPath = fileUrl.replace(/\/+/g, '/');
-
     const startMs = parseSrtTimeToMs(row.startTime);
     const endMs = parseSrtTimeToMs(row.endTime);
-    const durationMs = endMs - startMs;
-    
+    const srtDurationMs = endMs - startMs;
     const offsetUs = startMs * 1000;
-    const durationUs = durationMs * 1000;
-    
-    const sourceDurationSeconds = (type === 'vídeo' || isFacelessHf) 
-      ? defaultVideoDuration 
-      : ((type === 'imagem') ? defaultImageDuration : (durationMs / 1000));
-    
-    const sourceDurationUs = Math.floor(sourceDurationSeconds * 1000000);
+    const srtDurationUs = srtDurationMs * 1000;
 
+    let fileDurationSeconds = (type === 'vídeo' || isFacelessHf) ? defaultVideoDuration : ((type === 'imagem') ? defaultImageDuration : (srtDurationMs / 1000));
+    if (localFile && localFile.realDuration > 0) fileDurationSeconds = localFile.realDuration;
+    let fileDurationUs = Math.floor(fileDurationSeconds * 1000000);
+    
+    let calculatedSpeed = 1.0;
     let trimStartUs = 0;
-    if ((type === 'vídeo' || isFacelessHf) && sourceDurationUs > durationUs) {
-      trimStartUs = Math.floor((sourceDurationUs - durationUs) / 2);
+    let trimDurationUs = srtDurationUs;
+
+    if (type === 'vídeo' || isFacelessHf) {
+      const srtDurationSec = srtDurationMs / 1000;
+      if (smartSpeedUp && fileDurationSeconds > srtDurationSec && fileDurationSeconds <= srtDurationSec + 0.5) {
+        calculatedSpeed = fileDurationSeconds / srtDurationSec;
+        trimStartUs = 0; trimDurationUs = fileDurationUs;
+      } else if (smartSlowDown && fileDurationSeconds < srtDurationSec && srtDurationSec <= fileDurationSeconds * 1.25) {
+        calculatedSpeed = fileDurationSeconds / srtDurationSec;
+        trimStartUs = 0; trimDurationUs = fileDurationUs;
+      } else {
+        calculatedSpeed = 1.0;
+        if (fileDurationUs > srtDurationUs) {
+          const cutAmountUs = fileDurationUs - srtDurationUs;
+          trimStartUs = cutMode === 'start' ? cutAmountUs : (cutMode === 'end' ? 0 : Math.floor(cutAmountUs / 2));
+          trimDurationUs = srtDurationUs;
+        } else {
+          trimStartUs = 0; trimDurationUs = fileDurationUs;
+        }
+      }
+    } else {
+      calculatedSpeed = 1.0; trimStartUs = 0; trimDurationUs = srtDurationUs;
     }
+
+    calculatedSpeed = Number(Math.max(0.1, Math.min(100.0, calculatedSpeed)).toFixed(6));
+    trimStartUs = Math.max(0, Math.floor(trimStartUs));
+    trimDurationUs = Math.max(1000, Math.floor(trimDurationUs));
+    const timelineDurationUs = Math.round(trimDurationUs / calculatedSpeed);
 
     const videoMaterialUuid = generateUuid();
     const videoLocalMaterialUuid = generateUuid();
@@ -1593,13 +1489,14 @@ export const buildCapCutDraft = (
     const videoPlaceholderUuid = generateUuid();
     const videoMappingUuid = generateUuid();
     const videoSeparationUuid = generateUuid();
+    const videoCanvasUuid = generateUuid();
+    const videoColorUuid = generateUuid();
 
-    // Add material configs
     videosMaterials.push({
       "id": videoMaterialUuid,
       "unique_id": "",
       "type": "video",
-      "duration": sourceDurationUs,
+      "duration": fileDurationUs,
       "path": cleanPath,
       "media_path": "",
       "local_id": "",
@@ -1609,8 +1506,8 @@ export const buildCapCutDraft = (
       "reverse_intensifies_path": "",
       "intensifies_audio_path": "",
       "cartoon_path": "",
-      "width": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1920 : 1080,
-      "height": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1080 : 1920,
+      "width": canvasWidth,
+      "height": canvasHeight,
       "category_id": "",
       "category_name": "local",
       "material_id": "",
@@ -1666,48 +1563,21 @@ export const buildCapCutDraft = (
       "video_mask_shadow": null
     });
 
-    speedsMaterials.push({
-      "id": videoSpeedUuid,
-      "type": "speed",
-      "mode": 0,
-      "speed": 1.0,
-      "curve_speed": null
-    });
-    placeholdersMaterials.push({
-      "id": videoPlaceholderUuid,
-      "type": "placeholder_info",
-      "meta_type": "none",
-      "res_path": "",
-      "res_text": "",
-      "error_path": "",
-      "error_text": ""
-    });
-    mappingsMaterials.push({
-      "id": videoMappingUuid,
-      "type": "",
-      "audio_channel_mapping": 0,
-      "is_config_open": false
-    });
-    separationsMaterials.push({
-      "id": videoSeparationUuid,
-      "type": "vocal_separation",
-      "choice": 0,
-      "removed_sounds": [],
-      "time_range": null,
-      "production_path": "",
-      "final_algorithm": "",
-      "enter_from": ""
-    });
+    speedsMaterials.push({ "id": videoSpeedUuid, "type": "speed", "mode": 0, "speed": calculatedSpeed, "curve_speed": null });
+    placeholdersMaterials.push({ "id": videoPlaceholderUuid, "type": "placeholder_info", "meta_type": "none", "res_path": "", "res_text": "", "error_path": "", "error_text": "" });
+    mappingsMaterials.push({ "id": videoMappingUuid, "type": "", "audio_channel_mapping": 0, "is_config_open": false });
+    separationsMaterials.push({ "id": videoSeparationUuid, "type": "vocal_separation", "choice": 0, "removed_sounds": [], "time_range": null, "production_path": "", "final_algorithm": "", "enter_from": "" });
+    canvasesMaterials.push({ "album_image": "", "blur": 0.0, "color": "", "id": videoCanvasUuid, "image": "", "image_id": "", "image_name": "", "source_platform": 0, "team_id": "", "type": "canvas_color" });
+    colorsMaterials.push({ "gradient_angle": 90, "gradient_colors": [], "gradient_percents": [], "height": 0, "id": videoColorUuid, "is_color_clip": false, "is_gradient": false, "solid_color": "", "width": 0 });
 
-    // Add segment to video track
     videoSegments.push({
       "id": generateUuid(),
-      "source_timerange": { "start": trimStartUs, "duration": durationUs },
-      "target_timerange": { "start": offsetUs, "duration": durationUs },
+      "source_timerange": { "start": trimStartUs, "duration": trimDurationUs },
+      "target_timerange": { "start": offsetUs, "duration": timelineDurationUs },
       "render_timerange": { "start": 0, "duration": 0 },
       "desc": "",
       "state": 0,
-      "speed": 1.0,
+      "speed": calculatedSpeed,
       "is_loop": false,
       "is_tone_modify": false,
       "reverse": false,
@@ -1727,21 +1597,27 @@ export const buildCapCutDraft = (
       "extra_material_refs": [
         videoSpeedUuid,
         videoPlaceholderUuid,
+        videoCanvasUuid,
         videoMappingUuid,
+        videoColorUuid,
         videoSeparationUuid
       ],
-      "render_index": index,
+      "render_index": index + 1,
       "keyframe_refs": [],
-      "enable_lut": false,
-      "enable_adjust": false,
+      "enable_lut": true,
+      "enable_adjust": true,
       "enable_hsl": false,
       "visible": true,
       "group_id": "",
-      "enable_color_curves": false,
-      "enable_hsl_curves": false,
-      "track_render_index": index,
-      "hdr_settings": null,
-      "enable_color_wheels": false,
+      "enable_color_curves": true,
+      "enable_hsl_curves": true,
+      "track_render_index": index + 1,
+      "hdr_settings": {
+        "intensity": 1.0,
+        "mode": 1,
+        "nits": 1000
+      },
+      "enable_color_wheels": true,
       "track_attribute": 0,
       "is_placeholder": false,
       "template_id": "",
@@ -1755,7 +1631,7 @@ export const buildCapCutDraft = (
       "enable_adjust_mask": false,
       "raw_segment_id": "",
       "lyric_keyframes": null,
-      "enable_video_mask": false,
+      "enable_video_mask": true,
       "digital_human_template_group_id": "",
       "color_correct_alg_result": "",
       "source": "segmentsourcenormal",
@@ -1765,93 +1641,32 @@ export const buildCapCutDraft = (
     });
 
     draftMaterialsMeta.push({
-      "ai_group_type": "",
       "create_time": Math.floor(Date.now() / 1000),
-      "duration": sourceDurationUs,
-      "enter_from": 0,
+      "duration": fileDurationUs,
       "extra_info": filename,
       "file_Path": cleanPath,
-      "height": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1080 : 1920,
+      "height": canvasHeight,
       "id": videoLocalMaterialUuid,
       "import_time": Math.floor(Date.now() / 1000),
-      "import_time_ms": Date.now() * 1000,
-      "item_source": 1,
-      "md5": "",
       "metetype": "video",
-      "roughcut_time_range": { "duration": sourceDurationUs, "start": 0 },
-      "sub_time_range": { "duration": -1, "start": -1 },
+      "roughcut_time_range": { "duration": fileDurationUs, "start": 0 },
       "type": 0,
-      "width": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1920 : 1080
+      "width": canvasWidth
     });
   });
 
-  // Construct draft_content.json object
   const draftContentObj = {
     "id": projectUuid,
     "version": 360000,
-    "new_version": "171.0.0",
-    "name": "",
+    "new_version": "163.0.0",
     "duration": totalDurationUs,
-    "create_time": 0,
-    "update_time": 0,
     "fps": 30.0,
-    "is_drop_frame_timecode": false,
-    "color_space": 0,
-    "config": {
-      "video_mute": false,
-      "record_audio_last_index": 1,
-      "extract_audio_last_index": 1,
-      "original_sound_last_index": 1,
-      "subtitle_recognition_id": "",
-      "subtitle_taskinfo": [],
-      "lyrics_recognition_id": "",
-      "lyrics_taskinfo": [],
-      "subtitle_sync": true,
-      "lyrics_sync": true,
-      "voice_change_sync": false,
-      "sticker_max_index": 1,
-      "adjust_max_index": 1,
-      "material_save_mode": 0,
-      "export_range": null,
-      "maintrack_adsorb": true,
-      "combination_max_index": 1,
-      "attachment_info": [],
-      "zoom_info_params": null,
-      "system_font_list": [],
-      "multi_language_mode": "none",
-      "multi_language_main": "none",
-      "multi_language_current": "none",
-      "multi_language_list": [],
-      "subtitle_keywords_config": null,
-      "use_float_render": false
-    },
-    "canvas_config": {
-      "ratio": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? "original" : "9:16",
-      "width": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1920 : 1080,
-      "height": options?.videoFormat === 'avatar' || options?.videoFormat === 'vlog' ? 1080 : 1920,
-      "background": null
-    },
+    "canvas_config": { "ratio": canvasRatio, "width": canvasWidth, "height": canvasHeight, "background": null },
     "tracks": [
-      {
-        "id": videoTrackUuid,
-        "type": "video",
-        "segments": videoSegments,
-        "flag": 0,
-        "attribute": 0,
-        "name": "",
-        "is_default_name": true
-      },
-      {
-        "id": audioTrackUuid,
-        "type": "audio",
-        "segments": audioSegments,
-        "flag": 0,
-        "attribute": 0,
-        "name": "",
-        "is_default_name": true
-      }
+      { "id": generateUuid(), "type": "video", "segments": [], "flag": 0, "attribute": 0, "name": "", "is_default_name": true },
+      { "id": videoTrackUuid, "type": "video", "segments": videoSegments, "flag": 0, "attribute": 0, "name": "", "is_default_name": true },
+      ...(audioSegments.length > 0 ? [{ "id": audioTrackUuid, "type": "audio", "segments": audioSegments, "flag": 0, "attribute": 0, "name": "", "is_default_name": true }] : [])
     ],
-    "group_container": null,
     "materials": {
       "flowers": [],
       "videos": videosMaterials,
@@ -1861,7 +1676,7 @@ export const buildCapCutDraft = (
       "texts": [],
       "effects": [],
       "stickers": [],
-      "canvases": [],
+      "canvases": canvasesMaterials,
       "transitions": [],
       "audio_effects": [],
       "audio_fades": [],
@@ -1892,7 +1707,7 @@ export const buildCapCutDraft = (
       "sound_channel_mappings": mappingsMaterials,
       "green_screens": [],
       "shapes": [],
-      "material_colors": [],
+      "material_colors": colorsMaterials,
       "digital_humans": [],
       "digital_human_model_dressing": [],
       "smart_crops": [],
@@ -1908,100 +1723,18 @@ export const buildCapCutDraft = (
       "video_strokes": [],
       "video_radius": []
     },
-    "keyframes": {
-      "videos": [], "audios": [], "texts": [], "stickers": [], "filters": [], "adjusts": [], "handwrites": [], "effects": []
-    },
-    "keyframe_graph_list": [],
-    "platform": {
-      "os": "windows",
-      "os_version": "10.0.22631",
-      "app_id": 359289,
-      "app_version": "8.7.0",
-      "app_source": "cc",
-      "device_id": "031594bee0cca504bbbcd2dff68678a0"
-    },
-    "last_modified_platform": {
-      "os": "windows",
-      "os_version": "10.0.22631",
-      "app_id": 359289,
-      "app_version": "8.7.0",
-      "app_source": "cc",
-      "device_id": "031594bee0cca504bbbcd2dff68678a0"
-    },
-    "mutable_config": null,
-    "cover": null,
-    "retouch_cover": null,
-    "extra_info": null,
-    "relationships": [],
-    "render_index_track_mode_on": true,
-    "free_render_index_mode_on": false,
-    "static_cover_image_path": "",
-    "source": "default",
-    "time_marks": null,
-    "path": "",
-    "lyrics_effects": [],
-    "uneven_animation_template_info": { "composition": "", "content": "", "order": "", "sub_template_info_list": [] },
+    "platform": { "os": "windows", "os_version": "10.0.19045", "app_id": 359289, "app_version": "7.9.0", "app_source": "cc" },
+    "last_modified_platform": { "os": "windows", "os_version": "10.0.26200", "app_id": 359289, "app_version": "8.3.0", "app_source": "cc" },
     "draft_type": "video"
   };
 
-  // Construct draft_meta_info.json object
   const draftMetaObj = {
-    "cloud_draft_cover": false,
-    "cloud_draft_sync": false,
-    "cloud_package_completed_time": "",
-    "draft_cloud_capcut_purchase_info": "",
-    "draft_cloud_last_action_download": false,
-    "draft_cloud_package_type": "",
-    "draft_cloud_purchase_info": "",
-    "draft_cloud_template_id": "",
-    "draft_cloud_tutorial_info": "",
-    "draft_cloud_videocut_purchase_info": "",
-    "draft_cover": "",
-    "draft_deeplink_url": "",
-    "draft_enterprise_info": { "draft_enterprise_extra": "", "draft_enterprise_id": "", "draft_enterprise_name": "", "enterprise_material": [] },
-    "draft_fold_path": `${normalizedBase}${projectName}`.replace(/\/+/g, '/'),
     "draft_id": projectUuid,
-    "draft_is_ae_produce": false,
-    "draft_is_ai_packaging_used": false,
-    "draft_is_ai_shorts": false,
-    "draft_is_ai_translate": false,
-    "draft_is_article_video_draft": false,
-    "draft_is_cloud_temp_draft": false,
-    "draft_is_from_deeplink": "false",
-    "draft_is_invisible": false,
-    "draft_is_pippit_draft": false,
-    "draft_is_web_article_video": false,
-    "draft_materials": [
-      {
-        "type": 0,
-        "value": draftMaterialsMeta
-      },
-      { "type": 1, "value": [] },
-      { "type": 2, "value": [] },
-      { "type": 3, "value": [] },
-      { "type": 6, "value": [] },
-      { "type": 7, "value": [] },
-      { "type": 8, "value": [] }
-    ],
-    "draft_materials_copied_info": [],
     "draft_name": projectName,
-    "draft_need_rename_folder": false,
-    "draft_new_version": "",
-    "draft_removable_storage_device": "",
-    "draft_root_path": "C:\\Users\\naube\\AppData\\Local\\CapCut\\User Data\\CapCut Drafts",
-    "draft_segment_extra_info": [],
-    "draft_timeline_materials_size_": 0,
-    "draft_type": "",
-    "draft_web_article_video_enter_from": "",
-    "tm_draft_cloud_completed": "",
-    "tm_draft_cloud_entry_id": -1,
-    "tm_draft_cloud_modified": 0,
-    "tm_draft_cloud_parent_entry_id": -1,
-    "tm_draft_cloud_space_id": -1,
-    "tm_draft_cloud_user_id": -1,
+    "draft_materials": [{ "type": 0, "value": draftMaterialsMeta }, { "type": 1, "value": [] }, { "type": 2, "value": [] }, { "type": 3, "value": [] }, { "type": 6, "value": [] }, { "type": 7, "value": [] }, { "type": 8, "value": [] }],
+    "draft_root_path": "C:/Users/naube/AppData/Local/CapCut/User Data/Projects/com.lveditor.draft",
     "tm_draft_create": Math.floor(Date.now() * 1000),
     "tm_draft_modified": Math.floor(Date.now() * 1000),
-    "tm_draft_removed": 0,
     "tm_duration": totalDurationUs
   };
 

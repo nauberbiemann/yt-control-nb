@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
 import { immutableInsert, upsertScriptExecution, getScriptExecution } from '@/lib/supabase-mutations';
-import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText } from 'lucide-react';
+import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText, FolderOpen, Check, Loader2 } from 'lucide-react';
 import {
   applyAssetRules,
   applyHyperframeRules,
@@ -1171,6 +1171,16 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [fcpxmlNaming, setFcpxmlNaming] = useState<'index_prompt56' | 'index_only' | 'index_prompt_full'>('index_prompt56');
   const [fcpxmlVidDuration, setFcpxmlVidDuration] = useState(8.0);
   const [fcpxmlImgDuration, setFcpxmlImgDuration] = useState(5.0);
+  const [fcpxmlAspectRatio, setFcpxmlAspectRatio] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [cutMode, setCutMode] = useState<'middle' | 'start' | 'end'>('middle');
+  const [smartSpeedUp, setSmartSpeedUp] = useState(true);
+  const [targetMinDuration, setTargetMinDuration] = useState(7.5);
+  const [smartSlowDown, setSmartSlowDown] = useState(true);
+  const [targetMaxDuration, setTargetMaxDuration] = useState(10.0);
+  const [mainFolderHandle, setMainFolderHandle] = useState<any>(null);
+  const [extraFolderHandle, setExtraFolderHandle] = useState<any>(null);
+  const [scannedFilesMap, setScannedFilesMap] = useState<Record<number, { name: string; realDuration: number }>>({});
+  const [isScanning, setIsScanning] = useState(false);
   const [isPostPackageExpanded, setIsPostPackageExpanded] = useState(false);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
   const thumbnailPanelRef = useRef<HTMLDivElement | null>(null);
@@ -3207,6 +3217,78 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
+  const handleScanFolder = async (isExtra = false) => {
+    if (typeof window === 'undefined' || !(window as any).showDirectoryPicker) {
+      alert('Seu navegador não suporta a API File System Access. Por favor, utilize o Google Chrome, Microsoft Edge ou outro navegador compatível.');
+      return;
+    }
+
+    try {
+      const handle = await (window as any).showDirectoryPicker();
+      if (isExtra) {
+        setExtraFolderHandle(handle);
+      } else {
+        setMainFolderHandle(handle);
+      }
+
+      setIsScanning(true);
+      const newFilesMap = { ...scannedFilesMap };
+      let matchedCount = 0;
+
+      // Helper to read video duration using temporary video element
+      const getVideoDuration = (file: File): Promise<number> => {
+        return new Promise((resolve) => {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          const objectUrl = URL.createObjectURL(file);
+          video.src = objectUrl;
+          video.onloadedmetadata = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(video.duration);
+          };
+          video.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(0);
+          };
+        });
+      };
+
+      for await (const entry of handle.values()) {
+        if (entry.kind === 'file') {
+          const name = entry.name;
+          const match = name.match(/^(\d+)/);
+          if (match) {
+            const rowNum = parseInt(match[1], 10);
+            const file = await entry.getFile();
+            const isVideo = file.type.startsWith('video/') || 
+                            /\.(mp4|mov|m4v|mkv|avi|webm)$/i.test(name);
+            
+            let duration = 0;
+            if (isVideo) {
+              duration = await getVideoDuration(file);
+            }
+
+            newFilesMap[rowNum] = {
+              name,
+              realDuration: duration
+            };
+            matchedCount++;
+          }
+        }
+      }
+
+      setScannedFilesMap(newFilesMap);
+      setIsScanning(false);
+      showToast(`Pasta escaneada com sucesso! ${matchedCount} arquivos correspondentes adicionados ao mapa.`);
+    } catch (err: any) {
+      setIsScanning(false);
+      if (err.name !== 'AbortError') {
+        console.error('[ScriptEngine] Erro ao escanear pasta:', err);
+        alert(`Erro ao escanear pasta: ${err.message}`);
+      }
+    }
+  };
+
   const handleExportCapcutZip = async () => {
     if (!externalSrtPipeline?.rows?.length) {
       alert('Não há pipeline de legenda (.srt) carregado ou processado para exportar.');
@@ -3233,7 +3315,14 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           imageExtension: 'png',
           projectStem: srtArtifactStem,
           videoFormat: videoFormat,
-          audioFilename: audioFilename
+          audioFilename: audioFilename,
+          aspectRatio: fcpxmlAspectRatio,
+          cutMode: cutMode,
+          smartSpeedUp: smartSpeedUp,
+          targetMinDuration: targetMinDuration,
+          smartSlowDown: smartSlowDown,
+          targetMaxDuration: targetMaxDuration,
+          scannedFilesMap: scannedFilesMap
         }
       );
 
@@ -3302,11 +3391,18 @@ COMO USAR NO WINDOWS:
           imageExtension: 'png',
           projectStem: srtArtifactStem,
           videoFormat: videoFormat,
-          audioFilename: audioFilename
+          audioFilename: audioFilename,
+          aspectRatio: fcpxmlAspectRatio,
+          cutMode: cutMode,
+          smartSpeedUp: smartSpeedUp,
+          targetMinDuration: targetMinDuration,
+          smartSlowDown: smartSlowDown,
+          targetMaxDuration: targetMaxDuration,
+          scannedFilesMap: scannedFilesMap
         }
       );
 
-      // Download only draft_content.json
+      // Download draft_content.json
       const blob = new Blob([result.draftContent], { type: 'application/json;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -3316,6 +3412,17 @@ COMO USAR NO WINDOWS:
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+
+      // Download draft_meta_info.json
+      const blobMeta = new Blob([result.draftMetaInfo], { type: 'application/json;charset=utf-8' });
+      const urlMeta = URL.createObjectURL(blobMeta);
+      const linkMeta = document.createElement('a');
+      linkMeta.href = urlMeta;
+      linkMeta.download = 'draft_meta_info.json';
+      document.body.appendChild(linkMeta);
+      linkMeta.click();
+      document.body.removeChild(linkMeta);
+      URL.revokeObjectURL(urlMeta);
 
     } catch (err) {
       console.error('[ScriptEngine] Erro ao exportar draft_content.json:', err);
@@ -7689,13 +7796,164 @@ COMO USAR NO WINDOWS:
                               </div>
                             </div>
                           </div>
+
+                          {/* Configurações Avançadas do Sincronizador SRT */}
+                          <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">Configurações Avançadas & Sincronia SRT</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              {/* Aspect Ratio */}
+                              <div className="space-y-1.5">
+                                <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Proporção (Aspect Ratio)</label>
+                                <select
+                                  value={fcpxmlAspectRatio}
+                                  onChange={(e) => setFcpxmlAspectRatio(e.target.value as any)}
+                                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                >
+                                  <option value="horizontal">Horizontal (16:9 - YouTube)</option>
+                                  <option value="vertical">Vertical (9:16 - TikTok/Shorts)</option>
+                                </select>
+                                <span className="text-[8px] text-white/30 block">Resolução de saída da timeline do CapCut.</span>
+                              </div>
+
+                              {/* Cut Mode */}
+                              <div className="space-y-1.5">
+                                <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Modo de Corte (Trim Mode)</label>
+                                <select
+                                  value={cutMode}
+                                  onChange={(e) => setCutMode(e.target.value as any)}
+                                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                >
+                                  <option value="middle">Centralizado (Middle)</option>
+                                  <option value="start">Início (Start)</option>
+                                  <option value="end">Fim (End)</option>
+                                </select>
+                                <span className="text-[8px] text-white/30 block">Qual região do vídeo cortar se ele for mais longo que a fala.</span>
+                              </div>
+
+                              {/* Video Scan Info */}
+                              <div className="space-y-1.5">
+                                <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Arquivos Escaneados</label>
+                                <div className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white/80 h-9 flex items-center justify-between">
+                                  <span>{Object.keys(scannedFilesMap).length} arquivo(s) mapeado(s)</span>
+                                  {Object.keys(scannedFilesMap).length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setScannedFilesMap({})}
+                                      className="text-[9px] text-red-400 hover:text-red-300 font-bold uppercase transition-colors"
+                                    >
+                                      Limpar
+                                    </button>
+                                  )}
+                                </div>
+                                <span className="text-[8px] text-white/30 block">Durações reais detectadas nas pastas locais.</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-white/5 pt-3">
+                              {/* Smart Speedup */}
+                              <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Aceleração Inteligente</label>
+                                  <input
+                                    type="checkbox"
+                                    checked={smartSpeedUp}
+                                    onChange={(e) => setSmartSpeedUp(e.target.checked)}
+                                    className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[8px] text-white/30">Mínimo para acelerar:</span>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    value={targetMinDuration}
+                                    onChange={(e) => setTargetMinDuration(parseFloat(e.target.value))}
+                                    disabled={!smartSpeedUp}
+                                    className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
+                                  />
+                                  <span className="text-[8px] text-white/30">segundos</span>
+                                </div>
+                                <p className="text-[8px] text-white/30 block mt-1 leading-normal">
+                                  Acelera suavemente vídeos ligeiramente maiores que o tempo da fala, evitando cortes secos.
+                                </p>
+                              </div>
+
+                              {/* Smart Slowdown */}
+                              <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Desaceleração Inteligente</label>
+                                  <input
+                                    type="checkbox"
+                                    checked={smartSlowDown}
+                                    onChange={(e) => setSmartSlowDown(e.target.checked)}
+                                    className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[8px] text-white/30">Máximo para desacelerar:</span>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    value={targetMaxDuration}
+                                    onChange={(e) => setTargetMaxDuration(parseFloat(e.target.value))}
+                                    disabled={!smartSlowDown}
+                                    className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
+                                  />
+                                  <span className="text-[8px] text-white/30">segundos</span>
+                                </div>
+                                <p className="text-[8px] text-white/30 block mt-1 leading-normal">
+                                  Desacelera suavemente (até 0.8x) vídeos um pouco menores que o tempo da fala para preencher o tempo.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Folder Scanner API */}
+                            <div className="border-t border-white/5 pt-3 space-y-2">
+                              <label className="text-[9px] font-black uppercase tracking-wider text-white/45 block">Escaneamento Dinâmico de Durações (Local Host)</label>
+                              <p className="text-[9px] text-white/30 leading-normal">
+                                Conecte-se às pastas locais do projeto no seu PC para obter a duração real dos vídeos brutos. Isso garante uma sincronia perfeita na linha de tempo do CapCut sem precisar digitar durações manualmente.
+                              </p>
+                              
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <button
+                                  type="button"
+                                  disabled={isScanning}
+                                  onClick={() => handleScanFolder(false)}
+                                  className="flex-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                >
+                                  {isScanning ? (
+                                    <Loader2 size={12} className="animate-spin text-cyan-400" />
+                                  ) : (
+                                    <FolderOpen size={12} className="text-cyan-400" />
+                                  )}
+                                  {mainFolderHandle ? `✅ Pasta Vídeos Conectada` : `Selecionar Pasta de Vídeos`}
+                                </button>
+                                
+                                <button
+                                  type="button"
+                                  disabled={isScanning}
+                                  onClick={() => handleScanFolder(true)}
+                                  className="flex-1 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                >
+                                  {isScanning ? (
+                                    <Loader2 size={12} className="animate-spin text-purple-400" />
+                                  ) : (
+                                    <FolderOpen size={12} className="text-purple-400" />
+                                  )}
+                                  {extraFolderHandle ? `✅ Pasta Imagens Conectada` : `Selecionar Pasta de Imagens`}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
                           <div className="flex flex-wrap justify-end gap-2 pt-1">
                             <button
                               type="button"
                               onClick={handleExportCapcutJson}
                               className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition-all hover:bg-emerald-500/20 active:scale-95 flex items-center gap-2"
                             >
-                              📄 Baixar Apenas draft_content.json (Substituir Rascunho)
+                              📄 Baixar JSONs do Rascunho (draft_content & draft_meta_info)
                             </button>
                             <button
                               type="button"

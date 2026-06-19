@@ -936,6 +936,8 @@ interface ExecutionSnapshot {
   visualBlueprintCast?: Array<{ name: string; description: string }>;
   forceAllAsVideo?: boolean;
   ultraCinematic?: boolean;
+  preserveBrackets?: boolean;
+  promptPrefix?: string;
   _themeId?: string; // stable ID to find the theme even after a title rename
 }
 
@@ -1074,6 +1076,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
   const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
   const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
+  const [promptPrefix, setPromptPrefix] = useState<string>('none');
   const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
   const [ultraCinematic, setUltraCinematic] = useState<boolean>(false);
   const [isSuggestingStyle, setIsSuggestingStyle] = useState<boolean>(false);
@@ -1501,6 +1504,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     visualBlueprintCast,
     forceAllAsVideo,
     ultraCinematic,
+    preserveBrackets,
+    promptPrefix,
     ...overrides,
   });
 
@@ -1877,6 +1882,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
                 if (typeof cloudSnapshot.forceAllAsVideo === 'boolean') setForceAllAsVideo(cloudSnapshot.forceAllAsVideo);
                 if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
+                if (typeof cloudSnapshot.preserveBrackets === 'boolean') setPreserveBrackets(cloudSnapshot.preserveBrackets);
+                if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
@@ -1922,6 +1929,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.visualBlueprintCast === 'object') setVisualBlueprintCast(snapshot.visualBlueprintCast);
       if (typeof snapshot?.forceAllAsVideo === 'boolean') setForceAllAsVideo(snapshot.forceAllAsVideo);
       if (typeof snapshot?.ultraCinematic === 'boolean') setUltraCinematic(snapshot.ultraCinematic);
+      if (typeof snapshot?.preserveBrackets === 'boolean') setPreserveBrackets(snapshot.preserveBrackets);
+      if (typeof snapshot?.promptPrefix === 'string') setPromptPrefix(snapshot.promptPrefix);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
@@ -2971,14 +2980,25 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const compilePromptText = (text: string) => {
     if (!text) return '';
-    if (preserveBrackets || videoFormat === 'catalog') return text;
     let compiled = text;
-    visualBlueprintCast.forEach((char) => {
-      if (!char.name || !char.description) return;
-      const escapedName = char.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const regex = new RegExp(`\\[${escapedName}\\]`, 'gi');
-      compiled = compiled.replace(regex, `(${char.description.trim()})`);
-    });
+    if (!preserveBrackets && videoFormat !== 'catalog') {
+      visualBlueprintCast.forEach((char) => {
+        if (!char.name || !char.description) return;
+        const escapedName = char.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regex = new RegExp(`\\[${escapedName}\\]`, 'gi');
+        compiled = compiled.replace(regex, `(${char.description.trim()})`);
+      });
+    }
+
+    if (promptPrefix && promptPrefix !== 'none') {
+      const lines = compiled.split('\n');
+      const processedLines = lines.map(line => {
+        if (!line.trim()) return line;
+        return `${promptPrefix} ${line}`;
+      });
+      compiled = processedLines.join('\n');
+    }
+
     return compiled;
   };
 
@@ -7587,24 +7607,69 @@ COMO USAR NO WINDOWS:
 
                   {externalSrtPipeline && (
                     <>
-                      {/* Checkbox global de colchetes */}
-                      <div className="flex items-center gap-3 bg-midnight/25 border border-white/10 rounded-2xl p-4 mb-4">
-                        <label className="relative flex items-center gap-3 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={preserveBrackets}
-                            onChange={(e) => setPreserveBrackets(e.target.checked)}
-                            className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500"
-                          />
+                      {/* Opções de Formatação de Prompts (Colchetes e Prefixo) */}
+                      <div className="flex flex-col md:flex-row gap-4 bg-midnight/25 border border-white/10 rounded-2xl p-4 mb-4">
+                        {/* Checkbox global de colchetes */}
+                        <div className="flex-1">
+                          <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={preserveBrackets}
+                              onChange={(e) => {
+                                setPreserveBrackets(e.target.checked);
+                                persistExecutionSnapshotLocally({ preserveBrackets: e.target.checked });
+                              }}
+                              className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
+                            />
+                            <div>
+                              <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                                Preservar [Colchetes] de Personagens Consistentes
+                              </span>
+                              <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                                Marque para manter a tag original do personagem (ex: <strong>[Grey Knight]</strong>) nos prompts copiado/exportados. Desmarque para expandir a descrição física.
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Divisor vertical para telas maiores */}
+                        <div className="hidden md:block w-px bg-white/10 self-stretch" />
+
+                        {/* Seletor de Prefixo */}
+                        <div className="flex flex-col gap-2 shrink-0 md:w-80">
                           <div>
-                            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
-                              Preservar [Colchetes] de Personagens Consistentes
+                            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
+                              Prefixo do Prompt
                             </span>
                             <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                              Marque para manter a tag original do personagem (ex: <strong>[Grey Knight]</strong>) nos prompts copiado/exportados. Útil para fluxos de referência (Cref / Flux LoRA). Desmarque para expandir a descrição física completa automaticamente.
+                              Prependido no início absoluto de cada linha de prompt.
                             </span>
                           </div>
-                        </label>
+                          <div className="flex items-center gap-1 bg-black/40 p-1 border border-white/10 rounded-xl">
+                            {[
+                              { value: 'none', label: 'Nenhum' },
+                              { value: '[IV]', label: '[IV]' },
+                              { value: '[I]', label: '[I]' },
+                              { value: '[V]', label: '[V]' }
+                            ].map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  setPromptPrefix(opt.value);
+                                  persistExecutionSnapshotLocally({ promptPrefix: opt.value });
+                                }}
+                                className={`flex-1 text-center py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                                  promptPrefix === opt.value
+                                    ? 'bg-blue-500 text-white shadow'
+                                    : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

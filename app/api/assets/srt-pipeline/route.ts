@@ -19,8 +19,7 @@ const BATCH_SIZE_DEFAULT = 10;
 const BATCH_SIZE_REASONING = 6; // Reasoning models handle smaller batches more reliably
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
 
-export const maxDuration = 300;
-const SYSTEM_INSTRUCTIONS = `
+export const maxDuration = 300;const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
@@ -39,6 +38,16 @@ Use one sentence per prompt, usually between 18 and 40 words.
 
 CRITICAL RULE: The subtitle text is the PRIMARY source of meaning. Every prompt MUST directly visualize what is being said at that specific moment. Generic scenes are not acceptable.
 
+DYNAMIC THEMATIC CONTEXT & VISUAL DIVERSITY:
+1. Analyze the subtitle text along with the provided "videoContext" (which contains the title, theme, and outline of the script, such as cruise ships, Warhammer, medical health, business). You MUST dynamically adapt the environment, scenery, and metaphors to match this specific theme. Never use out-of-context generic imagery (e.g. do not show space marines for a medical video, nor medical clinics for a cruise ship video).
+2. Classify each scene into one of the following scale categories based on the narration flow:
+   - "WIDE_ESTABLISHING": Grand landscape, exterior, panoramic, or establishing shot matching the theme (e.g., a colossal luxury cruise ship sailing the open ocean; a massive gothic spaceship in starry deep space; a serene mountain landscape at sunset).
+   - "PROCESS_MACRO": Scientific, technical zoom-in, microscopic view, or close-up of dynamic processes (e.g., bacteria consuming organic matter; water molecules passing through filtration membranes; glowing micro-nodes on a motherboard; cells reacting to hormones).
+   - "SCHEMATIC": A clean 3D graphic rendering, isometric/orthographic technical blueprint, map, database diagram, or visual flow chart (e.g., pipeline mappings, global transport routes). Never show human faces or hands in this category.
+   - "JUXTAPOSITION": A visual comparison or split-screen representing contrasting concepts (e.g., upper deck luxury pool with tourists versus the dark wet machinery deck with waste pipes underneath).
+   - "NARRATIVE_CAST": Cenas focus on a character from the cast performing actions or expressing emotion.
+3. Keep visual pacing diverse. Do not repeat the same scene type or characters continuously. Use the theme's broader scenery (e.g., tourist decks, ocean waves, satellite map views, molecular structures) to break monotony.
+
 Rules for asset types:
 - asset == "video":
   - First, identify what is being described in the subtitle text: a character action, historical scene, feeling, concept, process, place, or personal moment.
@@ -47,11 +56,13 @@ Rules for asset types:
       - In FACELESS MODE, the Presenter/Host is completely BANNED. Never show a presenter reacting, pointing, or speaking to the camera.
       - In AVATAR MODE, the Synthesized Avatar is already speaking on screen during 'avatar' parts. Therefore, in B-rolls (video/image assets), the presenter/host MUST NEVER be shown or visualized. Keep them out of B-roll prompts entirely and focus purely on setting/narrative/concepts. Only in VLOG mode can the presenter be shown in a handheld camera setup.
     - "Narrative Characters": These are historical, epic, or fictional figures described in the story (e.g., "Fulgrim", "The Emperor", "soldiers", "knights", "primarchs"). In FACELESS or AVATAR modes, if the subtitle text describes actions, thoughts, or settings involving these story characters, you MUST actively visualize these characters in cinematic, dramatic, and high-fidelity action or environmental compositions aligned with the visual style! Never drop them.
+  - CRITICAL - CAST INJECTION THRESHOLD:
+    - Banish the cast characters from technical, macro, schematic, or environmental scenes where no human action is implied. Only use character brackets (e.g. [Character Name]) when the scene is classified as "NARRATIVE_CAST" or when the text explicitly describes a person's direct actions, feelings, decisions, or dialogue.
   - CRITICAL - ANTI-LITERAL METAPHOR GUARD:
     - If the subtitle text uses corporate, technical, or structural metaphors (e.g. "machine", "gears", "mechanism", "cog", "architecture", "system", "vector", "corrosion"): Do NOT visualize these terms literally. NEVER generate generic factory cogs, mechanical brass gears, industrial robot arms, green digital matrix grids, or circuit boards unless the script is literally about mechanical clocks or computers.
     - Instead, translate these metaphors into grand, atmospheric visual symbols aligned with the aesthetic theme. For example, in a dark sci-fi/gothic (Grimdark) setting, "machine/system/architecture" should be visualized as colossal gothic spaceships, decaying cathedral structures in deep space, stone gargoyles crumbling under ash, or armor of ancient metal corroding under volumetric light.
   - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (e.g., databases, calculations, files, processes, systems, networks):
-    - If a character from the provided Cast has a role or description that fits the theme, you are highly encouraged to show that character interacting with the technical element in a dynamic, illustrative way (e.g., "[Character Name] operating a glowing terminal...", "[Character Name] installing nodes on a machine...").
+    - If a character from the provided Cast has a role or description that fits the theme, and the action is human, you are encouraged to show that character interacting with the technical element in a dynamic, illustrative way (e.g., "[Character Name] operating a glowing terminal...", "[Character Name] installing nodes on a machine...").
     - If no character fits the context, or if you choose to focus purely on the concept, use a 3D technical animation starting with "3D technical animation of".
   - For live-action / cinematic prompts WITH narrative characters or environments: begin with "Realistic cinematic video of" or "Cinematic epic shot of" and describe the scene with dynamic details. Always add ambient sound only, no dialogue, no voice-over.
   - For 3D/abstract prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
@@ -146,12 +157,16 @@ You MUST generate detailed visual prompts between 80 and 150 words for every vid
 
 MANDATORY PROMPT STRUCTURE:
 For each prompt, you MUST follow this exact semantic order of fields, separated by spaces:
-[Main character/subject description] [Main action and movement] [Facial expression and emotion] [Location/setting details] [Historically accurate elements based on context] [Lighting style] [Cinematic composition and framing] [Lens specification] [Depth of field] [Photographic quality]
+[Main character/subject/environment description] [Main action, process details, or camera movement] [Facial expression/emotion or environmental ambiance] [Location/setting details] [Context-specific details based on the video theme] [Lighting style] [Cinematic composition and framing] [Lens and camera specification matching the category] [Depth of field] [Photographic quality]
 
-AESTHETIC STYLE SUFFIX:
-You MUST append this exact visual style description at the very end of every video or image prompt:
-"ultra realistic cinematic photography, historically accurate, movie frame, authentic costumes, authentic architecture, natural skin texture, realistic lighting, volumetric light, dramatic atmosphere, cinematic composition, depth of field, Sony Alpha 7R V, 85mm lens, masterpiece, ultra detailed, 8K"
-(If a structured style JSON is provided, you may merge/adapt this suffix to include its art style, palette, lighting, texture, and atmosphere properties accordingly).
+DYNAMIC AESTHETIC STYLE SUFFIX (SELECT THE SUFFIX MATCHING THE CHOSEN CATEGORY):
+You MUST append the exact suffix below at the very end of every video or image prompt, choosing the one that matches the scene category:
+- For WIDE_ESTABLISHING category, append exactly: "cinematic wide-angle photography, panoramic drone view, 24mm lens, deep depth of field, realistic atmospheric lighting, movie frame, masterpiece, ultra detailed, 8K"
+- For PROCESS_MACRO category, append exactly: "extreme close-up macro photography, high-speed camera details, 100mm lens, razor-thin depth of field, sharp details, volumetric lighting, movie frame, masterpiece, ultra detailed, 8K"
+- For SCHEMATIC category, append exactly: "3D clean technical rendering, clean graphic UI layout, orthographic view, sharp lines, glowing neon accents, minimalist design, masterpiece, ultra detailed, 8K"
+- For JUXTAPOSITION category, append exactly: "cinematic photography, split-screen comparison composition, side-by-side contrast, movie frame, dramatic lighting, 35mm lens, masterpiece, ultra detailed, 8K"
+- For NARRATIVE_CAST category (or when none of the above fit), append exactly: "ultra realistic cinematic photography, movie frame, authentic costumes, natural skin texture, realistic lighting, volumetric light, dramatic atmosphere, cinematic composition, shallow depth of field, Sony Alpha 7R V, 85mm lens, masterpiece, ultra detailed, 8K"
+(If a structured style JSON is provided, you may merge/adapt these suffixes to include its art style, palette, lighting, texture, and atmosphere properties accordingly, but keep the category-specific lens, depth of field, and framing definitions).
 
 NARRATIVE VISUAL RULES:
 - Thought/Reflection: Focus on extreme facial detail, micro-expressions, looking away, reflecting light in eyes.

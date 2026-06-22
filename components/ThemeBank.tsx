@@ -28,6 +28,7 @@ import {
   BarChart3,
   Maximize2,
   X,
+  Users,
 } from 'lucide-react';
 
 const PILLARS = ['Educação', 'Entretenimento', 'Autoridade', 'Conversão', 'Comunidade'];
@@ -98,6 +99,7 @@ interface ThemeBankProps {
   onGerarRoteiro?: (data: any) => void;
   onOpenInWriting?: (theme: any) => void;
   onResumeInWriting?: () => void;
+  onConsultarConselho?: (theme: any) => void;
 }
 
 const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -127,7 +129,7 @@ const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
   target_publish_date: '',
 };
 
-export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, initialExpandedStatus, onGerarRoteiro, onOpenInWriting, onResumeInWriting }: ThemeBankProps) {
+export default function ThemeBank({ activeProject: propProject, userId, selectedAIConfig, initialExpandedStatus, onGerarRoteiro, onOpenInWriting, onResumeInWriting, onConsultarConselho }: ThemeBankProps) {
   // Zustand store takes priority over prop for isolation guarantee
   const storeProject = useActiveProject();
   const activeProject = storeProject || propProject;
@@ -1557,6 +1559,15 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
                                   title="Retomar na Escrita Criativa"
                                 >
                                   <FileText size={12} />
+                                </button>
+                              )}
+                              {onConsultarConselho && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onConsultarConselho(theme); }}
+                                  className="p-1.5 rounded-lg hover:bg-blue-500/20 text-white/40 hover:text-blue-400 transition-all"
+                                  title="Consultar Conselho de IA"
+                                >
+                                  <Users size={12} />
                                 </button>
                               )}
                               <button onClick={(e) => { e.stopPropagation(); openEdit(theme); }} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all">

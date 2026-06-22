@@ -11,6 +11,7 @@ import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import NarrativeLibrary from '@/components/NarrativeLibrary';
 import ThemeBank from '@/components/ThemeBank';
 import TTSModule from '@/components/TTSModule';
+import AICouncil from '@/components/AICouncil';
 import AuthOverlay from '@/components/auth/AuthOverlay';
 import AwaitingApproval from '@/components/auth/AwaitingApproval';
 import UserManagement from '@/components/admin/UserManagementPanel';
@@ -379,6 +380,7 @@ export default function Home() {
 
   const [currentView, setCurrentView] = useState('home');
   const [showSettings, setShowSettings] = useState(false);
+  const [preFilledCouncilQuery, setPreFilledCouncilQuery] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
@@ -416,7 +418,7 @@ export default function Home() {
 
   // Guard: redirect to 'projects' view when a strategic module is accessed without an active project
   useEffect(() => {
-    const strategicViews = ['themes', 'library', 'scripts', 'production', 'analytics'];
+    const strategicViews = ['themes', 'library', 'scripts', 'production', 'analytics', 'council'];
     if (strategicViews.includes(currentView) && !activeProjectId) {
       setCurrentView('projects');
     }
@@ -1694,6 +1696,11 @@ export default function Home() {
               setScriptResumeKey(k => k + 1);
               setCurrentView('scripts');
             }}
+            onConsultarConselho={(theme) => {
+              const query = `Council this: Quero fazer um vídeo sobre o tema '${theme.title}'.\nA ideia central/descrição é: ${theme.description || 'Não especificada'}.\nEsse tema é bom para a nossa audiência e promessa de canal (PUC)?`;
+              setPreFilledCouncilQuery(query);
+              setCurrentView('council');
+            }}
           />;
         case 'scripts':
           return <ScriptEngine 
@@ -1704,6 +1711,15 @@ export default function Home() {
           />;
         case 'library':
           return <NarrativeLibrary activeProject={activeProject} />;
+        case 'council':
+          return (
+            <AICouncil 
+              activeProject={activeProject} 
+              selectedAIConfig={activeAIConfig} 
+              preFilledQuery={preFilledCouncilQuery}
+              onClearPreFilled={() => setPreFilledCouncilQuery(null)}
+            />
+          );
         case 'vozprime':
           return <TTSModule />;
       case 'calendar':

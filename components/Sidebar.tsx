@@ -17,7 +17,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Mic,
-  Music
+  Music,
+  Users
 } from 'lucide-react';
 import { useProjectStore, useActiveProject, useProjects } from '@/lib/store/projectStore';
 
@@ -51,6 +52,7 @@ export default function Sidebar({ currentView, onViewChange, onResetProject, use
     { id: 'library',     label: 'Narrative Library',   icon: BookOpen,    strategic: true },
     { id: 'themes',      label: 'Banco de Temas',       icon: Lightbulb,   strategic: true },
     { id: 'scripts',     label: 'Escrita Criativa',     icon: PenTool,     strategic: true },
+    { id: 'council',     label: 'Conselho de IA',       icon: Users,       strategic: true },
     { id: 'analytics',   label: 'BI & Analytics',       icon: History,     strategic: true },
   ];
 

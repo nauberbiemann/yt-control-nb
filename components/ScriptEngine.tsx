@@ -966,6 +966,8 @@ interface ExecutionSnapshot {
   selectedThumbnailStyle?: string;
   writingStyleSample?: string;
   externalFactCheckReport?: string | null;
+  externalHumanizeReport?: string | null;
+  pendingHumanizedText?: string | null;
 }
 
 interface ScriptEngineProps {
@@ -1229,6 +1231,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isHumanizingExternal, setIsHumanizingExternal] = useState<boolean>(false);
   const [isFactCheckingExternal, setIsFactCheckingExternal] = useState<boolean>(false);
   const [externalFactCheckReport, setExternalFactCheckReport] = useState<string | null>(null);
+  const [externalHumanizeReport, setExternalHumanizeReport] = useState<string | null>(null);
+  const [pendingHumanizedText, setPendingHumanizedText] = useState<string | null>(null);
   const [writingStyleSample, setWritingStyleSample] = useState<string>('');
   const executionStorageKey = activeProject?.id ? `ws_script_execution_${activeProject.id}` : null;
   const defaultExecutionMode: ExecutionMode = activeProject?.default_execution_mode === 'external' ? 'external' : 'internal';
@@ -1544,6 +1548,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     selectedThumbnailStyle,
     writingStyleSample,
     externalFactCheckReport,
+    externalHumanizeReport,
+    pendingHumanizedText,
     ...overrides,
   });
 
@@ -1926,6 +1932,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
                 if (typeof cloudSnapshot.writingStyleSample === 'string') setWritingStyleSample(cloudSnapshot.writingStyleSample);
                 if (typeof cloudSnapshot.externalFactCheckReport === 'string' || cloudSnapshot.externalFactCheckReport === null) setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
+                if (typeof cloudSnapshot.externalHumanizeReport === 'string' || cloudSnapshot.externalHumanizeReport === null) setExternalHumanizeReport(cloudSnapshot.externalHumanizeReport);
+                if (typeof cloudSnapshot.pendingHumanizedText === 'string' || cloudSnapshot.pendingHumanizedText === null) setPendingHumanizedText(cloudSnapshot.pendingHumanizedText);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
@@ -1977,6 +1985,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(snapshot.selectedThumbnailStyle);
       if (typeof snapshot?.writingStyleSample === 'string') setWritingStyleSample(snapshot.writingStyleSample);
       if (typeof snapshot?.externalFactCheckReport === 'string' || snapshot?.externalFactCheckReport === null) setExternalFactCheckReport(snapshot.externalFactCheckReport);
+      if (typeof snapshot?.externalHumanizeReport === 'string' || snapshot?.externalHumanizeReport === null) setExternalHumanizeReport(snapshot.externalHumanizeReport);
+      if (typeof snapshot?.pendingHumanizedText === 'string' || snapshot?.pendingHumanizedText === null) setPendingHumanizedText(snapshot.pendingHumanizedText);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
@@ -3025,12 +3035,18 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setExecutionMode('external');
       setExternalScriptFileName(file.name);
       setExternalScriptText(text);
+      setExternalFactCheckReport(null);
+      setExternalHumanizeReport(null);
+      setPendingHumanizedText(null);
       persistExecutionSnapshotLocally({
         executionMode: 'external',
         externalScriptText: text,
         externalScriptFileName: file.name,
         externalSrtText,
         externalSrtFileName,
+        externalFactCheckReport: null,
+        externalHumanizeReport: null,
+        pendingHumanizedText: null,
       });
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao ler arquivo externo.', error);
@@ -3190,12 +3206,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     setIsHumanizingExternal(true);
     try {
       const systemPrompt = `Você é um editor de escrita sênior especialista em remover traços de redação de IA (slop) e tornar textos naturais, fluidos e humanos.
-Diretrizes estritas (não ignore nenhuma):
+Você deve analisar o roteiro enviado e produzir obrigatoriamente um objeto JSON contendo exatamente duas chaves:
+- "audit": Um relatório detalhado estruturado em Markdown listando quais pontos ou expressões específicas do texto original foram ajustados/polidos (identificando vícios de IA removidos ou melhorias de tom) e a justificativa para cada ajuste. Use uma tabela Markdown ou tópicos organizados.
+- "humanizedText": O texto completo do roteiro reescrito de forma natural, fluida e humanizada, sem introduções, comentários externos ou tags.
+
+Diretrizes estritas de escrita (não ignore nenhuma):
 1. NUNCA use travessões (— ou –). Substitua por vírgula, parênteses ou quebre em frases curtas.
 2. NUNCA use clichês de IA (delve, tapestry, testament, moreover, align, crucial, interplay, key, vibrant, etc.).
 3. Prefira sempre voz ativa e frases diretas.
 4. Varie o ritmo do texto, misturando frases curtas e diretas com frases maiores.
-5. Retorne APENAS o roteiro reescrito de forma natural, sem introdução nem considerações.`;
+
+O retorno deve ser estritamente no formato JSON, sem marcações ou textos adicionais fora do JSON, contendo as propriedades "audit" e "humanizedText".`;
 
       const humanizePrompt = `${systemPrompt}
 
@@ -3212,7 +3233,7 @@ ${textToAnalyze}`;
           prompt: humanizePrompt,
           apiKeyOverwrite: apiKey,
           projectConfig: activeProject?.ai_engine_rules,
-          responseType: 'text'
+          responseType: 'json'
         }),
       });
 
@@ -3228,18 +3249,70 @@ ${textToAnalyze}`;
         resultText = data.choices?.[0]?.message?.content || '';
       }
 
-      resultText = resultText.trim().replace(/^```(text|markdown)?\s*/i, '').replace(/```$/, '').trim();
-      if (!resultText) throw new Error('Retorno vazio do humanizador.');
+      resultText = resultText.trim();
+      if (resultText.startsWith('```')) {
+        resultText = resultText.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+      }
 
-      setExternalScriptText(resultText);
-      persistExecutionSnapshotLocally({ externalScriptText: resultText });
-      showToast('✨ Roteiro humanizado com sucesso!');
+      let parsed;
+      try {
+        parsed = JSON.parse(resultText);
+      } catch (parseErr) {
+        const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            parsed = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            throw new Error('Falha ao parsear o JSON retornado pelo assistente.');
+          }
+        } else {
+          throw new Error('Retorno do assistente não continha um objeto JSON válido.');
+        }
+      }
+
+      const audit = parsed.audit || '';
+      const humanizedText = parsed.humanizedText || '';
+
+      if (!humanizedText) {
+        throw new Error('O retorno não possui o roteiro humanizado ("humanizedText").');
+      }
+
+      setExternalHumanizeReport(audit || 'Texto ajustado com sucesso.');
+      setPendingHumanizedText(humanizedText);
+      persistExecutionSnapshotLocally({
+        externalHumanizeReport: audit || 'Texto ajustado com sucesso.',
+        pendingHumanizedText: humanizedText
+      });
+      showToast('✨ Auditoria de humanização gerada! Revise abaixo.');
     } catch (err: any) {
       console.error(err);
       alert(`Erro ao humanizar: ${err.message || err}`);
     } finally {
       setIsHumanizingExternal(false);
     }
+  };
+
+  const handleApplyHumanizedText = () => {
+    if (!pendingHumanizedText) return;
+    setExternalScriptText(pendingHumanizedText);
+    setPendingHumanizedText(null);
+    setExternalHumanizeReport(null);
+    persistExecutionSnapshotLocally({
+      externalScriptText: pendingHumanizedText,
+      pendingHumanizedText: null,
+      externalHumanizeReport: null
+    });
+    showToast('✨ Texto humanizado aplicado com sucesso!');
+  };
+
+  const handleDiscardHumanizedText = () => {
+    setPendingHumanizedText(null);
+    setExternalHumanizeReport(null);
+    persistExecutionSnapshotLocally({
+      pendingHumanizedText: null,
+      externalHumanizeReport: null
+    });
+    showToast('Alterações humanizadas descartadas.');
   };
 
   const handleExternalFactCheck = async () => {
@@ -4595,6 +4668,9 @@ COMO USAR NO WINDOWS:
     setManualPublishDate('');
     setVisualBlueprintSetting('');
     setVisualBlueprintCast([]);
+    setExternalFactCheckReport(null);
+    setExternalHumanizeReport(null);
+    setPendingHumanizedText(null);
     setManualPublishDraftDate('');
     setManualPublishDraftTime('');
     setScriptBlocks([
@@ -7251,48 +7327,50 @@ COMO USAR NO WINDOWS:
         )}
 
         <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
-            <div className="shrink-0">
-              <span className="block mb-2 text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
-              <div className="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/8">
-              {([
-                { value: "internal" as ExecutionMode, title: "No Aplicativo" },
-                { value: "external" as ExecutionMode, title: "Externamente" },
-              ]).map((option) => {
-                const isActive = executionMode === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setExecutionMode(option.value)}
-                    className={`rounded-lg px-5 py-2 text-[10px] font-black uppercase tracking-[1.5px] transition-all ${
-                      isActive
-                        ? "bg-blue-500/20 border border-blue-400/40 text-blue-200 shadow-sm"
-                        : "text-white/40 hover:text-white/70 border border-transparent"
-                    }`}
-                  >
-                    {option.title}
-                  </button>
-                );
-              })}
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+            <div className="flex-1 flex flex-col gap-4">
+              <div>
+                <span className="block mb-2 text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
+                <div className="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/8 w-fit">
+                {([
+                  { value: "internal" as ExecutionMode, title: "No Aplicativo" },
+                  { value: "external" as ExecutionMode, title: "Externamente" },
+                ]).map((option) => {
+                  const isActive = executionMode === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setExecutionMode(option.value)}
+                      className={`rounded-lg px-5 py-2 text-[10px] font-black uppercase tracking-[1.5px] transition-all ${
+                        isActive
+                          ? "bg-blue-500/20 border border-blue-400/40 text-blue-200 shadow-sm"
+                          : "text-white/40 hover:text-white/70 border border-transparent"
+                      }`}
+                    >
+                      {option.title}
+                    </button>
+                  );
+                })}
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Personalidade & Tom de Voz</span>
+                <textarea
+                  value={writingStyleSample}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setWritingStyleSample(val);
+                    persistExecutionSnapshotLocally({ writingStyleSample: val });
+                  }}
+                  placeholder="Cole aqui um paragrafo ou roteiro de exemplo do apresentador para calibrar a voz da IA (Opcional)..."
+                  className="w-full min-h-[80px] max-h-[160px] bg-midnight/40 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white/70 leading-normal outline-none focus:border-purple-500/40 resize-y placeholder:text-white/20"
+                />
               </div>
             </div>
-            
-            <div className="flex-1 flex flex-col justify-center xl:border-l border-white/10 xl:pl-6 gap-2">
-              <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Personalidade & Tom de Voz</span>
-              <textarea
-                value={writingStyleSample}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setWritingStyleSample(val);
-                  persistExecutionSnapshotLocally({ writingStyleSample: val });
-                }}
-                placeholder="Cole aqui um paragrafo ou roteiro de exemplo do apresentador para calibrar a voz da IA (Opcional)..."
-                className="w-full min-h-[60px] max-h-[120px] bg-midnight/40 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white/70 leading-normal outline-none focus:border-purple-500/40 resize-y placeholder:text-white/20"
-              />
-            </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 w-full xl:w-[380px] shrink-0">
                 <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
                   Data e hora de postagem
                 </label>
@@ -7444,6 +7522,63 @@ COMO USAR NO WINDOWS:
                           </button>
                         )}
                       </div>
+
+                      {externalHumanizeReport && (
+                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-white/5">
+                            <span className="text-[10px] font-black uppercase tracking-[2px] text-purple-300">
+                              ✨ Relatório de Humanização & Ajustes de Escrita
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={handleApplyHumanizedText}
+                                className="px-3.5 py-1.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/35 border border-purple-400/40 text-[9px] font-black uppercase tracking-wider text-purple-100 transition-all active:scale-95 shadow-sm"
+                              >
+                                Aplicar Texto Humanizado
+                              </button>
+                              {pendingHumanizedText && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextToClipboard(pendingHumanizedText, '📋 Roteiro humanizado copiado!')}
+                                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
+                                  title="Copiar texto humanizado proposto"
+                                >
+                                  Copiar Roteiro
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => copyTextToClipboard(externalHumanizeReport, '📋 Relatório de auditoria copiado!')}
+                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
+                                title="Copiar relatório de modificações"
+                              >
+                                Copiar Auditoria
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleDiscardHumanizedText}
+                                className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-[9px] font-black uppercase tracking-wider text-red-300 transition-all active:scale-95"
+                              >
+                                Descartar
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2 whitespace-pre-wrap">
+                            {externalHumanizeReport}
+                          </div>
+
+                          {pendingHumanizedText && (
+                            <div className="mt-3 space-y-2 pt-3 border-t border-white/5">
+                              <span className="block text-[9px] font-black uppercase tracking-widest text-purple-400">Texto Humanizado Proposto:</span>
+                              <div className="p-3.5 bg-black/45 rounded-xl border border-white/5 text-[11px] text-white/80 max-h-[220px] overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
+                                {pendingHumanizedText}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {externalFactCheckReport && (
                         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.03] p-5 space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-200">

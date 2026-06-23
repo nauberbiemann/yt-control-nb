@@ -70,12 +70,12 @@ export const MODEL_ALIAS_MAP: Record<string, string> = {
   'o4-mini':       'o4-mini',
 
   // Google Gemini Models Map
-  'gemini-3-flash':         'gemini-3-flash',
-  'gemini-3.1-flash':       'gemini-3.1-flash',
-  'gemini-3.1-pro':         'gemini-3.1-pro',
-  'gemini-2.5-flash':       'gemini-2.5-flash',
+  'gemini-3-flash':         'gemini-1.5-flash',
+  'gemini-3.1-flash':       'gemini-1.5-flash',
+  'gemini-3.1-pro':         'gemini-1.5-pro',
+  'gemini-2.5-flash':       'gemini-1.5-flash',
   'gemini-2.0-flash':       'gemini-2.0-flash',
-  'gemini-3-flash-preview': 'gemini-3-flash-preview',
+  'gemini-3-flash-preview': 'gemini-2.0-flash',
 };
 
 /** Resolves a UI model ID to the actual API model string. Falls back to the raw ID. */

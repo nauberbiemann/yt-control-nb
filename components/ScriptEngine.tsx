@@ -1233,6 +1233,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [externalFactCheckReport, setExternalFactCheckReport] = useState<string | null>(null);
   const [externalHumanizeReport, setExternalHumanizeReport] = useState<string | null>(null);
   const [pendingHumanizedText, setPendingHumanizedText] = useState<string | null>(null);
+  const [isHumanizeReportExpanded, setIsHumanizeReportExpanded] = useState<boolean>(false);
   const [writingStyleSample, setWritingStyleSample] = useState<string>('');
   const executionStorageKey = activeProject?.id ? `ws_script_execution_${activeProject.id}` : null;
   const defaultExecutionMode: ExecutionMode = activeProject?.default_execution_mode === 'external' ? 'external' : 'internal';
@@ -3279,6 +3280,7 @@ ${textToAnalyze}`;
 
       setExternalHumanizeReport(audit || 'Texto ajustado com sucesso.');
       setPendingHumanizedText(humanizedText);
+      setIsHumanizeReportExpanded(false);
       persistExecutionSnapshotLocally({
         externalHumanizeReport: audit || 'Texto ajustado com sucesso.',
         pendingHumanizedText: humanizedText
@@ -3348,7 +3350,7 @@ ${textToAnalyze}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           engine: 'gemini',
-          model: 'gemini-3.1-pro',
+          model: 'gemini-1.5-pro',
           prompt: factCheckPrompt,
           apiKeyOverwrite: geminiKey,
           projectConfig: activeProject?.ai_engine_rules,
@@ -7525,10 +7527,15 @@ COMO USAR NO WINDOWS:
 
                       {externalHumanizeReport && (
                         <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-white/5">
-                            <span className="text-[10px] font-black uppercase tracking-[2px] text-purple-300">
-                              ✨ Relatório de Humanização & Ajustes de Escrita
-                            </span>
+                          <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isHumanizeReportExpanded ? 'pb-3 border-b border-white/5' : ''}`}>
+                            <button
+                              type="button"
+                              onClick={() => setIsHumanizeReportExpanded(!isHumanizeReportExpanded)}
+                              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[2px] text-purple-300 hover:text-purple-200 transition-all text-left outline-none"
+                            >
+                              <span className="text-[11px] font-bold text-purple-400">{isHumanizeReportExpanded ? '▼' : '▶'}</span>
+                              <span>✨ Relatório de Humanização & Ajustes</span>
+                            </button>
                             <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
@@ -7565,17 +7572,21 @@ COMO USAR NO WINDOWS:
                             </div>
                           </div>
                           
-                          <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2 whitespace-pre-wrap">
-                            {externalHumanizeReport}
-                          </div>
-
-                          {pendingHumanizedText && (
-                            <div className="mt-3 space-y-2 pt-3 border-t border-white/5">
-                              <span className="block text-[9px] font-black uppercase tracking-widest text-purple-400">Texto Humanizado Proposto:</span>
-                              <div className="p-3.5 bg-black/45 rounded-xl border border-white/5 text-[11px] text-white/80 max-h-[220px] overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
-                                {pendingHumanizedText}
+                          {isHumanizeReportExpanded && (
+                            <>
+                              <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2 whitespace-pre-wrap">
+                                {externalHumanizeReport}
                               </div>
-                            </div>
+
+                              {pendingHumanizedText && (
+                                <div className="mt-3 space-y-2 pt-3 border-t border-white/5">
+                                  <span className="block text-[9px] font-black uppercase tracking-widest text-purple-400">Texto Humanizado Proposto:</span>
+                                  <div className="p-3.5 bg-black/45 rounded-xl border border-white/5 text-[11px] text-white/80 max-h-[220px] overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
+                                    {pendingHumanizedText}
+                                  </div>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

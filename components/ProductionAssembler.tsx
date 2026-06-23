@@ -822,7 +822,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
       // Read engine settings from localStorage (set by EngineSelector)
       const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'gemini';
-      const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gemini-2.0-flash';
+      const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gemini-3.5-flash';
       const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
 
       // Call V15 AI Shuffle Engine

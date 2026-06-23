@@ -759,7 +759,7 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = buildShufflePrompt(body, selectionPlan, videoFormat);
-    const apiModel = resolveModel(model || 'gemini-2.0-flash');
+    const apiModel = resolveModel(model || 'gemini-3.5-flash');
 
     let responseData: Record<string, unknown>;
 

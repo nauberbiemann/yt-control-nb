@@ -244,7 +244,7 @@ export default function SunoStudio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           engine: 'gemini',
-          model: 'gemini-3.1-pro',
+          model: 'gemini-3.5-flash',
           prompt: prompt,
           apiKeyOverwrite: geminiKey,
           responseType: 'text' // Texto puro
@@ -348,7 +348,7 @@ export default function SunoStudio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           engine: 'gemini',
-          model: 'gemini-3.1-pro',
+          model: 'gemini-3.5-flash',
           prompt: prompt,
           apiKeyOverwrite: geminiKey,
           responseType: 'json'

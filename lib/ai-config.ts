@@ -22,12 +22,11 @@ export const AI_MODELS = {
     { id: 'o4-mini',       name: 'o4-mini (Reasoning)', isDefault: false },
   ],
   gemini: [
-    { id: 'gemini-3-flash',         name: 'Gemini 3 Flash',         isDefault: true  },
-    { id: 'gemini-3.1-pro',         name: 'Gemini 3.1 Pro',         isDefault: false },
-    { id: 'gemini-3.1-flash',       name: 'Gemini 3.1 Flash',       isDefault: false },
+    { id: 'gemini-3.5-flash',       name: 'Gemini 3.5 Flash',       isDefault: true  },
+    { id: 'gemini-3.1-pro',         name: 'Gemini 3.1 Pro (Pago)',  isDefault: false },
+    { id: 'gemini-3.1-flash-lite',  name: 'Gemini 3.1 Flash Lite',  isDefault: false },
+    { id: 'gemini-2.5-pro',         name: 'Gemini 2.5 Pro (Gratuito)', isDefault: false },
     { id: 'gemini-2.5-flash',       name: 'Gemini 2.5 Flash',       isDefault: false },
-    { id: 'gemini-2.0-flash',       name: 'Gemini 2.0 Flash',       isDefault: false },
-    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', isDefault: false },
   ]
 };
 
@@ -70,12 +69,11 @@ export const MODEL_ALIAS_MAP: Record<string, string> = {
   'o4-mini':       'o4-mini',
 
   // Google Gemini Models Map
-  'gemini-3-flash':         'gemini-3-flash',
-  'gemini-3.1-flash':       'gemini-3.1-flash-preview',
+  'gemini-3.5-flash':       'gemini-3.5-flash',
   'gemini-3.1-pro':         'gemini-3.1-pro-preview',
+  'gemini-3.1-flash-lite':  'gemini-3.1-flash-lite',
+  'gemini-2.5-pro':         'gemini-2.5-pro',
   'gemini-2.5-flash':       'gemini-2.5-flash',
-  'gemini-2.0-flash':       'gemini-2.0-flash',
-  'gemini-3-flash-preview': 'gemini-3-flash-preview',
 };
 
 /** Resolves a UI model ID to the actual API model string. Falls back to the raw ID. */

@@ -3350,7 +3350,7 @@ ${textToAnalyze}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           engine: 'gemini',
-          model: 'gemini-3.1-pro',
+          model: 'gemini-3.5-flash',
           prompt: factCheckPrompt,
           apiKeyOverwrite: geminiKey,
           projectConfig: activeProject?.ai_engine_rules,

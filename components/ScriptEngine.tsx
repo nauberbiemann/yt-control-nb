@@ -190,12 +190,12 @@ const resolveErrorMessage = (errPayload: any, fallback: string): string => {
       const line = lines[i];
       const trimmed = line.trim();
 
-      if (trimmed.startsWith('|')) {
+      const hasPipe = line.includes('|');
+      if (hasPipe) {
         inTable = true;
-        const cols = line
-          .split('|')
-          .map(c => c.trim())
-          .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+        let cols = line.split('|').map(c => c.trim());
+        if (cols.length > 0 && cols[0] === '') cols.shift();
+        if (cols.length > 0 && cols[cols.length - 1] === '') cols.pop();
 
         const isSeparator = cols.every(c => c.match(/^:?-+:?$/));
 
@@ -2436,6 +2436,9 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     hfBgPrompts,
     visualBlueprintSetting,
     visualBlueprintCast,
+    externalFactCheckReport,
+    externalHumanizeReport,
+    pendingHumanizedText,
   ]);
 
   // Check storage usage on mount so the badge shows immediately if already high
@@ -3230,6 +3233,24 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     }
   };
 
+  const syncSnapshotToCloud = async (overrides: Partial<ExecutionSnapshot> = {}) => {
+    const activeSessionThemeId = typeof window !== 'undefined' && activeProject?.id
+      ? sessionStorage.getItem(`active_script_theme_${activeProject.id}`)
+      : null;
+    const currentThemeId = overrides._themeId || activeSessionThemeId || (approvedBriefing as any)?.id || (approvedBriefing as any)?.themeId || undefined;
+    
+    if (supabase && currentThemeId) {
+      const fullSnap = buildExecutionSnapshot(overrides);
+      const { externalSrtPipeline, postScriptPackage, ...compactSnap } = fullSnap as any;
+      try {
+        await upsertScriptExecution(currentThemeId, compactSnap);
+        console.log('[ScriptEngine] Synced compact snapshot to cloud successfully.');
+      } catch (err) {
+        console.warn('[ScriptEngine] Failed to sync snapshot to cloud:', err);
+      }
+    }
+  };
+
   const buildScriptBlocksFromBriefing = (briefing: any, theme: string): ScriptBlock[] => {
     const sop = activeProject?.editing_sop || { cut_rhythm: '3s', zoom_style: 'Dynamic', soundtrack: 'Reflexive' };
     const hookReference = describeNarrativeAssetReference('Camada de abertura de referencia', briefing.openingHook);
@@ -3604,6 +3625,10 @@ ${textToAnalyze}`;
         externalHumanizeReport: audit || 'Texto ajustado com sucesso.',
         pendingHumanizedText: humanizedText
       });
+      await syncSnapshotToCloud({
+        externalHumanizeReport: audit || 'Texto ajustado com sucesso.',
+        pendingHumanizedText: humanizedText
+      });
       showToast('✨ Auditoria de humanização gerada! Revise abaixo.');
     } catch (err: any) {
       console.error(err);
@@ -3613,7 +3638,7 @@ ${textToAnalyze}`;
     }
   };
 
-  const handleApplyHumanizedText = () => {
+  const handleApplyHumanizedText = async () => {
     if (!pendingHumanizedText) return;
     setExternalScriptText(pendingHumanizedText);
     setPendingHumanizedText(null);
@@ -3623,13 +3648,22 @@ ${textToAnalyze}`;
       pendingHumanizedText: null,
       externalHumanizeReport: null
     });
+    await syncSnapshotToCloud({
+      externalScriptText: pendingHumanizedText,
+      pendingHumanizedText: null,
+      externalHumanizeReport: null
+    });
     showToast('✨ Texto humanizado aplicado com sucesso!');
   };
 
-  const handleDiscardHumanizedText = () => {
+  const handleDiscardHumanizedText = async () => {
     setPendingHumanizedText(null);
     setExternalHumanizeReport(null);
     persistExecutionSnapshotLocally({
+      pendingHumanizedText: null,
+      externalHumanizeReport: null
+    });
+    await syncSnapshotToCloud({
       pendingHumanizedText: null,
       externalHumanizeReport: null
     });
@@ -3742,6 +3776,7 @@ ${textToAnalyze}`;
       setExternalFactCheckReport(resultText);
       setIsFactCheckReportExpanded(false); // sempre inicia colapsado
       persistExecutionSnapshotLocally({ externalFactCheckReport: resultText });
+      await syncSnapshotToCloud({ externalFactCheckReport: resultText });
       showToast('🔍 Fact-check concluído com sucesso!');
     } catch (err: any) {
       console.error(err);

@@ -236,15 +236,20 @@ export async function upsertScriptExecution(themeId: string, executionSnapshot: 
     // Check if it exists for this theme
     const { data: existing } = await supabase
       .from('script_executions')
-      .select('id')
+      .select('id, execution_snapshot')
       .eq('theme_id', themeId)
       .single();
 
     if (existing?.id) {
+      const mergedSnapshot = {
+        ...(existing.execution_snapshot || {}),
+        ...executionSnapshot
+      };
+
       return supabase
         .from('script_executions')
         .update({ 
-          execution_snapshot: executionSnapshot, 
+          execution_snapshot: mergedSnapshot, 
           updated_at: new Date().toISOString() 
         })
         .eq('id', existing.id)

@@ -1231,6 +1231,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isHumanizingExternal, setIsHumanizingExternal] = useState<boolean>(false);
   const [isFactCheckingExternal, setIsFactCheckingExternal] = useState<boolean>(false);
   const [externalFactCheckReport, setExternalFactCheckReport] = useState<string | null>(null);
+  const [isFactCheckReportExpanded, setIsFactCheckReportExpanded] = useState<boolean>(false);
   const [externalHumanizeReport, setExternalHumanizeReport] = useState<string | null>(null);
   const [pendingHumanizedText, setPendingHumanizedText] = useState<string | null>(null);
   const [isHumanizeReportExpanded, setIsHumanizeReportExpanded] = useState<boolean>(false);
@@ -3417,6 +3418,7 @@ ${textToAnalyze}`;
       }
 
       setExternalFactCheckReport(resultText);
+      setIsFactCheckReportExpanded(false); // sempre inicia colapsado
       persistExecutionSnapshotLocally({ externalFactCheckReport: resultText });
       showToast('🔍 Fact-check concluído com sucesso!');
     } catch (err: any) {
@@ -7641,16 +7643,37 @@ COMO USAR NO WINDOWS:
                       )}
 
                       {externalFactCheckReport && (
-                        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.03] p-5 space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-200">
-                          <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-                            <span className="text-[10px] font-black uppercase tracking-[2px] text-blue-300">
-                              🔍 Relatorio de Verificacao Factual (Google Search)
-                            </span>
+                        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+                          {/* Header colapsável */}
+                          <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isFactCheckReportExpanded ? 'pb-3 border-b border-white/5' : ''}`}>
+                            <button
+                              type="button"
+                              onClick={() => setIsFactCheckReportExpanded(!isFactCheckReportExpanded)}
+                              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[2px] text-blue-300 hover:text-blue-200 transition-all text-left outline-none"
+                            >
+                              <span className="text-[11px] font-bold text-blue-400">{isFactCheckReportExpanded ? '▼' : '▶'}</span>
+                              <span>🔍 Relatório de Verificação Factual</span>
+                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copyTextToClipboard(externalFactCheckReport, '📋 Relatório de fact-check copiado!')}
+                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
+                                title="Copiar relatório de fact-check"
+                              >
+                                Copiar Relatório
+                              </button>
+                            </div>
                           </div>
-                          
-                          <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2 whitespace-pre-wrap">
-                            {externalFactCheckReport}
-                          </div>
+
+                          {/* Conteúdo expandido com scroll interno */}
+                          {isFactCheckReportExpanded && (
+                            <div className="max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
+                              <div className="text-[11px] text-white/70 leading-relaxed font-medium space-y-2 whitespace-pre-wrap break-words">
+                                {externalFactCheckReport}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

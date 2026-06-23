@@ -3345,7 +3345,7 @@ Retorne APENAS o relatório estruturado em Markdown limpo.
 [ROTEIRO PARA VERIFICAÇÃO]:
 ${textToAnalyze}`;
 
-      const response = await fetch('/api/ai/generate', {
+      let response = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3359,13 +3359,44 @@ ${textToAnalyze}`;
         }),
       });
 
-      const data = await response.json();
+      let data = await response.json();
+      
+      const errorMessage = (data?.error?.message || data?.error || '').toLowerCase();
+      const isQuotaOrGroundingError = !response.ok && (
+        errorMessage.includes('quota') ||
+        errorMessage.includes('billing') ||
+        errorMessage.includes('grounding') ||
+        errorMessage.includes('limit')
+      );
+
+      if (isQuotaOrGroundingError) {
+        console.warn('Falha de faturamento ou quota para busca integrada do Google. Tentando novamente sem Search Grounding...');
+        response = await fetch('/api/ai/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            engine: 'gemini',
+            model: 'gemini-3.5-flash',
+            prompt: factCheckPrompt,
+            apiKeyOverwrite: geminiKey,
+            projectConfig: activeProject?.ai_engine_rules,
+            responseType: 'text',
+            useSearchGrounding: false
+          }),
+        });
+        data = await response.json();
+      }
+
       if (!response.ok) {
         throw new Error(resolveErrorMessage(data?.error, 'Erro na chamada de fact-checking.'));
       }
 
-      const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+      let resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
       if (!resultText) throw new Error('Nenhum relatório foi retornado pelo verificador.');
+
+      if (isQuotaOrGroundingError) {
+        resultText = `> ⚠️ **Aviso de Quota (Free Tier):** Como sua chave do Gemini está no plano gratuito sem faturamento ativo, a busca integrada do Google foi desabilitada e a checagem utilizou apenas o conhecimento nativo do modelo.\n\n${resultText}`;
+      }
 
       setExternalFactCheckReport(resultText);
       persistExecutionSnapshotLocally({ externalFactCheckReport: resultText });

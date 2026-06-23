@@ -1884,20 +1884,28 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         if (supabase) {
           const loadFromCloud = async () => {
             try {
-              console.log(`[ScriptEngine] Nenhum snapshot local para o projeto ${activeProject.id}. Tentando carregar última execução da nuvem...`);
-              const { data, error } = await supabase
+              const activeSessionThemeId = sessionStorage.getItem(`active_script_theme_${activeProject.id}`);
+              console.log(`[ScriptEngine] Nenhum snapshot local para o projeto ${activeProject.id}. Tentando carregar execução da nuvem... activeSessionThemeId: ${activeSessionThemeId}`);
+              
+              let query = supabase
                 .from('script_executions')
-                .select('*')
-                .eq('project_id', activeProject.id)
-                .order('updated_at', { ascending: false })
-                .limit(1);
+                .select('*');
+                
+              if (activeSessionThemeId) {
+                query = query.eq('theme_id', activeSessionThemeId);
+              } else {
+                query = query.eq('project_id', activeProject.id).order('updated_at', { ascending: false });
+              }
+              
+              const { data, error } = await query.limit(1);
               
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
                 
                 // NEW: Bypass cloud hydration if the script has already been scheduled/published
-                if (cloudSnapshot.manualPublishDate) {
+                // (Only bypass if we are NOT in an active session refresh for a specific theme)
+                if (cloudSnapshot.manualPublishDate && !activeSessionThemeId) {
                   console.log('[ScriptEngine] Cloud snapshot is already scheduled/published. Bypassing cloud hydration.');
                   clearExecutionState();
                   setExecutionHydrated(true);
@@ -2003,12 +2011,67 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       const loadHeavyAssets = async () => {
         let loadedSrt = null;
         let loadedPost = null;
+        const themeId = snapshot?._themeId || snapshot?.themeId || snapshot?.id;
 
-        if (supabase && snapshot?._themeId) {
-          const { data } = await getScriptExecution(snapshot._themeId);
+        if (supabase && themeId) {
+          const { data } = await getScriptExecution(themeId);
           if (data?.execution_snapshot) {
             loadedSrt = data.execution_snapshot.externalSrtPipeline;
             loadedPost = data.execution_snapshot.postScriptPackage;
+
+            const cloudSnapshot = data.execution_snapshot;
+
+            // 1. External Script Text
+            if ((!snapshot?.externalScriptText || snapshot.externalScriptText === '') && cloudSnapshot.externalScriptText) {
+              setExternalScriptText(cloudSnapshot.externalScriptText);
+              console.log('[ScriptEngine] Hydrated externalScriptText from cloud.');
+            }
+            // 2. External Srt Text
+            if ((!snapshot?.externalSrtText || snapshot.externalSrtText === '') && cloudSnapshot.externalSrtText) {
+              setExternalSrtText(cloudSnapshot.externalSrtText);
+              console.log('[ScriptEngine] Hydrated externalSrtText from cloud.');
+            }
+            // 3. Script Blocks
+            const localBlocks = resolveSnapshotBlocks(snapshot);
+            if (localBlocks.length === 0 && Array.isArray(cloudSnapshot.scriptBlocks) && cloudSnapshot.scriptBlocks.length > 0) {
+              setScriptBlocks(cloudSnapshot.scriptBlocks);
+              console.log('[ScriptEngine] Hydrated scriptBlocks from cloud.');
+            }
+            // 4. Background Prompts (hfBgPrompts)
+            const localHfKey = `yt_hf_bg_${executionStorageKey}`;
+            let hasLocalHf = false;
+            try {
+              const hfRaw = localStorage.getItem(localHfKey);
+              if (hfRaw) {
+                const parsed = JSON.parse(hfRaw);
+                if (Array.isArray(parsed) && parsed.length > 0) hasLocalHf = true;
+              }
+            } catch {}
+            if (!hasLocalHf && (!snapshot?.hfBgPrompts || snapshot.hfBgPrompts.length === 0) && Array.isArray(cloudSnapshot.hfBgPrompts) && cloudSnapshot.hfBgPrompts.length > 0) {
+              setHfBgPrompts(cloudSnapshot.hfBgPrompts);
+              console.log('[ScriptEngine] Hydrated hfBgPrompts from cloud.');
+              try {
+                localStorage.setItem(localHfKey, JSON.stringify(cloudSnapshot.hfBgPrompts));
+              } catch {}
+            }
+            // 5. External Srt Observer
+            if ((!snapshot?.externalSrtObserver || snapshot.externalSrtObserver.length === 0) && Array.isArray(cloudSnapshot.externalSrtObserver) && cloudSnapshot.externalSrtObserver.length > 0) {
+              setExternalSrtObserver(cloudSnapshot.externalSrtObserver);
+              console.log('[ScriptEngine] Hydrated externalSrtObserver from cloud.');
+            }
+            // 6. Reports (Fact check, Humanize, Pending humanized text)
+            if (!snapshot?.externalFactCheckReport && cloudSnapshot.externalFactCheckReport) {
+              setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
+              console.log('[ScriptEngine] Hydrated externalFactCheckReport from cloud.');
+            }
+            if (!snapshot?.externalHumanizeReport && cloudSnapshot.externalHumanizeReport) {
+              setExternalHumanizeReport(cloudSnapshot.externalHumanizeReport);
+              console.log('[ScriptEngine] Hydrated externalHumanizeReport from cloud.');
+            }
+            if (!snapshot?.pendingHumanizedText && cloudSnapshot.pendingHumanizedText) {
+              setPendingHumanizedText(cloudSnapshot.pendingHumanizedText);
+              console.log('[ScriptEngine] Hydrated pendingHumanizedText from cloud.');
+            }
           }
         }
 
@@ -2022,17 +2085,17 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         }
 
         // Fallback to local themes list if still missing (useful for restored backups with inline assets)
-        if (!loadedSrt && snapshot?._themeId) {
+        if (!loadedSrt && themeId) {
           try {
             const themesStorageKey = `themes_${activeProject.id}`;
             const localThemesRaw = localStorage.getItem(themesStorageKey);
             if (localThemesRaw) {
               const localThemes = JSON.parse(localThemesRaw);
-              const foundTheme = localThemes.find((t: any) => t.id === snapshot._themeId);
+              const foundTheme = localThemes.find((t: any) => t.id === themeId);
               const themeSnapshot = foundTheme?.production_assets?.execution_snapshot;
               if (themeSnapshot?.externalSrtPipeline) {
                 loadedSrt = themeSnapshot.externalSrtPipeline;
-                console.log(`[ScriptEngine] Fallback: carregou SRT pipeline da lista de temas para o tema ${snapshot._themeId}`);
+                console.log(`[ScriptEngine] Fallback: carregou SRT pipeline da lista de temas para o tema ${themeId}`);
               }
             }
           } catch (e) {
@@ -2049,17 +2112,17 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         }
 
         // Fallback to local themes list for post package if still missing
-        if (!loadedPost && snapshot?._themeId) {
+        if (!loadedPost && themeId) {
           try {
             const themesStorageKey = `themes_${activeProject.id}`;
             const localThemesRaw = localStorage.getItem(themesStorageKey);
             if (localThemesRaw) {
               const localThemes = JSON.parse(localThemesRaw);
-              const foundTheme = localThemes.find((t: any) => t.id === snapshot._themeId);
+              const foundTheme = localThemes.find((t: any) => t.id === themeId);
               const themeSnapshot = foundTheme?.production_assets?.execution_snapshot;
               if (themeSnapshot?.postScriptPackage) {
                 loadedPost = themeSnapshot.postScriptPackage;
-                console.log(`[ScriptEngine] Fallback: carregou post package da lista de temas para o tema ${snapshot._themeId}`);
+                console.log(`[ScriptEngine] Fallback: carregou post package da lista de temas para o tema ${themeId}`);
               }
             }
           } catch (e) {
@@ -2070,7 +2133,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         if (loadedSrt) {
           setExternalSrtPipeline(loadedSrt);
           // Auto-repair local storage key if it was missing
-          if (snapshot?._themeId) {
+          if (themeId) {
             const localKey = `${executionStorageKey}_srt_pipeline`;
             if (!localStorage.getItem(localKey)) {
               try {
@@ -2079,10 +2142,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
             }
             // Auto-repair/sync to cloud table (script_executions) if missing
             if (supabase) {
-              getScriptExecution(snapshot._themeId).then(({ data }) => {
+              getScriptExecution(themeId).then(({ data }) => {
                 if (!data || !data.execution_snapshot || !data.execution_snapshot.externalSrtPipeline) {
                   console.log(`[ScriptEngine] Auto-sync: salvando SRT pipeline e post package em script_executions na nuvem...`);
-                  upsertScriptExecution(snapshot._themeId, {
+                  upsertScriptExecution(themeId, {
                     externalSrtPipeline: loadedSrt || undefined,
                     postScriptPackage: loadedPost || undefined,
                   }).catch(err => console.warn('[ScriptEngine] Falha ao upsertar heavy assets em script_executions:', err));
@@ -2095,7 +2158,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         if (loadedPost) {
           setPostScriptPackage(loadedPost);
           // Auto-repair local storage key if it was missing
-          if (snapshot?._themeId) {
+          if (themeId) {
             const localKey = `${executionStorageKey}_post_package`;
             if (!localStorage.getItem(localKey)) {
               try {

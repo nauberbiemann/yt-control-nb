@@ -586,7 +586,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       await delay(600);
       setCurrentStep(2); // 3. Sintetizando Escopo Antigravity (API)
       const engine = selectedAIConfig?.engine || 'gemini';
-      const model = selectedAIConfig?.model || 'gemini-1.5-flash';
+      const model = selectedAIConfig?.model || 'gemini-3-flash';
       
       const geminiKey = localStorage.getItem('yt_gemini_key');
       const openaiKey = localStorage.getItem('yt_openai_key');

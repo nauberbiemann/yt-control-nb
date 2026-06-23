@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
       prompt, 
       apiKeyOverwrite,
       projectConfig,
-      responseType = 'json'
+      responseType = 'json',
+      useSearchGrounding = false
     } = body;
 
     if (!prompt) {
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
+            ...(useSearchGrounding ? { tools: [{ googleSearchRetrieval: {} }] } : {}),
             safetySettings: [
               { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
               { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },

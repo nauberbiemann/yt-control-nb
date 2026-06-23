@@ -964,6 +964,8 @@ interface ExecutionSnapshot {
   _themeId?: string; // stable ID to find the theme even after a title rename
   useAdvancedRetention?: boolean;
   selectedThumbnailStyle?: string;
+  writingStyleSample?: string;
+  externalFactCheckReport?: string | null;
 }
 
 interface ScriptEngineProps {
@@ -1224,6 +1226,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [useAdvancedRetention, setUseAdvancedRetention] = useState<boolean>(false);
   const [selectedThumbnailStyle, setSelectedThumbnailStyle] = useState<string>('Default');
   const [isMobilePreview, setIsMobilePreview] = useState<boolean>(false);
+  const [isHumanizingExternal, setIsHumanizingExternal] = useState<boolean>(false);
+  const [isFactCheckingExternal, setIsFactCheckingExternal] = useState<boolean>(false);
+  const [externalFactCheckReport, setExternalFactCheckReport] = useState<string | null>(null);
+  const [writingStyleSample, setWritingStyleSample] = useState<string>('');
   const executionStorageKey = activeProject?.id ? `ws_script_execution_${activeProject.id}` : null;
   const defaultExecutionMode: ExecutionMode = activeProject?.default_execution_mode === 'external' ? 'external' : 'internal';
 
@@ -1536,6 +1542,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     promptPrefix,
     useAdvancedRetention,
     selectedThumbnailStyle,
+    writingStyleSample,
+    externalFactCheckReport,
     ...overrides,
   });
 
@@ -1916,6 +1924,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
                 if (typeof cloudSnapshot.useAdvancedRetention === 'boolean') setUseAdvancedRetention(cloudSnapshot.useAdvancedRetention);
                 if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
+                if (typeof cloudSnapshot.writingStyleSample === 'string') setWritingStyleSample(cloudSnapshot.writingStyleSample);
+                if (typeof cloudSnapshot.externalFactCheckReport === 'string' || cloudSnapshot.externalFactCheckReport === null) setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
                 
                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
@@ -1965,6 +1975,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.promptPrefix === 'string') setPromptPrefix(snapshot.promptPrefix);
       if (typeof snapshot?.useAdvancedRetention === 'boolean') setUseAdvancedRetention(snapshot.useAdvancedRetention);
       if (typeof snapshot?.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(snapshot.selectedThumbnailStyle);
+      if (typeof snapshot?.writingStyleSample === 'string') setWritingStyleSample(snapshot.writingStyleSample);
+      if (typeof snapshot?.externalFactCheckReport === 'string' || snapshot?.externalFactCheckReport === null) setExternalFactCheckReport(snapshot.externalFactCheckReport);
       // Detect pending title update injected by ThemeBank on resume
       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
@@ -3156,6 +3168,138 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       alert(`Erro ao extrair visuais: ${err.message}`);
     } finally {
       setIsExtractingVisuals(false);
+    }
+  };
+
+  const handleExternalHumanize = async () => {
+    const textToAnalyze = externalScriptText || '';
+    if (!textToAnalyze.trim()) {
+      alert('Não há roteiro para humanizar.');
+      return;
+    }
+
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+
+    if (!apiKey) {
+      alert(`Por favor, configure sua chave de API para ${engine} em Ajustes Globais.`);
+      return;
+    }
+
+    setIsHumanizingExternal(true);
+    try {
+      const systemPrompt = `Você é um editor de escrita sênior especialista em remover traços de redação de IA (slop) e tornar textos naturais, fluidos e humanos.
+Diretrizes estritas (não ignore nenhuma):
+1. NUNCA use travessões (— ou –). Substitua por vírgula, parênteses ou quebre em frases curtas.
+2. NUNCA use clichês de IA (delve, tapestry, testament, moreover, align, crucial, interplay, key, vibrant, etc.).
+3. Prefira sempre voz ativa e frases diretas.
+4. Varie o ritmo do texto, misturando frases curtas e diretas com frases maiores.
+5. Retorne APENAS o roteiro reescrito de forma natural, sem introdução nem considerações.`;
+
+      const humanizePrompt = `${systemPrompt}
+
+${writingStyleSample ? `[AMOSTRA DE ESTILO DE VOZ DO APRESENTADOR (SIGA ESTA CADÊNCIA/ESTILO COPIANDO-O)]:\n${writingStyleSample}\n\n` : ''}
+[ROTEIRO PARA HUMANIZAR]:
+${textToAnalyze}`;
+
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine,
+          model,
+          prompt: humanizePrompt,
+          apiKeyOverwrite: apiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+          responseType: 'text'
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro na chamada de humanização.');
+      }
+
+      let resultText = '';
+      if (engine === 'gemini') {
+        resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        resultText = data.choices?.[0]?.message?.content || '';
+      }
+
+      resultText = resultText.trim().replace(/^```(text|markdown)?\s*/i, '').replace(/```$/, '').trim();
+      if (!resultText) throw new Error('Retorno vazio do humanizador.');
+
+      setExternalScriptText(resultText);
+      persistExecutionSnapshotLocally({ externalScriptText: resultText });
+      showToast('✨ Roteiro humanizado com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao humanizar: ${err.message || err}`);
+    } finally {
+      setIsHumanizingExternal(false);
+    }
+  };
+
+  const handleExternalFactCheck = async () => {
+    const textToAnalyze = externalScriptText || '';
+    if (!textToAnalyze.trim()) {
+      alert('Não há roteiro para verificar.');
+      return;
+    }
+
+    const geminiKey = (typeof window !== 'undefined' && localStorage.getItem('yt_gemini_key')) || '';
+    if (!geminiKey) {
+      alert('Por favor, configure sua chave da API do Google Gemini em Ajustes Globais para usar o Fact-Checker com busca integrada.');
+      return;
+    }
+
+    setIsFactCheckingExternal(true);
+    try {
+      const factCheckPrompt = `Você é um verificador de fatos (Fact-Checker) jornalístico profissional e detalhado.
+Analise o roteiro a seguir e identifique afirmações que envolvam fatos, estatísticas, datas, dados científicos, eventos históricos ou nomes de produtos/marcas.
+Para cada alegação encontrada, faça uma checagem com o motor de busca e produza um relatório estruturado no seguinte formato:
+1. Resumo Geral (Total de fatos checados, quantos corretos, alertas e incorretos).
+2. Tabela de Verificação:
+   - Fato citado | Status (✅ PRECISO, ⚠️ ALERTA, ❌ INCORRETO) | Correção/Ajuste sugerido e fonte (URL clicável se houver).
+
+Seja rigoroso e preciso. Se o fato for fictício ou alucinado, marque como incorreto.
+Retorne APENAS o relatório estruturado em Markdown limpo.
+
+[ROTEIRO PARA VERIFICAÇÃO]:
+${textToAnalyze}`;
+
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine: 'gemini',
+          model: 'gemini-1.5-pro',
+          prompt: factCheckPrompt,
+          apiKeyOverwrite: geminiKey,
+          projectConfig: activeProject?.ai_engine_rules,
+          responseType: 'text',
+          useSearchGrounding: true
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro na chamada de fact-checking.');
+      }
+
+      const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+      if (!resultText) throw new Error('Nenhum relatório foi retornado pelo verificador.');
+
+      setExternalFactCheckReport(resultText);
+      persistExecutionSnapshotLocally({ externalFactCheckReport: resultText });
+      showToast('🔍 Fact-check concluído com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao rodar fact-check: ${err.message || err}`);
+    } finally {
+      setIsFactCheckingExternal(false);
     }
   };
 
@@ -7134,6 +7278,19 @@ COMO USAR NO WINDOWS:
               </div>
             </div>
             
+            <div className="flex-1 flex flex-col justify-center xl:border-l border-white/10 xl:pl-6 gap-2">
+              <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Personalidade & Tom de Voz</span>
+              <textarea
+                value={writingStyleSample}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setWritingStyleSample(val);
+                  persistExecutionSnapshotLocally({ writingStyleSample: val });
+                }}
+                placeholder="Cole aqui um paragrafo ou roteiro de exemplo do apresentador para calibrar a voz da IA (Opcional)..."
+                className="w-full min-h-[60px] max-h-[120px] bg-midnight/40 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white/70 leading-normal outline-none focus:border-purple-500/40 resize-y placeholder:text-white/20"
+              />
+            </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                 <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
@@ -7225,10 +7382,84 @@ COMO USAR NO WINDOWS:
                   <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
                   <textarea
                     value={externalScriptText}
-                    onChange={(e) => setExternalScriptText(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setExternalScriptText(val);
+                      persistExecutionSnapshotLocally({ externalScriptText: val });
+                    }}
                     placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
                     className="w-full min-h-[100px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
                   />
+                  {externalScriptText && (
+                    <div className="space-y-3 mt-2">
+                      <div className="flex flex-wrap gap-2.5">
+                        <button
+                          type="button"
+                          onClick={handleExternalHumanize}
+                          disabled={isHumanizingExternal}
+                          className="px-4 py-2 rounded-xl border border-purple-500/30 bg-purple-500/10 text-[9px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Remover vícios de escrita de IA e adaptar ao tom de voz de referência"
+                        >
+                          {isHumanizingExternal ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Polindo escrita...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={12} />
+                              Humanizar Roteiro
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExternalFactCheck}
+                          disabled={isFactCheckingExternal}
+                          className="px-4 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10 text-[9px] font-black uppercase tracking-wider text-blue-300 hover:bg-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Executar verificação factual utilizando Gemini com busca em tempo real do Google"
+                        >
+                          {isFactCheckingExternal ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Verificando fatos...
+                            </>
+                          ) : (
+                            <>
+                              <Database size={12} />
+                              Fact-Check Roteiro
+                            </>
+                          )}
+                        </button>
+                        {externalFactCheckReport && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExternalFactCheckReport(null);
+                              persistExecutionSnapshotLocally({ externalFactCheckReport: null });
+                            }}
+                            className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-wider text-white/50 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
+                          >
+                            Limpar Relatorio
+                          </button>
+                        )}
+                      </div>
+
+                      {externalFactCheckReport && (
+                        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.03] p-5 space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+                          <div className="flex items-center gap-2 pb-2 border-b border-white/5">
+                            <span className="text-[10px] font-black uppercase tracking-[2px] text-blue-300">
+                              🔍 Relatorio de Verificacao Factual (Google Search)
+                            </span>
+                          </div>
+                          
+                          <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2 whitespace-pre-wrap">
+                            {externalFactCheckReport}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">

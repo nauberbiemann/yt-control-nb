@@ -3770,7 +3770,10 @@ ${textToAnalyze}`;
       if (!resultText) throw new Error('Nenhum relatório foi retornado pelo verificador.');
 
       if (isQuotaOrGroundingError) {
-        resultText = `> ⚠️ **Aviso (Fallback Automático):** A primeira tentativa falhou (modelo indisponível, quota excedida ou busca integrada não suportada no plano gratuito). A verificação foi realizada com **Gemini 2.5 Flash** usando apenas o conhecimento nativo do modelo, sem busca em tempo real.\n\n${resultText}`;
+        const errorDetail = rawError && typeof rawError === 'object' && rawError.message 
+          ? rawError.message 
+          : (typeof rawError === 'string' ? rawError : errorMessage || 'desconhecido');
+        resultText = `> ⚠️ **Aviso (Fallback Automático):** A primeira tentativa com busca em tempo real falhou (Motivo: *${errorDetail}*). A verificação foi realizada com **Gemini 2.5 Flash** usando apenas o conhecimento nativo do modelo, sem busca em tempo real.\n\n${resultText}`;
       }
 
       setExternalFactCheckReport(resultText);

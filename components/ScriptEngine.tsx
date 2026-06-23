@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
-import { immutableInsert, upsertScriptExecution, getScriptExecution } from '@/lib/supabase-mutations';
+import { immutableInsert, upsertScriptExecution, getScriptExecution, syncAndFreeTheme } from '@/lib/supabase-mutations';
 import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText, FolderOpen, Check, Loader2 } from 'lucide-react';
 import {
   applyAssetRules,
@@ -1552,6 +1552,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     externalFactCheckReport,
     externalHumanizeReport,
     pendingHumanizedText,
+    _themeId: overrides._themeId || (typeof window !== 'undefined' && activeProject?.id ? sessionStorage.getItem(`active_script_theme_${activeProject.id}`) || undefined : undefined) || (approvedBriefing as any)?.id || (approvedBriefing as any)?.themeId || undefined,
     ...overrides,
   });
 
@@ -2784,14 +2785,57 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
     setManualPublishDate(nextValue);
 
-    // When moving to scheduled/published, txt and srt content are no longer needed.
-    // Clear them from state to free localStorage space for the next project in production.
-    if (isSchedulingOrPublishing) {
-      setExternalScriptText('');
-      setExternalSrtText('');
-      setExternalSrtObserver(buildInitialSrtObserver());
+    const activeSessionThemeId = typeof window !== 'undefined' && activeProject?.id
+      ? sessionStorage.getItem(`active_script_theme_${activeProject.id}`)
+      : null;
+    const resolvedThemeId = approvedBriefing?.id || approvedBriefing?.themeId || activeSessionThemeId || buildExecutionSnapshot()._themeId;
+
+    if (isSchedulingOrPublishing && resolvedThemeId && executionStorageKey) {
+      // 1. Build the full snapshot containing current script blocks/text and heavy assets
+      const fullSnapshot = buildExecutionSnapshot({
+        manualPublishDate: nextValue,
+      });
+
+      try {
+        const { success, bytesFreed } = await syncAndFreeTheme(
+          resolvedThemeId,
+          activeProject.id,
+          fullSnapshot,
+          executionStorageKey
+        );
+
+        if (success) {
+          showToast(`✅ Sincronizado com a nuvem e espaço local liberado (${(bytesFreed / 1024 / 1024).toFixed(2)} MB).`);
+          
+          // Clear states locally as they are safely in Supabase now
+          setExternalScriptText('');
+          setExternalSrtText('');
+          setExternalSrtObserver(buildInitialSrtObserver());
+          setExternalSrtPipeline(null);
+          setPostScriptPackage(null);
+
+          // Update theme status in theme bank table to represent compact scheduled/published
+          if (approvedBriefing && approvedTheme) {
+            await syncApprovedThemeSnapshot({
+              manualPublishDate: nextValue,
+              externalScriptText: '',
+              externalSrtText: '',
+              externalSrtObserver: [],
+              externalSrtPipeline: null,
+              postScriptPackage: null,
+            });
+          }
+          return;
+        } else {
+          showToast('⚠️ Sincronização automática falhou. Mantendo dados locais por segurança.');
+        }
+      } catch (err) {
+        console.warn('[ScriptEngine] syncAndFreeTheme failed:', err);
+        showToast('⚠️ Erro ao conectar ao banco. Dados mantidos localmente.');
+      }
     }
 
+    // Normal path or fallback if not scheduling/publishing or if sync failed
     if (approvedBriefing && approvedTheme) {
       await syncApprovedThemeSnapshot({
         manualPublishDate: nextValue,

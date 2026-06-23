@@ -2,7 +2,7 @@
  * lib/garbage-collector.ts
  * 
  * Coletor de Lixo Automático e Inteligente (Garbage Collector - GC) para o Content OS.
- * Mantém o localStorage do navegador de forma silenciosa abaixo do limite crítico (2.5 MB),
+ * Mantém o localStorage do navegador de forma silenciosa abaixo do limite crítico (1.8 MB),
  * garantindo integridade absoluta com o Supabase antes de liberar ou comprimir qualquer dado local.
  */
 
@@ -85,13 +85,13 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
 
   const currentSizeMB = getLocalStorageSizeMB();
   
-  // Só executa se o tamanho for > 2.5 MB ou se for forçado
-  if (!force && currentSizeMB <= 2.5) {
+  // Só executa se o tamanho for > 1.8 MB ou se for forçado
+  if (!force && currentSizeMB <= 1.8) {
     return {
       lastRun: new Date().toISOString(),
       bytesCleaned: 0,
       status: 'idle',
-      details: [`Ignorado: localStorage está saudável (${currentSizeMB.toFixed(2)} MB). Limite de disparo é 2.5 MB.`]
+      details: [`Ignorado: localStorage está saudável (${currentSizeMB.toFixed(2)} MB). Limite de disparo é 1.8 MB.`]
     };
   }
 
@@ -400,19 +400,24 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
     }
 
     // -------------------------------------------------------------------------
-    // FASE E: Limpeza Segura de Pipelines e Ativos do Workspace Sincronizados
+    // FASE E: Limpeza Segura de Pipelines, Ativos e Snapshots Principais
     // -------------------------------------------------------------------------
-    logDetails.push('[GC] Fase E: Analisando pipelines de workspace ativos...');
+    logDetails.push('[GC] Fase E: Analisando pipelines e snapshots de workspace ativos...');
     const wsKeys: string[] = [];
+    const mainWsKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i) || '';
-      if (key.startsWith('ws_script_execution_') && key.endsWith('_srt_pipeline')) {
-        wsKeys.push(key);
+      if (key.startsWith('ws_script_execution_')) {
+        if (key.endsWith('_srt_pipeline')) {
+          wsKeys.push(key);
+        } else if (!key.endsWith('_post_package')) {
+          mainWsKeys.push(key);
+        }
       }
     }
 
+    // 1. Limpeza de sub-chaves pesadas (srt_pipeline e post_package)
     for (const srtKey of wsKeys) {
-      // ws_script_execution_${projectId}_srt_pipeline
       const prefix = 'ws_script_execution_';
       const suffix = '_srt_pipeline';
       const projectId = srtKey.substring(prefix.length, srtKey.length - suffix.length);
@@ -427,7 +432,6 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         const themeId = wsMain._themeId || wsMain.themeId;
 
         if (themeId) {
-          // Verifica na nuvem se a execução com o pipeline já está salva
           const { data: remoteExecution, error: execError } = await supabase
             .from('script_executions')
             .select('theme_id, execution_snapshot')
@@ -435,7 +439,6 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
             .single();
 
           if (remoteExecution && remoteExecution.execution_snapshot?.externalSrtPipeline) {
-            // Já está na nuvem! Podemos remover com segurança absoluta
             const srtRaw = localStorage.getItem(srtKey);
             const postRaw = localStorage.getItem(postKey);
 
@@ -455,6 +458,64 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         }
       } catch (e: any) {
         logDetails.push(`[Aviso] Falha ao processar pipeline de workspace para ${projectId}: ${e.message}`);
+      }
+    }
+
+    // 2. Limpeza de snapshots principais ws_script_execution_* finalizados (scheduled/published)
+    for (const mainKey of mainWsKeys) {
+      const wsMainRaw = localStorage.getItem(mainKey);
+      if (!wsMainRaw) continue;
+
+      try {
+        const wsMain = JSON.parse(wsMainRaw);
+        const themeId = wsMain._themeId || wsMain.themeId;
+        const publishDate = wsMain.manualPublishDate;
+        
+        // Só remove se estiver finalizado (tem data de publicação)
+        if (themeId && publishDate) {
+          const { data: remoteExecution, error: execError } = await supabase
+            .from('script_executions')
+            .select('theme_id, execution_snapshot')
+            .eq('theme_id', themeId)
+            .single();
+
+          if (remoteExecution && remoteExecution.execution_snapshot) {
+            // Confirmado na nuvem. Pode remover a chave principal e suas dependências
+            const srtKey = `${mainKey}_srt_pipeline`;
+            const postKey = `${mainKey}_post_package`;
+            const hfKey = `yt_hf_bg_${mainKey}`;
+            
+            let freed = getStringSize(wsMainRaw);
+            localStorage.removeItem(mainKey);
+            
+            const srtRaw = localStorage.getItem(srtKey);
+            if (srtRaw) {
+              freed += getStringSize(srtRaw);
+              localStorage.removeItem(srtKey);
+            }
+            const postRaw = localStorage.getItem(postKey);
+            if (postRaw) {
+              freed += getStringSize(postRaw);
+              localStorage.removeItem(postKey);
+            }
+            const hfRaw = localStorage.getItem(hfKey);
+            if (hfRaw) {
+              freed += getStringSize(hfRaw);
+              localStorage.removeItem(hfKey);
+            }
+            const snapKey = `snapshot_${themeId}`;
+            const snapRaw = localStorage.getItem(snapKey);
+            if (snapRaw) {
+              freed += getStringSize(snapRaw);
+              localStorage.removeItem(snapKey);
+            }
+
+            totalBytesCleaned += freed;
+            logDetails.push(`[GC] Workspace principal finalizado para o tema ${themeId} expurgado (dados salvos na nuvem). Liberado: ${(freed / 1024).toFixed(1)} KB`);
+          }
+        }
+      } catch (e: any) {
+        logDetails.push(`[Aviso] Falha ao processar snapshot principal para ${mainKey}: ${e.message}`);
       }
     }
 
@@ -479,5 +540,278 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
     };
     saveGCLog(errLog);
     return errLog;
+  }
+};
+
+/**
+ * Sincroniza todos os dados locais com o Supabase e realiza o expurgo com confirmação (Camada 2).
+ * Exibido no painel de resgate como botão único de 1 clique.
+ */
+export const syncAndPurgeAll = async (): Promise<{
+  success: boolean;
+  bytesFreed: number;
+  details: string[];
+}> => {
+  const logDetails: string[] = [];
+  let totalBytesCleaned = 0;
+
+  if (typeof window === 'undefined') {
+    return { success: false, bytesFreed: 0, details: ['Ignorado: Ambiente de servidor.'] };
+  }
+
+  logDetails.push('[Sync & Purge] Iniciando sincronização e limpeza segura...');
+
+  if (!supabase) {
+    const err = 'Supabase não configurado. Abortando para evitar perda de dados.';
+    logDetails.push(`[ERRO] ${err}`);
+    return { success: false, bytesFreed: 0, details: logDetails };
+  }
+
+  if (!navigator.onLine) {
+    const err = 'Navegador offline. A limpeza exige conexão com a nuvem.';
+    logDetails.push(`[ERRO] ${err}`);
+    return { success: false, bytesFreed: 0, details: logDetails };
+  }
+
+  try {
+    // -------------------------------------------------------------------------
+    // Passo 1: Sincronizar todos os ws_script_execution_* principais
+    // -------------------------------------------------------------------------
+    logDetails.push('[Sync & Purge] Passo 1: Analisando e enviando execuções de roteiros...');
+    const wsKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || '';
+      if (key.startsWith('ws_script_execution_') && !key.endsWith('_srt_pipeline') && !key.endsWith('_post_package')) {
+        wsKeys.push(key);
+      }
+    }
+
+    for (const mainKey of wsKeys) {
+      const wsMainRaw = localStorage.getItem(mainKey);
+      if (!wsMainRaw) continue;
+
+      try {
+        const wsMain = JSON.parse(wsMainRaw);
+        const themeId = wsMain._themeId || wsMain.themeId;
+        const projectId = wsMain.projectId || wsMain.project_id || mainKey.replace('ws_script_execution_', '');
+
+        if (themeId && projectId) {
+          // Reunir srt_pipeline e post_package se existirem localmente
+          const srtKey = `${mainKey}_srt_pipeline`;
+          const postKey = `${mainKey}_post_package`;
+          const srtRaw = localStorage.getItem(srtKey);
+          const postRaw = localStorage.getItem(postKey);
+
+          const fullSnapshot = {
+            ...wsMain,
+          };
+          if (srtRaw && !fullSnapshot.externalSrtPipeline) {
+            fullSnapshot.externalSrtPipeline = JSON.parse(srtRaw);
+          }
+          if (postRaw && !fullSnapshot.postScriptPackage) {
+            fullSnapshot.postScriptPackage = JSON.parse(postRaw);
+          }
+
+          logDetails.push(`[Sync & Purge] Enviando snapshot completo para o tema ${themeId}...`);
+          
+          // Upsert no Supabase
+          const { data: existing } = await supabase
+            .from('script_executions')
+            .select('id')
+            .eq('theme_id', themeId)
+            .single();
+
+          let upsertResult;
+          if (existing?.id) {
+            upsertResult = await supabase
+              .from('script_executions')
+              .update({
+                execution_snapshot: fullSnapshot,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existing.id)
+              .select()
+              .single();
+          } else {
+            upsertResult = await supabase
+              .from('script_executions')
+              .insert({
+                project_id: projectId,
+                theme_id: themeId,
+                execution_snapshot: fullSnapshot
+              })
+              .select()
+              .single();
+          }
+
+          if (upsertResult.error) {
+            logDetails.push(`[Aviso] Falha ao enviar execução do tema ${themeId}: ${upsertResult.error.message}`);
+          } else if (upsertResult.data) {
+            // Confirmado! Pode expurgar do localStorage
+            const hfKey = `yt_hf_bg_${mainKey}`;
+            const snapKey = `snapshot_${themeId}`;
+
+            let freed = getStringSize(wsMainRaw);
+            localStorage.removeItem(mainKey);
+
+            if (srtRaw) {
+              freed += getStringSize(srtRaw);
+              localStorage.removeItem(srtKey);
+            }
+            if (postRaw) {
+              freed += getStringSize(postRaw);
+              localStorage.removeItem(postKey);
+            }
+            const hfRaw = localStorage.getItem(hfKey);
+            if (hfRaw) {
+              freed += getStringSize(hfRaw);
+              localStorage.removeItem(hfKey);
+            }
+            const snapRaw = localStorage.getItem(snapKey);
+            if (snapRaw) {
+              freed += getStringSize(snapRaw);
+              localStorage.removeItem(snapKey);
+            }
+
+            totalBytesCleaned += freed;
+            logDetails.push(`[Sync & Purge] Roteiro do tema ${themeId} sincronizado e limpo. Liberado: ${(freed / 1024).toFixed(1)} KB`);
+          }
+        }
+      } catch (e: any) {
+        logDetails.push(`[Aviso] Erro no processamento de ${mainKey}: ${e.message}`);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Passo 2: Sincronizar e comprimir temas de todos os projetos (themes_*)
+    // -------------------------------------------------------------------------
+    logDetails.push('[Sync & Purge] Passo 2: Sincronizando e comprimindo temas...');
+    const themeKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || '';
+      if (key.startsWith('themes_') && !key.includes('backup') && !key.includes('archive')) {
+        themeKeys.push(key);
+      }
+    }
+
+    for (const key of themeKeys) {
+      const localThemesRaw = localStorage.getItem(key);
+      if (!localThemesRaw) continue;
+
+      try {
+        const localThemes = JSON.parse(localThemesRaw);
+        if (!Array.isArray(localThemes) || localThemes.length === 0) continue;
+
+        let arrayChanged = false;
+        let fileBytesSaved = 0;
+
+        for (let j = 0; j < localThemes.length; j++) {
+          const theme = localThemes[j];
+          if (theme.production_assets && !theme.production_assets._compressed) {
+            logDetails.push(`[Sync & Purge] Enviando ativos do tema "${theme.title}"...`);
+            
+            const sanitized = sanitizeThemeForCloud(theme);
+            const { error: upsertError } = await supabase
+              .from('themes')
+              .upsert(sanitized);
+
+            if (!upsertError) {
+              const sizeBefore = getStringSize(JSON.stringify(theme.production_assets));
+              theme.production_assets = { _compressed: true };
+              arrayChanged = true;
+
+              const sizeAfter = getStringSize(JSON.stringify(theme.production_assets));
+              fileBytesSaved += (sizeBefore - sizeAfter);
+              logDetails.push(`[Sync & Purge] Tema "${theme.title}" salvo e comprimido localmente.`);
+            } else {
+              logDetails.push(`[Aviso] Falha ao enviar tema "${theme.title}": ${upsertError.message}`);
+            }
+          }
+        }
+
+        if (arrayChanged) {
+          const updatedThemesRaw = JSON.stringify(localThemes);
+          localStorage.setItem(key, updatedThemesRaw);
+          totalBytesCleaned += fileBytesSaved;
+        }
+      } catch (e: any) {
+        logDetails.push(`[Aviso] Erro nos temas de ${key}: ${e.message}`);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Passo 3: Sincronizar e limpar logs de BI (bi_*)
+    // -------------------------------------------------------------------------
+    logDetails.push('[Sync & Purge] Passo 3: Sincronizando logs de BI...');
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || '';
+      if (key.startsWith('bi_')) {
+        const localLogsRaw = localStorage.getItem(key);
+        if (!localLogsRaw) continue;
+
+        try {
+          const localLogs = JSON.parse(localLogsRaw);
+          if (!Array.isArray(localLogs) || localLogs.length === 0) continue;
+
+          const localLogIds = localLogs.map((log: any) => log.id).filter(Boolean);
+          if (localLogIds.length === 0) continue;
+
+          const { data: remoteLogs, error: logError } = await supabase
+            .from('composition_log')
+            .select('id')
+            .in('id', localLogIds);
+
+          if (!logError) {
+            const remoteIdsSet = new Set((remoteLogs || []).map((l: any) => l.id));
+            const logsToKeep = localLogs.filter((log: any) => !remoteIdsSet.has(log.id));
+
+            if (logsToKeep.length < localLogs.length) {
+              const cleanedCount = localLogs.length - logsToKeep.length;
+              const updatedLogsRaw = JSON.stringify(logsToKeep);
+              const bytesCleaned = getStringSize(localLogsRaw) - getStringSize(updatedLogsRaw);
+
+              localStorage.setItem(key, updatedLogsRaw);
+              totalBytesCleaned += bytesCleaned;
+              logDetails.push(`[Sync & Purge] Removidos ${cleanedCount} logs de BI sincronizados.`);
+            }
+          }
+        } catch (e: any) {
+          logDetails.push(`[Aviso] Erro nos logs de BI para ${key}: ${e.message}`);
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Passo 4: Limpar arquivo de projetos antigo
+    // -------------------------------------------------------------------------
+    const archiveRaw = localStorage.getItem('writer_studio_projects_archive');
+    if (archiveRaw) {
+      try {
+        const archive = JSON.parse(archiveRaw);
+        if (Array.isArray(archive) && archive.length > 1) {
+          const trimmed = archive.slice(0, 1);
+          const trimmedRaw = JSON.stringify(trimmed);
+          const bytesCleaned = getStringSize(archiveRaw) - getStringSize(trimmedRaw);
+          localStorage.setItem('writer_studio_projects_archive', trimmedRaw);
+          totalBytesCleaned += bytesCleaned;
+        }
+      } catch {}
+    }
+
+    const finalSizeMB = getLocalStorageSizeMB();
+    logDetails.push(`[Sync & Purge] Finalizado! Tamanho final: ${finalSizeMB.toFixed(2)} MB. Total liberado: ${(totalBytesCleaned / 1024 / 1024).toFixed(2)} MB`);
+
+    return {
+      success: true,
+      bytesFreed: totalBytesCleaned,
+      details: logDetails
+    };
+  } catch (err: any) {
+    logDetails.push(`[ERRO CRÍTICO] Falha na limpeza forçada: ${err.message || err}`);
+    return {
+      success: false,
+      bytesFreed: totalBytesCleaned,
+      details: logDetails
+    };
   }
 };

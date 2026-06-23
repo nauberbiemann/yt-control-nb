@@ -277,3 +277,90 @@ export async function getScriptExecution(themeId: string): Promise<{ data: any; 
     .eq('theme_id', themeId)
     .single();
 }
+
+export async function syncAndFreeTheme(
+  themeId: string,
+  projectId: string,
+  fullSnapshot: any,
+  storageBaseKey: string
+): Promise<{ success: boolean; bytesFreed: number }> {
+  if (!supabase) {
+    return { success: false, bytesFreed: 0 };
+  }
+
+  const hasLocalStorage = typeof window !== 'undefined' && window.localStorage;
+  const srtPipelineKey = `${storageBaseKey}_srt_pipeline`;
+  const postPackageKey = `${storageBaseKey}_post_package`;
+  const hfKey = `yt_hf_bg_${storageBaseKey}`;
+
+  // 1. Ensure fullSnapshot has the srt pipeline and post package from localStorage if they aren't already in fullSnapshot
+  if (hasLocalStorage) {
+    if (!fullSnapshot.externalSrtPipeline) {
+      try {
+        const localSrt = localStorage.getItem(srtPipelineKey);
+        if (localSrt) {
+          fullSnapshot.externalSrtPipeline = JSON.parse(localSrt);
+        }
+      } catch (e) {
+        console.warn('[syncAndFreeTheme] Error reading srt pipeline from localStorage:', e);
+      }
+    }
+
+    if (!fullSnapshot.postScriptPackage) {
+      try {
+        const localPost = localStorage.getItem(postPackageKey);
+        if (localPost) {
+          fullSnapshot.postScriptPackage = JSON.parse(localPost);
+        }
+      } catch (e) {
+        console.warn('[syncAndFreeTheme] Error reading post package from localStorage:', e);
+      }
+    }
+  }
+
+  try {
+    // 2. Perform upsert of the complete snapshot
+    const { data, error } = await upsertScriptExecution(themeId, fullSnapshot);
+
+    if (error) {
+      console.error('[syncAndFreeTheme] Supabase upsert failed:', error);
+      return { success: false, bytesFreed: 0 };
+    }
+
+    // 3. Confirm arrival by checking returned data
+    if (!data) {
+      console.warn('[syncAndFreeTheme] Upsert returned empty data.');
+      return { success: false, bytesFreed: 0 };
+    }
+
+    // 4. If upsert was successful, delete keys from localStorage
+    let bytesFreed = 0;
+    if (hasLocalStorage) {
+      const keysToClean = [
+        storageBaseKey,
+        srtPipelineKey,
+        postPackageKey,
+        hfKey,
+        `snapshot_${themeId}`
+      ];
+
+      keysToClean.forEach(key => {
+        try {
+          const val = localStorage.getItem(key);
+          if (val) {
+            bytesFreed += val.length * 2;
+            localStorage.removeItem(key);
+          }
+        } catch (e) {
+          console.warn(`[syncAndFreeTheme] Error removing key ${key} from localStorage:`, e);
+        }
+      });
+    }
+
+    return { success: true, bytesFreed };
+  } catch (err) {
+    console.error('[syncAndFreeTheme] Critical error during sync and free:', err);
+    return { success: false, bytesFreed: 0 };
+  }
+}
+

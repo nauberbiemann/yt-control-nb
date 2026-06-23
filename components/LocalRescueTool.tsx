@@ -19,7 +19,7 @@ import {
   Server,
   Zap
 } from 'lucide-react';
-import { executeBackgroundGarbageCollection, getGCLog, GCLog } from '@/lib/garbage-collector';
+import { executeBackgroundGarbageCollection, getGCLog, GCLog, syncAndPurgeAll } from '@/lib/garbage-collector';
 
 export function LocalRescueTool() {
   const [storageMB, setStorageMB] = useState(0);
@@ -36,6 +36,10 @@ export function LocalRescueTool() {
   const [showGcLogs, setShowGcLogs] = useState(false);
   const [gcActionFeedback, setGcActionFeedback] = useState<string | null>(null);
   const [showAdvancedRescue, setShowAdvancedRescue] = useState(false);
+
+  // Estados do Fluxo de Sincronização Unificada (Camada 2)
+  const [isSyncingAndPurging, setIsSyncingAndPurging] = useState(false);
+  const [syncAndPurgeLog, setSyncAndPurgeLog] = useState<string[] | null>(null);
 
   const calculateStorage = () => {
     if (typeof window === 'undefined') return;
@@ -280,8 +284,38 @@ export function LocalRescueTool() {
     }
   };
 
-  // Cálculo da percentagem de espaço ocupado (limite de alerta 2.5MB)
-  const storagePercentage = Math.min((storageMB / 2.5) * 100, 100);
+  const handleSyncAndPurgeAll = async () => {
+    if (isSyncingAndPurging) return;
+    setIsSyncingAndPurging(true);
+    setShowGcLogs(true);
+    setSyncAndPurgeLog([
+      '[Interface] Iniciando fluxo de sincronização unificado...',
+      '[Interface] Testando conectividade com Supabase e status da rede...'
+    ]);
+
+    try {
+      const res = await syncAndPurgeAll();
+      setSyncAndPurgeLog(res.details);
+
+      if (res.success) {
+        const freedMB = (res.bytesFreed / 1024 / 1024).toFixed(2);
+        setGcActionFeedback(`Limpeza concluída! ${freedMB} MB liberados.`);
+        alert(`Sincronização e limpeza concluídas com sucesso!\n\nEspaço liberado: ${freedMB} MB.\nO aplicativo será recarregado.`);
+        window.location.reload();
+      } else {
+        alert('Falha na sincronização segura. Verifique os logs e sua conexão.');
+      }
+    } catch (e: any) {
+      setSyncAndPurgeLog(prev => [...(prev || []), `[ERRO] Falha no processo: ${e.message || e}`]);
+      alert('Erro ao executar sincronização segura: ' + e.message);
+    } finally {
+      setIsSyncingAndPurging(false);
+      calculateStorage();
+    }
+  };
+
+  // Cálculo da percentagem de espaço ocupado (limite de alerta 1.8MB)
+  const storagePercentage = Math.min((storageMB / 1.8) * 100, 100);
 
   // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 4 MB), SE O UPLOAD FOR CONCLUÍDO OU SE O USUÁRIO ABRIR O MODO MANUAL
   if (storageMB >= 4 || uploadStatus === 'success' || showAdvancedRescue) {
@@ -325,73 +359,51 @@ export function LocalRescueTool() {
             </h2>
             <p className="text-slate-400 text-sm mt-2 leading-relaxed max-w-2xl">
               {isEmergency 
-                ? 'Seu navegador atingiu o limite físico de memória e vai começar a travar ou perder roteiros. Siga os 3 passos abaixo nesta ordem exata para salvar seus arquivos em segurança para o banco de dados oficial (Supabase) e liberar a memória local.'
-                : 'Use esta área para transferir todos os dados temporários do navegador para o banco de dados seguro do Supabase e limpar a memória local (reduzindo a barra de limite de volta a 0%). Siga os 3 passos abaixo.'
+                ? 'Seu navegador atingiu o limite físico de memória e pode começar a travar ou perder roteiros. Clique no botão de Sincronização Unificada abaixo para salvar tudo com segurança na nuvem (Supabase) e liberar espaço local imediatamente.'
+                : 'Use esta área para transferir com segurança todos os dados temporários do navegador para a nuvem e liberar armazenamento local em 1 único clique.'
               }
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-          
-          {/* PASSO 1 */}
-          <div className="bg-slate-800/50 p-5 rounded-lg border border-slate-700 relative group">
-            <div className="absolute -top-3 -left-3 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-black border-4 border-slate-900 shadow-lg">1</div>
-            <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-              <HardDriveDownload className="w-5 h-5 text-blue-400" /> Baixar Backup Local
+        <div className="flex flex-col gap-6 mt-8 items-center max-w-2xl mx-auto text-center w-full">
+          {/* BOTÃO PRINCIPAL PROMINENTE */}
+          <div className="w-full bg-slate-800/40 p-6 rounded-xl border border-slate-700 shadow-lg flex flex-col items-center gap-4">
+            <h3 className="text-lg font-black text-white flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400 animate-pulse" /> Sincronização e Limpeza Segura em 1 Clique
             </h3>
-            <p className="text-xs text-slate-400 mb-4 h-10">Cria um arquivo .json físico no seu computador contendo todos os roteiros. Garantia total contra perda.</p>
+            <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+              Envia todos os roteiros, temas e logs pendentes para o banco de dados oficial e limpa o cache do navegador instantaneamente.
+            </p>
+
+            <button
+              onClick={handleSyncAndPurgeAll}
+              disabled={isSyncingAndPurging}
+              className="w-full px-8 py-4 rounded-xl text-base font-black transition-all bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-xl shadow-emerald-900/30 flex items-center justify-center gap-3 active:scale-[0.99] disabled:opacity-50"
+            >
+              <RefreshCw className={`w-5 h-5 ${isSyncingAndPurging ? 'animate-spin' : ''}`} />
+              {isSyncingAndPurging ? 'Sincronizando e Limpando...' : '🔄 Sincronizar e Limpar com Segurança'}
+            </button>
+
+            {isSyncingAndPurging && (
+              <div className="w-full bg-slate-950/60 rounded-full h-1.5 overflow-hidden mt-2">
+                <div className="bg-emerald-500 h-full animate-pulse" style={{ width: '85%' }}></div>
+              </div>
+            )}
+          </div>
+
+          {/* OPÇÃO SECUNDÁRIA DE BACKUP */}
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-[10px] text-slate-500 uppercase font-bold">Ou, se preferir um backup físico antes:</span>
             <button 
               onClick={handleDownloadBackup}
               disabled={isDownloading}
-              className={`w-full py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                hasDownloaded ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
-              }`}
+              className="px-5 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-all flex items-center justify-center gap-2 shadow-sm"
             >
-              {hasDownloaded ? <><CheckCircle2 className="w-4 h-4" /> Arquivo Baixado</> : 'Baixar .JSON Seguro'}
+              <HardDriveDownload className="w-3.5 h-3.5 text-blue-400" />
+              {hasDownloaded ? '✓ JSON Baixado' : '⬇ Baixar JSON de Segurança'}
             </button>
           </div>
-
-          {/* PASSO 2 */}
-          <div className={`bg-slate-800/50 p-5 rounded-lg border border-slate-700 relative transition-all ${!hasDownloaded ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-            <div className="absolute -top-3 -left-3 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center font-black border-4 border-slate-900 text-slate-900 shadow-lg">2</div>
-            <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-              <CloudUpload className="w-5 h-5 text-amber-400" /> Sincronizar Nuvem
-            </h3>
-            <p className="text-xs text-slate-400 mb-4 h-10">Copia silenciosamente seus {storageMB.toFixed(1)}MB para o banco de dados seguro do Supabase.</p>
-            <button 
-              onClick={handleUploadToCloud}
-              disabled={isUploading || uploadStatus === 'success'}
-              className={`w-full py-2.5 rounded-md text-sm font-bold transition-all relative overflow-hidden ${
-                uploadStatus === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg shadow-amber-500/20'
-              }`}
-            >
-              {isUploading && (
-                <div className="absolute top-0 left-0 h-full bg-black/10" style={{ width: `${uploadProgress}%` }}></div>
-              )}
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {uploadStatus === 'success' ? <><CheckCircle2 className="w-4 h-4" /> 100% Sincronizado</> : 
-                 isUploading ? `Enviando... ${uploadProgress}%` : 'Sincronizar com Supabase'}
-              </span>
-            </button>
-          </div>
-
-          {/* PASSO 3 */}
-          <div className={`bg-slate-800/50 p-5 rounded-lg border border-red-500/30 relative transition-all ${uploadStatus !== 'success' ? 'opacity-40 grayscale pointer-events-none' : 'shadow-[0_0_20px_rgba(239,68,68,0.2)]'}`}>
-            <div className="absolute -top-3 -left-3 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center font-black border-4 border-slate-900 text-white shadow-lg">3</div>
-            <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-red-400" /> Expurgar Memória
-            </h3>
-            <p className="text-xs text-slate-400 mb-4 h-10">Libera os 10MB do seu navegador agora que seus dados estão seguros na nuvem.</p>
-            <button 
-              onClick={handlePurge}
-              disabled={isPurging}
-              className="w-full py-2.5 rounded-md text-sm font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
-            >
-              {isPurging ? 'Limpando...' : 'Expurgar e Recarregar'}
-            </button>
-          </div>
-
         </div>
 
         {/* DIAGNÓSTICO DE TAMANHO DE CHAVES */}
@@ -423,9 +435,9 @@ export function LocalRescueTool() {
           </div>
         )}
 
-        {/* LOGS DO COLETOR NA VISTA DE EMERGÊNCIA */}
+        {/* LOGS DO PROCESSO */}
         <div className="mt-4 flex justify-between items-center text-[10px] text-slate-500">
-          <span>Último Ciclo: {gcLog ? new Date(gcLog.lastRun).toLocaleTimeString() : 'Nunca'}</span>
+          <span>Último Ciclo de GC: {gcLog ? new Date(gcLog.lastRun).toLocaleTimeString() : 'Nunca'}</span>
           <button 
             onClick={() => setShowGcLogs(!showGcLogs)}
             className="text-blue-400 hover:text-blue-300 font-bold"
@@ -436,8 +448,20 @@ export function LocalRescueTool() {
 
         {showGcLogs && (
           <div className="mt-3 bg-slate-950/80 p-3 rounded-lg border border-slate-800 font-mono text-[10px] text-slate-400 max-h-48 overflow-y-auto flex flex-col gap-1 shadow-inner">
-            <p className="text-emerald-500 font-bold mb-1">// COLETOR DE LIXO SEGURO - LOGS DE EXECUÇÃO EM BACKGROUND</p>
-            {gcLog && gcLog.details && gcLog.details.length > 0 ? (
+            <p className="text-emerald-500 font-bold mb-1">// LOGS DE SINCRONIZAÇÃO E EXPURGO SEGURO</p>
+            {syncAndPurgeLog && syncAndPurgeLog.length > 0 ? (
+              syncAndPurgeLog.map((detail, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="text-slate-600 select-none">[{idx + 1}]</span>
+                  <span className={
+                    detail.includes('[ERRO]') ? 'text-red-400 font-bold' :
+                    detail.includes('[Sync & Purge]') ? 'text-blue-300' :
+                    detail.includes('sincronizado') || detail.includes('limpo') || detail.includes('comprimido') ? 'text-emerald-400' :
+                    'text-slate-300'
+                  }>{detail}</span>
+                </div>
+              ))
+            ) : gcLog && gcLog.details && gcLog.details.length > 0 ? (
               gcLog.details.map((detail, idx) => (
                 <div key={idx} className="flex gap-2">
                   <span className="text-slate-600 select-none">[{idx + 1}]</span>
@@ -521,7 +545,7 @@ export function LocalRescueTool() {
           <div className="text-left md:text-right pr-2">
             <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Armazenamento Local</p>
             <p className="text-xs font-black text-slate-300">
-              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 2.50 MB máx</span>
+              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 1.80 MB recom.</span>
             </p>
           </div>
 
@@ -576,7 +600,7 @@ export function LocalRescueTool() {
         </div>
       )}
 
-      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 2.5MB) */}
+      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 1.8MB) */}
       <div className="w-full bg-slate-900/30 p-3 rounded-lg border border-slate-800/50">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -584,21 +608,21 @@ export function LocalRescueTool() {
           </span>
           <div className="flex items-center gap-2">
             <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-              storageMB >= 2.5 ? 'bg-rose-500 animate-pulse' : storageMB > 1.8 ? 'bg-amber-500' : 'bg-emerald-500'
+              storageMB >= 1.8 ? 'bg-rose-500 animate-pulse' : storageMB > 1.2 ? 'bg-amber-500' : 'bg-emerald-500'
             }`} />
             <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
-              storageMB >= 2.5 ? 'text-rose-400' : storageMB > 1.8 ? 'text-amber-400' : 'text-emerald-400'
+              storageMB >= 1.8 ? 'text-rose-400' : storageMB > 1.2 ? 'text-amber-400' : 'text-emerald-400'
             }`}>
-              {storageMB >= 2.5 ? 'Limite Excedido' : storageMB > 1.8 ? 'Atenção' : 'Excelente'} ({((storageMB / 2.5) * 100).toFixed(0)}%)
+              {storageMB >= 1.8 ? 'Limite Recomendado Excedido' : storageMB > 1.2 ? 'Atenção' : 'Excelente'} ({((storageMB / 1.8) * 100).toFixed(0)}%)
             </span>
           </div>
         </div>
         <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/60 relative">
           <div 
             className={`h-full rounded-full transition-all duration-500 ${
-              storageMB >= 2.5
+              storageMB >= 1.8
                 ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                : storageMB > 1.8
+                : storageMB > 1.2
                 ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
                 : 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
             }`}
@@ -607,8 +631,8 @@ export function LocalRescueTool() {
         </div>
         <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-500">
           <span>0.00 MB (Vazio)</span>
-          <span className="font-medium text-slate-400">Limite Recomendado: 2.50 MB</span>
-          <span>2.50+ MB</span>
+          <span className="font-medium text-slate-400">Limite Recomendado: 1.80 MB</span>
+          <span>1.80+ MB</span>
         </div>
       </div>
 

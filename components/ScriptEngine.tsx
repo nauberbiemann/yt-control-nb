@@ -3218,7 +3218,7 @@ ${textToAnalyze}`;
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro na chamada de humanização.');
+        throw new Error(resolveErrorMessage(data?.error, 'Erro na chamada de humanização.'));
       }
 
       let resultText = '';
@@ -3275,7 +3275,7 @@ ${textToAnalyze}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           engine: 'gemini',
-          model: 'gemini-1.5-pro',
+          model: 'gemini-3.1-pro',
           prompt: factCheckPrompt,
           apiKeyOverwrite: geminiKey,
           projectConfig: activeProject?.ai_engine_rules,
@@ -3286,7 +3286,7 @@ ${textToAnalyze}`;
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro na chamada de fact-checking.');
+        throw new Error(resolveErrorMessage(data?.error, 'Erro na chamada de fact-checking.'));
       }
 
       const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();

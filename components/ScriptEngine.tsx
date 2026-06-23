@@ -3361,25 +3361,43 @@ ${textToAnalyze}`;
 
       let data = await response.json();
       
-      const errorMessage = (data?.error?.message || data?.error || '').toLowerCase();
+      // Normaliza o erro para string independente se vier como objeto ou string
+      const rawError = data?.error;
+      const errorMessage = typeof rawError === 'string'
+        ? rawError.toLowerCase()
+        : (typeof rawError === 'object' && rawError !== null
+            ? (rawError.message || rawError.status || JSON.stringify(rawError)).toLowerCase()
+            : '');
+
+      // Fallback sem Search Grounding para: quota, billing, grounding não disponível,
+      // modelo não encontrado, sem permissão ou serviço indisponível
       const isQuotaOrGroundingError = !response.ok && (
         errorMessage.includes('quota') ||
         errorMessage.includes('billing') ||
         errorMessage.includes('grounding') ||
-        errorMessage.includes('limit')
+        errorMessage.includes('limit') ||
+        errorMessage.includes('not_found') ||
+        errorMessage.includes('not found') ||
+        errorMessage.includes('permission_denied') ||
+        errorMessage.includes('permission denied') ||
+        errorMessage.includes('unavailable') ||
+        errorMessage.includes('api_key_invalid') ||
+        response.status === 404 ||
+        response.status === 403
       );
 
       if (isQuotaOrGroundingError) {
-        console.warn('Falha de faturamento ou quota para busca integrada do Google. Tentando novamente sem Search Grounding...');
+        console.warn('Erro na 1ª tentativa do fact-check (modelo/grounding/quota). Tentando novamente com gemini-2.5-flash sem Search Grounding...', { errorMessage, status: response.status });
+        // Fallback: usa gemini-2.5-flash sem search grounding (100% compatível com free tier)
         response = await fetch('/api/ai/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             engine: 'gemini',
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.5-flash',
             prompt: factCheckPrompt,
             apiKeyOverwrite: geminiKey,
-            projectConfig: activeProject?.ai_engine_rules,
+            projectConfig: null, // ignora config do projeto para usar o modelo de fallback
             responseType: 'text',
             useSearchGrounding: false
           }),
@@ -3395,7 +3413,7 @@ ${textToAnalyze}`;
       if (!resultText) throw new Error('Nenhum relatório foi retornado pelo verificador.');
 
       if (isQuotaOrGroundingError) {
-        resultText = `> ⚠️ **Aviso de Quota (Free Tier):** Como sua chave do Gemini está no plano gratuito sem faturamento ativo, a busca integrada do Google foi desabilitada e a checagem utilizou apenas o conhecimento nativo do modelo.\n\n${resultText}`;
+        resultText = `> ⚠️ **Aviso (Fallback Automático):** A primeira tentativa falhou (modelo indisponível, quota excedida ou busca integrada não suportada no plano gratuito). A verificação foi realizada com **Gemini 2.5 Flash** usando apenas o conhecimento nativo do modelo, sem busca em tempo real.\n\n${resultText}`;
       }
 
       setExternalFactCheckReport(resultText);

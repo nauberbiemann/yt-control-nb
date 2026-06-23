@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
       ? (projectConfig?.gemini_api_model || resolveModel(model))
       : (projectConfig?.openai_api_model || resolveModel(model));
 
+    console.log(`[AI Proxy] engine=${engine} requestedModel=${model} resolvedModel=${apiModel} projectConfigModel=${engine === 'gemini' ? projectConfig?.gemini_api_model : projectConfig?.openai_api_model} useSearchGrounding=${useSearchGrounding}`);
+
     // 3. Execução da Chamada (Proxy)
     if (engine === 'gemini') {
       const response = await fetch(

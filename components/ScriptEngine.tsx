@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
 import { immutableInsert, upsertScriptExecution, getScriptExecution, syncAndFreeTheme } from '@/lib/supabase-mutations';
@@ -75,6 +75,215 @@ const resolveErrorMessage = (errPayload: any, fallback: string): string => {
   }
   return fallback;
 };
+
+  const renderMarkdown = (mdText: string | null | undefined) => {
+    if (!mdText) return null;
+
+    const lines = mdText.split('\n');
+    const elements: React.ReactNode[] = [];
+
+    let inTable = false;
+    let tableHeaders: string[] = [];
+    let tableRows: string[][] = [];
+
+    const parseInlineMarkdown = (text: string) => {
+      const parts = text.split(/\*\*([^*]+)\*\*/g);
+      return parts.map((part, idx) => {
+        const isBold = idx % 2 === 1;
+        const linkParts = part.split(/\[([^\]]+)\]\(([^)]+)\)/g);
+        
+        const content = linkParts.length > 1 ? (
+          linkParts.map((subPart, subIdx) => {
+            if (subIdx % 3 === 1) {
+              const linkText = subPart;
+              const linkUrl = linkParts[subIdx + 1];
+              return (
+                <a 
+                  key={`link-${subIdx}`} 
+                  href={linkUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-blue-400 hover:underline font-bold"
+                >
+                  {linkText}
+                </a>
+              );
+            }
+            if (subIdx % 3 === 2) return null;
+            return subPart;
+          })
+        ) : part;
+
+        if (isBold) {
+          return <strong key={idx} className="font-bold text-white">{content}</strong>;
+        }
+        return <span key={idx}>{content}</span>;
+      });
+    };
+
+    const flushTable = (key: number) => {
+      if (tableHeaders.length === 0 && tableRows.length === 0) return null;
+      const headerRow = tableHeaders.length > 0 ? (
+        <tr className="border-b border-white/10 bg-white/5">
+          {tableHeaders.map((h, i) => (
+            <th key={i} className="px-3 py-2 text-left font-black uppercase tracking-wider text-[10px] text-white/50">
+              {h}
+            </th>
+          ))}
+        </tr>
+      ) : null;
+
+      const bodyRows = tableRows.map((row, rowIndex) => (
+        <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+          {row.map((cell, cellIndex) => {
+            let cellStyle = "px-3 py-2 text-[10px] text-white/80 align-top";
+            const trimmed = cell.trim();
+            if (trimmed.includes('✅ PRECISO')) {
+              return (
+                <td key={cellIndex} className={cellStyle}>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-[9px]">
+                    ✅ PRECISO
+                  </span>
+                </td>
+              );
+            } else if (trimmed.includes('⚠️ ALERTA')) {
+              return (
+                <td key={cellIndex} className={cellStyle}>
+                  <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-[9px]">
+                    ⚠️ ALERTA
+                  </span>
+                </td>
+              );
+            } else if (trimmed.includes('❌ INCORRETO')) {
+              return (
+                <td key={cellIndex} className={cellStyle}>
+                  <span className="px-2 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-red-400 font-bold text-[9px]">
+                    ❌ INCORRETO
+                  </span>
+                </td>
+              );
+            }
+            return (
+              <td key={cellIndex} className={cellStyle}>
+                {parseInlineMarkdown(cell)}
+              </td>
+            );
+          })}
+        </tr>
+      ));
+
+      inTable = false;
+      tableHeaders = [];
+      tableRows = [];
+
+      return (
+        <div key={`table-${key}`} className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-midnight/35">
+          <table className="w-full text-[10px] border-collapse">
+            <thead>{headerRow}</thead>
+            <tbody>{bodyRows}</tbody>
+          </table>
+        </div>
+      );
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith('|')) {
+        inTable = true;
+        const cols = line
+          .split('|')
+          .map(c => c.trim())
+          .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+
+        const isSeparator = cols.every(c => c.match(/^:?-+:?$/));
+
+        if (isSeparator) {
+          continue;
+        }
+
+        if (tableHeaders.length === 0 && tableRows.length === 0) {
+          tableHeaders = cols;
+        } else {
+          tableRows.push(cols);
+        }
+        continue;
+      } else if (inTable) {
+        const tbl = flushTable(i);
+        if (tbl) elements.push(tbl);
+      }
+
+      if (trimmed.startsWith('###')) {
+        elements.push(
+          <h4 key={i} className="text-[12px] font-black uppercase tracking-wider text-blue-300 mt-4 mb-2">
+            {parseInlineMarkdown(trimmed.replace(/^###\s*/, ''))}
+          </h4>
+        );
+        continue;
+      }
+      if (trimmed.startsWith('##')) {
+        elements.push(
+          <h3 key={i} className="text-[13px] font-extrabold uppercase tracking-widest text-blue-100 mt-5 mb-3 pb-1 border-b border-white/5">
+            {parseInlineMarkdown(trimmed.replace(/^##\s*/, ''))}
+          </h3>
+        );
+        continue;
+      }
+      if (trimmed.startsWith('#')) {
+        elements.push(
+          <h2 key={i} className="text-[14px] font-black uppercase text-white mt-6 mb-4">
+            {parseInlineMarkdown(trimmed.replace(/^#\s*/, ''))}
+          </h2>
+        );
+        continue;
+      }
+
+      if (trimmed.startsWith('>')) {
+        const content = trimmed.replace(/^>\s*/, '');
+        const isWarning = content.includes('⚠️') || content.includes('Aviso');
+        const bgStyle = isWarning
+          ? "border-l-4 border-amber-500 bg-amber-500/10 text-amber-200/90"
+          : "border-l-4 border-blue-500 bg-blue-500/10 text-blue-200/90";
+        
+        elements.push(
+          <div key={i} className={`p-3 rounded-r-xl my-3 text-[10px] leading-relaxed ${bgStyle}`}>
+            {parseInlineMarkdown(content)}
+          </div>
+        );
+        continue;
+      }
+
+      if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+        elements.push(
+          <div key={i} className="flex gap-2 pl-2 py-0.5 text-[10px] text-white/70">
+            <span className="text-blue-400 select-none">•</span>
+            <div className="flex-1">
+              {parseInlineMarkdown(trimmed.replace(/^[*+-]\s*/, ''))}
+            </div>
+          </div>
+        );
+        continue;
+      }
+
+      if (trimmed === '') {
+        continue;
+      }
+
+      elements.push(
+        <p key={i} className="text-[10.5px] text-white/75 leading-relaxed my-2">
+          {parseInlineMarkdown(trimmed)}
+        </p>
+      );
+    }
+
+    if (inTable) {
+      const tbl = flushTable(lines.length);
+      if (tbl) elements.push(tbl);
+    }
+
+    return <div className="space-y-1.5">{elements}</div>;
+  };
 
 const SRT_PIPELINE_SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
@@ -3444,10 +3653,14 @@ ${textToAnalyze}`;
     try {
       const factCheckPrompt = `Você é um verificador de fatos (Fact-Checker) jornalístico profissional e detalhado.
 Analise o roteiro a seguir e identifique afirmações que envolvam fatos, estatísticas, datas, dados científicos, eventos históricos ou nomes de produtos/marcas.
-Para cada alegação encontrada, faça uma checagem com o motor de busca e produza um relatório estruturado no seguinte formato:
+
+Faça uma checagem com o motor de busca e produza um relatório estruturado no seguinte formato:
 1. Resumo Geral (Total de fatos checados, quantos corretos, alertas e incorretos).
-2. Tabela de Verificação:
-   - Fato citado | Status (✅ PRECISO, ⚠️ ALERTA, ❌ INCORRETO) | Correção/Ajuste sugerido e fonte (URL clicável se houver).
+2. Tabela de Verificação Focada em Ajustes:
+   - IMPORTANTE: Para evitar que a tabela seja cortada por limite de tamanho, liste detalhadamente na tabela APENAS as afirmações que receberem o status ⚠️ ALERTA ou ❌ INCORRETO.
+   - Colunas da tabela: Fato citado | Status (⚠️ ALERTA ou ❌ INCORRETO) | Correção/Ajuste sugerido e fonte (URL clicável se houver).
+3. Lista de Fatos Confirmados (✅ PRECISO):
+   - Apresente apenas uma lista simples ou parágrafo compacto citando de forma resumida os fatos que foram confirmados e estão corretos (para não inflar o tamanho do texto).
 
 Seja rigoroso e preciso. Se o fato for fictício ou alucinado, marque como incorreto.
 Retorne APENAS o relatório estruturado em Markdown limpo.
@@ -7734,8 +7947,8 @@ COMO USAR NO WINDOWS:
                           
                           {isHumanizeReportExpanded && (
                             <>
-                              <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2 whitespace-pre-wrap">
-                                {externalHumanizeReport}
+                              <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2">
+                                {renderMarkdown(externalHumanizeReport)}
                               </div>
 
                               {pendingHumanizedText && (
@@ -7778,8 +7991,8 @@ COMO USAR NO WINDOWS:
                           {/* Conteúdo expandido com scroll interno */}
                           {isFactCheckReportExpanded && (
                             <div className="max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
-                              <div className="text-[11px] text-white/70 leading-relaxed font-medium space-y-2 whitespace-pre-wrap break-words">
-                                {externalFactCheckReport}
+                              <div className="text-[11px] text-white/70 leading-relaxed font-medium space-y-2 break-words">
+                                {renderMarkdown(externalFactCheckReport)}
                               </div>
                             </div>
                           )}

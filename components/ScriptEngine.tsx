@@ -1841,7 +1841,9 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       }
 
       // NEW: Check if the snapshot represents a finished (scheduled/published) script
-      if (snapshot && snapshot.manualPublishDate && !pendingData) {
+      // IMPORTANT: roteiro externo (executionMode === 'external') nunca deve ser limpo por este
+      // bypass — ele é uma sessão de análise contínua, não um script finalizado de produção.
+      if (snapshot && snapshot.manualPublishDate && !pendingData && snapshot.executionMode !== 'external') {
         const activeSessionThemeId = sessionStorage.getItem(`active_script_theme_${activeProject.id}`);
         const isCurrentlyActiveSession = activeSessionThemeId && (activeSessionThemeId === snapshot._themeId || activeSessionThemeId === snapshot.themeId || activeSessionThemeId === snapshot.id);
 

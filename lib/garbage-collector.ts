@@ -382,42 +382,97 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
     // FASE D: Limpeza do Histórico de Projetos (writer_studio_projects_archive)
     // -------------------------------------------------------------------------
     logDetails.push('[GC] Fase D: Analisando histórico de projetos...');
-    const archiveRaw = localStorage.getItem('writer_studio_projects_archive');
-    if (archiveRaw) {
-      try {
-        const archive = JSON.parse(archiveRaw);
-        if (Array.isArray(archive) && archive.length > 1) {
-          const trimmed = archive.slice(0, 1); // Mantém apenas o snapshot mais recente
-          const trimmedRaw = JSON.stringify(trimmed);
-          const bytesCleaned = getStringSize(archiveRaw) - getStringSize(trimmedRaw);
-          localStorage.setItem('writer_studio_projects_archive', trimmedRaw);
-          totalBytesCleaned += bytesCleaned;
-          logDetails.push(`[GC] Histórico de projetos reduzido de ${archive.length} para 1 snapshot. Liberado: ${(bytesCleaned / 1024).toFixed(1)} KB`);
-        }
-      } catch (e: any) {
-        logDetails.push(`[Aviso] Falha ao processar histórico de projetos: ${e.message}`);
+    try {
+      const archiveRaw = localStorage.getItem('writer_studio_projects_archive');
+      if (archiveRaw) {
+        const size = getStringSize(archiveRaw);
+        localStorage.removeItem('writer_studio_projects_archive');
+        totalBytesCleaned += size;
+        logDetails.push(`[GC] Histórico de projetos writer_studio_projects_archive expurgado por completo. Liberado: ${(size / 1024).toFixed(1)} KB`);
       }
+    } catch (e: any) {
+      logDetails.push(`[Aviso] Falha ao processar histórico de projetos: ${e.message}`);
     }
 
     // -------------------------------------------------------------------------
     // FASE E: Limpeza Segura de Pipelines, Ativos e Snapshots Principais
     // -------------------------------------------------------------------------
-    logDetails.push('[GC] Fase E: Analisando pipelines e snapshots de workspace ativos...');
-    const wsKeys: string[] = [];
+    logDetails.push('[GC] Fase E: Analisando pipelines, sub-chaves órfãs e snapshots de workspace...');
+    
+    // 1. Limpeza de sub-chaves órfãs (cujo wsMainKey correspondente não existe no navegador)
+    const wsPipelineAndPackageKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || '';
+      if (key.startsWith('ws_script_execution_') && (key.endsWith('_srt_pipeline') || key.endsWith('_post_package'))) {
+        wsPipelineAndPackageKeys.push(key);
+      }
+    }
+
+    for (const subKey of wsPipelineAndPackageKeys) {
+      const prefix = 'ws_script_execution_';
+      let projectId = '';
+      if (subKey.endsWith('_srt_pipeline')) {
+        projectId = subKey.substring(prefix.length, subKey.length - '_srt_pipeline'.length);
+      } else {
+        projectId = subKey.substring(prefix.length, subKey.length - '_post_package'.length);
+      }
+      const wsMainKey = `${prefix}${projectId}`;
+      if (!localStorage.getItem(wsMainKey)) {
+        try {
+          const val = localStorage.getItem(subKey);
+          let freed = 0;
+          if (val) {
+            freed += getStringSize(val);
+            localStorage.removeItem(subKey);
+          }
+          const postKey = `${wsMainKey}_post_package`;
+          const srtKey = `${wsMainKey}_srt_pipeline`;
+          const hfKey = `yt_hf_bg_${wsMainKey}`;
+
+          const postVal = localStorage.getItem(postKey);
+          if (postVal) {
+            freed += getStringSize(postVal);
+            localStorage.removeItem(postKey);
+          }
+          const srtVal = localStorage.getItem(srtKey);
+          if (srtVal) {
+            freed += getStringSize(srtVal);
+            localStorage.removeItem(srtKey);
+          }
+          const hfVal = localStorage.getItem(hfKey);
+          if (hfVal) {
+            freed += getStringSize(hfVal);
+            localStorage.removeItem(hfKey);
+          }
+
+          totalBytesCleaned += freed;
+          logDetails.push(`[GC] Chaves órfãs para o projeto ${projectId} expurgadas por completo. Liberado: ${(freed / 1024).toFixed(1)} KB`);
+        } catch (e: any) {
+          logDetails.push(`[Aviso] Falha ao expurgar chaves órfãs para ${projectId}: ${e.message}`);
+        }
+      }
+    }
+
+    // 2. Limpeza de sub-chaves pesadas ativas cujo mainKey correspondente existe E está sincronizado
+    const activeWsKeys: string[] = [];
     const mainWsKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i) || '';
       if (key.startsWith('ws_script_execution_')) {
         if (key.endsWith('_srt_pipeline')) {
-          wsKeys.push(key);
+          // Só processa se o mainKey correspondente existir (se não existir, já foi limpo no passo 1)
+          const prefix = 'ws_script_execution_';
+          const projectId = key.substring(prefix.length, key.length - '_srt_pipeline'.length);
+          if (localStorage.getItem(`${prefix}${projectId}`)) {
+            activeWsKeys.push(key);
+          }
         } else if (!key.endsWith('_post_package')) {
           mainWsKeys.push(key);
         }
       }
     }
 
-    // 1. Limpeza de sub-chaves pesadas (srt_pipeline e post_package)
-    for (const srtKey of wsKeys) {
+    for (const srtKey of activeWsKeys) {
       const prefix = 'ws_script_execution_';
       const suffix = '_srt_pipeline';
       const projectId = srtKey.substring(prefix.length, srtKey.length - suffix.length);
@@ -461,7 +516,7 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
       }
     }
 
-    // 2. Limpeza de snapshots principais ws_script_execution_* finalizados (scheduled/published)
+    // 3. Limpeza de snapshots principais ws_script_execution_* finalizados (scheduled/published)
     for (const mainKey of mainWsKeys) {
       const wsMainRaw = localStorage.getItem(mainKey);
       if (!wsMainRaw) continue;
@@ -471,7 +526,6 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         const themeId = wsMain._themeId || wsMain.themeId;
         const publishDate = wsMain.manualPublishDate;
         
-        // Só remove se estiver finalizado (tem data de publicação)
         if (themeId && publishDate) {
           const { data: remoteExecution, error: execError } = await supabase
             .from('script_executions')
@@ -480,7 +534,6 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
             .single();
 
           if (remoteExecution && remoteExecution.execution_snapshot) {
-            // Confirmado na nuvem. Pode remover a chave principal e suas dependências
             const srtKey = `${mainKey}_srt_pipeline`;
             const postKey = `${mainKey}_post_package`;
             const hfKey = `yt_hf_bg_${mainKey}`;
@@ -683,6 +736,63 @@ export const syncAndPurgeAll = async (): Promise<{
     }
 
     // -------------------------------------------------------------------------
+    // Passo 1.5: Limpeza de chaves órfãs (cujo mainKey correspondente não existe no navegador)
+    // -------------------------------------------------------------------------
+    logDetails.push('[Sync & Purge] Passo 1.5: Analisando e removendo sub-chaves órfãs...');
+    const orphanSubKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i) || '';
+      if (key.startsWith('ws_script_execution_') && (key.endsWith('_srt_pipeline') || key.endsWith('_post_package'))) {
+        orphanSubKeys.push(key);
+      }
+    }
+
+    for (const subKey of orphanSubKeys) {
+      const prefix = 'ws_script_execution_';
+      let projectId = '';
+      if (subKey.endsWith('_srt_pipeline')) {
+        projectId = subKey.substring(prefix.length, subKey.length - '_srt_pipeline'.length);
+      } else {
+        projectId = subKey.substring(prefix.length, subKey.length - '_post_package'.length);
+      }
+      const wsMainKey = `${prefix}${projectId}`;
+      if (!localStorage.getItem(wsMainKey)) {
+        try {
+          const val = localStorage.getItem(subKey);
+          let freed = 0;
+          if (val) {
+            freed += getStringSize(val);
+            localStorage.removeItem(subKey);
+          }
+          const postKey = `${wsMainKey}_post_package`;
+          const srtKey = `${wsMainKey}_srt_pipeline`;
+          const hfKey = `yt_hf_bg_${wsMainKey}`;
+
+          const postVal = localStorage.getItem(postKey);
+          if (postVal) {
+            freed += getStringSize(postVal);
+            localStorage.removeItem(postKey);
+          }
+          const srtVal = localStorage.getItem(srtKey);
+          if (srtVal) {
+            freed += getStringSize(srtVal);
+            localStorage.removeItem(srtKey);
+          }
+          const hfVal = localStorage.getItem(hfKey);
+          if (hfVal) {
+            freed += getStringSize(hfVal);
+            localStorage.removeItem(hfKey);
+          }
+
+          totalBytesCleaned += freed;
+          logDetails.push(`[Sync & Purge] Sub-chaves órfãs do projeto ${projectId} expurgadas por completo. Liberado: ${(freed / 1024).toFixed(1)} KB`);
+        } catch (e: any) {
+          logDetails.push(`[Aviso] Falha ao expurgar chaves órfãs para ${projectId}: ${e.message}`);
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // Passo 2: Sincronizar e comprimir temas de todos os projetos (themes_*)
     // -------------------------------------------------------------------------
     logDetails.push('[Sync & Purge] Passo 2: Sincronizando e comprimindo temas...');
@@ -782,19 +892,15 @@ export const syncAndPurgeAll = async (): Promise<{
     }
 
     // -------------------------------------------------------------------------
-    // Passo 4: Limpar arquivo de projetos antigo
+    // Passo 4: Limpar arquivo de projetos antigo (writer_studio_projects_archive)
     // -------------------------------------------------------------------------
     const archiveRaw = localStorage.getItem('writer_studio_projects_archive');
     if (archiveRaw) {
       try {
-        const archive = JSON.parse(archiveRaw);
-        if (Array.isArray(archive) && archive.length > 1) {
-          const trimmed = archive.slice(0, 1);
-          const trimmedRaw = JSON.stringify(trimmed);
-          const bytesCleaned = getStringSize(archiveRaw) - getStringSize(trimmedRaw);
-          localStorage.setItem('writer_studio_projects_archive', trimmedRaw);
-          totalBytesCleaned += bytesCleaned;
-        }
+        const size = getStringSize(archiveRaw);
+        localStorage.removeItem('writer_studio_projects_archive');
+        totalBytesCleaned += size;
+        logDetails.push(`[Sync & Purge] Histórico de projetos writer_studio_projects_archive limpo para economizar espaço. Liberado: ${(size / 1024).toFixed(1)} KB`);
       } catch {}
     }
 

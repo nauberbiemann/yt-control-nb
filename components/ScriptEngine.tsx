@@ -6765,45 +6765,63 @@ COMO USAR NO WINDOWS:
               <MessageSquare size={14} /> COPIAR PROMPT EXTERNO
             </button>
             <button
-              onClick={async () => {
-                if (!approvedBriefing) return alert('Aprove um assembly antes de copiar ou gerar versao.');
-                const snapshot = {
-                  project_id: activeProject?.id,
-                  theme: approvedBriefing.title || approvedTheme,
-                  briefing: approvedBriefing,
-                  blocks: scriptBlocks,
-                  created_at: new Date().toISOString(),
-                };
-                const key = `ws_assemblies_${activeProject?.id}`;
-                const existing = JSON.parse(localStorage.getItem(key) || '[]');
-                localStorage.setItem(key, JSON.stringify([snapshot, ...existing]));
-
-                const text = JSON.stringify(snapshot, null, 2);
-                await navigator.clipboard.writeText(text);
-                showToast('Briefing copiado e versao salva localmente.');
+              onClick={() => {
+                const nextVal = !useAdvancedRetention;
+                setUseAdvancedRetention(nextVal);
+                persistExecutionSnapshotLocally({ useAdvancedRetention: nextVal });
               }}
-              className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
-              title="Copiar briefing (JSON) e salvar versao local"
+              className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border ${
+                useAdvancedRetention
+                  ? "bg-purple-500/20 text-purple-400 border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]"
+                  : "bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:text-white"
+              }`}
+              title="Aplicar diretrizes de retenção avançada (Outcome-First, timing gates, incompletude estratégica e Stop Stack)"
             >
-              <Copy size={20} />
+              <Zap size={14} className={useAdvancedRetention ? "fill-purple-400/20" : ""} />
+              Retenção PDF: {useAdvancedRetention ? "ON" : "OFF"}
             </button>
-            {videoFormat === 'avatar_flow' ? (
+            <div className="flex gap-2 w-full">
               <button
-                onClick={downloadAvatarFlowPackage}
-                className="flex items-center gap-2 px-4 py-3 bg-violet-600/25 text-violet-200 rounded-xl hover:bg-violet-600/45 hover:text-white transition-all border border-violet-500/30 font-bold uppercase tracking-wider text-[10px]"
-                title="Exportar Pacote Avatar Flow (Prompts de Vídeo + Falas Limpas para Produção Sem SRT)"
+                onClick={async () => {
+                  if (!approvedBriefing) return alert('Aprove um assembly antes de copiar ou gerar versao.');
+                  const snapshot = {
+                    project_id: activeProject?.id,
+                    theme: approvedBriefing.title || approvedTheme,
+                    briefing: approvedBriefing,
+                    blocks: scriptBlocks,
+                    created_at: new Date().toISOString(),
+                  };
+                  const key = `ws_assemblies_${activeProject?.id}`;
+                  const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                  localStorage.setItem(key, JSON.stringify([snapshot, ...existing]));
+
+                  const text = JSON.stringify(snapshot, null, 2);
+                  await navigator.clipboard.writeText(text);
+                  showToast('Briefing copiado e versao salva localmente.');
+                }}
+                className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10 flex items-center justify-center aspect-square"
+                title="Copiar briefing (JSON) e salvar versao local"
               >
-                🎬 Exportar Pacote Flow
+                <Copy size={18} />
               </button>
-            ) : (
-              <button
-                onClick={downloadScriptAsTxt}
-                className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10"
-                title="Baixar todos os blocos atuais em um unico arquivo .txt"
-              >
-                <FileText size={20} />
-              </button>
-            )}
+              {videoFormat === 'avatar_flow' ? (
+                <button
+                  onClick={downloadAvatarFlowPackage}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-3 bg-violet-600/25 text-violet-200 rounded-xl hover:bg-violet-600/45 hover:text-white transition-all border border-violet-500/30 font-bold uppercase tracking-wider text-[9px]"
+                  title="Exportar Pacote Avatar Flow (Prompts de Vídeo + Falas Limpas para Produção Sem SRT)"
+                >
+                  🎬 Exportar Flow
+                </button>
+              ) : (
+                <button
+                  onClick={downloadScriptAsTxt}
+                  className="flex-1 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10 flex items-center justify-center"
+                  title="Baixar todos os blocos atuais em um unico arquivo .txt"
+                >
+                  <FileText size={18} />
+                </button>
+              )}
+            </div>
             <button 
               onClick={async () => {
                 if (!approvedBriefing) return alert('Aprove um assembly antes de gerar o roteiro.');
@@ -7116,28 +7134,6 @@ COMO USAR NO WINDOWS:
               </div>
             </div>
             
-            <div className="flex-1 flex flex-col justify-center xl:border-l border-white/10 xl:pl-6 gap-2">
-              <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Estrategia de Conteudo</span>
-              <div className="flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  id="advanced-retention-toggle"
-                  checked={useAdvancedRetention}
-                  onChange={(e) => {
-                    const nextVal = e.target.checked;
-                    setUseAdvancedRetention(nextVal);
-                    persistExecutionSnapshotLocally({ useAdvancedRetention: nextVal });
-                  }}
-                  className="w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                />
-                <label htmlFor="advanced-retention-toggle" className="text-[10px] font-black uppercase tracking-widest text-white/70 cursor-pointer select-none">
-                  Retencao Avancada (PDF 2026-2027)
-                </label>
-              </div>
-              <p className="text-[9px] text-white/40 leading-normal max-w-sm">
-                Aplica no prompt as regras de Outcome-First, timing gates, incompletude estrategica e Stop Stack.
-              </p>
-            </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                 <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">

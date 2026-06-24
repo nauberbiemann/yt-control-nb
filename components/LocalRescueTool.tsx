@@ -284,6 +284,36 @@ export function LocalRescueTool() {
     }
   };
 
+  const renderLargestKeys = () => {
+    if (typeof window === 'undefined') return null;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) || '';
+      const size = (localStorage.getItem(k) || '').length * 2;
+      keys.push({ key: k, sizeMB: size / (1024 * 1024) });
+    }
+    return keys.sort((a, b) => b.sizeMB - a.sizeMB).slice(0, 5).map((item, idx) => (
+      <div key={idx} className="flex justify-between items-center text-slate-400 py-1.5 border-b border-slate-900/40 last:border-0">
+        <span className="truncate max-w-[70%] text-slate-400" title={item.key}>{item.key}</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="font-bold text-slate-300">{item.sizeMB.toFixed(3)} MB</span>
+          <button 
+            onClick={() => {
+              if (confirm(`Atenção: Excluir a chave "${item.key}" removerá as legendas e marcações locais correspondentes. Se você já sincronizou com a nuvem ou se o roteiro já foi publicado, é totalmente seguro prosseguir. Deseja excluir mesmo assim?`)) {
+                localStorage.removeItem(item.key);
+                calculateStorage();
+              }
+            }}
+            className="p-1 hover:text-red-400 text-slate-600 transition-colors"
+            title="Excluir esta chave permanentemente"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    ));
+  };
+
   const handleSyncAndPurgeAll = async () => {
     if (isSyncingAndPurging) return;
     setIsSyncingAndPurging(true);
@@ -315,7 +345,7 @@ export function LocalRescueTool() {
   };
 
   // Cálculo da percentagem de espaço ocupado (limite de alerta 1.8MB)
-  const storagePercentage = Math.min((storageMB / 1.8) * 100, 100);
+  const storagePercentage = Math.min((storageMB / 3.5) * 100, 100);
 
   // SE O ARMAZENAMENTO ESTIVER CRÍTICO (>= 4 MB), SE O UPLOAD FOR CONCLUÍDO OU SE O USUÁRIO ABRIR O MODO MANUAL
   if (storageMB >= 4 || uploadStatus === 'success' || showAdvancedRescue) {
@@ -392,17 +422,31 @@ export function LocalRescueTool() {
             )}
           </div>
 
-          {/* OPÇÃO SECUNDÁRIA DE BACKUP */}
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-[10px] text-slate-500 uppercase font-bold">Ou, se preferir um backup físico antes:</span>
-            <button 
-              onClick={handleDownloadBackup}
-              disabled={isDownloading}
-              className="px-5 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-all flex items-center justify-center gap-2 shadow-sm"
-            >
-              <HardDriveDownload className="w-3.5 h-3.5 text-blue-400" />
-              {hasDownloaded ? '✓ JSON Baixado' : '⬇ Baixar JSON de Segurança'}
-            </button>
+          {/* OPÇÕES SECUNDÁRIAS DE BACKUP E PURGA */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 uppercase font-bold">Ou, se preferir um backup físico antes:</span>
+              <button 
+                onClick={handleDownloadBackup}
+                disabled={isDownloading}
+                className="w-full sm:w-auto px-5 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-all flex items-center justify-center gap-2 shadow-sm"
+              >
+                <HardDriveDownload className="w-3.5 h-3.5 text-blue-400" />
+                {hasDownloaded ? '✓ JSON Baixado' : '⬇ Baixar JSON de Segurança'}
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 uppercase font-bold">Forçar limpeza local sem sincronizar:</span>
+              <button 
+                onClick={handlePurge}
+                disabled={isPurging}
+                className="w-full sm:w-auto px-5 py-2 rounded-lg text-xs font-bold bg-red-950/35 hover:bg-red-900/50 text-red-300 hover:text-white border border-red-900/40 hover:border-red-700/60 transition-all flex items-center justify-center gap-2 shadow-sm"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                {isPurging ? 'Limpando...' : 'Forçar Limpeza Local Completa'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -410,21 +454,7 @@ export function LocalRescueTool() {
         <div className="mt-6 p-4 bg-slate-950/40 rounded-lg border border-slate-800 text-xs">
           <h4 className="font-bold text-slate-300 mb-2 uppercase tracking-wider text-[10px]">Maiores Chaves na Memória do Navegador:</h4>
           <div className="flex flex-col gap-1.5 font-mono text-[10px]">
-            {(() => {
-              if (typeof window === 'undefined') return null;
-              const keys = [];
-              for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i) || '';
-                const size = (localStorage.getItem(k) || '').length * 2;
-                keys.push({ key: k, sizeMB: size / (1024 * 1024) });
-              }
-              return keys.sort((a, b) => b.sizeMB - a.sizeMB).slice(0, 5).map((item, idx) => (
-                <div key={idx} className="flex justify-between text-slate-400">
-                  <span>{item.key}</span>
-                  <span className="font-bold text-slate-300">{item.sizeMB.toFixed(3)} MB</span>
-                </div>
-              ));
-            })()}
+            {renderLargestKeys()}
           </div>
         </div>
 
@@ -545,7 +575,7 @@ export function LocalRescueTool() {
           <div className="text-left md:text-right pr-2">
             <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Armazenamento Local</p>
             <p className="text-xs font-black text-slate-300">
-              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 1.80 MB recom.</span>
+              {storageMB.toFixed(2)} MB <span className="text-[10px] text-slate-500 font-medium">/ 3.50 MB recom.</span>
             </p>
           </div>
 
@@ -600,7 +630,7 @@ export function LocalRescueTool() {
         </div>
       )}
 
-      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 1.8MB) */}
+      {/* BARRA DE PROGRESSO DO LOCALSTORAGE (Limite de disparo = 3.5MB) */}
       <div className="w-full bg-slate-900/30 p-3 rounded-lg border border-slate-800/50">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -608,21 +638,21 @@ export function LocalRescueTool() {
           </span>
           <div className="flex items-center gap-2">
             <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-              storageMB >= 1.8 ? 'bg-rose-500 animate-pulse' : storageMB > 1.2 ? 'bg-amber-500' : 'bg-emerald-500'
+              storageMB >= 3.5 ? 'bg-rose-500 animate-pulse' : storageMB > 2.5 ? 'bg-amber-500' : 'bg-emerald-500'
             }`} />
             <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
-              storageMB >= 1.8 ? 'text-rose-400' : storageMB > 1.2 ? 'text-amber-400' : 'text-emerald-400'
+              storageMB >= 3.5 ? 'text-rose-400' : storageMB > 2.5 ? 'text-amber-400' : 'text-emerald-400'
             }`}>
-              {storageMB >= 1.8 ? 'Limite Recomendado Excedido' : storageMB > 1.2 ? 'Atenção' : 'Excelente'} ({((storageMB / 1.8) * 100).toFixed(0)}%)
+              {storageMB >= 3.5 ? 'Limite Recomendado Excedido' : storageMB > 2.5 ? 'Atenção' : 'Excelente'} ({((storageMB / 3.5) * 100).toFixed(0)}%)
             </span>
           </div>
         </div>
         <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/60 relative">
           <div 
             className={`h-full rounded-full transition-all duration-500 ${
-              storageMB >= 1.8
+              storageMB >= 3.5
                 ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                : storageMB > 1.2
+                : storageMB > 2.5
                 ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
                 : 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
             }`}
@@ -631,8 +661,8 @@ export function LocalRescueTool() {
         </div>
         <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-500">
           <span>0.00 MB (Vazio)</span>
-          <span className="font-medium text-slate-400">Limite Recomendado: 1.80 MB</span>
-          <span>1.80+ MB</span>
+          <span className="font-medium text-slate-400">Limite Recomendado: 3.50 MB</span>
+          <span>3.50+ MB</span>
         </div>
       </div>
 
@@ -663,6 +693,14 @@ export function LocalRescueTool() {
                 Todas as operações no cache local são precedidas por um upload e verificação de integridade no Supabase. 
                 Os identificadores de temas, roteiros e logs de BI são salvos de forma redundante e rehidratados sob demanda (lazy loading) instantaneamente.
               </p>
+            </div>
+          </div>
+
+          {/* DIAGNÓSTICO DE TAMANHO DE CHAVES */}
+          <div className="p-4 bg-slate-900/40 rounded-lg border border-slate-900 text-xs">
+            <h4 className="font-bold text-slate-300 mb-2 uppercase tracking-wider text-[10px]">Maiores Chaves na Memória do Navegador:</h4>
+            <div className="flex flex-col gap-1.5 font-mono text-[10px] mt-2">
+              {renderLargestKeys()}
             </div>
           </div>
 

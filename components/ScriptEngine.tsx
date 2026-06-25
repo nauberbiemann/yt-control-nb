@@ -3090,6 +3090,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           setExternalSrtPipeline(null);
           setPostScriptPackage(null);
 
+          // Remove the active theme ID from sessionStorage because it's now finished/scheduled
+          if (typeof window !== 'undefined' && activeProject?.id) {
+            sessionStorage.removeItem(`active_script_theme_${activeProject.id}`);
+          }
+
           // Update theme status in theme bank table to represent compact scheduled/published
           if (approvedBriefing && approvedTheme) {
             await syncApprovedThemeSnapshot({
@@ -3134,6 +3139,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
     if (isSchedulingOrPublishing) {
       showToast('Conteúdo de texto liberado. Espaço de armazenamento otimizado.');
+      // Remove the active theme ID from sessionStorage because it's now finished/scheduled
+      if (typeof window !== 'undefined' && activeProject?.id) {
+        sessionStorage.removeItem(`active_script_theme_${activeProject.id}`);
+      }
     }
   };
 
@@ -5062,6 +5071,9 @@ COMO USAR NO WINDOWS:
       // Also clear the split-storage keys for large objects
       localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
       localStorage.removeItem(`${executionStorageKey}_post_package`);
+    }
+    if (typeof window !== 'undefined' && activeProject?.id) {
+      sessionStorage.removeItem(`active_script_theme_${activeProject.id}`);
     }
 
     setApprovedTheme('');

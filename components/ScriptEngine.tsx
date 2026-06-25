@@ -3011,6 +3011,7 @@ FORMATO DE SAIDA
 - Toda a geracao deve acontecer em um único turno de resposta continuo (thread unica). Nao use ou simule requisicoes independentes.
 - Nao use cabecalhos, numeracao de blocos, titulos de secao, marcadores de markdown, colchetes ou qualquer elemento estrutural no texto entregue.
 - PROIBIDO: emojis, icones ou simbolos graficos de qualquer tipo (ex: 🟢 🔴 ✅ ⚠️). Este roteiro sera narrado em voz — apenas palavras escritas por extenso. Se quiser convidar o publico a reagir, descreva a acao por extenso ("responda com verde ou vermelho"), nunca com simbolo.
+- Certifique-se de que siglas, abreviações ou letras isoladas sejam escritas por extenso no arquivo final (ex: escrever 'ípsilon' em vez de 'Y', ou 'Estados Unidos' em vez de 'EUA') para garantir a leitura perfeita pelo motor de voz.
 - O roteiro deve fluir do inicio ao fim como uma unica fala continua. A ordem e funcao interna de cada bloco devem ser respeitadas, mas nao devem ser visiveis no texto final.
 - Nao adicione notas ao editor, indicacoes de tom, parenteses explicativos ou qualquer comentario fora da narracao.
 - ENCERRAMENTO ABSOLUTO: o roteiro termina na ultima palavra da narracao. Nao adicione perguntas ao produtor ("Quer que eu ajuste..."), sugestoes de revisao, comentarios pos-roteiro ou qualquer texto apos o fechamento narrativo. O modelo nao deve comunicar nada ao leitor apos o fim do roteiro.

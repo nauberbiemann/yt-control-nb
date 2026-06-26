@@ -642,7 +642,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
   const activeProject = useActiveProject();
 
   const [theme, setTheme] = useState('');
-  const [selectedFormat, setSelectedFormat] = useState<VideoFormat>('avatar');
+  const [selectedFormat, setSelectedFormat] = useState<VideoFormat | ''>('');
   const [useRefactored, setUseRefactored] = useState(false);
   const [editingRefactored, setEditingRefactored] = useState(false);
   const [editedRefactoredTheme, setEditedRefactoredTheme] = useState('');
@@ -1014,7 +1014,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
       setBriefing({
         title: chosenTheme,
-        videoFormat: selectedFormat,
+        videoFormat: selectedFormat as VideoFormat,
         editorialPillar: selectedEditorialPillar,
         pipelineLevel: selectedPipelineLevel,
         estimatedDuration: `~${finalMinutes} minutos`,
@@ -1097,6 +1097,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
   const reset = () => {
     setPhase('input');
+    setSelectedFormat('');
     setGatekeeperResult(null);
     setBriefing(null);
     setError('');
@@ -1141,19 +1142,45 @@ export default function ProductionAssembler({ components, componentsHydrated = t
             />
           </div>
 
-          <div>
-            <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Formato do Video</label>
-            <select
-              value={selectedFormat}
-              onChange={e => setSelectedFormat(e.target.value as VideoFormat)}
-              className="w-full bg-midnight border border-white/10 rounded-xl px-4 py-3 text-xs uppercase font-black tracking-widest text-white outline-none focus:border-sage/40"
-            >
-              <option value="avatar">Apresentador (Vlog/Avatar)</option>
-              <option value="vlog">VLOG</option>
-              <option value="faceless">Faceless</option>
-              <option value="avatar_flow">Avatar Flow</option>
-              <option value="catalog">Catálogo</option>
-            </select>
+          <div className={`p-5 rounded-2xl border transition-all duration-500 ${
+            theme.trim() && !selectedFormat
+              ? 'border-amber-500/50 bg-amber-500/[0.02] shadow-[0_0_15px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/30'
+              : 'border-white/10 bg-white/5'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-black uppercase tracking-[3px] text-white/40 block mb-2">Formato do Video</label>
+              {theme.trim() && !selectedFormat && (
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 animate-pulse bg-amber-400/10 border border-amber-400/20 px-2.5 py-0.5 rounded-full">
+                  ⚠️ Seleção Pendente
+                </span>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {([
+                { value: 'avatar', label: 'Apresentador (Vlog/Avatar)' },
+                { value: 'vlog', label: 'VLOG' },
+                { value: 'faceless', label: 'Faceless' },
+                { value: 'avatar_flow', label: 'Avatar Flow' },
+                { value: 'catalog', label: 'Catálogo' },
+              ] as const).map((opt) => {
+                const isSelected = selectedFormat === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedFormat(opt.value)}
+                    className={`px-3 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest text-center transition-all ${
+                      isSelected
+                        ? 'border-blue-400 bg-blue-500/20 text-blue-100 shadow-sm shadow-blue-500/20'
+                        : 'border-white/5 bg-white/[0.02] text-white/40 hover:text-white/70 hover:border-white/10'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Library Status */}
@@ -1185,7 +1212,7 @@ export default function ProductionAssembler({ components, componentsHydrated = t
 
           <button
             onClick={runGatekeeper}
-            disabled={!theme.trim() || loading || !narrativeLibraryReady}
+            disabled={!theme.trim() || !selectedFormat || loading || !narrativeLibraryReady}
             className="w-full flex items-center justify-center gap-3 py-4 bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-[3px] hover:bg-blue-400 shadow-lg shadow-blue-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ShieldCheck size={16} /> Analisar com Gatekeeper

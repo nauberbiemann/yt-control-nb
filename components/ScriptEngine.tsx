@@ -7882,6 +7882,46 @@ COMO USAR NO WINDOWS:
             <div className="space-y-4">
               {/* ROW 1: Textarea + Plataforma/TXT side by side */}
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
+                    <input
+                      value={externalSourceLabel}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setExternalSourceLabel(value);
+                        persistExecutionSnapshotLocally({
+                          executionMode: 'external',
+                          externalSourceLabel: value,
+                        });
+                      }}
+                      placeholder="Ex: ChatGPT, Claude, Gemini..."
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
+                    />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
+                    <input
+                      type="file"
+                      accept=".txt,text/plain"
+                      onChange={handleExternalScriptUpload}
+                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
+                    />
+                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                      {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
+                    </div>
+                    {externalScriptText && (
+                      <button
+                        type="button"
+                        onClick={extractVisualBlueprintAndCast}
+                        disabled={isExtractingVisuals}
+                        className={`w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.15em] text-blue-200 transition-all hover:bg-blue-500/20 active:scale-95 flex items-center justify-center gap-2`}
+                      >
+                        {isExtractingVisuals ? '⏳ Analisando...' : '✨ Analisar Direcao de Arte & Elenco'}
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
                   <textarea
@@ -7973,7 +8013,7 @@ COMO USAR NO WINDOWS:
                                   type="button"
                                   onClick={() => copyTextToClipboard(pendingHumanizedText, '📋 Roteiro humanizado copiado!')}
                                   className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
-                                  title="Copiar texto humanizado proposto"
+                                  title="Copiar text proposto"
                                 >
                                   Copiar Roteiro
                                 </button>
@@ -8051,46 +8091,6 @@ COMO USAR NO WINDOWS:
                       )}
                     </div>
                   )}
-                </div>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
-                    <input
-                      value={externalSourceLabel}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setExternalSourceLabel(value);
-                        persistExecutionSnapshotLocally({
-                          executionMode: 'external',
-                          externalSourceLabel: value,
-                        });
-                      }}
-                      placeholder="Ex: ChatGPT, Claude, Gemini..."
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
-                    />
-                  </div>
-                  <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
-                    <input
-                      type="file"
-                      accept=".txt,text/plain"
-                      onChange={handleExternalScriptUpload}
-                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
-                    />
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                      {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
-                    </div>
-                    {externalScriptText && (
-                      <button
-                        type="button"
-                        onClick={extractVisualBlueprintAndCast}
-                        disabled={isExtractingVisuals}
-                        className={`w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.15em] text-blue-200 transition-all hover:bg-blue-500/20 active:scale-95 flex items-center justify-center gap-2`}
-                      >
-                        {isExtractingVisuals ? '⏳ Analisando...' : '✨ Analisar Direcao de Arte & Elenco'}
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
 

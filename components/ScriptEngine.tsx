@@ -1408,6 +1408,8 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   };
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
   const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+  const [isCapcutExpanded, setIsCapcutExpanded] = useState(false);
+  const [isStep5Expanded, setIsStep5Expanded] = useState(false);
   const [fcpxmlBaseDir, setFcpxmlBaseDir] = useState('D:/ContentFlow/assets/');
   const [fcpxmlNaming, setFcpxmlNaming] = useState<'index_prompt56' | 'index_only' | 'index_prompt_full'>('index_prompt56');
   const [fcpxmlVidDuration, setFcpxmlVidDuration] = useState(8.0);
@@ -8840,252 +8842,265 @@ COMO USAR NO WINDOWS:
                           </p>
                         </div>
                       ) : (
-                        <div className="rounded-2xl border border-cyan-500/20 bg-midnight/40 p-4 space-y-3">
-                          <div className="flex items-center justify-between">
+                        <div className="rounded-2xl border border-cyan-500/20 bg-midnight/40 overflow-hidden">
+                          <div 
+                            onClick={() => setIsCapcutExpanded(!isCapcutExpanded)}
+                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors select-none group"
+                          >
                             <div className="flex items-center gap-2 text-cyan-400">
                               <span className="text-xs">🎬</span>
                               <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (PC / Windows / Mac)</p>
                             </div>
-                            <span className="text-[9px] bg-cyan-500/20 px-2 py-0.5 rounded text-cyan-300 uppercase tracking-widest font-black animate-pulse">Disponível</span>
-                          </div>
-                          <p className="text-[10px] text-white/45 leading-relaxed">
-                            Exporte a sua linha de tempo diretamente para o CapCut de três formas:
-                          </p>
-                          <ul className="list-disc pl-4 text-[10px] text-white/40 space-y-1">
-                            <li><strong>Opção 1 (Substituir Rascunho - RECOMENDADO & MAIS SIMPLES):</strong> Baixe apenas o arquivo <code>draft_content.json</code>. No CapCut, crie um projeto novo (ou use um existente) e feche o programa. Vá na pasta desse projeto em <code>CapCut Drafts</code> (ex: <code>0608</code>) e substitua o <code>draft_content.json</code> existente pelo arquivo baixado. É o método mais rápido e direto!</li>
-                            <li><strong>Opção 2 (Projeto Completo .zip):</strong> Exporta um arquivo ZIP contendo toda a pasta do projeto configurada. Basta extrair a pasta inteira dentro de <code>CapCut Drafts</code>.</li>
-                            <li><strong>Opção 3 (FCPXML):</strong> Exporta uma timeline XML compatível. Importe no CapCut através do menu <em>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</em> (disponível em algumas versões).</li>
-                          </ul>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
-                            <div className="space-y-1.5">
-                              <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Pasta Local dos Vídeos/Imagens</label>
-                              <input
-                                type="text"
-                                value={fcpxmlBaseDir}
-                                onChange={(e) => setFcpxmlBaseDir(e.target.value)}
-                                placeholder="Ex: D:/ContentFlow/assets/"
-                                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all placeholder:text-white/20"
-                              />
-                              <span className="text-[8px] text-white/30 block">Caminho da pasta local onde estão as mídias.</span>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Padrão de Nome dos Arquivos</label>
-                              <select
-                                value={fcpxmlNaming}
-                                onChange={(e) => setFcpxmlNaming(e.target.value as any)}
-                                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
-                              >
-                                <option value="index_prompt56">[Index]_[Prompt 56 Chars] (Ex: 1_Create_a_...)</option>
-                                <option value="index_only">Apenas Número (Ex: 1.mp4, 2.png)</option>
-                              </select>
-                              <span className="text-[8px] text-white/30 block">Selecione o formato dos nomes das suas mídias locais.</span>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Duração Bruta das Mídias</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <input
-                                    type="number"
-                                    step="0.5"
-                                    min="1"
-                                    value={fcpxmlVidDuration}
-                                    onChange={(e) => setFcpxmlVidDuration(Number(e.target.value))}
-                                    placeholder="Vídeo (s)"
-                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
-                                    title="Duração padrão do vídeo bruto gerado (ex: Kling/Runway - 8s)"
-                                  />
-                                  <span className="text-[8px] text-white/30 text-center block">Vídeo (s)</span>
-                                </div>
-                                <div className="space-y-1">
-                                  <input
-                                    type="number"
-                                    step="0.5"
-                                    min="1"
-                                    value={fcpxmlImgDuration}
-                                    onChange={(e) => setFcpxmlImgDuration(Number(e.target.value))}
-                                    placeholder="Imagem (s)"
-                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
-                                    title="Duração padrão de exibição da imagem estática (ex: 5s)"
-                                  />
-                                  <span className="text-[8px] text-white/30 text-center block">Imagem (s)</span>
-                                </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[9px] bg-cyan-500/20 px-2 py-0.5 rounded text-cyan-300 uppercase tracking-widest font-black animate-pulse">Disponível</span>
+                              <div className={`p-1.5 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isCapcutExpanded ? 'rotate-180' : ''}`}>
+                                <ChevronDown size={14} />
                               </div>
                             </div>
                           </div>
 
-                          {/* Configurações Avançadas do Sincronizador SRT */}
-                          <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">Configurações Avançadas & Sincronia SRT</p>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              {/* Aspect Ratio */}
-                              <div className="space-y-1.5">
-                                <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Proporção (Aspect Ratio)</label>
-                                <select
-                                  value={fcpxmlAspectRatio}
-                                  onChange={(e) => setFcpxmlAspectRatio(e.target.value as any)}
-                                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
-                                >
-                                  <option value="horizontal">Horizontal (16:9 - YouTube)</option>
-                                  <option value="vertical">Vertical (9:16 - TikTok/Shorts)</option>
-                                </select>
-                                <span className="text-[8px] text-white/30 block">Resolução de saída da timeline do CapCut.</span>
+                          <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isCapcutExpanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                            <div className="min-h-0 space-y-3 pt-3">
+                              <p className="text-[10px] text-white/45 leading-relaxed">
+                                Exporte a sua linha de tempo diretamente para o CapCut de três formas:
+                              </p>
+                              <ul className="list-disc pl-4 text-[10px] text-white/40 space-y-1">
+                                <li><strong>Opção 1 (Substituir Rascunho - RECOMENDADO & MAIS SIMPLES):</strong> Baixe apenas o arquivo <code>draft_content.json</code>. No CapCut, crie um projeto novo (ou use um existente) e feche o programa. Vá na pasta desse projeto em <code>CapCut Drafts</code> (ex: <code>0608</code>) e substitua o <code>draft_content.json</code> existente pelo arquivo baixado. É o método mais rápido e direto!</li>
+                                <li><strong>Opção 2 (Projeto Completo .zip):</strong> Exporta um arquivo ZIP contendo toda a pasta do projeto configurada. Basta extrair a pasta inteira dentro de <code>CapCut Drafts</code>.</li>
+                                <li><strong>Opção 3 (FCPXML):</strong> Exporta uma timeline XML compatível. Importe no CapCut através do menu <em>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</em> (disponível em algumas versões).</li>
+                              </ul>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Pasta Local dos Vídeos/Imagens</label>
+                                  <input
+                                    type="text"
+                                    value={fcpxmlBaseDir}
+                                    onChange={(e) => setFcpxmlBaseDir(e.target.value)}
+                                    placeholder="Ex: D:/ContentFlow/assets/"
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all placeholder:text-white/20"
+                                  />
+                                  <span className="text-[8px] text-white/30 block">Caminho da pasta local onde estão as mídias.</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Padrão de Nome dos Arquivos</label>
+                                  <select
+                                    value={fcpxmlNaming}
+                                    onChange={(e) => setFcpxmlNaming(e.target.value as any)}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                  >
+                                    <option value="index_prompt56">[Index]_[Prompt 56 Chars] (Ex: 1_Create_a_...)</option>
+                                    <option value="index_only">Apenas Número (Ex: 1.mp4, 2.png)</option>
+                                  </select>
+                                  <span className="text-[8px] text-white/30 block">Selecione o formato dos nomes das suas mídias locais.</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Duração Bruta das Mídias</label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min="1"
+                                        value={fcpxmlVidDuration}
+                                        onChange={(e) => setFcpxmlVidDuration(Number(e.target.value))}
+                                        placeholder="Vídeo (s)"
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
+                                        title="Duração padrão do vídeo bruto gerado (ex: Kling/Runway - 8s)"
+                                      />
+                                      <span className="text-[8px] text-white/30 text-center block">Vídeo (s)</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min="1"
+                                        value={fcpxmlImgDuration}
+                                        onChange={(e) => setFcpxmlImgDuration(Number(e.target.value))}
+                                        placeholder="Imagem (s)"
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
+                                        title="Duração padrão de exibição da imagem estática (ex: 5s)"
+                                      />
+                                      <span className="text-[8px] text-white/30 text-center block">Imagem (s)</span>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Cut Mode */}
-                              <div className="space-y-1.5">
-                                <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Modo de Corte (Trim Mode)</label>
-                                <select
-                                  value={cutMode}
-                                  onChange={(e) => setCutMode(e.target.value as any)}
-                                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
-                                >
-                                  <option value="middle">Centralizado (Middle)</option>
-                                  <option value="start">Início (Start)</option>
-                                  <option value="end">Fim (End)</option>
-                                </select>
-                                <span className="text-[8px] text-white/30 block">Qual região do vídeo cortar se ele for mais longo que a fala.</span>
-                              </div>
+                              {/* Configurações Avançadas do Sincronizador SRT */}
+                              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">Configurações Avançadas & Sincronia SRT</p>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  {/* Aspect Ratio */}
+                                  <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Proporção (Aspect Ratio)</label>
+                                    <select
+                                      value={fcpxmlAspectRatio}
+                                      onChange={(e) => setFcpxmlAspectRatio(e.target.value as any)}
+                                      className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                    >
+                                      <option value="horizontal">Horizontal (16:9 - YouTube)</option>
+                                      <option value="vertical">Vertical (9:16 - TikTok/Shorts)</option>
+                                    </select>
+                                    <span className="text-[8px] text-white/30 block">Resolução de saída da timeline do CapCut.</span>
+                                  </div>
 
-                              {/* Video Scan Info */}
-                              <div className="space-y-1.5">
-                                <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Arquivos Escaneados</label>
-                                <div className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white/80 h-9 flex items-center justify-between">
-                                  <span>{Object.keys(scannedFilesMap).length} arquivo(s) mapeado(s)</span>
-                                  {Object.keys(scannedFilesMap).length > 0 && (
+                                  {/* Cut Mode */}
+                                  <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Modo de Corte (Trim Mode)</label>
+                                    <select
+                                      value={cutMode}
+                                      onChange={(e) => setCutMode(e.target.value as any)}
+                                      className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                    >
+                                      <option value="middle">Centralizado (Middle)</option>
+                                      <option value="start">Início (Start)</option>
+                                      <option value="end">Fim (End)</option>
+                                    </select>
+                                    <span className="text-[8px] text-white/30 block">Qual região do video cortar se ele for mais longo que a fala.</span>
+                                  </div>
+
+                                  {/* Video Scan Info */}
+                                  <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Arquivos Escaneados</label>
+                                    <div className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white/80 h-9 flex items-center justify-between">
+                                      <span>{Object.keys(scannedFilesMap).length} arquivo(s) mapeado(s)</span>
+                                      {Object.keys(scannedFilesMap).length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setScannedFilesMap({})}
+                                          className="text-[9px] text-red-400 hover:text-red-300 font-bold uppercase transition-colors"
+                                        >
+                                          Limpar
+                                        </button>
+                                      )}
+                                    </div>
+                                    <span className="text-[8px] text-white/30 block">Durações reais detectadas nas pastas locais.</span>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-white/5 pt-3">
+                                  {/* Smart Speedup */}
+                                  <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+                                    <div className="flex items-center justify-between">
+                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Aceleração Inteligente</label>
+                                      <input
+                                        type="checkbox"
+                                        checked={smartSpeedUp}
+                                        onChange={(e) => setSmartSpeedUp(e.target.checked)}
+                                        className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-[8px] text-white/30">Mínimo para acelerar:</span>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        value={targetMinDuration}
+                                        onChange={(e) => setTargetMinDuration(parseFloat(e.target.value))}
+                                        disabled={!smartSpeedUp}
+                                        className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
+                                      />
+                                      <span className="text-[8px] text-white/30">segundos</span>
+                                    </div>
+                                    <p className="text-[8px] text-white/30 block mt-1 leading-normal">
+                                      Acelera suavemente vídeos ligeiramente maiores que o tempo da fala, evitando cortes secos.
+                                    </p>
+                                  </div>
+
+                                  {/* Smart Slowdown */}
+                                  <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+                                    <div className="flex items-center justify-between">
+                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Desaceleração Inteligente</label>
+                                      <input
+                                        type="checkbox"
+                                        checked={smartSlowDown}
+                                        onChange={(e) => setSmartSlowDown(e.target.checked)}
+                                        className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-[8px] text-white/30">Máximo para desacelerar:</span>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        value={targetMaxDuration}
+                                        onChange={(e) => setTargetMaxDuration(parseFloat(e.target.value))}
+                                        disabled={!smartSlowDown}
+                                        className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
+                                      />
+                                      <span className="text-[8px] text-white/30">segundos</span>
+                                    </div>
+                                    <p className="text-[8px] text-white/30 block mt-1 leading-normal">
+                                      Desacelera suavemente (até 0.8x) vídeos um pouco menores que o tempo da fala para preencher o tempo.
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Folder Scanner API */}
+                                <div className="border-t border-white/5 pt-3 space-y-2">
+                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45 block">Escaneamento Dinâmico de Durações (Local Host)</label>
+                                  <p className="text-[9px] text-white/30 leading-normal">
+                                    Conecte-se às pastas locais do projeto no seu PC para obter a duração real dos vídeos brutos. Isso garante uma sincronia perfeita na linha de tempo do CapCut sem precisar digitar durações manualmente.
+                                  </p>
+                                  
+                                  <div className="flex flex-col sm:flex-row gap-2">
                                     <button
                                       type="button"
-                                      onClick={() => setScannedFilesMap({})}
-                                      className="text-[9px] text-red-400 hover:text-red-300 font-bold uppercase transition-colors"
+                                      disabled={isScanning}
+                                      onClick={() => handleScanFolder(false)}
+                                      className="flex-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
                                     >
-                                      Limpar
+                                      {isScanning ? (
+                                        <Loader2 size={12} className="animate-spin text-cyan-400" />
+                                      ) : (
+                                        <FolderOpen size={12} className="text-cyan-400" />
+                                      )}
+                                      {mainFolderHandle ? `✅ Pasta Vídeos Conectada` : `Selecionar Pasta de Vídeos`}
                                     </button>
-                                  )}
+                                    
+                                    <button
+                                      type="button"
+                                      disabled={isScanning}
+                                      onClick={() => handleScanFolder(true)}
+                                      className="flex-1 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                    >
+                                      {isScanning ? (
+                                        <Loader2 size={12} className="animate-spin text-purple-400" />
+                                      ) : (
+                                        <FolderOpen size={12} className="text-purple-400" />
+                                      )}
+                                      {extraFolderHandle ? `✅ Pasta Imagens Conectada` : `Selecionar Pasta de Imagens`}
+                                    </button>
+                                  </div>
                                 </div>
-                                <span className="text-[8px] text-white/30 block">Durações reais detectadas nas pastas locais.</span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-white/5 pt-3">
-                              {/* Smart Speedup */}
-                              <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
-                                <div className="flex items-center justify-between">
-                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Aceleração Inteligente</label>
-                                  <input
-                                    type="checkbox"
-                                    checked={smartSpeedUp}
-                                    onChange={(e) => setSmartSpeedUp(e.target.checked)}
-                                    className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
-                                  />
-                                </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[8px] text-white/30">Mínimo para acelerar:</span>
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    value={targetMinDuration}
-                                    onChange={(e) => setTargetMinDuration(parseFloat(e.target.value))}
-                                    disabled={!smartSpeedUp}
-                                    className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
-                                  />
-                                  <span className="text-[8px] text-white/30">segundos</span>
-                                </div>
-                                <p className="text-[8px] text-white/30 block mt-1 leading-normal">
-                                  Acelera suavemente vídeos ligeiramente maiores que o tempo da fala, evitando cortes secos.
-                                </p>
                               </div>
 
-                              {/* Smart Slowdown */}
-                              <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
-                                <div className="flex items-center justify-between">
-                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Desaceleração Inteligente</label>
-                                  <input
-                                    type="checkbox"
-                                    checked={smartSlowDown}
-                                    onChange={(e) => setSmartSlowDown(e.target.checked)}
-                                    className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
-                                  />
-                                </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[8px] text-white/30">Máximo para desacelerar:</span>
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    value={targetMaxDuration}
-                                    onChange={(e) => setTargetMaxDuration(parseFloat(e.target.value))}
-                                    disabled={!smartSlowDown}
-                                    className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
-                                  />
-                                  <span className="text-[8px] text-white/30">segundos</span>
-                                </div>
-                                <p className="text-[8px] text-white/30 block mt-1 leading-normal">
-                                  Desacelera suavemente (até 0.8x) vídeos um pouco menores que o tempo da fala para preencher o tempo.
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Folder Scanner API */}
-                            <div className="border-t border-white/5 pt-3 space-y-2">
-                              <label className="text-[9px] font-black uppercase tracking-wider text-white/45 block">Escaneamento Dinâmico de Durações (Local Host)</label>
-                              <p className="text-[9px] text-white/30 leading-normal">
-                                Conecte-se às pastas locais do projeto no seu PC para obter a duração real dos vídeos brutos. Isso garante uma sincronia perfeita na linha de tempo do CapCut sem precisar digitar durações manualmente.
-                              </p>
-                              
-                              <div className="flex flex-col sm:flex-row gap-2">
+                              <div className="flex flex-wrap justify-end gap-2 pt-1">
                                 <button
                                   type="button"
-                                  disabled={isScanning}
-                                  onClick={() => handleScanFolder(false)}
-                                  className="flex-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                  onClick={handleExportCapcutJson}
+                                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition-all hover:bg-emerald-500/20 active:scale-95 flex items-center gap-2"
                                 >
-                                  {isScanning ? (
-                                    <Loader2 size={12} className="animate-spin text-cyan-400" />
-                                  ) : (
-                                    <FolderOpen size={12} className="text-cyan-400" />
-                                  )}
-                                  {mainFolderHandle ? `✅ Pasta Vídeos Conectada` : `Selecionar Pasta de Vídeos`}
+                                  📄 Baixar JSONs do Rascunho (draft_content & draft_meta_info)
                                 </button>
-                                
                                 <button
                                   type="button"
-                                  disabled={isScanning}
-                                  onClick={() => handleScanFolder(true)}
-                                  className="flex-1 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                  onClick={handleExportCapcutZip}
+                                  className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/20 active:scale-95 flex items-center gap-2"
                                 >
-                                  {isScanning ? (
-                                    <Loader2 size={12} className="animate-spin text-purple-400" />
-                                  ) : (
-                                    <FolderOpen size={12} className="text-purple-400" />
-                                  )}
-                                  {extraFolderHandle ? `✅ Pasta Imagens Conectada` : `Selecionar Pasta de Imagens`}
+                                  📦 Exportar Projeto Completo (.zip)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleExportFcpxml}
+                                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2"
+                                >
+                                  🎬 Exportar Timeline para CapCut (.fcpxml)
                                 </button>
                               </div>
                             </div>
-                          </div>
-
-                          <div className="flex flex-wrap justify-end gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={handleExportCapcutJson}
-                              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition-all hover:bg-emerald-500/20 active:scale-95 flex items-center gap-2"
-                            >
-                              📄 Baixar JSONs do Rascunho (draft_content & draft_meta_info)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleExportCapcutZip}
-                              className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/20 active:scale-95 flex items-center gap-2"
-                            >
-                              📦 Exportar Projeto Completo (.zip)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleExportFcpxml}
-                              className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2"
-                            >
-                              🎬 Exportar Timeline para CapCut (.fcpxml)
-                            </button>
                           </div>
                         </div>
                       )}
@@ -9170,19 +9185,22 @@ COMO USAR NO WINDOWS:
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="rounded-2xl border border-white/10 bg-midnight/40 overflow-hidden">
+                        <div 
+                          onClick={() => setIsStep5Expanded(!isStep5Expanded)}
+                          className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors select-none group"
+                        >
                           <div>
                             <p className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Etapa 5 · Scripts BAT (Offline)</p>
                             <p className="text-[10px] text-white/40 mt-1">
                               Gera e baixa automaticamente os scripts `.bat` para renderizar Textos, Hyperframes e SFX localmente na sua máquina.
                             </p>
                           </div>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             {externalSrtPipeline.textRender?.csvPath && (
                               <button
                                 type="button"
-                                onClick={() => copyTextToClipboard(externalSrtPipeline.textRender?.csvPath || '', 'Caminho do CSV espelho copiado.')}
+                                onClick={(e) => { e.stopPropagation(); copyTextToClipboard(externalSrtPipeline.textRender?.csvPath || '', 'Caminho do CSV espelho copiado.'); }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
                               >
                                 <Copy size={12} className="inline mr-2" /> Copiar CSV espelho
@@ -9191,52 +9209,59 @@ COMO USAR NO WINDOWS:
                             {externalSrtPipeline.textRender?.outputDir && (
                               <button
                                 type="button"
-                                onClick={() => copyTextToClipboard(externalSrtPipeline.textRender?.outputDir || '', 'Pasta de renders copiada.')}
+                                onClick={(e) => { e.stopPropagation(); copyTextToClipboard(externalSrtPipeline.textRender?.outputDir || '', 'Pasta de renders copiada.'); }}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
                               >
                                 <Copy size={12} className="inline mr-2" /> Copiar pasta de render
                               </button>
                             )}
+                            <div className={`p-1.5 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isStep5Expanded ? 'rotate-180' : ''}`}>
+                              <ChevronDown size={14} />
+                            </div>
                           </div>
                         </div>
 
-                        {externalSrtPipeline.textRender ? (
-                          <>
-                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
-                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Novos renders</span>
-                                <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.renderedCount}</span>
+                        <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isStep5Expanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                          <div className="min-h-0 space-y-3 pt-3">
+                            {externalSrtPipeline.textRender ? (
+                              <>
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Novos renders</span>
+                                    <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.renderedCount}</span>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Reutilizados</span>
+                                    <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.reusedCount}</span>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 xl:col-span-2">
+                                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Ultima renderizacao</span>
+                                    <span className="block text-sm font-black text-white">{new Date(externalSrtPipeline.textRender.lastRenderedAt).toLocaleString('pt-BR')}</span>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">CSV espelho no pipeline externo</p>
+                                    <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.csvPath}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">Pasta de saida dos MP4s</p>
+                                    <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.outputDir}</p>
+                                  </div>
+                                </div>
+                                <textarea
+                                  readOnly
+                                  value={externalSrtPipeline.textRender.log || 'Sem log de render disponivel.'}
+                                  className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                                />
+                              </>
+                            ) : (
+                              <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                                A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · GERAR BATS</span>, o app vai processar e baixar automaticamente todos os scripts necessários para a produção offline dos recursos do projeto. Certifique-se de ter gerado o Pacote Pós-Roteiro primeiro.
                               </div>
-                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Reutilizados</span>
-                                <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.reusedCount}</span>
-                              </div>
-                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 xl:col-span-2">
-                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Ultima renderizacao</span>
-                                <span className="block text-sm font-black text-white">{new Date(externalSrtPipeline.textRender.lastRenderedAt).toLocaleString('pt-BR')}</span>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
-                                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">CSV espelho no pipeline externo</p>
-                                <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.csvPath}</p>
-                              </div>
-                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
-                                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">Pasta de saida dos MP4s</p>
-                                <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.outputDir}</p>
-                              </div>
-                            </div>
-                            <textarea
-                              readOnly
-                              value={externalSrtPipeline.textRender.log || 'Sem log de render disponivel.'}
-                              className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
-                            />
-                          </>
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
-                            A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · GERAR BATS</span>, o app vai processar e baixar automaticamente todos os scripts necessários para a produção offline dos recursos do projeto. Certifique-se de ter gerado o Pacote Pós-Roteiro primeiro.
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     </>
                   )}

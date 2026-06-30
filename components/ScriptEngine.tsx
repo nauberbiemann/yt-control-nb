@@ -2102,7 +2102,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       }
 
       // Check if the loaded snapshot is a finished theme in the bank
-      if (snapshot && !pendingData) {
+      if (snapshot && !pendingData && !snapshot._isResume) {
         const themeIdForCheck = snapshot._themeId || snapshot.themeId || snapshot.id;
         const titleForCheck = snapshot.approvedTheme || snapshot.approvedBriefing?.title || snapshot.title || snapshot.raw_theme || '';
         if (isFinishedTheme(themeIdForCheck, titleForCheck)) {

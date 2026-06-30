@@ -2106,8 +2106,39 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         const themeIdForCheck = snapshot._themeId || snapshot.themeId || snapshot.id;
         const titleForCheck = snapshot.approvedTheme || snapshot.approvedBriefing?.title || snapshot.title || snapshot.raw_theme || '';
         if (isFinishedTheme(themeIdForCheck, titleForCheck)) {
-          console.log('[ScriptEngine] Snapshot represents an already finished/published theme. Clearing state.');
-          clearExecutionState();
+          console.log('[ScriptEngine] Snapshot represents an already finished/published theme. Auto-syncing and clearing state.');
+          
+          const autoSyncAndClear = async () => {
+            if (themeIdForCheck && supabase) {
+              try {
+                let fullSnapshot = { ...snapshot };
+                const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
+                const postPackageKey = `${executionStorageKey}_post_package`;
+                const hfKey = `yt_hf_bg_${executionStorageKey}`;
+                
+                const localSrt = localStorage.getItem(srtPipelineKey);
+                if (localSrt) {
+                  fullSnapshot.externalSrtPipeline = JSON.parse(localSrt);
+                }
+                const localPost = localStorage.getItem(postPackageKey);
+                if (localPost) {
+                  fullSnapshot.postScriptPackage = JSON.parse(localPost);
+                }
+                const localHf = localStorage.getItem(hfKey);
+                if (localHf) {
+                  fullSnapshot.hfBgPrompts = JSON.parse(localHf);
+                }
+
+                await upsertScriptExecution(themeIdForCheck, fullSnapshot);
+                console.log('[ScriptEngine] Auto-synced finished theme heavy assets to Supabase.');
+              } catch (e) {
+                console.warn('[ScriptEngine] Failed to auto-sync heavy assets before clear:', e);
+              }
+            }
+            clearExecutionState();
+          };
+
+          autoSyncAndClear();
           snapshot = null;
         }
       }

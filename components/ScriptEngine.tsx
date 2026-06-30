@@ -2030,12 +2030,21 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     }
   };
 
-  const isFinishedTheme = (tId?: string): boolean => {
-    if (!tId || !activeProject?.id) return false;
+  const isFinishedTheme = (tId?: string, title?: string): boolean => {
+    if (!activeProject?.id) return false;
     try {
       const themesKey = `themes_${activeProject.id}`;
       const themes = JSON.parse(localStorage.getItem(themesKey) || '[]');
-      const t = themes.find((theme: any) => theme?.id === tId);
+      
+      let t = null;
+      if (tId) {
+        t = themes.find((theme: any) => theme?.id === tId);
+      }
+      if (!t && title) {
+        t = themes.find((theme: any) => 
+          theme?.title?.trim().toLowerCase() === title.trim().toLowerCase()
+        );
+      }
       if (!t) return false;
 
       const dateValue = t.target_publish_date || t.production_assets?.target_publish_date || null;
@@ -2093,9 +2102,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       }
 
       // Check if the loaded snapshot is a finished theme in the bank
-      if (snapshot && !pendingData && snapshot.executionMode !== 'external') {
+      if (snapshot && !pendingData) {
         const themeIdForCheck = snapshot._themeId || snapshot.themeId || snapshot.id;
-        if (isFinishedTheme(themeIdForCheck)) {
+        const titleForCheck = snapshot.approvedTheme || snapshot.approvedBriefing?.title || snapshot.title || snapshot.raw_theme || '';
+        if (isFinishedTheme(themeIdForCheck, titleForCheck)) {
           console.log('[ScriptEngine] Snapshot represents an already finished/published theme. Clearing state.');
           clearExecutionState();
           snapshot = null;
@@ -2110,9 +2120,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       }
 
       // NEW: Check if the snapshot represents a finished (scheduled/published) script
-      // IMPORTANT: roteiro externo (executionMode === 'external') nunca deve ser limpo por este
-      // bypass — ele é uma sessão de análise contínua, não um script finalizado de produção.
-      if (snapshot && snapshot.manualPublishDate && !pendingData && snapshot.executionMode !== 'external') {
+      if (snapshot && snapshot.manualPublishDate && !pendingData) {
         const activeSessionThemeId = sessionStorage.getItem(`active_script_theme_${activeProject.id}`);
         const isCurrentlyActiveSession = activeSessionThemeId && (activeSessionThemeId === snapshot._themeId || activeSessionThemeId === snapshot.themeId || activeSessionThemeId === snapshot.id);
 
@@ -2174,7 +2182,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 // NEW: Bypass cloud hydration if the script has already been scheduled/published
                 // (Only bypass if we are NOT in an active session refresh for a specific theme)
                 const cloudThemeId = cloudSnapshot._themeId || cloudSnapshot.themeId || cloudSnapshot.id;
-                const isCloudThemeFinished = isFinishedTheme(cloudThemeId);
+                const cloudTitle = cloudSnapshot.approvedTheme || cloudSnapshot.approvedBriefing?.title || cloudSnapshot.title || cloudSnapshot.raw_theme || '';
+                const isCloudThemeFinished = isFinishedTheme(cloudThemeId, cloudTitle);
                 if ((cloudSnapshot.manualPublishDate || isCloudThemeFinished) && !activeSessionThemeId) {
                   console.log('[ScriptEngine] Cloud snapshot is already scheduled/published or finished. Bypassing cloud hydration.');
                   clearExecutionState();

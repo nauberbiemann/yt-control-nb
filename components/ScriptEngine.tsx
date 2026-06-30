@@ -1170,6 +1170,10 @@ interface ExecutionSnapshot {
   ultraCinematic?: boolean;
   preserveBrackets?: boolean;
   promptPrefix?: string;
+  pipelineVideos?: boolean;
+  pipelineImages?: boolean;
+  pipelineTexts?: boolean;
+  pipelineHyperframes?: boolean;
   _themeId?: string; // stable ID to find the theme even after a title rename
   useAdvancedRetention?: boolean;
   selectedThumbnailStyle?: string;
@@ -1317,6 +1321,10 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [promptPrefix, setPromptPrefix] = useState<string>('none');
   const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
   const [ultraCinematic, setUltraCinematic] = useState<boolean>(false);
+  const [pipelineVideos, setPipelineVideos] = useState<boolean>(true);
+  const [pipelineImages, setPipelineImages] = useState<boolean>(true);
+  const [pipelineTexts, setPipelineTexts] = useState<boolean>(true);
+  const [pipelineHyperframes, setPipelineHyperframes] = useState<boolean>(true);
   const [isSuggestingStyle, setIsSuggestingStyle] = useState<boolean>(false);
   // Consistent Characters (Visual Blueprint & Cast)
   const [visualBlueprintSetting, setVisualBlueprintSetting] = useState<string>('');
@@ -1758,6 +1766,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     preserveBrackets,
     promptPrefix,
     useAdvancedRetention,
+    pipelineVideos,
+    pipelineImages,
+    pipelineTexts,
+    pipelineHyperframes,
     selectedThumbnailStyle,
     writingStyleSample,
     externalFactCheckReport,
@@ -2018,6 +2030,41 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     }
   };
 
+  const isFinishedTheme = (tId?: string): boolean => {
+    if (!tId || !activeProject?.id) return false;
+    try {
+      const themesKey = `themes_${activeProject.id}`;
+      const themes = JSON.parse(localStorage.getItem(themesKey) || '[]');
+      const t = themes.find((theme: any) => theme?.id === tId);
+      if (!t) return false;
+
+      const dateValue = t.target_publish_date || t.production_assets?.target_publish_date || null;
+      const status = t.status || '';
+      
+      // If status is published or scheduled, it is finished
+      if (status === 'published' || status === 'scheduled') return true;
+
+      if (dateValue) {
+        const selected = new Date(dateValue.includes("T") ? dateValue : `${dateValue}T00:00:00`);
+        if (!Number.isNaN(selected.getTime())) {
+          const today = new Date();
+          if (dateValue.includes("T")) {
+            return true;
+          }
+          const selectedDay = new Date(selected);
+          selectedDay.setHours(0, 0, 0, 0);
+          const todayStart = new Date(today);
+          todayStart.setHours(0, 0, 0, 0);
+          if (selectedDay.getTime() <= todayStart.getTime()) return true; // published
+          return true; // scheduled
+        }
+      }
+    } catch (e) {
+      console.warn('[ScriptEngine] Error checking if theme is finished:', e);
+    }
+    return false;
+  };
+
   useEffect(() => {
     hasHydratedRef.current = false;
     setExecutionHydrated(false);
@@ -2043,6 +2090,16 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         // Otherwise, if there is no pendingData (e.g. F5 reload), load from localStorage
         const raw = localStorage.getItem(executionStorageKey);
         if (raw) snapshot = JSON.parse(raw);
+      }
+
+      // Check if the loaded snapshot is a finished theme in the bank
+      if (snapshot && !pendingData && snapshot.executionMode !== 'external') {
+        const themeIdForCheck = snapshot._themeId || snapshot.themeId || snapshot.id;
+        if (isFinishedTheme(themeIdForCheck)) {
+          console.log('[ScriptEngine] Snapshot represents an already finished/published theme. Clearing state.');
+          clearExecutionState();
+          snapshot = null;
+        }
       }
 
       // If there is still pendingData (but no approvedTheme), it's a new generation. 
@@ -2116,8 +2173,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 
                 // NEW: Bypass cloud hydration if the script has already been scheduled/published
                 // (Only bypass if we are NOT in an active session refresh for a specific theme)
-                if (cloudSnapshot.manualPublishDate && !activeSessionThemeId) {
-                  console.log('[ScriptEngine] Cloud snapshot is already scheduled/published. Bypassing cloud hydration.');
+                const cloudThemeId = cloudSnapshot._themeId || cloudSnapshot.themeId || cloudSnapshot.id;
+                const isCloudThemeFinished = isFinishedTheme(cloudThemeId);
+                if ((cloudSnapshot.manualPublishDate || isCloudThemeFinished) && !activeSessionThemeId) {
+                  console.log('[ScriptEngine] Cloud snapshot is already scheduled/published or finished. Bypassing cloud hydration.');
                   clearExecutionState();
                   setExecutionHydrated(true);
                   return;
@@ -2152,6 +2211,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
                 if (typeof cloudSnapshot.preserveBrackets === 'boolean') setPreserveBrackets(cloudSnapshot.preserveBrackets);
                 if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
+                if (typeof cloudSnapshot.pipelineVideos === 'boolean') setPipelineVideos(cloudSnapshot.pipelineVideos);
+                if (typeof cloudSnapshot.pipelineImages === 'boolean') setPipelineImages(cloudSnapshot.pipelineImages);
+                if (typeof cloudSnapshot.pipelineTexts === 'boolean') setPipelineTexts(cloudSnapshot.pipelineTexts);
+                if (typeof cloudSnapshot.pipelineHyperframes === 'boolean') setPipelineHyperframes(cloudSnapshot.pipelineHyperframes);
                 if (typeof cloudSnapshot.useAdvancedRetention === 'boolean') setUseAdvancedRetention(cloudSnapshot.useAdvancedRetention);
                 if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
                 if (typeof cloudSnapshot.writingStyleSample === 'string') setWritingStyleSample(cloudSnapshot.writingStyleSample);
@@ -2205,6 +2268,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.ultraCinematic === 'boolean') setUltraCinematic(snapshot.ultraCinematic);
       if (typeof snapshot?.preserveBrackets === 'boolean') setPreserveBrackets(snapshot.preserveBrackets);
       if (typeof snapshot?.promptPrefix === 'string') setPromptPrefix(snapshot.promptPrefix);
+      if (typeof snapshot?.pipelineVideos === 'boolean') setPipelineVideos(snapshot.pipelineVideos);
+      if (typeof snapshot?.pipelineImages === 'boolean') setPipelineImages(snapshot.pipelineImages);
+      if (typeof snapshot?.pipelineTexts === 'boolean') setPipelineTexts(snapshot.pipelineTexts);
+      if (typeof snapshot?.pipelineHyperframes === 'boolean') setPipelineHyperframes(snapshot.pipelineHyperframes);
       if (typeof snapshot?.useAdvancedRetention === 'boolean') setUseAdvancedRetention(snapshot.useAdvancedRetention);
       if (typeof snapshot?.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(snapshot.selectedThumbnailStyle);
       if (typeof snapshot?.writingStyleSample === 'string') setWritingStyleSample(snapshot.writingStyleSample);
@@ -4365,11 +4432,18 @@ COMO USAR NO WINDOWS:
       setSrtPipelineStatus('CSV base derivado. Aplicando a heuristica de marcacao de assets...');
 
       updateSrtObserverStep('assets', 'running', 'Marcando as linhas como texto, avatar, video, imagem ou hyperframe...');
-      const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText);
+      const enabledAssetsObj = {
+        video: pipelineVideos,
+        image: pipelineImages,
+        text: pipelineTexts,
+        hyperframe: pipelineHyperframes,
+      };
+
+      const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText, enabledAssetsObj);
       const cooledRows     = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
-      const hfRows         = applyHyperframeRules(cooledRows, videoFormat); // injeta até 6 hyperframes narrativos (adaptado ao formato)
+      const hfRows         = applyHyperframeRules(cooledRows, videoFormat, enabledAssetsObj); // injeta até 6 hyperframes narrativos (adaptado ao formato)
       const excludedRows   = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
-      const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
+      const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssetsObj);
       const assetStats     = buildAssetStats(finalRows);
       const assetDesc      = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
@@ -5061,6 +5135,10 @@ COMO USAR NO WINDOWS:
       setPostScriptPackage(snapshot?.postScriptPackage || null);
       setVisualBlueprintSetting(snapshot?.visualBlueprintSetting || '');
       setVisualBlueprintCast(Array.isArray(snapshot?.visualBlueprintCast) ? snapshot.visualBlueprintCast : []);
+      setPipelineVideos(typeof snapshot?.pipelineVideos === 'boolean' ? snapshot.pipelineVideos : true);
+      setPipelineImages(typeof snapshot?.pipelineImages === 'boolean' ? snapshot.pipelineImages : true);
+      setPipelineTexts(typeof snapshot?.pipelineTexts === 'boolean' ? snapshot.pipelineTexts : true);
+      setPipelineHyperframes(typeof snapshot?.pipelineHyperframes === 'boolean' ? snapshot.pipelineHyperframes : true);
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao restaurar execucao manualmente.', error);
       alert('Nao foi possivel restaurar a execucao salva.');
@@ -5096,6 +5174,10 @@ COMO USAR NO WINDOWS:
     setManualPublishDate('');
     setVisualBlueprintSetting('');
     setVisualBlueprintCast([]);
+    setPipelineVideos(true);
+    setPipelineImages(true);
+    setPipelineTexts(true);
+    setPipelineHyperframes(true);
     setExternalFactCheckReport(null);
     setExternalHumanizeReport(null);
     setPendingHumanizedText(null);
@@ -8192,6 +8274,59 @@ COMO USAR NO WINDOWS:
                       </p>
                     )}
                   </div>
+
+                  {/* Ativos e Assets a Gerar */}
+                  <div className={`rounded-2xl border p-3 space-y-2 transition-all duration-300 ${
+                    (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)
+                      ? 'border-red-500/50 bg-red-500/[0.03] shadow-[0_0_15px_rgba(239,68,68,0.15)] animate-pulse'
+                      : 'border-white/10 bg-black/10'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Ativos a gerar no pipeline</p>
+                      {(!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes) && (
+                        <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1 animate-bounce">
+                          ⚠️ Selecione pelo menos um
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'video', state: pipelineVideos, setState: setPipelineVideos, label: '📹 Vídeos', color: 'blue' },
+                        { id: 'image', state: pipelineImages, setState: setPipelineImages, label: '🖼️ Imagens', color: 'cyan' },
+                        { id: 'text', state: pipelineTexts, setState: setPipelineTexts, label: '✍️ Textos', color: 'amber' },
+                        { id: 'hyperframe', state: pipelineHyperframes, setState: setPipelineHyperframes, label: '⚡ Hyperframes', color: 'purple' },
+                      ].map((assetOpt) => {
+                        const active = assetOpt.state;
+                        const colorClass = 
+                          assetOpt.color === 'blue' ? 'border-blue-400/40 bg-blue-500/15 text-blue-100' :
+                          assetOpt.color === 'cyan' ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100' :
+                          assetOpt.color === 'amber' ? 'border-amber-400/40 bg-amber-500/15 text-amber-100' :
+                          'border-purple-400/40 bg-purple-500/15 text-purple-100';
+                        return (
+                          <button
+                            key={assetOpt.id}
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !active;
+                              assetOpt.setState(nextVal);
+                              persistExecutionSnapshotLocally({
+                                [`pipeline${assetOpt.id.charAt(0).toUpperCase() + assetOpt.id.slice(1)}s` as any]: nextVal
+                              });
+                            }}
+                            className={`rounded-xl border px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all text-center ${
+                              active
+                                ? colorClass
+                                : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                            }`}
+                          >
+                            {assetOpt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
                     <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
                     <div className="grid grid-cols-3 gap-2">
@@ -8322,7 +8457,7 @@ COMO USAR NO WINDOWS:
                     <button
                       type="button"
                       onClick={runFullPipeline}
-                      disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim()}
+                      disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim() || (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)}
                       className="flex-1 rounded-xl border border-emerald-400/30 bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 px-4 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:from-emerald-600/25 hover:to-cyan-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isPipelineRunning
@@ -8380,7 +8515,7 @@ COMO USAR NO WINDOWS:
                   <button
                     type="button"
                     onClick={processAttachedSrtAssets}
-                    disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim()}
+                    disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim() || (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)}
                     className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}

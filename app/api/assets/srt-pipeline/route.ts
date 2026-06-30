@@ -820,16 +820,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'O conteudo do .srt ou o array batchItems e obrigatorio.' }, { status: 400 });
     }
 
+    const enabledAssets = body?.enabledAssets || {
+      video: true,
+      image: true,
+      text: true,
+      hyperframe: true,
+    };
+
     const parsedRows = parseSrtToRows(srtText, forceAllAsVideo);
     if (!parsedRows.length) {
       return NextResponse.json({ error: 'Nao foi possivel extrair blocos validos do .srt enviado.' }, { status: 400 });
     }
 
-    const assetRows      = applyAssetRules(parsedRows, videoFormat, srtText);
+    const assetRows      = applyAssetRules(parsedRows, videoFormat, srtText, enabledAssets);
     const cooledRows     = enforceTextoCooldown(assetRows);
-    const hfRows         = applyHyperframeRules(cooledRows, videoFormat);
+    const hfRows         = applyHyperframeRules(cooledRows, videoFormat, enabledAssets);
     const excludedRows   = applyHyperframeExclusionZone(hfRows);
-    const finalRows      = finalizeFacelessRows(excludedRows, videoFormat);
+    const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssets);
     const promptItems    = buildPromptItems(finalRows, forceAllAsVideo);
 
     let rowsWithPrompts = finalRows;

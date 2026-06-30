@@ -276,7 +276,8 @@ export const calculateSrtSeed = (srtText: string): number => {
 export const applyAssetRules = (
   rows: SrtAssetRow[],
   videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
-  srtText = ''
+  srtText = '',
+  enabledAssets = { video: true, image: true, text: true, hyperframe: true }
 ) => {
   if (!rows.length) return rows;
 
@@ -302,14 +303,28 @@ export const applyAssetRules = (
     return ['.', '!', '?', ',', ';', ':'].includes(lastChar);
   };
 
+  const getBrollAssetWithToggles = (startMs: number, endMs: number): SrtAssetType => {
+    if (enabledAssets.video && enabledAssets.image) {
+      if (endMs - startMs <= VIDEO_MAX_DURATION_MS) return 'vídeo';
+      return 'imagem';
+    }
+    if (enabledAssets.video) return 'vídeo';
+    if (enabledAssets.image) return 'imagem';
+    return 'avatar';
+  };
+
   return rows.map((row, index) => {
     const text = row.texto.trim();
     const startMs = parseSrtTimeToMs(row.startTime);
     const endMs = parseSrtTimeToMs(row.endTime);
 
     // Short text always becomes a cinematic text overlay
-    if (text.length <= TEXT_MAX_CHARS) {
+    if (text.length <= TEXT_MAX_CHARS && enabledAssets.text) {
       return { ...row, asset: 'texto' as const };
+    }
+
+    if (!enabledAssets.video && !enabledAssets.image) {
+      return { ...row, asset: 'avatar' as SrtAssetType };
     }
 
     const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
@@ -403,14 +418,14 @@ export const applyAssetRules = (
       if (bestPunctuationRowIndex === index) {
         lastBrollMarkerMs = Math.max(lastBrollMarkerMs + (pEndMs - startMs), startMs);
         lastBrollEndMs = endMs; // Registra o término do B-roll para o cooldown da próxima iteração
-        return { ...row, asset: getBrollAsset(startMs, endMs) };
+        return { ...row, asset: getBrollAssetWithToggles(startMs, endMs) };
       }
     }
 
     if (endMs - lastBrollMarkerMs >= intervalMs) {
       lastBrollMarkerMs = Math.max(lastBrollMarkerMs + intervalMs, startMs);
       lastBrollEndMs = endMs; // Registra o término do B-roll para o cooldown da próxima iteração
-      return { ...row, asset: getBrollAsset(startMs, endMs) };
+      return { ...row, asset: getBrollAssetWithToggles(startMs, endMs) };
     }
 
     // Gaps temporarily marked as avatar in both modes so that applyHyperframeRules can identify and convert them.
@@ -422,14 +437,25 @@ export const applyAssetRules = (
 
 export const finalizeFacelessRows = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
+  enabledAssets = { video: true, image: true }
 ): SrtAssetRow[] => {
   if (videoFormat !== 'faceless' && videoFormat !== 'catalog') return rows;
   return rows.map((row) => {
     if (normalizeAssetType(row.asset) === 'avatar') {
       const startMs = parseSrtTimeToMs(row.startTime);
       const endMs = parseSrtTimeToMs(row.endTime);
-      const assetType = (endMs - startMs) <= VIDEO_MAX_DURATION_MS ? 'vídeo' : 'imagem';
+      
+      let assetType: SrtAssetType = 'vídeo';
+      if (enabledAssets.video && enabledAssets.image) {
+        assetType = (endMs - startMs) <= VIDEO_MAX_DURATION_MS ? 'vídeo' : 'imagem';
+      } else if (enabledAssets.video) {
+        assetType = 'vídeo';
+      } else if (enabledAssets.image) {
+        assetType = 'imagem';
+      } else {
+        return row;
+      }
       return { ...row, asset: assetType };
     }
     return row;
@@ -819,9 +845,10 @@ const findClosestAvatarRow = (
  */
 export const applyHyperframeRules = (
   rows: SrtAssetRow[],
-  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
+  videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
+  enabledAssets = { hyperframe: true }
 ): SrtAssetRow[] => {
-  if (videoFormat === 'avatar_flow' || videoFormat === 'faceless' || videoFormat === 'catalog') return rows;
+  if (!enabledAssets.hyperframe || videoFormat === 'avatar_flow' || videoFormat === 'faceless' || videoFormat === 'catalog') return rows;
   const result = rows.map((r) => ({ ...r }));
   const used          = new Set<number>();
   const usedTemplates = new Set<string>(); // Phase C: track assigned template names

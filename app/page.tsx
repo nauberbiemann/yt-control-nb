@@ -1090,6 +1090,7 @@ export default function Home() {
         pain_alignment: source.pain_alignment || targetPersona.pain_point || '',
         desired_outcome: source.desired_outcome || '',
         proof_points: source.proof_points || '',
+        channel_language: source.channel_language || 'Português',
       });
 
       const normalizeEditorialLine = (source: any = {}) => ({

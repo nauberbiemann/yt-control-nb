@@ -7,15 +7,31 @@ export const dynamic = 'force-dynamic';
 const getLanguageDirectives = (lang?: string) => {
   const l = (lang || 'Português').trim();
   if (l === 'English') {
-    return { name: 'English', code: 'English' };
+    return { 
+      name: 'English', 
+      code: 'English', 
+      units: 'US Imperial system (e.g. Fahrenheit °F, miles, feet, inches, pounds, ounces, gallons)' 
+    };
   }
   if (l === 'Español' || l === 'Spanish') {
-    return { name: 'Spanish', code: 'Spanish' };
+    return { 
+      name: 'Spanish', 
+      code: 'Spanish', 
+      units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+    };
   }
   if (l === 'Português' || l === 'Portuguese') {
-    return { name: 'Brazilian Portuguese', code: 'PT-BR' };
+    return { 
+      name: 'Brazilian Portuguese', 
+      code: 'PT-BR', 
+      units: 'Metric system (e.g. Celsius °C, quilômetros, metros, gramas, quilogramas, litros)' 
+    };
   }
-  return { name: l, code: l };
+  return { 
+    name: l, 
+    code: l, 
+    units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+  };
 };
 
 export type TitleCriterionResult = true | 'parcial' | false;

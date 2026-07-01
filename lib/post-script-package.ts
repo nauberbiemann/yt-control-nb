@@ -45,8 +45,72 @@ export interface PostScriptSfxAnchor {
 }
 
 const BLOCK_PREVIEW_LIMIT = 220;
-const FIXED_AI_NOTICE =
-  'AVISO DE IA: Este conteúdo foi estrategicamente desenvolvido com apoio de inteligência artificial, com supervisão humana para garantir clareza, coerência e integridade editorial.';
+
+const LANGUAGE_ASSETS: Record<string, {
+  aiNotice: string;
+  introFallback: string;
+  templates: Array<{ regex: RegExp; label: string }>;
+  structuralAbertura: string;
+  structuralVirada: string;
+  structuralFechamento: string;
+  defaultChapter: string;
+}> = {
+  Português: {
+    aiNotice: 'AVISO DE IA: Este conteúdo foi estrategicamente desenvolvido com apoio de inteligência artificial, com supervisão humana para garantir clareza, coerência e integridade editorial.',
+    introFallback: 'Neste vídeo eu mostro como a sobrecarga silenciosa se instala, por que ela parece produtividade por tanto tempo e quais ajustes práticos ajudam a recuperar clareza, energia e consistência.',
+    templates: [
+      { regex: /\b(notifica|aba|slack|context switch|contexto|atencao|foco fragmentado)\b/i, label: 'O custo invisível da atenção fragmentada' },
+      { regex: /\b(sono|exaust|cansac|burnout|desgaste|juros)\b/i, label: 'Os juros silenciosos do desgaste' },
+      { regex: /\b(cerebro|thrott|clock|superaquec|sobrecarga|lento)\b/i, label: 'Quando o sistema começa a falhar' },
+      { regex: /\b(arquitetura|kernel|base|prioridade|limite)\b/i, label: 'A base que precisa ser reorganizada' },
+      { regex: /\b(regra|protocolo|rotina|checklist|manutenc|plano|commit)\b/i, label: 'O protocolo prático para retomar controle' },
+      { regex: /\b(reconstruc|recuper|reboot|reinicio|itera|sustentavel)\b/i, label: 'Como manter o sistema estável a longo prazo' },
+    ],
+    structuralAbertura: 'Onde a perda de performance começa',
+    structuralVirada: 'A virada que muda a leitura do problema',
+    structuralFechamento: 'O fechamento prático para consolidar a mudança',
+    defaultChapter: 'Ponto importante da jornada'
+  },
+  English: {
+    aiNotice: 'AI NOTICE: This content was strategically developed with the support of artificial intelligence, under human supervision to ensure clarity, coherence, and editorial integrity.',
+    introFallback: 'In this video, I explain how silent overload sets in, why it feels like productivity for so long, and what practical tweaks help restore clarity, energy, and consistency.',
+    templates: [
+      { regex: /\b(notific|tab|slack|context switch|attention|fragmented focus|focus)\b/i, label: 'The invisible cost of fragmented attention' },
+      { regex: /\b(sleep|exhaust|fatigu|burnout|wear|silent tax)\b/i, label: 'The silent tax of burnout' },
+      { regex: /\b(brain|thrott|clock|overheat|overload|slow)\b/i, label: 'When the system begins to fail' },
+      { regex: /\b(architect|kernel|base|priorit|limit|boundary)\b/i, label: 'The foundation that needs reorganization' },
+      { regex: /\b(rule|protocol|routin|checklist|mainten|plan|commit)\b/i, label: 'The practical protocol to regain control' },
+      { regex: /\b(reconstruct|recov|reboot|restart|iterat|sustain)\b/i, label: 'How to keep the system stable in the long run' },
+    ],
+    structuralAbertura: 'Where the performance loss begins',
+    structuralVirada: 'The shift that changes the reading of the problem',
+    structuralFechamento: 'The practical wrap-up to consolidate the change',
+    defaultChapter: 'Important point in the journey'
+  },
+  Español: {
+    aiNotice: 'AVISO DE IA: Este contenido fue desarrollado estratégicamente con el apoyo de inteligencia artificial, bajo supervisión humana para garantizar claridad, coherencia e integridad editorial.',
+    introFallback: 'En este video muestro cómo se instala la sobrecarga silenciosa, por qué parece productividad durante tanto tiempo e cuáles ajustes prácticos ayudan a recuperar claridad, energía y consistencia.',
+    templates: [
+      { regex: /\b(notific|pestana|slack|context switch|atencion|enfoque fragmentado|foco)\b/i, label: 'El costo invisible de la atención fragmentada' },
+      { regex: /\b(sueno|agotamiento|fatiga|burnout|desgaste|interes silencioso)\b/i, label: 'El interés silencioso del desgaste' },
+      { regex: /\b(cerebro|thrott|reloj|sobrecalent|sobrecarga|lento)\b/i, label: 'Cuando el sistema comienza a fallar' },
+      { regex: /\b(arquitect|kernel|base|prioridad|limite)\b/i, label: 'La base que necesita reorganizarse' },
+      { regex: /\b(regla|protocolo|rutina|checklist|manten|plan|commit)\b/i, label: 'El protocolo práctico para retomar el control' },
+      { regex: /\b(reconstruc|recuper|reboot|reinicio|iterac|sostenible)\b/i, label: 'Cómo mantener el sistema estable a largo plazo' },
+    ],
+    structuralAbertura: 'Donde comienza la pérdida de rendimiento',
+    structuralVirada: 'El giro que cambia la lectura del problema',
+    structuralFechamento: 'El cierre práctico para consolidar el cambio',
+    defaultChapter: 'Punto importante del camino'
+  }
+};
+
+const getLanguageAssets = (lang?: string) => {
+  const l = (lang || 'Português').trim();
+  if (l === 'English') return LANGUAGE_ASSETS.English;
+  if (l === 'Español' || l === 'Spanish') return LANGUAGE_ASSETS.Español;
+  return LANGUAGE_ASSETS.Português;
+};
 
 const SUNO_PROMPT_MAX_CHARS = 800;
 
@@ -206,18 +270,18 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const SFX_SEMANTIC_PATTERNS: Array<{ regex: RegExp; score: number; rationale: string }> = [
   // Tech/Dev niche (existing)
-  { regex: /\b(crash|colapso|pane|quebra|quebrou)\b/gi, score: 5, rationale: 'momento de colapso ou falha' },
-  { regex: /\b(sobrecarga|burnout|exaust|cansaco|esgotamento)\b/gi, score: 5, rationale: 'trecho de desgaste ou pressao alta' },
-  { regex: /\b(slap|glitch|erro|bug|falha|loop)\b/gi, score: 4, rationale: 'linguagem de falha ou disrupcao' },
-  { regex: /\b(reconstrucao|recuperacao|reinicio|reboot|calma|controle)\b/gi, score: 3, rationale: 'trecho de recuperacao ou estabilizacao' },
+  { regex: /\b(crash|colapso|pane|quebra|quebrou|failure|break|broke|fallo|rompio)\b/gi, score: 5, rationale: 'momento de colapso ou falha' },
+  { regex: /\b(sobrecarga|burnout|exaust|cansaco|esgotamento|overload|exhaust|fatigue|wear|tiredness|agotamiento)\b/gi, score: 5, rationale: 'trecho de desgaste ou pressao alta' },
+  { regex: /\b(slap|glitch|erro|bug|falha|loop|error|failure|falla)\b/gi, score: 4, rationale: 'linguagem de falha ou disrupcao' },
+  { regex: /\b(reconstrucao|recuperacao|reinicio|reboot|calma|controle|reconstruction|recovery|restart|calm|control|reconstruccion|recuperacion)\b/gi, score: 3, rationale: 'trecho de recuperacao ou estabilizacao' },
   // Universal Narrative / Hooks
-  { regex: /\b(alerta|alarme|critico|urgente|atencao|cuidado|perigo|risco)\b/gi, score: 4, rationale: 'sinal de alerta ou urgencia' },
-  { regex: /\b(virada|mudanca|decisao|aceitei|percebi|entendi|clareza|descobri|revelacao)\b/gi, score: 4, rationale: 'virada ou realizacao importante' },
-  { regex: /\b(foco|prioridade|disciplina|limite|regra|solucao|estrategia|metodo|passo)\b/gi, score: 3, rationale: 'direcionamento pratico ou solucao' },
-  { regex: /\b(surpresa|incrivel|chocante|inesperado|bizarro|absurdo)\b/gi, score: 4, rationale: 'momento de choque ou surpresa' },
-  { regex: /\b(segredo|misterio|verdade|mentira|mito|oculto|escondido)\b/gi, score: 4, rationale: 'revelacao de segredo ou mito' },
-  { regex: /\b(sucesso|conquista|vitoria|resultado|lucro|crescimento|aumento|esforco)\b/gi, score: 4, rationale: 'momento de conquista ou impacto' },
-  { regex: /\b(dor|problema|dificuldade|obstaculo|barreira|medo|frustracao|crise)\b/gi, score: 4, rationale: 'ponto de dor ou obstaculo' },
+  { regex: /\b(alerta|alarme|critico|urgente|atencao|cuidado|perigo|risco|alert|alarm|critical|urgent|attention|warning|danger|risk|alarma|critico|atencion|peligro|riesgo)\b/gi, score: 4, rationale: 'sinal de alerta ou urgencia' },
+  { regex: /\b(virada|mudanca|decisao|aceitei|percebi|entendi|clareza|descobri|revelacao|shift|change|decision|accepted|realized|understood|clarity|discovered|revelation|cambio|decision|acepte|perci|entendi|claridad|descubri|revelacion)\b/gi, score: 4, rationale: 'virada ou realizacao importante' },
+  { regex: /\b(foco|prioridade|disciplina|limite|regra|solucao|estrategia|metodo|passo|focus|priority|discipline|limit|boundary|rule|solution|strategy|method|step|prioridad|regla|solucion|estrategia|metodo|paso)\b/gi, score: 3, rationale: 'direcionamento pratico ou solucao' },
+  { regex: /\b(surpresa|incrivel|chocante|inesperado|bizarro|absurdo|surprise|incredible|shocking|unexpected|bizarre|absurd|sorpresa|increible|chocante|inesperado)\b/gi, score: 4, rationale: 'momento de choque ou surpresa' },
+  { regex: /\b(segredo|misterio|verdade|mentira|mito|oculto|escondido|secret|mystery|truth|lie|myth|hidden|secreto|misterio|verdad|mentira)\b/gi, score: 4, rationale: 'revelacao de segredo ou mito' },
+  { regex: /\b(sucesso|conquista|vitoria|resultado|lucro|crescimento|aumento|esforco|success|achievement|victory|result|profit|growth|increase|effort|exito|victoria|logro|esfuerzo)\b/gi, score: 4, rationale: 'momento de conquista ou impacto' },
+  { regex: /\b(dor|problema|dificuldade|obstaculo|barreira|medo|frustracao|crise|pain|problem|difficulty|obstacle|barrier|fear|frustration|crisis|dolor|obstaculo|miedo|frustracion|crisis)\b/gi, score: 4, rationale: 'ponto de dor ou obstaculo' },
 ];
 
 export const buildScriptTranscript = (blocks: PostScriptScriptBlock[]) =>
@@ -532,67 +596,67 @@ const deriveChapterLabelHuman = (anchor: PostScriptChapterAnchor, isLast: boolea
   return shortLabel.charAt(0).toUpperCase() + shortLabel.slice(1);
 };
 
-const humanizeSeoIntroPtBr = (value: string) => {
+const humanizeSeoIntroCustom = (value: string, fallback: string) => {
   const intro = extractSeoIntroClean(value)
     .replace(/\[[^\]]+\]/g, ' ')
     .replace(/^No (capitulo|bloco)\s+[^,]+,\s*/i, '')
     .replace(/\s*[“”"][^“”"]+[“”"]/g, (match) => match.replace(/[“”"]/g, ''))
-    .replace(/\b(Neste video eu mostro como|Neste video voce vai ver como)\b/i, 'Neste vídeo eu mostro')
+    .replace(/\b(Neste video eu mostro como|Neste video voce vai ver como|In this video I show|En este video muestro)\b/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!intro) {
-    return 'Neste vídeo eu mostro como a sobrecarga silenciosa se instala, por que ela parece produtividade por tanto tempo e quais ajustes práticos ajudam a recuperar clareza, energia e consistência.';
-  }
-
+  if (!intro) return fallback;
   return intro;
 };
 
-const deriveChapterLabelPtBr = (anchor: PostScriptChapterAnchor, isLast: boolean) => {
+const deriveChapterLabelCustom = (
+  anchor: PostScriptChapterAnchor, 
+  isLast: boolean, 
+  assets: typeof LANGUAGE_ASSETS.Português
+) => {
   const source = cleanInlineLabelHuman(`${anchor.preview} ${anchor.originalTitle}`).toLowerCase();
 
-  const semanticTemplates: Array<{ regex: RegExp; label: string }> = [
-    { regex: /\b(notifica|aba|slack|context switch|contexto|atencao|foco fragmentado)\b/, label: 'O custo invisível da atenção fragmentada' },
-    { regex: /\b(sono|exaust|cansac|burnout|desgaste|juros)\b/, label: 'Os juros silenciosos do desgaste' },
-    { regex: /\b(cerebro|thrott|clock|superaquec|sobrecarga|lento)\b/, label: 'Quando o sistema começa a falhar' },
-    { regex: /\b(arquitetura|kernel|base|prioridade|limite)\b/, label: 'A base que precisa ser reorganizada' },
-    { regex: /\b(regra|protocolo|rotina|checklist|manutenc|plano|commit)\b/, label: 'O protocolo prático para retomar controle' },
-    { regex: /\b(reconstruc|recuper|reboot|reinicio|itera|sustentavel)\b/, label: 'Como manter o sistema estável a longo prazo' },
-  ];
-
-  for (const template of semanticTemplates) {
+  for (const template of assets.templates) {
     if (template.regex.test(source)) return template.label;
   }
 
   if (anchor.layer === 'structural' && anchor.rationale === 'abertura') {
-    return 'Onde a perda de performance começa';
+    return assets.structuralAbertura;
   }
 
   if (anchor.layer === 'structural' && anchor.rationale === 'virada') {
-    return 'A virada que muda a leitura do problema';
+    return assets.structuralVirada;
   }
 
   if (isLast || (anchor.layer === 'structural' && anchor.rationale === 'fechamento')) {
-    return 'O fechamento prático para consolidar a mudança';
+    return assets.structuralFechamento;
   }
 
   const candidate = cleanInlineLabelHuman(anchor.preview || anchor.originalTitle)
-    .replace(/^[^A-Za-z0-9]+/, '')
-    .replace(/^(eu|voce|neste video|agora|depois|aqui)\s+/i, '')
+    .replace(/^[^A-Za-z0-9]+/g, '')
+    .replace(/^(eu|voce|neste video|agora|depois|aqui|i|you|now|after|here|nosotros|usted|en este video)\s+/i, '')
     .split(/[.!?]/)[0]
     .trim();
 
   const words = candidate.split(/\s+/).filter(Boolean).slice(0, 8);
   const shortLabel = words.join(' ').trim();
-  if (!shortLabel) return 'Ponto importante da jornada';
+  if (!shortLabel) return assets.defaultChapter;
 
   return shortLabel.charAt(0).toUpperCase() + shortLabel.slice(1);
 };
 
-const buildSeoDescriptionFromPackage = (rawSeoDescription: string, anchors: PostScriptChapterAnchor[]) => {
-  const intro = humanizeSeoIntroPtBr(rawSeoDescription);
-  const chapterLines = anchors.map((anchor, index) => `${anchor.timestamp} - ${deriveChapterLabelPtBr(anchor, index === anchors.length - 1)}`);
-  return [intro, '', ...chapterLines, '', FIXED_AI_NOTICE].filter(Boolean).join('\n');
+const buildSeoDescriptionFromPackage = (
+  rawSeoDescription: string, 
+  anchors: PostScriptChapterAnchor[], 
+  channelLanguage?: string
+) => {
+  const assets = getLanguageAssets(channelLanguage);
+  const intro = humanizeSeoIntroCustom(rawSeoDescription, assets.introFallback);
+  const chapterLines = anchors.map((anchor, index) => {
+    const label = deriveChapterLabelCustom(anchor, index === anchors.length - 1, assets);
+    return `${anchor.timestamp} - ${label}`;
+  });
+  return [intro, '', ...chapterLines, '', assets.aiNotice].filter(Boolean).join('\n');
 };
 
 export const buildSeoChapterPlan = ({
@@ -860,7 +924,8 @@ export const buildSfxAnchorPlan = ({
 export const sanitizePostScriptPackage = (
   raw: Partial<PostScriptPackage> | null | undefined,
   fallbackAnchors: PostScriptChapterAnchor[],
-  timelineSource: 'srt' | 'estimated'
+  timelineSource: 'srt' | 'estimated',
+  channelLanguage?: string
 ): PostScriptPackage => {
   const titles = Array.from(
     new Set(
@@ -872,7 +937,11 @@ export const sanitizePostScriptPackage = (
 
   return {
     titles,
-    seoDescription: buildSeoDescriptionFromPackage(String(raw?.seoDescription || ''), Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors),
+    seoDescription: buildSeoDescriptionFromPackage(
+      String(raw?.seoDescription || ''),
+      Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors,
+      channelLanguage
+    ),
     sunoPrompt: truncateSunoPrompt(cleanMultiline(String(raw?.sunoPrompt || ''))),
     sunoSuggestedTitle: cleanPreview(String(raw?.sunoSuggestedTitle || '')),
     sfxTimelineTxt: normalizeSfxTimelineEffectNames(String(raw?.sfxTimelineTxt || '')),

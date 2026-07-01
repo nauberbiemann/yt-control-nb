@@ -18,15 +18,31 @@ export const maxDuration = 300;
 const getLanguageDirectives = (lang?: string) => {
   const l = (lang || 'Português').trim();
   if (l === 'English') {
-    return { name: 'English', code: 'English' };
+    return { 
+      name: 'English', 
+      code: 'English', 
+      units: 'US Imperial system (e.g. Fahrenheit °F, miles, feet, inches, pounds, ounces, gallons)' 
+    };
   }
   if (l === 'Español' || l === 'Spanish') {
-    return { name: 'Spanish', code: 'Spanish' };
+    return { 
+      name: 'Spanish', 
+      code: 'Spanish', 
+      units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+    };
   }
   if (l === 'Português' || l === 'Portuguese') {
-    return { name: 'Brazilian Portuguese', code: 'PT-BR' };
+    return { 
+      name: 'Brazilian Portuguese', 
+      code: 'PT-BR', 
+      units: 'Metric system (e.g. Celsius °C, quilômetros, metros, gramas, quilogramas, litros)' 
+    };
   }
-  return { name: l, code: l };
+  return { 
+    name: l, 
+    code: l, 
+    units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+  };
 };
 
 const SYSTEM_INSTRUCTIONS = `
@@ -269,8 +285,8 @@ const requestWithOpenAI = async ({
   prompt: string;
   channelLanguage?: string;
 }) => {
-  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
-  const dynamicInstructions = SYSTEM_INSTRUCTIONS
+  const { name: langName, code: langCode, units: langUnits } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = `${SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('Brazilian Portuguese', langName)
     .replaceAll('PT-BR', langCode);
 
@@ -317,8 +333,8 @@ const requestWithGemini = async ({
   prompt: string;
   channelLanguage?: string;
 }) => {
-  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
-  const dynamicInstructions = SYSTEM_INSTRUCTIONS
+  const { name: langName, code: langCode, units: langUnits } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = `${SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('Brazilian Portuguese', langName)
     .replaceAll('PT-BR', langCode);
 
@@ -451,7 +467,7 @@ export async function POST(req: NextRequest) {
       ? await requestWithGemini({ apiKey, model: apiModel, prompt, channelLanguage })
       : await requestWithOpenAI({ apiKey, model: apiModel, prompt, channelLanguage });
 
-    const payload = sanitizePostScriptPackage(rawPackage, seoChapterPlan.anchors, timelineContext.source);
+    const payload = sanitizePostScriptPackage(rawPackage, seoChapterPlan.anchors, timelineContext.source, channelLanguage);
     if (payload.titles.length < 1) {
       return NextResponse.json({ error: 'A IA nao retornou nenhum titulo viral.' }, { status: 502 });
     }

@@ -288,15 +288,31 @@ const resolveErrorMessage = (errPayload: any, fallback: string): string => {
 const getLanguageDirectives = (lang?: string) => {
   const l = (lang || 'Português').trim();
   if (l === 'English') {
-    return { name: 'English', code: 'English' };
+    return { 
+      name: 'English', 
+      code: 'English', 
+      units: 'US Imperial system (e.g. Fahrenheit °F, miles, feet, inches, pounds, ounces, gallons)' 
+    };
   }
   if (l === 'Español' || l === 'Spanish') {
-    return { name: 'Spanish', code: 'Spanish' };
+    return { 
+      name: 'Spanish', 
+      code: 'Spanish', 
+      units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+    };
   }
   if (l === 'Português' || l === 'Portuguese') {
-    return { name: 'Brazilian Portuguese', code: 'PT-BR' };
+    return { 
+      name: 'Brazilian Portuguese', 
+      code: 'PT-BR', 
+      units: 'Metric system (e.g. Celsius °C, quilômetros, metros, gramas, quilogramas, litros)' 
+    };
   }
-  return { name: l, code: l };
+  return { 
+    name: l, 
+    code: l, 
+    units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+  };
 };
 
 const SRT_PIPELINE_SYSTEM_INSTRUCTIONS = `
@@ -651,9 +667,9 @@ const directGenerateBatchOpenAI = async ({
   channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
-  const { name: langName } = getLanguageDirectives(channelLanguage);
+  const { name: langName, units: langUnits } = getLanguageDirectives(channelLanguage);
   
-  const dynamicSrtInstructions = SRT_PIPELINE_SYSTEM_INSTRUCTIONS
+  const dynamicSrtInstructions = `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('(usually Portuguese)', `(usually ${langName})`)
     .replaceAll('(Portuguese)', `(${langName})`)
     .replaceAll('in Portuguese', `in ${langName}`)
@@ -788,9 +804,9 @@ const directGenerateBatchGemini = async ({
   channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
-  const { name: langName } = getLanguageDirectives(channelLanguage);
+  const { name: langName, units: langUnits } = getLanguageDirectives(channelLanguage);
   
-  const dynamicSrtInstructions = SRT_PIPELINE_SYSTEM_INSTRUCTIONS
+  const dynamicSrtInstructions = `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('(usually Portuguese)', `(usually ${langName})`)
     .replaceAll('(Portuguese)', `(${langName})`)
     .replaceAll('in Portuguese', `in ${langName}`)
@@ -901,8 +917,8 @@ const directGeneratePostScriptOpenAI = async ({
   channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
-  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
-  const dynamicInstructions = POST_SCRIPT_SYSTEM_INSTRUCTIONS
+  const { name: langName, code: langCode, units: langUnits } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = `${POST_SCRIPT_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('Brazilian Portuguese', langName)
     .replaceAll('PT-BR', langCode);
 
@@ -950,8 +966,8 @@ const directGeneratePostScriptGemini = async ({
   channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
-  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
-  const dynamicInstructions = POST_SCRIPT_SYSTEM_INSTRUCTIONS
+  const { name: langName, code: langCode, units: langUnits } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = `${POST_SCRIPT_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('Brazilian Portuguese', langName)
     .replaceAll('PT-BR', langCode);
 
@@ -6437,7 +6453,8 @@ COMO USAR NO WINDOWS:
         }
       }
 
-      const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
+      const channelLanguage = activeProject?.persona_matrix?.channel_language || 'Português';
+      const nextPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source, channelLanguage);
 
       // ── Diagnóstico: o que a IA realmente devolveu? ──────────────────────────
       const aiCtx: any[] = nextPackage.hfContextTitles ?? [];
@@ -6848,7 +6865,8 @@ COMO USAR NO WINDOWS:
         throw new Error(resolveErrorMessage(data?.error, 'Falha ao regerar os títulos.'));
       }
 
-      const newPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source);
+      const channelLanguage = activeProject?.persona_matrix?.channel_language || 'Português';
+      const newPackage = sanitizePostScriptPackage(data, fallbackSeoPlan.anchors, timelineContext.source, channelLanguage);
 
       // Smart merge: keep approved titles, insert new ones at weak positions
       const updatedTitles = [...postScriptPackage.titles];

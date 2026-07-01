@@ -579,6 +579,8 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
     setCurrentMatch(result.score);
     setProhibitedWarning(result.detectedProhibited);
     setRefactoringSuggestion(result.suggestion);
+
+    const channelLanguage = activeProject?.persona_matrix?.channel_language || 'Português';
     
     try {
       await delay(600);
@@ -592,7 +594,7 @@ export default function ContentHub({ activeProject: propProject, selectedAIConfi
       const openaiKey = localStorage.getItem('yt_openai_key');
 
       const missingOpenAI = engine === 'openai' && !openaiKey;
-const missingGemini = engine === 'gemini' && !geminiKey;
+      const missingGemini = engine === 'gemini' && !geminiKey;
 
       if (missingOpenAI) {
         console.warn('API Key OpenAI ausente, usando fallback local.');
@@ -612,9 +614,11 @@ OBJETIVO: Agir como um sintetizador de conteúdo agnóstico. 100% do vocabulári
 - Fale de sênior para sênior de forma brutalmente cética e pragmática.
 - ZERO VAZAMENTO DE ABSTRAÇÃO: É TERMINANTEMENTE PROIBIDO colocar "S1:", "M1:", IDs, ou chaves de db dentro das frases geradas.
 - Máximo 70 caracteres por título.
+- IDIOMA DE GERAÇÃO: Todos os títulos (S1, S2, S3, S4, S5) DEVEM ser gerados obrigatoriamente no idioma: ${channelLanguage}.
 
 [CONTEXTO DE CONFIGURAÇÃO]
 Tema do Usuário: ${baseTopic}
+Idioma de Geração do Canal: ${channelLanguage}
 DNA / Target Persona: ${activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'Sênior Tech'}
 Dor Central: ${activeProject?.persona_matrix?.pain_alignment || activeProject?.target_persona?.pain_point || 'N/A'}
 Observação de Conexão: ${newThemeNote}

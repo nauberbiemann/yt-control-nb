@@ -285,6 +285,20 @@ const resolveErrorMessage = (errPayload: any, fallback: string): string => {
     return <div className="space-y-1.5">{elements}</div>;
   };
 
+const getLanguageDirectives = (lang?: string) => {
+  const l = (lang || 'Português').trim();
+  if (l === 'English') {
+    return { name: 'English', code: 'English' };
+  }
+  if (l === 'Español' || l === 'Spanish') {
+    return { name: 'Spanish', code: 'Spanish' };
+  }
+  if (l === 'Português' || l === 'Portuguese') {
+    return { name: 'Brazilian Portuguese', code: 'PT-BR' };
+  }
+  return { name: l, code: l };
+};
+
 const SRT_PIPELINE_SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
@@ -621,6 +635,7 @@ const directGenerateBatchOpenAI = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
@@ -633,16 +648,31 @@ const directGenerateBatchOpenAI = async ({
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
+  const { name: langName } = getLanguageDirectives(channelLanguage);
+  
+  const dynamicSrtInstructions = SRT_PIPELINE_SYSTEM_INSTRUCTIONS
+    .replaceAll('(usually Portuguese)', `(usually ${langName})`)
+    .replaceAll('(Portuguese)', `(${langName})`)
+    .replaceAll('in Portuguese', `in ${langName}`)
+    .replaceAll('usually Portuguese', `usually ${langName}`);
+
+  const dynamicFacelessHint = facelessHint
+    .replaceAll('(usually Portuguese)', `(usually ${langName})`)
+    .replaceAll('(Portuguese)', `(${langName})`)
+    .replaceAll('in Portuguese', `in ${langName}`)
+    .replaceAll('usually Portuguese', `usually ${langName}`);
+
   const requestBody: Record<string, unknown> = {
     model: resolvedModel,
     messages: [
       { 
         role: isReasoningModel(resolvedModel) ? 'developer' : 'system', 
         content: ultraCinematic 
-          ? `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
-          : SRT_PIPELINE_SYSTEM_INSTRUCTIONS 
+          ? `${dynamicSrtInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+          : dynamicSrtInstructions 
       },
       {
         role: 'user',
@@ -698,7 +728,7 @@ When constructing the prompt suffix, merge these details dynamically instead of 
             } catch (e) {}
             return '';
           })(),
-          facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
+          dynamicFacelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
         ].filter(Boolean).join('\n\n'),
@@ -742,6 +772,7 @@ const directGenerateBatchGemini = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
@@ -754,8 +785,23 @@ const directGenerateBatchGemini = async ({
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
+  const { name: langName } = getLanguageDirectives(channelLanguage);
+  
+  const dynamicSrtInstructions = SRT_PIPELINE_SYSTEM_INSTRUCTIONS
+    .replaceAll('(usually Portuguese)', `(usually ${langName})`)
+    .replaceAll('(Portuguese)', `(${langName})`)
+    .replaceAll('in Portuguese', `in ${langName}`)
+    .replaceAll('usually Portuguese', `usually ${langName}`);
+
+  const dynamicFacelessHint = facelessHint
+    .replaceAll('(usually Portuguese)', `(usually ${langName})`)
+    .replaceAll('(Portuguese)', `(${langName})`)
+    .replaceAll('in Portuguese', `in ${langName}`)
+    .replaceAll('usually Portuguese', `usually ${langName}`);
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=${apiKey}`,
     {
@@ -766,8 +812,8 @@ const directGenerateBatchGemini = async ({
           parts: [{
             text: [
               ultraCinematic 
-                ? `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
-                : SRT_PIPELINE_SYSTEM_INSTRUCTIONS,
+                ? `${dynamicSrtInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+                : dynamicSrtInstructions,
               'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -798,7 +844,7 @@ Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}
                   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
                     const parsed = JSON.parse(trimmed);
                     if (parsed && typeof parsed === 'object') {
-                      return `
+                       return `
 CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
 You MUST strictly apply the following style configurations to every video or image prompt:
 - Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
@@ -819,7 +865,7 @@ When constructing the prompt suffix, merge these details dynamically instead of 
                 } catch (e) {}
                 return '';
               })(),
-              facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
+              dynamicFacelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
             ].filter(Boolean).join('\n\n'),
@@ -847,16 +893,23 @@ const directGeneratePostScriptOpenAI = async ({
   apiKey,
   model,
   prompt,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
   prompt: string;
+  channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
+  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = POST_SCRIPT_SYSTEM_INSTRUCTIONS
+    .replaceAll('Brazilian Portuguese', langName)
+    .replaceAll('PT-BR', langCode);
+
   const requestBody: Record<string, unknown> = {
     model: resolvedModel,
     messages: [
-      { role: isReasoningModel(resolvedModel) ? 'developer' : 'system', content: POST_SCRIPT_SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(resolvedModel) ? 'developer' : 'system', content: dynamicInstructions },
       { role: 'user', content: prompt },
     ],
     response_format: { type: 'json_object' },
@@ -889,12 +942,19 @@ const directGeneratePostScriptGemini = async ({
   apiKey,
   model,
   prompt,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
   prompt: string;
+  channelLanguage?: string;
 }) => {
   const resolvedModel = resolveModel(model);
+  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = POST_SCRIPT_SYSTEM_INSTRUCTIONS
+    .replaceAll('Brazilian Portuguese', langName)
+    .replaceAll('PT-BR', langCode);
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=${apiKey}`,
     {
@@ -903,7 +963,7 @@ const directGeneratePostScriptGemini = async ({
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: [POST_SCRIPT_SYSTEM_INSTRUCTIONS, prompt].join('\n\n'),
+            text: [dynamicInstructions, prompt].join('\n\n'),
           }],
         }],
         generationConfig: {
@@ -952,6 +1012,9 @@ const buildUserPrompt = ({
     ? titleStructures.map(t => `- [${t.name}]: "${t.content_pattern}"`).join('\n')
     : '';
 
+  const channelLanguage = projectContext?.channelLanguage || 'Português';
+  const { code: langCode } = getLanguageDirectives(channelLanguage);
+
   return [
     'Build the complete post-script package for this approved video.',
     '',
@@ -993,7 +1056,7 @@ const buildUserPrompt = ({
     'Important output expectations:',
     `- Generate exactly ${titleCountHint ?? 5} title options.`,
     titleStructuresStr
-      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. RE-THEMING RULE: If a pattern is a concrete sentence/example (e.g. references "Magnésio-Quelato" or "alimento fit"), you MUST adapt and replace these subjects/nouns with the current video topic (e.g. "Creatina"). The output titles must be fully written in PT-BR and must NOT contain any bracketed placeholders or unrelated subjects.`
+      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. RE-THEMING RULE: If a pattern is a concrete sentence/example (e.g. references "Magnésio-Quelato" or "alimento fit"), you MUST adapt and replace these subjects/nouns with the current video topic (e.g. "Creatina"). The output titles must be fully written in ${langCode} and must NOT contain any bracketed placeholders or unrelated subjects.`
       : `- Each title must organically combine these 5 structural components: hook tension + emotional promise + contrast + transformation + reward. Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.`,
     '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',
@@ -4329,8 +4392,11 @@ COMO USAR NO WINDOWS:
       activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
     );
 
+    const channelLanguage = activeProject?.persona_matrix?.channel_language || 'Português';
+    const { name: langName } = getLanguageDirectives(channelLanguage);
+
     if (isDirect) {
-      const facelessHint = videoFormat === 'catalog'
+      let rawFacelessHint = videoFormat === 'catalog'
         ? `CATALOG VIDEO MODE: This format is styled like a premium presentation slide or documentary collage. Banish all modern studio presenters, talking heads, or hosts speaking to the camera. Follow these layout structure rules for every scene:
 1. LAYOUT VISUALS: All image and video prompts MUST describe a clean slide composition. Specifically state: "a minimalist off-white textured stucco background with smooth drop shadows" to ensure style consistency.
 2. CONTENT CARDS: Visualize the narrative concepts, historical objects, maps, or portraits inside floating cards or boards with rounded corners (e.g. "a floating rounded card showing...").
@@ -4351,6 +4417,12 @@ COMO USAR NO WINDOWS:
         ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
         : '';
 
+      const facelessHint = rawFacelessHint
+        .replaceAll('(Portuguese)', `(${langName})`)
+        .replaceAll('in Portuguese', `in ${langName}`)
+        .replaceAll('words in Portuguese', `words in ${langName}`)
+        .replaceAll('reading \'ALEGAÇÕES\'', `reading text in ${langName} (e.g. 'CLAY POTS' if English or the equivalent in the script language)`);
+
       const payload = engine === 'gemini'
         ? await directGenerateBatchGemini({
             apiKey,
@@ -4363,7 +4435,8 @@ COMO USAR NO WINDOWS:
             facelessHint,
             videoFormat,
             visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
-            ultraCinematic
+            ultraCinematic,
+            channelLanguage
           })
         : await directGenerateBatchOpenAI({
             apiKey,
@@ -4376,7 +4449,8 @@ COMO USAR NO WINDOWS:
             facelessHint,
             videoFormat,
             visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
-            ultraCinematic
+            ultraCinematic,
+            channelLanguage
           });
 
       const localFallbackRowsObj = new Set<number>();
@@ -6313,6 +6387,7 @@ COMO USAR NO WINDOWS:
           puc: activeProject?.puc || activeProject?.puc_promise || '',
           persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
           soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+          channelLanguage: activeProject?.persona_matrix?.channel_language || 'Português',
         };
 
         const prompt = buildUserPrompt({
@@ -6329,8 +6404,8 @@ COMO USAR NO WINDOWS:
         });
 
         data = engine === 'gemini'
-          ? await directGeneratePostScriptGemini({ apiKey, model, prompt })
-          : await directGeneratePostScriptOpenAI({ apiKey, model, prompt });
+          ? await directGeneratePostScriptGemini({ apiKey, model, prompt, channelLanguage: projectContext.channelLanguage })
+          : await directGeneratePostScriptOpenAI({ apiKey, model, prompt, channelLanguage: projectContext.channelLanguage });
       } else {
         // Server fallback calling
         const response = await fetch('/api/post-script-package', {
@@ -6351,6 +6426,7 @@ COMO USAR NO WINDOWS:
               puc: activeProject?.puc || activeProject?.puc_promise || '',
               persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
               soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+              channelLanguage: activeProject?.persona_matrix?.channel_language || 'Português',
             },
           }),
         });
@@ -6646,6 +6722,9 @@ COMO USAR NO WINDOWS:
           apiKeyOverwrite: apiKey,
           approvedTheme,
           titles: titlesToValidate,
+          projectContext: {
+            channelLanguage: activeProject?.persona_matrix?.channel_language || 'Português',
+          },
         }),
       });
 
@@ -6759,6 +6838,7 @@ COMO USAR NO WINDOWS:
             puc: activeProject?.puc || activeProject?.puc_promise || '',
             persona: activeProject?.persona || activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || '',
             soundtrack: activeProject?.editing_sop?.soundtrack || activeProject?.editing_sop?.trilha || '',
+            channelLanguage: activeProject?.persona_matrix?.channel_language || 'Português',
           },
         }),
       });

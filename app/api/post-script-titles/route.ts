@@ -4,6 +4,20 @@ import { resolveModel, isReasoningModel } from '@/lib/ai-config';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const getLanguageDirectives = (lang?: string) => {
+  const l = (lang || 'Português').trim();
+  if (l === 'English') {
+    return { name: 'English', code: 'English' };
+  }
+  if (l === 'Español' || l === 'Spanish') {
+    return { name: 'Spanish', code: 'Spanish' };
+  }
+  if (l === 'Português' || l === 'Portuguese') {
+    return { name: 'Brazilian Portuguese', code: 'PT-BR' };
+  }
+  return { name: l, code: l };
+};
+
 export type TitleCriterionResult = true | 'parcial' | false;
 
 export interface TitleValidationResult {
@@ -30,6 +44,9 @@ interface RouteBody {
   apiKeyOverwrite?: string;
   approvedTheme: string;
   titles: string[];
+  projectContext?: {
+    channelLanguage?: string;
+  } | null;
 }
 
 const SYSTEM_INSTRUCTIONS = `
@@ -106,15 +123,20 @@ const requestWithOpenAI = async ({
   apiKey,
   model,
   prompt,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
   prompt: string;
+  channelLanguage?: string;
 }): Promise<TitleValidationResponse> => {
+  const { name: langName } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = SYSTEM_INSTRUCTIONS.replaceAll('Brazilian Portuguese', langName);
+
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(model) ? 'developer' : 'system', content: dynamicInstructions },
       { role: 'user', content: prompt },
     ],
     response_format: { type: 'json_object' },
@@ -147,11 +169,16 @@ const requestWithGemini = async ({
   apiKey,
   model,
   prompt,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
   prompt: string;
+  channelLanguage?: string;
 }): Promise<TitleValidationResponse> => {
+  const { name: langName } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = SYSTEM_INSTRUCTIONS.replaceAll('Brazilian Portuguese', langName);
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -160,7 +187,7 @@ const requestWithGemini = async ({
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: [SYSTEM_INSTRUCTIONS, prompt].join('\n\n'),
+            text: [dynamicInstructions, prompt].join('\n\n'),
           }],
         }],
         generationConfig: {
@@ -228,7 +255,7 @@ const sanitizeResult = (raw: any, fallbackTitle: string): TitleValidationResult 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RouteBody;
-    const { engine, model, apiKeyOverwrite, approvedTheme, titles } = body;
+    const { engine, model, apiKeyOverwrite, approvedTheme, titles, projectContext } = body;
 
     if (!approvedTheme?.trim()) {
       return NextResponse.json({ error: 'O tema aprovado e obrigatorio.' }, { status: 400 });
@@ -254,11 +281,12 @@ export async function POST(req: NextRequest) {
 
     const apiModel = resolveModel(model);
     const prompt = buildUserPrompt(approvedTheme, titles);
+    const channelLanguage = projectContext?.channelLanguage || 'Português';
 
     const raw =
       engine === 'gemini'
-        ? await requestWithGemini({ apiKey, model: apiModel, prompt })
-        : await requestWithOpenAI({ apiKey, model: apiModel, prompt });
+        ? await requestWithGemini({ apiKey, model: apiModel, prompt, channelLanguage })
+        : await requestWithOpenAI({ apiKey, model: apiModel, prompt, channelLanguage });
 
     if (!Array.isArray(raw?.results)) {
       return NextResponse.json(

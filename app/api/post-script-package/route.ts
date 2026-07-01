@@ -15,6 +15,20 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
+const getLanguageDirectives = (lang?: string) => {
+  const l = (lang || 'Português').trim();
+  if (l === 'English') {
+    return { name: 'English', code: 'English' };
+  }
+  if (l === 'Español' || l === 'Spanish') {
+    return { name: 'Spanish', code: 'Spanish' };
+  }
+  if (l === 'Português' || l === 'Portuguese') {
+    return { name: 'Brazilian Portuguese', code: 'PT-BR' };
+  }
+  return { name: l, code: l };
+};
+
 const SYSTEM_INSTRUCTIONS = `
 You generate a post-script production package for a Brazilian Portuguese YouTube video.
 
@@ -133,6 +147,7 @@ interface RouteBody {
     puc?: string;
     persona?: string;
     soundtrack?: string;
+    channelLanguage?: string;
   } | null;
   titleCountHint?: number;
   titleStructures?: Array<{ id: string; name: string; content_pattern?: string }>;
@@ -219,7 +234,11 @@ const buildUserPrompt = ({
     'Important output expectations:',
     `- Generate exactly ${titleCountHint ?? 5} title options.`,
     titleStructuresStr
-      ? `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. RE-THEMING RULE: If a pattern is a concrete sentence/example (e.g. references "Magnésio-Quelato" or "alimento fit"), you MUST adapt and replace these subjects/nouns with the current video topic (e.g. "Creatina"). The output titles must be fully written in PT-BR and must NOT contain any bracketed placeholders or unrelated subjects.`
+      ? (() => {
+          const channelLanguage = projectContext?.channelLanguage || 'Português';
+          const { code: langCode } = getLanguageDirectives(channelLanguage);
+          return `- CRITICAL: Each generated title MUST strictly follow one of the patterns listed in the ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA. Do not use generic patterns. Replace all bracketed placeholders (like [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details from the script and theme. RE-THEMING RULE: If a pattern is a concrete sentence/example (e.g. references "Magnésio-Quelato" or "alimento fit"), you MUST adapt and replace these subjects/nouns with the current video topic (e.g. "Creatina"). The output titles must be fully written in ${langCode} and must NOT contain any bracketed placeholders or unrelated subjects.`;
+        })()
       : `- Each title must organically combine these 5 structural components: hook tension + emotional promise + contrast + transformation + reward. Mix formats: questions, paradoxical affirmations, comparative phrases. Vary tones: provocative, philosophical, inspirational, narrative.`,
     '- Maximum 12 words per title. No technical jargon. Emotional, curious and intense language only.',
     '- SEO description should be only the opening paragraph, written in a human editorial voice.',
@@ -243,15 +262,22 @@ const requestWithOpenAI = async ({
   apiKey,
   model,
   prompt,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
   prompt: string;
+  channelLanguage?: string;
 }) => {
+  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = SYSTEM_INSTRUCTIONS
+    .replaceAll('Brazilian Portuguese', langName)
+    .replaceAll('PT-BR', langCode);
+
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
-      { role: isReasoningModel(model) ? 'developer' : 'system', content: SYSTEM_INSTRUCTIONS },
+      { role: isReasoningModel(model) ? 'developer' : 'system', content: dynamicInstructions },
       { role: 'user', content: prompt },
     ],
     response_format: { type: 'json_object' },
@@ -284,11 +310,18 @@ const requestWithGemini = async ({
   apiKey,
   model,
   prompt,
+  channelLanguage,
 }: {
   apiKey: string;
   model: string;
   prompt: string;
+  channelLanguage?: string;
 }) => {
+  const { name: langName, code: langCode } = getLanguageDirectives(channelLanguage);
+  const dynamicInstructions = SYSTEM_INSTRUCTIONS
+    .replaceAll('Brazilian Portuguese', langName)
+    .replaceAll('PT-BR', langCode);
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -297,7 +330,7 @@ const requestWithGemini = async ({
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: [SYSTEM_INSTRUCTIONS, prompt].join('\n\n'),
+            text: [dynamicInstructions, prompt].join('\n\n'),
           }],
         }],
         generationConfig: {
@@ -412,9 +445,11 @@ export async function POST(req: NextRequest) {
       titleStructures,
     });
 
+    const channelLanguage = projectContext?.channelLanguage || 'Português';
+
     const rawPackage = engine === 'gemini'
-      ? await requestWithGemini({ apiKey, model: apiModel, prompt })
-      : await requestWithOpenAI({ apiKey, model: apiModel, prompt });
+      ? await requestWithGemini({ apiKey, model: apiModel, prompt, channelLanguage })
+      : await requestWithOpenAI({ apiKey, model: apiModel, prompt, channelLanguage });
 
     const payload = sanitizePostScriptPackage(rawPackage, seoChapterPlan.anchors, timelineContext.source);
     if (payload.titles.length < 1) {

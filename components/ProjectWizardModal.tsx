@@ -107,6 +107,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       pain_alignment: source.pain_alignment || targetPersona.pain_point || '',
       desired_outcome: source.desired_outcome || '',
       proof_points: source.proof_points || '',
+      channel_language: source.channel_language || 'Português',
     };
   };
 
@@ -164,6 +165,11 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
     };
   });
 
+  const [selectedLangOption, setSelectedLangOption] = useState(() => {
+    const lang = formData.persona_matrix?.channel_language || 'Português';
+    return ['Português', 'English', 'Español'].includes(lang) ? lang : 'custom';
+  });
+
   const updateFormData = (data: Partial<typeof formData>) => {
     setFormData(prev => ({ ...prev, ...data }));
   };
@@ -174,7 +180,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
     return {
       summary: [
         `PUC: ${formData.puc}`,
-        `Persona: ${formData.persona_matrix.demographics}${formData.persona_matrix.language ? ` | Linguagem: ${formData.persona_matrix.language}` : ''}`,
+        `Persona: ${formData.persona_matrix.demographics}${formData.persona_matrix.language ? ` | Linguagem: ${formData.persona_matrix.language}` : ''}${formData.persona_matrix.channel_language ? ` | Idioma: ${formData.persona_matrix.channel_language}` : ''}`,
         `Dor central: ${formData.persona_matrix.pain_alignment}`,
         `Transformação desejada: ${formData.persona_matrix.desired_outcome || 'Não definida'}`,
         `Pilares: ${pillars.join(', ') || 'Não definidos'}`,
@@ -337,6 +343,42 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     value={formData.persona_matrix.desired_outcome || ''}
                     onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, desired_outcome: e.target.value } })}
                   />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] uppercase font-black text-white/40 ml-1">Idioma de Geração do Canal</span>
+                  <CustomSelect
+                    value={selectedLangOption}
+                    onChange={(val) => {
+                      setSelectedLangOption(val);
+                      if (val !== 'custom') {
+                        updateFormData({ persona_matrix: { ...formData.persona_matrix, channel_language: val } });
+                      } else {
+                        const prev = formData.persona_matrix.channel_language;
+                        const initCustom = ['Português', 'English', 'Español'].includes(prev) ? '' : prev;
+                        updateFormData({ persona_matrix: { ...formData.persona_matrix, channel_language: initCustom } });
+                      }
+                    }}
+                    options={[
+                      { value: 'Português', label: 'Português' },
+                      { value: 'English', label: 'English' },
+                      { value: 'Español', label: 'Español' },
+                      { value: 'custom', label: 'Outro (Personalizar)...' }
+                    ]}
+                  />
+                </div>
+                <div className={`flex flex-col gap-2 transition-all duration-300 ${selectedLangOption === 'custom' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                  {selectedLangOption === 'custom' && (
+                    <>
+                      <span className="text-[9px] uppercase font-black text-white/40 ml-1">Especificar Idioma</span>
+                      <input 
+                        type="text"
+                        className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3 outline-none focus:ring-4 focus:ring-sage/10 focus:border-sage transition-all text-sm text-white placeholder:text-white/10 h-[46px]"
+                        placeholder="Ex: Francês, Italiano, Alemão..."
+                        value={['Português', 'English', 'Español'].includes(formData.persona_matrix.channel_language) ? '' : (formData.persona_matrix.channel_language || '')}
+                        onChange={(e) => updateFormData({ persona_matrix: { ...formData.persona_matrix, channel_language: e.target.value } })}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             </div>

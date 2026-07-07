@@ -5994,11 +5994,12 @@ COMO USAR NO WINDOWS:
       }
 
       return `
-        <div class="scene-card bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl flex flex-col transition-all hover:border-zinc-700">
+        <div id="card-row-${row.rowNumber}" class="scene-card bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl flex flex-col transition-all hover:border-zinc-700">
           <div class="w-full bg-zinc-950 aspect-video relative flex items-center justify-center border-b border-zinc-800 overflow-hidden">
             ${svgCode}
-            <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-purple-300 border border-purple-500/20 uppercase tracking-widest">
-              CENA #${row.rowNumber}
+            <div class="absolute top-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black border border-purple-500/20 uppercase tracking-widest text-purple-300 select-none">
+              <input type="checkbox" id="card-chk-${row.rowNumber}" onchange="toggleRowSelection(${row.rowNumber}, this.checked)" class="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500 cursor-pointer" checked>
+              <span>CENA #${row.rowNumber}</span>
             </div>
           </div>
           
@@ -6058,7 +6059,10 @@ COMO USAR NO WINDOWS:
       }
 
       return `
-        <tr class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
+        <tr id="tr-row-${row.rowNumber}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
+          <td class="px-6 py-4 whitespace-nowrap text-center no-print">
+            <input type="checkbox" id="chk-${row.rowNumber}" onchange="toggleRowSelection(${row.rowNumber}, this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500 cursor-pointer" checked>
+          </td>
           <td class="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
             #${row.rowNumber}
           </td>
@@ -6103,12 +6107,18 @@ COMO USAR NO WINDOWS:
             background-color: #0e0e10;
             color: #e4e4e7;
           }
+          input[type="checkbox"] {
+            accent-color: #9333ea;
+          }
+          .filtered-out {
+            display: none !important;
+          }
           @media print {
             body {
               background-color: #ffffff !important;
               color: #000000 !important;
             }
-            .no-print {
+            .no-print, input[type="checkbox"] {
               display: none !important;
             }
             .scene-card {
@@ -6195,7 +6205,7 @@ COMO USAR NO WINDOWS:
           <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 mb-8 grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
               <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Total de Cenas</span>
-              <span class="text-2xl font-bold text-zinc-100">${rows.length}</span>
+              <span class="text-2xl font-bold text-zinc-100" id="stat-total">${rows.length}</span>
             </div>
             <div>
               <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Formato Ativo</span>
@@ -6215,20 +6225,50 @@ COMO USAR NO WINDOWS:
             ${gridItems}
           </div>
 
-          <div id="spreadsheet-view" class="hidden overflow-x-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                  <th class="px-6 py-4 w-28">Cena</th>
-                  <th class="px-6 py-4 w-40">Asset</th>
-                  <th class="px-6 py-4 w-60">Posição Temporal</th>
-                  <th class="px-6 py-4">Legenda (Locução)</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-zinc-800/60 text-sm">
-                ${spreadsheetRows}
-              </tbody>
-            </table>
+          <div id="spreadsheet-view" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+            <!-- Filter Bar -->
+            <div class="no-print p-6 border-b border-zinc-800 bg-zinc-950/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Filtrar Asset:</span>
+                <div class="flex flex-wrap gap-1.5" id="asset-filter-buttons">
+                  <!-- Dynamic JS buttons -->
+                </div>
+              </div>
+
+              <!-- Selection Options -->
+              <div class="flex flex-wrap items-center gap-4">
+                <button onclick="setSelectedAll(true)" class="text-xs font-semibold text-purple-400 hover:text-purple-300 transition-colors">
+                  ✓ Selecionar Todos
+                </button>
+                <button onclick="setSelectedAll(false)" class="text-xs font-semibold text-zinc-500 hover:text-zinc-400 transition-colors">
+                  ✕ Limpar Seleção
+                </button>
+                <div class="h-4 w-px bg-zinc-800"></div>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" id="chk-only-selected" onchange="toggleOnlySelected(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500">
+                  <span class="text-xs font-bold text-zinc-300">Mostrar Apenas Selecionados</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                    <th class="px-6 py-4 w-16 text-center no-print">
+                      <input type="checkbox" id="th-chk-all" onchange="toggleSelectAllRows(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500" checked>
+                    </th>
+                    <th class="px-6 py-4 w-28">Cena</th>
+                    <th class="px-6 py-4 w-40">Asset</th>
+                    <th class="px-6 py-4 w-60">Posição Temporal</th>
+                    <th class="px-6 py-4">Legenda (Locução)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800/60 text-sm">
+                  ${spreadsheetRows}
+                </tbody>
+              </table>
+            </div>
           </div>
         </main>
 
@@ -6265,6 +6305,143 @@ COMO USAR NO WINDOWS:
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
           }
+
+          // Dynamic filters and selection state
+          const scenes = ${JSON.stringify(rows.map((r: any) => ({ rowNumber: r.rowNumber, asset: r.asset || 'SEM ASSET', selected: true })))};
+          let selectedAssetFilter = 'all';
+          let onlySelected = false;
+
+          function initFilters() {
+            const assetFilterContainer = document.getElementById('asset-filter-buttons');
+            if (!assetFilterContainer) return;
+            
+            const assetCounts = {};
+            scenes.forEach(s => {
+              const asset = s.asset.toLowerCase();
+              assetCounts[asset] = (assetCounts[asset] || 0) + 1;
+            });
+            
+            assetFilterContainer.innerHTML = '';
+            
+            const allBtn = document.createElement('button');
+            allBtn.id = 'btn-filter-all';
+            allBtn.onclick = () => filterAsset('all');
+            allBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 active:scale-95 transition-all';
+            allBtn.innerText = 'Todos (' + scenes.length + ')';
+            assetFilterContainer.appendChild(allBtn);
+            
+            Object.keys(assetCounts).sort().forEach(asset => {
+              const btn = document.createElement('button');
+              btn.id = 'btn-filter-' + asset;
+              btn.onclick = () => filterAsset(asset);
+              btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all uppercase';
+              btn.innerText = asset + ' (' + assetCounts[asset] + ')';
+              assetFilterContainer.appendChild(btn);
+            });
+          }
+
+          function filterAsset(assetType) {
+            selectedAssetFilter = assetType;
+            
+            const buttons = document.querySelectorAll('#asset-filter-buttons button');
+            buttons.forEach(btn => {
+              btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all';
+            });
+            
+            const activeBtn = document.getElementById('btn-filter-' + assetType);
+            if (activeBtn) {
+              activeBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 active:scale-95 transition-all';
+            }
+            
+            applyFilters();
+          }
+
+          function toggleOnlySelected(isChecked) {
+            onlySelected = isChecked;
+            applyFilters();
+          }
+
+          function toggleRowSelection(rowNumber, isChecked) {
+            const scene = scenes.find(s => s.rowNumber === rowNumber);
+            if (scene) {
+              scene.selected = isChecked;
+            }
+            
+            const tblChk = document.getElementById('chk-' + rowNumber);
+            if (tblChk) tblChk.checked = isChecked;
+            
+            const cardChk = document.getElementById('card-chk-' + rowNumber);
+            if (cardChk) cardChk.checked = isChecked;
+            
+            const allChecked = scenes.every(s => s.selected);
+            const noneChecked = scenes.every(s => !s.selected);
+            const thChkAll = document.getElementById('th-chk-all');
+            if (thChkAll) {
+              thChkAll.checked = allChecked;
+              thChkAll.indeterminate = (!allChecked && !noneChecked);
+            }
+            
+            applyFilters();
+          }
+
+          function toggleSelectAllRows(isChecked) {
+            scenes.forEach(scene => {
+              scene.selected = isChecked;
+              const tblChk = document.getElementById('chk-' + scene.rowNumber);
+              if (tblChk) tblChk.checked = isChecked;
+              const cardChk = document.getElementById('card-chk-' + scene.rowNumber);
+              if (cardChk) cardChk.checked = isChecked;
+            });
+            
+            applyFilters();
+          }
+
+          function setSelectedAll(isChecked) {
+            const thChkAll = document.getElementById('th-chk-all');
+            if (thChkAll) {
+              thChkAll.checked = isChecked;
+              thChkAll.indeterminate = false;
+            }
+            toggleSelectAllRows(isChecked);
+          }
+
+          function applyFilters() {
+            scenes.forEach(scene => {
+              const tr = document.getElementById('tr-row-' + scene.rowNumber);
+              const card = document.getElementById('card-row-' + scene.rowNumber);
+              
+              const matchesAsset = (selectedAssetFilter === 'all' || scene.asset.toLowerCase() === selectedAssetFilter.toLowerCase());
+              const matchesSelection = (!onlySelected || scene.selected);
+              const isVisible = matchesAsset && matchesSelection;
+              
+              if (isVisible) {
+                tr?.classList.remove('filtered-out');
+                card?.classList.remove('filtered-out');
+              } else {
+                tr?.classList.add('filtered-out');
+                card?.classList.add('filtered-out');
+              }
+            });
+
+            updateCounters();
+          }
+
+          function updateCounters() {
+            const visibleScenes = scenes.filter(s => {
+              const matchesAsset = (selectedAssetFilter === 'all' || s.asset.toLowerCase() === selectedAssetFilter.toLowerCase());
+              const matchesSelection = (!onlySelected || s.selected);
+              return matchesAsset && matchesSelection;
+            });
+            
+            const statTotal = document.getElementById('stat-total');
+            if (statTotal) {
+              statTotal.innerText = visibleScenes.length + ' / ' + scenes.length;
+            }
+          }
+
+          // Initial load
+          initFilters();
+          updateCounters();
         </script>
       </body>
       </html>

@@ -1778,4 +1778,57 @@ const generateUuid = () => {
   });
 };
 
+export interface CompiledDnaBlocks {
+  styleDna: string;
+  characterDna: string;
+  extrasDna: string;
+  negativeDna: string;
+  hasDna: boolean;
+}
+
+export const parseDnaBlocks = (text: string): CompiledDnaBlocks => {
+  const normalized = text || '';
+  if (!normalized.includes('STYLE_DNA:')) {
+    return { styleDna: '', characterDna: '', extrasDna: '', negativeDna: '', hasDna: false };
+  }
+
+  const getBlock = (key: string): string => {
+    const keyIndex = normalized.indexOf(key + ':');
+    if (keyIndex === -1) return '';
+    
+    const contentStart = keyIndex + key.length + 1;
+    const keys = ['STYLE_DNA:', 'CHARACTER_DNA:', 'EXTRAS_DNA:', 'NEGATIVE_DNA:', 'PALAVRA_SENTINELA:', 'Regras de uso'];
+    let contentEnd = normalized.length;
+    
+    for (const otherKey of keys) {
+      if (otherKey === key + ':') continue;
+      const idx = normalized.indexOf(otherKey, contentStart);
+      if (idx !== -1 && idx < contentEnd) {
+        contentEnd = idx;
+      }
+    }
+    
+    let blockText = normalized.slice(contentStart, contentEnd).trim();
+    // Remove aspas se presentes
+    if (blockText.startsWith('"') && blockText.endsWith('"')) {
+      blockText = blockText.slice(1, -1).trim();
+    }
+    
+    if (blockText.toUpperCase() === 'NENHUM' || blockText.toUpperCase() === '"NENHUM"') {
+      return '';
+    }
+    
+    return blockText;
+  };
+
+  return {
+    styleDna: getBlock('STYLE_DNA'),
+    characterDna: getBlock('CHARACTER_DNA'),
+    extrasDna: getBlock('EXTRAS_DNA'),
+    negativeDna: getBlock('NEGATIVE_DNA'),
+    hasDna: true,
+  };
+};
+
+
 

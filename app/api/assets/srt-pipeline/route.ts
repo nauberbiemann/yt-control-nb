@@ -13,6 +13,7 @@ import {
   applyHyperframeExclusionZone,
   finalizeFacelessRows,
   cleanHeyGenPrefixes,
+  parseDnaBlocks,
 } from '@/lib/srt-asset-pipeline';
 
 const BATCH_SIZE_DEFAULT = 10;
@@ -210,8 +211,18 @@ interface CharacterProfileInput {
 }
 
 const resolveCharacterProfile = (input?: CharacterProfileInput | null) => {
+  const customDescriptionRaw = String(input?.customDescription || '').trim();
+  const visualIdentityRaw = String(input?.visualIdentity || '').trim();
+
+  if (customDescriptionRaw.includes('STYLE_DNA:')) {
+    return customDescriptionRaw;
+  }
+  if (visualIdentityRaw.includes('STYLE_DNA:')) {
+    return visualIdentityRaw;
+  }
+
   const mode = input?.mode === 'female' || input?.mode === 'custom' ? input.mode : 'male';
-  const customDescription = String(input?.customDescription || '').replace(/\s+/g, ' ').trim();
+  const customDescription = customDescriptionRaw.replace(/\s+/g, ' ');
 
   if (mode === 'custom' && customDescription) {
     return customDescription;
@@ -373,13 +384,23 @@ const validatePromptBatch = (
   localFallbackRows: Set<number>
 ) => {
   const expectedRows = new Set(items.map((item) => item.row_number));
-  const promptMap = new Map<number, { prompt: string; texto_adicional?: any }>();
+  const promptMap = new Map<number, { 
+    prompt: string; 
+    texto_adicional?: any; 
+    protagonista_presente?: boolean; 
+    extras_presentes?: boolean; 
+  }>();
 
   for (const promptItem of payload.prompts || []) {
     const rowNumber = Number(promptItem?.row_number);
     const prompt = sanitizePrompt(promptItem?.prompt || '');
     if (!expectedRows.has(rowNumber) || (!prompt && promptItem.texto_adicional === undefined)) continue;
-    promptMap.set(rowNumber, { prompt, texto_adicional: promptItem.texto_adicional });
+    promptMap.set(rowNumber, { 
+      prompt, 
+      texto_adicional: promptItem.texto_adicional,
+      protagonista_presente: (promptItem as any).protagonista_presente,
+      extras_presentes: (promptItem as any).extras_presentes
+    });
   }
 
   // If the AI returned fewer prompts than expected, fill missing ones with a safe fallback
@@ -400,7 +421,11 @@ const validatePromptBatch = (
         } else {
           fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
         }
-        promptMap.set(item.row_number, { prompt: fallback });
+        promptMap.set(item.row_number, { 
+          prompt: fallback,
+          protagonista_presente: false,
+          extras_presentes: false
+        });
         localFallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
       }
     }
@@ -431,6 +456,7 @@ const generateBatchWithOpenAI = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  dnaInstructions,
 }: {
   apiKey: string;
   model: string;
@@ -443,20 +469,29 @@ const generateBatchWithOpenAI = async ({
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  dnaInstructions?: string;
 }) => {
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
       {
         role: isReasoningModel(model) ? 'developer' : 'system',
-        content: ultraCinematic
-          ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
-          : SYSTEM_INSTRUCTIONS
+        content: (() => {
+          let systemPrompt = ultraCinematic
+            ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+            : SYSTEM_INSTRUCTIONS;
+          if (dnaInstructions) {
+            systemPrompt += `\n\n${dnaInstructions}`;
+          }
+          return systemPrompt;
+        })()
       },
       {
         role: 'user',
         content: [
-          'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
+          dnaInstructions
+            ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
+            : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
           `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
           videoFormat === 'catalog'
@@ -551,6 +586,7 @@ const generateBatchWithGemini = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  dnaInstructions,
 }: {
   apiKey: string;
   model: string;
@@ -563,6 +599,7 @@ const generateBatchWithGemini = async ({
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  dnaInstructions?: string;
 }) => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -576,7 +613,9 @@ const generateBatchWithGemini = async ({
               ultraCinematic
                 ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
                 : SYSTEM_INSTRUCTIONS,
-              'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
+              dnaInstructions
+                ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
+                : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
               videoFormat === 'catalog'
@@ -690,6 +729,23 @@ const generatePromptMap = async ({
   const textoAdicionalMap = new Map<number, any>();
   const localFallbackRows = new Set<number>();
 
+  const dnaBlocks = parseDnaBlocks(characterDescription);
+  const hasDna = dnaBlocks.hasDna;
+
+  let dnaInstructions = '';
+  if (hasDna) {
+    dnaInstructions = `
+CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
+This batch of prompts is in DNA assembly mode. Follow these rules strictly:
+1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
+2. In the "prompt" property of each item, write ONLY the "CENA" (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
+3. In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.
+4. Set the field "protagonista_presente" to true if the protagonist appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
+5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
+6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
+`;
+  }
+
   // Dynamic hint based on video format (Faceless, Vlog, or Catalog)
   const facelessHint = videoFormat === 'catalog'
     ? 'CATALOG VIDEO MODE: You MUST generate visual prompts styled as clean, premium documentary presentation slides. Follow these guidelines strictly: \n' +
@@ -721,8 +777,8 @@ const generatePromptMap = async ({
       group.map(async (batch) => {
         try {
           const payload = engine === 'gemini'
-            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic })
-            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic });
+            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, dnaInstructions })
+            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, dnaInstructions });
           return { batch, payload };
         } catch (err) {
           console.error(`[SRT Pipeline Batch Error]`, err);
@@ -735,7 +791,37 @@ const generatePromptMap = async ({
     for (const { batch, payload } of groupResults) {
       const validatedBatch = validatePromptBatch(batch, payload, localFallbackRows);
       validatedBatch.forEach((val, rowNumber) => {
-        promptMap.set(rowNumber, val.prompt);
+        const item = items.find((it) => it.row_number === rowNumber);
+        const isVisualAsset = item && (item.asset === 'video' || item.asset === 'image');
+
+        if (hasDna && isVisualAsset) {
+          const cena = val.prompt;
+          const protPresente = !!val.protagonista_presente;
+          const extPresentes = !!val.extras_presentes;
+          
+          let assembledPrompt = cena;
+          // Concat CHARACTER_DNA
+          if (protPresente && dnaBlocks.characterDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.characterDna}`;
+          }
+          // Concat EXTRAS_DNA
+          if (extPresentes && dnaBlocks.extrasDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.extrasDna}`;
+          }
+          // Concat STYLE_DNA
+          if (dnaBlocks.styleDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.styleDna}`;
+          }
+          // Concat NEGATIVE_DNA
+          if (dnaBlocks.negativeDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.negativeDna}`;
+          }
+          
+          promptMap.set(rowNumber, assembledPrompt);
+        } else {
+          promptMap.set(rowNumber, val.prompt);
+        }
+
         if (val.texto_adicional) {
           textoAdicionalMap.set(rowNumber, val.texto_adicional);
         }

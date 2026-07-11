@@ -8845,7 +8845,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                         <textarea
                           value={videoCharacterCustom}
                           onChange={(e) => setVideoCharacterCustom(e.target.value)}
-                          placeholder="Ex: mulher brasileira, 42 anos, arquiteta de software, cabelo curto, olhar concentrado, roupa casual premium, home office escuro..."
+                          placeholder="Descreva o personagem ou cole o template da Skill Mestre contendo: STYLE_DNA: ... | CHARACTER_DNA: ... | EXTRAS_DNA: ... | NEGATIVE_DNA: ..."
                           className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
                         />
                         <button

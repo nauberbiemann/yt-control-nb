@@ -702,10 +702,10 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
 
                 <div className="flex flex-col gap-2 mt-2">
                   <label className="text-[9px] font-black uppercase tracking-widest text-amber-400">Identidade Visual do Canal (Geracao de Prompts)</label>
-                  <span className="text-[8px] uppercase font-bold text-white/40 -mt-1 mb-1">Descreva o estilo visual, ambientes, tom e tipos de shot preferidos. A IA usa isso para gerar prompts de video e imagem alinhados ao canal.</span>
+                  <span className="text-[8px] uppercase font-bold text-white/40 -mt-1 mb-1">Descreva o estilo visual, ambientes, tom e tipos de shot preferidos. A IA usa isso para gerar prompts. Suporta o template de estilo completo contendo as chaves STYLE_DNA, CHARACTER_DNA, EXTRAS_DNA e NEGATIVE_DNA (Fórmula DNA + CENA).</span>
                   <textarea
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-[11px] outline-none focus:border-amber-400/40 transition-all placeholder:text-white/20 min-h-[96px] resize-none"
-                    placeholder="Ex: Home office escuro, iluminacao cinematografica seria. Para conceitos tecnicos, prefira animacoes 3D abstratas. Para momentos pessoais, use o personagem recorrente."
+                    placeholder="Descreva o estilo ou cole o template da Skill Mestre contendo: STYLE_DNA: ... | CHARACTER_DNA: ... | EXTRAS_DNA: ... | NEGATIVE_DNA: ..."
                     value={formData.editing_sop.visual_identity || ''}
                     onChange={(e) => updateFormData({ editing_sop: { ...formData.editing_sop, visual_identity: e.target.value } })}
                   />

@@ -52,6 +52,16 @@ DYNAMIC THEMATIC CONTEXT & VISUAL DIVERSITY:
 Rules for asset types:
 - asset == "video":
   - First, identify what is being described in the subtitle text: a character action, historical scene, feeling, concept, process, place, or personal moment.
+  - STRUCTURE FOR IMAGE-TO-VIDEO AND HIGH CONSISTENCY:
+    - You must write the prompt in two distinct parts:
+      1. THE FIRST FRAME COMPOSITION: Describe the static scene (subject, setting, clothing, lighting, camera position).
+      2. THE MOTION AND LOCK DIRECTIVE: Instruct the animation engine exactly what moves and what stays locked. End with this exact formula phrase: "Use the supplied image as the exact first frame and visual authority. Preserve its identity, anatomy, wardrobe, props, lighting, texture, spatial layout and geometry. Keep the visible world coherent; animate only the planned motion. [Insert specific camera motion or character movement here]. No other changes."
+  - CINEMATIC CAMERA ENGINE RULES:
+    - You must choose one of the following operations and declare it in the motion section:
+      - "Camera locked": Position, lens, and frame remain completely static. Use this for high-speed subject action, extreme close-ups, or when a human face is performing, preventing facial distortion.
+      - "Rack focus": Focus shifts between two clearly visible depth planes.
+      - "Pan / Tilt / Zoom": Camera rotates or adjusts focal length from a fixed point (no translation parallax).
+      - "Push / Pull / Track": Camera travels physically through space, creating natural 3D parallax. Only use this when there are distinct foreground, midground, and background layers.
   - CRITICAL - NARRATIVE CHARACTERS VS PRESENTERS (HOSTS):
     - "Presenter/Host": This is the virtual speaker (e.g. a modern tech presenter, health mentor, or coach at a desk).
       - In FACELESS MODE, the Presenter/Host is completely BANNED. Never show a presenter reacting, pointing, or speaking to the camera.
@@ -159,6 +169,22 @@ You MUST generate detailed visual prompts between 80 and 150 words for every vid
 MANDATORY PROMPT STRUCTURE:
 For each prompt, you MUST follow this exact semantic order of fields, separated by spaces:
 [Main subject/environment/character description] [Main action, process details, or camera movement] [Facial expression/emotion or environmental ambiance] [Location/setting details] [Context-specific details based on the video theme] [Lighting style] [Cinematic composition and framing] [Lens and camera specification matching the category] [Depth of field] [Photographic quality]
+
+EDITORIAL SHOT ROLES (SELECT ONE BASED ON SUBTITLE):
+- ESTABLISHING: Set geographical environment, weather, structures (strictly no characters allowed).
+- MASTER: Setup full geography of actors/objects relative to each other.
+- ACTION: Show physical events, movements, kinetic interactions.
+- PROCESS: Detail work/transformation (e.g. gloved hands operating tool, macro details).
+- INSERT: Focus on single clue, document, or key object.
+- POV: Plausible height and angle matching character looking at something.
+- OTS (Over-the-shoulder): Show spatial relationship and power balance (preserving axes and eyelines).
+- REACTION: Emotional response facial/body framing.
+- AFTERMATH: Pause/consequence, negative space, weathered environments.
+
+TOPOLOGICAL RISK MITIGATION & STABILITY:
+- Keep hands, fingers, and complex tool contacts in macro PROCESS shots or hidden/in gloves to mitigate TOPOLOGY risk.
+- For faces and high-detail character performance, use CAMERA LOCKED or microscopic pan/tilt to prevent facial morphing and distortion.
+- Limit camera travel distance (dolly/track) to avoid WORLD_EXPANSION errors where the model has to generate unseen geometry.
 
 DYNAMIC AESTHETIC STYLE SUFFIX (SELECT THE SUFFIX MATCHING THE CHOSEN CATEGORY):
 You MUST choose exactly one category for each prompt and append the corresponding suffix at the very end of the prompt:

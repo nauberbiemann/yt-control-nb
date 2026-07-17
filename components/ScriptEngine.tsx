@@ -6403,12 +6403,14 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             const toggleBtnText = document.getElementById('toggle-view-text');
 
             if (currentViewMode === 'grid') {
+              gridView.classList.remove('grid');
               gridView.classList.add('hidden');
               spreadsheetView.classList.remove('hidden');
               toggleBtnText.textContent = '🎬 EXIBIR QUADRICULADO';
               currentViewMode = 'spreadsheet';
             } else {
               gridView.classList.remove('hidden');
+              gridView.classList.add('grid');
               spreadsheetView.classList.add('hidden');
               toggleBtnText.textContent = '📊 EXIBIR PLANILHA';
               currentViewMode = 'grid';

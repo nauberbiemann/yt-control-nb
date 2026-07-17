@@ -14,6 +14,8 @@ import {
   finalizeFacelessRows,
   cleanHeyGenPrefixes,
   parseDnaBlocks,
+  getProtagonistReplacement,
+  sanitizeProperNames,
 } from '@/lib/srt-asset-pipeline';
 
 const BATCH_SIZE_DEFAULT = 10;
@@ -723,6 +725,7 @@ const generatePromptMap = async ({
   projectConfig,
   items,
   characterDescription,
+  characterMode,
   videoContext,
   videoFormat,
   visualBlueprint,
@@ -734,6 +737,7 @@ const generatePromptMap = async ({
   projectConfig?: Record<string, any>;
   items: PromptBatchItem[];
   characterDescription: string;
+  characterMode?: string;
   videoContext?: string;
   videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
@@ -768,7 +772,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 3. In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.
 4. Set the field "protagonista_presente" to true if the protagonist appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
 5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
-6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
+6. NEVER use proper names of individuals (such as "Agnes", "Claire" or "Fulgrim") in the CENA. Translate proper names to visual descriptions or generic roles (e.g., instead of "Agnes's rosary", write "a wooden rosary"; instead of "Claire", write "the protagonist").
+7. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
 `;
   }
 
@@ -821,22 +826,31 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         const isVisualAsset = item && (item.asset === 'video' || item.asset === 'image');
 
         if (hasDna && isVisualAsset) {
-          const cena = val.prompt;
+          let cena = val.prompt || '';
+          const replacement = getProtagonistReplacement(characterMode, characterDescription);
+          cena = cena.replace(/the protagonist/g, replacement);
+          const capitalizedReplacement = replacement.charAt(0).toUpperCase() + replacement.slice(1);
+          cena = cena.replace(/The protagonist/g, capitalizedReplacement);
+
           const protPresente = !!val.protagonista_presente;
           const extPresentes = !!val.extras_presentes;
           
+          const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
+          const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
+          const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
+
           let assembledPrompt = cena;
           // Concat CHARACTER_DNA
-          if (protPresente && dnaBlocks.characterDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.characterDna}`;
+          if (protPresente && sanitizedCharDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
           }
           // Concat EXTRAS_DNA
-          if (extPresentes && dnaBlocks.extrasDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.extrasDna}`;
+          if (extPresentes && sanitizedExtrasDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedExtrasDna}`;
           }
           // Concat STYLE_DNA
-          if (dnaBlocks.styleDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.styleDna}`;
+          if (sanitizedStyleDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedStyleDna}`;
           }
           // Concat NEGATIVE_DNA
           if (dnaBlocks.negativeDna) {
@@ -901,6 +915,7 @@ export async function POST(req: NextRequest) {
         projectConfig,
         items: promptItems,
         characterDescription,
+        characterMode: body?.characterProfile?.mode,
         videoContext,
         videoFormat,
         visualBlueprint,

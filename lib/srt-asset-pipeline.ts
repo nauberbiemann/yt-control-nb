@@ -1830,5 +1830,29 @@ export const parseDnaBlocks = (text: string): CompiledDnaBlocks => {
   };
 };
 
+export const getProtagonistReplacement = (characterMode: string | undefined, dnaText: string): string => {
+  const mode = String(characterMode || '').toLowerCase();
+  if (mode === 'female') return 'the woman';
+  if (mode === 'male') return 'the man';
+  
+  const text = String(dnaText || '').toLowerCase();
+  const femaleKeywords = ['woman', 'female', 'girl', 'lady', 'she', 'her', 'mulher', 'garota', 'ela', 'claire'];
+  const maleKeywords = ['man', 'male', 'boy', 'gentleman', 'he', 'him', 'his', 'homem', 'garoto', 'ele'];
+  
+  const hasFemale = femaleKeywords.some(kw => text.includes(kw));
+  const hasMale = maleKeywords.some(kw => text.includes(kw));
+  
+  if (hasFemale && !hasMale) return 'the woman';
+  if (hasMale && !hasFemale) return 'the man';
+  return 'the person';
+};
+
+export const sanitizeProperNames = (text: string): string => {
+  if (!text) return '';
+  let cleaned = text.replace(/(?:named|called)\s+[A-Z][a-zA-Z]*/g, '');
+  cleaned = cleaned.replace(/(?:named|called)\s+[a-z]+/g, '');
+  return cleaned.replace(/\s+/g, ' ').trim();
+};
+
 
 

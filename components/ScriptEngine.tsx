@@ -6297,7 +6297,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">STORYBOARD GENERATOR</span>
               <span class="bg-zinc-800 text-zinc-300 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
             </div>
-            <h1 class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
+            <h1 id="header-theme-title" class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
           </div>
           
           <div class="flex items-center gap-3">
@@ -6394,6 +6394,10 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           </div>
         </main>
 
+        <script id="scenes-data" type="application/json">
+          ${JSON.stringify(rows.map((r: any) => ({ rowNumber: r.rowNumber, asset: r.asset || 'SEM ASSET', selected: true })))}
+        </script>
+
         <script>
           let currentViewMode = 'grid';
 
@@ -6423,7 +6427,16 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = 'storyboard_${sanitizeDownloadFileStem(themeTitle)}.html';
+            const themeTitle = document.getElementById('header-theme-title')?.innerText || 'Roteiro_de_Video';
+            const sanitized = themeTitle
+              .normalize('NFD')
+              .replace(/[\\u0300-\\u036f]/g, '')
+              .replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g, '')
+              .replace(/\\s+/g, ' ')
+              .trim()
+              .replace(/\\s/g, '_')
+              .slice(0, 80) || 'storyboard';
+            link.download = 'storyboard_' + sanitized + '.html';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -6431,7 +6444,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           }
 
           // Dynamic filters and selection state
-          const scenes = ${JSON.stringify(rows.map((r: any) => ({ rowNumber: r.rowNumber, asset: r.asset || 'SEM ASSET', selected: true })))};
+          const scenes = JSON.parse(document.getElementById('scenes-data').textContent);
           let selectedAssetFilter = 'all';
           let onlySelected = false;
 

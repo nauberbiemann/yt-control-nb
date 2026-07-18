@@ -3372,10 +3372,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           return;
         } else {
           showToast('⚠️ Sincronização automática falhou. Mantendo dados locais por segurança.');
+          return;
         }
       } catch (err) {
         console.warn('[ScriptEngine] syncAndFreeTheme failed:', err);
         showToast('⚠️ Erro ao conectar ao banco. Dados mantidos localmente.');
+        return;
       }
     }
 

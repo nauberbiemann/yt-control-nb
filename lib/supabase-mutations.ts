@@ -233,38 +233,55 @@ export async function upsertScriptExecution(themeId: string, executionSnapshot: 
   }
 
   try {
-    // Check if it exists for this theme
-    const { data: existing } = await supabase
+    // Check if it exists for this theme (without .single() to prevent PGRST116/117 coercion errors on duplicates)
+    const { data: existingList, error: fetchError } = await supabase
       .from('script_executions')
       .select('id, execution_snapshot')
       .eq('theme_id', themeId)
-      .single();
+      .order('updated_at', { ascending: false });
 
-    if (existing?.id) {
+    if (fetchError) throw fetchError;
+
+    if (existingList && existingList.length > 0) {
+      const existing = existingList[0];
       const mergedSnapshot = {
         ...(existing.execution_snapshot || {}),
         ...executionSnapshot
       };
 
-      return supabase
+      // Clean up duplicates if they exist
+      if (existingList.length > 1) {
+        const duplicateIds = existingList.slice(1).map(item => item.id);
+        await supabase
+          .from('script_executions')
+          .delete()
+          .in('id', duplicateIds);
+        console.log(`[upsertScriptExecution] Deleted ${duplicateIds.length} duplicate script executions for theme ${themeId}`);
+      }
+
+      const { data, error } = await supabase
         .from('script_executions')
         .update({ 
           execution_snapshot: mergedSnapshot, 
           updated_at: new Date().toISOString() 
         })
         .eq('id', existing.id)
-        .select()
-        .single();
+        .select();
+
+      if (error) throw error;
+      return { data: data?.[0] || null, error: null };
     } else {
-      return supabase
+      const { data, error } = await supabase
         .from('script_executions')
         .insert({ 
           project_id: projectId, 
           theme_id: themeId, 
           execution_snapshot: executionSnapshot 
         })
-        .select()
-        .single();
+        .select();
+
+      if (error) throw error;
+      return { data: data?.[0] || null, error: null };
     }
   } catch (err: any) {
     return { data: null, error: err };
@@ -276,11 +293,21 @@ export async function getScriptExecution(themeId: string): Promise<{ data: any; 
     return { data: null, error: new Error('Supabase not configured.') };
   }
 
-  return supabase
-    .from('script_executions')
-    .select('execution_snapshot')
-    .eq('theme_id', themeId)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('script_executions')
+      .select('execution_snapshot')
+      .eq('theme_id', themeId)
+      .order('updated_at', { ascending: false });
+
+    if (error) return { data: null, error };
+    if (!data || data.length === 0) return { data: null, error: null };
+
+    // Return the latest one in a single-like format
+    return { data: data[0], error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
 }
 
 export async function syncAndFreeTheme(

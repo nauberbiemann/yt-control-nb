@@ -187,16 +187,18 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         const localSnapshot = JSON.parse(localSnapshotRaw);
         
         // Verifica na nuvem se existe snapshot para esse tema
-        const { data: remoteExecution, error: execError } = await supabase
+        const { data: remoteExecutions, error: execError } = await supabase
           .from('script_executions')
           .select('theme_id, updated_at, execution_snapshot')
           .eq('theme_id', themeId)
-          .single();
+          .order('updated_at', { ascending: false });
 
-        if (execError && execError.code !== 'PGRST116') { // PGRST116 é registro não encontrado
+        if (execError) {
           logDetails.push(`[Aviso] Erro ao buscar execução na nuvem para o tema ${themeId}: ${execError.message}`);
           continue;
         }
+
+        const remoteExecution = remoteExecutions && remoteExecutions.length > 0 ? remoteExecutions[0] : null;
 
         if (remoteExecution) {
           const localTime = new Date(localSnapshot.updated_at || 0).getTime();
@@ -487,11 +489,13 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         const themeId = wsMain._themeId || wsMain.themeId;
 
         if (themeId) {
-          const { data: remoteExecution, error: execError } = await supabase
+          const { data: remoteExecutions, error: execError } = await supabase
             .from('script_executions')
             .select('theme_id, execution_snapshot')
             .eq('theme_id', themeId)
-            .single();
+            .order('updated_at', { ascending: false });
+
+          const remoteExecution = remoteExecutions && remoteExecutions.length > 0 ? remoteExecutions[0] : null;
 
           if (remoteExecution && remoteExecution.execution_snapshot?.externalSrtPipeline) {
             const srtRaw = localStorage.getItem(srtKey);
@@ -527,11 +531,13 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         const publishDate = wsMain.manualPublishDate;
         
         if (themeId && publishDate) {
-          const { data: remoteExecution, error: execError } = await supabase
+          const { data: remoteExecutions, error: execError } = await supabase
             .from('script_executions')
             .select('theme_id, execution_snapshot')
             .eq('theme_id', themeId)
-            .single();
+            .order('updated_at', { ascending: false });
+
+          const remoteExecution = remoteExecutions && remoteExecutions.length > 0 ? remoteExecutions[0] : null;
 
           if (remoteExecution && remoteExecution.execution_snapshot) {
             const srtKey = `${mainKey}_srt_pipeline`;
@@ -667,34 +673,48 @@ export const syncAndPurgeAll = async (): Promise<{
 
           logDetails.push(`[Sync & Purge] Enviando snapshot completo para o tema ${themeId}...`);
           
-          // Upsert no Supabase
-          const { data: existing } = await supabase
+          // Upsert no Supabase (resiliente a duplicatas com auto-deduplicação)
+          const { data: existingList, error: checkError } = await supabase
             .from('script_executions')
             .select('id')
             .eq('theme_id', themeId)
-            .single();
+            .order('updated_at', { ascending: false });
 
           let upsertResult;
-          if (existing?.id) {
-            upsertResult = await supabase
+          if (existingList && existingList.length > 0) {
+            const existing = existingList[0];
+
+            // Limpa duplicatas se existirem
+            if (existingList.length > 1) {
+              const duplicateIds = existingList.slice(1).map(item => item.id);
+              await supabase
+                .from('script_executions')
+                .delete()
+                .in('id', duplicateIds);
+              logDetails.push(`[Sync & Purge] Removidos ${duplicateIds.length} registros duplicados na nuvem para o tema ${themeId}`);
+            }
+
+            const { data, error } = await supabase
               .from('script_executions')
               .update({
                 execution_snapshot: fullSnapshot,
                 updated_at: new Date().toISOString()
               })
               .eq('id', existing.id)
-              .select()
-              .single();
+              .select();
+
+            upsertResult = { data: data?.[0] || null, error };
           } else {
-            upsertResult = await supabase
+            const { data, error } = await supabase
               .from('script_executions')
               .insert({
                 project_id: projectId,
                 theme_id: themeId,
                 execution_snapshot: fullSnapshot
               })
-              .select()
-              .single();
+              .select();
+
+            upsertResult = { data: data?.[0] || null, error };
           }
 
           if (upsertResult.error) {

@@ -686,7 +686,7 @@ export const syncAndPurgeAll = async (): Promise<{
 
             // Limpa duplicatas se existirem
             if (existingList.length > 1) {
-              const duplicateIds = existingList.slice(1).map(item => item.id);
+              const duplicateIds = existingList.slice(1).map((item: any) => item.id);
               await supabase
                 .from('script_executions')
                 .delete()

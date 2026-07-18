@@ -251,7 +251,7 @@ export async function upsertScriptExecution(themeId: string, executionSnapshot: 
 
       // Clean up duplicates if they exist
       if (existingList.length > 1) {
-        const duplicateIds = existingList.slice(1).map(item => item.id);
+        const duplicateIds = existingList.slice(1).map((item: any) => item.id);
         await supabase
           .from('script_executions')
           .delete()

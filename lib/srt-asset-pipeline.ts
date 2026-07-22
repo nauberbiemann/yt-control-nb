@@ -1,4 +1,5 @@
 export type SrtAssetType = '' | 'texto' | 'vídeo' | 'imagem' | 'avatar' | 'hyperframe';
+export type AssetAllocationMode = 'hybrid_smart' | 'force_all_video' | 'alternating' | 'all_image';
 
 export interface SrtAssetRow {
   rowNumber: number;
@@ -42,6 +43,7 @@ export interface SrtAssetPipelineResult {
 
 const TEXT_MAX_CHARS = 25;
 const VIDEO_MAX_DURATION_MS = 8_000;
+export const MAX_IMAGE_DURATION_MS = 4_000; // Imagens estáticas permitidas apenas em cenas com menos de 4.0s
 const FIRST_SECTION_LIMIT = 0.3;
 const SECOND_SECTION_LIMIT = 0.7;
 const FIRST_SECTION_INTERVAL_MS = 20_000;
@@ -277,7 +279,8 @@ export const applyAssetRules = (
   rows: SrtAssetRow[],
   videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
   srtText = '',
-  enabledAssets = { video: true, image: true, text: true, hyperframe: true }
+  enabledAssets = { video: true, image: true, text: true, hyperframe: true },
+  assetAllocationMode: AssetAllocationMode = 'hybrid_smart'
 ) => {
   if (!rows.length) return rows;
 
@@ -303,13 +306,32 @@ export const applyAssetRules = (
     return ['.', '!', '?', ',', ';', ':'].includes(lastChar);
   };
 
-  const getBrollAssetWithToggles = (startMs: number, endMs: number): SrtAssetType => {
-    if (enabledAssets.video && enabledAssets.image) {
-      if (endMs - startMs <= VIDEO_MAX_DURATION_MS) return 'vídeo';
+  const getBrollAssetWithToggles = (startMs: number, endMs: number, rowIndex: number): SrtAssetType => {
+    const durationMs = endMs - startMs;
+
+    // TRAVA TEMPORAL RIGIDA: Imagens estáticas são estritamente proibidas para cenas >= 4.0s (evita slideshow estático)
+    if (durationMs >= MAX_IMAGE_DURATION_MS && enabledAssets.video) {
+      return 'vídeo';
+    }
+
+    if (assetAllocationMode === 'force_all_video' && enabledAssets.video) {
+      return 'vídeo';
+    }
+
+    if (assetAllocationMode === 'all_image' && enabledAssets.image && durationMs < MAX_IMAGE_DURATION_MS) {
       return 'imagem';
     }
+
+    if (assetAllocationMode === 'alternating' && enabledAssets.video && enabledAssets.image) {
+      return (rowIndex % 2 === 0 || durationMs >= MAX_IMAGE_DURATION_MS) ? 'vídeo' : 'imagem';
+    }
+
+    // Modo Híbrido Inteligente (Padrão)
+    if (enabledAssets.video && enabledAssets.image) {
+      return durationMs < MAX_IMAGE_DURATION_MS ? 'imagem' : 'vídeo';
+    }
     if (enabledAssets.video) return 'vídeo';
-    if (enabledAssets.image) return 'imagem';
+    if (enabledAssets.image && durationMs < MAX_IMAGE_DURATION_MS) return 'imagem';
     return 'avatar';
   };
 
@@ -418,14 +440,14 @@ export const applyAssetRules = (
       if (bestPunctuationRowIndex === index) {
         lastBrollMarkerMs = Math.max(lastBrollMarkerMs + (pEndMs - startMs), startMs);
         lastBrollEndMs = endMs; // Registra o término do B-roll para o cooldown da próxima iteração
-        return { ...row, asset: getBrollAssetWithToggles(startMs, endMs) };
+        return { ...row, asset: getBrollAssetWithToggles(startMs, endMs, index) };
       }
     }
 
     if (endMs - lastBrollMarkerMs >= intervalMs) {
       lastBrollMarkerMs = Math.max(lastBrollMarkerMs + intervalMs, startMs);
       lastBrollEndMs = endMs; // Registra o término do B-roll para o cooldown da próxima iteração
-      return { ...row, asset: getBrollAssetWithToggles(startMs, endMs) };
+      return { ...row, asset: getBrollAssetWithToggles(startMs, endMs, index) };
     }
 
     // Gaps temporarily marked as avatar in both modes so that applyHyperframeRules can identify and convert them.
@@ -438,20 +460,30 @@ export const applyAssetRules = (
 export const finalizeFacelessRows = (
   rows: SrtAssetRow[],
   videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar',
-  enabledAssets = { video: true, image: true }
+  enabledAssets = { video: true, image: true },
+  assetAllocationMode: AssetAllocationMode = 'hybrid_smart'
 ): SrtAssetRow[] => {
   if (videoFormat !== 'faceless' && videoFormat !== 'catalog') return rows;
-  return rows.map((row) => {
+  return rows.map((row, index) => {
     if (normalizeAssetType(row.asset) === 'avatar') {
       const startMs = parseSrtTimeToMs(row.startTime);
       const endMs = parseSrtTimeToMs(row.endTime);
+      const durationMs = endMs - startMs;
       
       let assetType: SrtAssetType = 'vídeo';
-      if (enabledAssets.video && enabledAssets.image) {
-        assetType = (endMs - startMs) <= VIDEO_MAX_DURATION_MS ? 'vídeo' : 'imagem';
+      if (durationMs >= MAX_IMAGE_DURATION_MS && enabledAssets.video) {
+        assetType = 'vídeo';
+      } else if (assetAllocationMode === 'force_all_video' && enabledAssets.video) {
+        assetType = 'vídeo';
+      } else if (assetAllocationMode === 'all_image' && enabledAssets.image && durationMs < MAX_IMAGE_DURATION_MS) {
+        assetType = 'imagem';
+      } else if (assetAllocationMode === 'alternating' && enabledAssets.video && enabledAssets.image) {
+        assetType = (index % 2 === 0 || durationMs >= MAX_IMAGE_DURATION_MS) ? 'vídeo' : 'imagem';
+      } else if (enabledAssets.video && enabledAssets.image) {
+        assetType = durationMs < MAX_IMAGE_DURATION_MS ? 'imagem' : 'vídeo';
       } else if (enabledAssets.video) {
         assetType = 'vídeo';
-      } else if (enabledAssets.image) {
+      } else if (enabledAssets.image && durationMs < MAX_IMAGE_DURATION_MS) {
         assetType = 'imagem';
       } else {
         return row;

@@ -8,6 +8,7 @@ import {
   parseSrtToRows,
   sanitizePrompt,
   type SrtAssetRow,
+  type AssetAllocationMode,
   enforceTextoCooldown,
   applyHyperframeRules,
   applyHyperframeExclusionZone,
@@ -959,11 +960,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nao foi possivel extrair blocos validos do .srt enviado.' }, { status: 400 });
     }
 
-    const assetRows      = applyAssetRules(parsedRows, videoFormat, srtText, enabledAssets);
+    const assetAllocationMode: AssetAllocationMode = body?.assetAllocationMode || (body?.forceAllAsVideo ? 'force_all_video' : 'hybrid_smart');
+
+    const assetRows      = applyAssetRules(parsedRows, videoFormat, srtText, enabledAssets, assetAllocationMode);
     const cooledRows     = enforceTextoCooldown(assetRows);
     const hfRows         = applyHyperframeRules(cooledRows, videoFormat, enabledAssets);
     const excludedRows   = applyHyperframeExclusionZone(hfRows);
-    const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssets);
+    const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssets, assetAllocationMode);
     const promptItems    = buildPromptItems(finalRows, forceAllAsVideo);
 
     let rowsWithPrompts = finalRows;

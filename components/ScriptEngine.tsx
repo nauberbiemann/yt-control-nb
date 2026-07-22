@@ -17,6 +17,7 @@ import {
   normalizeAssetType,
   parseSrtTimeToMs,
   type SrtAssetPipelineResult,
+  type AssetAllocationMode,
   finalizeFacelessRows,
   buildFcpxmlTimeline,
   buildCapCutDraft,
@@ -1474,6 +1475,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
   const [promptPrefix, setPromptPrefix] = useState<string>('none');
   const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
+  const [assetAllocationMode, setAssetAllocationMode] = useState<AssetAllocationMode>('hybrid_smart');
   const [ultraCinematic, setUltraCinematic] = useState<boolean>(false);
   const [pipelineVideos, setPipelineVideos] = useState<boolean>(true);
   const [pipelineImages, setPipelineImages] = useState<boolean>(true);
@@ -4643,6 +4645,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           },
           visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
           ultraCinematic,
+          assetAllocationMode: forceAllAsVideo ? 'force_all_video' : assetAllocationMode,
         }),
       });
 
@@ -4705,11 +4708,12 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         hyperframe: pipelineHyperframes,
       };
 
-      const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText, enabledAssetsObj);
+      const effectiveAllocationMode: AssetAllocationMode = forceAllAsVideo ? 'force_all_video' : assetAllocationMode;
+      const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText, enabledAssetsObj, effectiveAllocationMode);
       const cooledRows     = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
       const hfRows         = applyHyperframeRules(cooledRows, videoFormat, enabledAssetsObj); // injeta até 6 hyperframes narrativos (adaptado ao formato)
       const excludedRows   = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
-      const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssetsObj);
+      const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssetsObj, effectiveAllocationMode);
       const assetStats     = buildAssetStats(finalRows);
       const assetDesc      = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
@@ -8819,27 +8823,36 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                       })}
                     </div>
 
-                    {/* Checkbox Forçar Todos os Assets como Vídeo */}
+                    {/* Seletor de Modo de Alocação de Assets (Vídeo + Imagem Híbrido) */}
                     <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
-                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={forceAllAsVideo}
-                          onChange={(e) => {
-                            setForceAllAsVideo(e.target.checked);
-                            persistExecutionSnapshotLocally({ forceAllAsVideo: e.target.checked });
-                          }}
-                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
-                        />
-                        <div>
-                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
-                            Forçar todos os assets como vídeo
-                          </span>
-                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                            Substitui imagens, HFs e textos por prompts de vídeo completos na geração de IA. Útil para ferramentas/testes que aceitam apenas vídeos.
-                          </span>
-                        </div>
+                      <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                        Alocação de Assets (Vídeo / Imagem)
                       </label>
+                      <select
+                        value={forceAllAsVideo ? 'force_all_video' : assetAllocationMode}
+                        onChange={(e) => {
+                          const mode = e.target.value as AssetAllocationMode;
+                          setAssetAllocationMode(mode);
+                          const isForceVideo = mode === 'force_all_video';
+                          setForceAllAsVideo(isForceVideo);
+                          persistExecutionSnapshotLocally({ assetAllocationMode: mode, forceAllAsVideo: isForceVideo });
+                        }}
+                        className="w-full bg-midnight/80 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-wider text-white outline-none focus:border-cyan-400/40"
+                      >
+                        <option value="hybrid_smart">✨ Híbrido Inteligente (IA Semântica + Imagens &lt; 4s)</option>
+                        <option value="force_all_video">📹 Forçar 100% dos Assets como Vídeo</option>
+                        <option value="alternating">🔄 Alternado Intercalado (50% Vídeos / 50% Imagens &lt; 4s)</option>
+                        <option value="all_image">🖼️ Preferir Imagens (apenas em trechos &lt; 4s)</option>
+                      </select>
+                      <p className="text-[9px] text-white/40 leading-relaxed">
+                        {forceAllAsVideo || assetAllocationMode === 'force_all_video'
+                          ? 'Substitui todas as cenas por prompts de vídeo completos. Útil para testes ou ferramentas 100% de vídeo.'
+                          : assetAllocationMode === 'hybrid_smart'
+                          ? 'A IA decide dinamicamente entre vídeo (movimento/ação) e imagem (conceitos/retratos). Cenas ≥ 4s são forçadas como VÍDEO para evitar quadros estáticos.'
+                          : assetAllocationMode === 'alternating'
+                          ? 'Intercala vídeo e imagem sucessivamente em cenas curtas (< 4s), forçando vídeo em cenas mais longas.'
+                          : 'Gera imagens para cenas curtas (< 4s) e vídeos apenas para cenas com 4s ou mais.'}
+                      </p>
                     </div>
 
                     {/* Checkbox Direção de Arte Ultra-Cinematográfica */}

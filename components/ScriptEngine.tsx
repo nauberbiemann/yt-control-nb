@@ -1322,6 +1322,7 @@ interface ExecutionSnapshot {
   visualBlueprintSetting?: string;
   visualBlueprintCast?: Array<{ name: string; description: string }>;
   forceAllAsVideo?: boolean;
+  useHybridAssets?: boolean;
   assetAllocationMode?: AssetAllocationMode;
   ultraCinematic?: boolean;
   preserveBrackets?: boolean;
@@ -1476,6 +1477,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
   const [promptPrefix, setPromptPrefix] = useState<string>('none');
   const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
+  const [useHybridAssets, setUseHybridAssets] = useState<boolean>(true);
   const [assetAllocationMode, setAssetAllocationMode] = useState<AssetAllocationMode>('hybrid_smart');
   const [ultraCinematic, setUltraCinematic] = useState<boolean>(false);
   const [pipelineVideos, setPipelineVideos] = useState<boolean>(true);
@@ -2462,6 +2464,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
       if (typeof snapshot?.visualBlueprintCast === 'object') setVisualBlueprintCast(snapshot.visualBlueprintCast);
       if (typeof snapshot?.forceAllAsVideo === 'boolean') setForceAllAsVideo(snapshot.forceAllAsVideo);
+      if (typeof snapshot?.useHybridAssets === 'boolean') setUseHybridAssets(snapshot.useHybridAssets);
       if (['hybrid_smart', 'force_all_video', 'alternating', 'all_image'].includes(snapshot?.assetAllocationMode)) setAssetAllocationMode(snapshot.assetAllocationMode);
       if (typeof snapshot?.ultraCinematic === 'boolean') setUltraCinematic(snapshot.ultraCinematic);
       if (typeof snapshot?.preserveBrackets === 'boolean') setPreserveBrackets(snapshot.preserveBrackets);
@@ -8825,36 +8828,50 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                       })}
                     </div>
 
-                    {/* Seletor de Modo de Alocação de Assets (Vídeo + Imagem Híbrido) */}
+                    {/* Checkbox Forçar Todos os Assets como Vídeo */}
                     <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
-                      <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
-                        Alocação de Assets (Vídeo / Imagem)
+                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={forceAllAsVideo}
+                          onChange={(e) => {
+                            setForceAllAsVideo(e.target.checked);
+                            persistExecutionSnapshotLocally({ forceAllAsVideo: e.target.checked });
+                          }}
+                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
+                        />
+                        <div>
+                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                            Forçar todos os assets como vídeo
+                          </span>
+                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                            Substitui imagens, HFs e textos por prompts de vídeo completos na geração de IA. Útil para ferramentas/testes que aceitam apenas vídeos.
+                          </span>
+                        </div>
                       </label>
-                      <select
-                        value={forceAllAsVideo ? 'force_all_video' : assetAllocationMode}
-                        onChange={(e) => {
-                          const mode = e.target.value as AssetAllocationMode;
-                          setAssetAllocationMode(mode);
-                          const isForceVideo = mode === 'force_all_video';
-                          setForceAllAsVideo(isForceVideo);
-                          persistExecutionSnapshotLocally({ assetAllocationMode: mode, forceAllAsVideo: isForceVideo });
-                        }}
-                        className="w-full bg-midnight/80 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-wider text-white outline-none focus:border-cyan-400/40"
-                      >
-                        <option value="hybrid_smart">✨ Híbrido Inteligente (IA Semântica + Imagens &lt; 4s)</option>
-                        <option value="force_all_video">📹 Forçar 100% dos Assets como Vídeo</option>
-                        <option value="alternating">🔄 Alternado Intercalado (50% Vídeos / 50% Imagens &lt; 4s)</option>
-                        <option value="all_image">🖼️ Preferir Imagens (apenas em trechos &lt; 4s)</option>
-                      </select>
-                      <p className="text-[9px] text-white/40 leading-relaxed">
-                        {forceAllAsVideo || assetAllocationMode === 'force_all_video'
-                          ? 'Substitui todas as cenas por prompts de vídeo completos. Útil para testes ou ferramentas 100% de vídeo.'
-                          : assetAllocationMode === 'hybrid_smart'
-                          ? 'A IA decide dinamicamente entre vídeo (movimento/ação) e imagem (conceitos/retratos). Cenas ≥ 4s são forçadas como VÍDEO para evitar quadros estáticos.'
-                          : assetAllocationMode === 'alternating'
-                          ? 'Intercala vídeo e imagem sucessivamente em cenas curtas (< 4s), forçando vídeo em cenas mais longas.'
-                          : 'Gera imagens para cenas curtas (< 4s) e vídeos apenas para cenas com 4s ou mais.'}
-                      </p>
+                    </div>
+
+                    {/* Checkbox Modo Híbrido (Vídeo + Imagem) */}
+                    <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
+                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={useHybridAssets}
+                          onChange={(e) => {
+                            setUseHybridAssets(e.target.checked);
+                            persistExecutionSnapshotLocally({ useHybridAssets: e.target.checked });
+                          }}
+                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-cyan-500 mt-0.5"
+                        />
+                        <div>
+                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300 hover:text-cyan-200 transition-colors">
+                            Gerar assets como Vídeo + Imagem (Modo Híbrido)
+                          </span>
+                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                            A partir do SRT, gera prompts de vídeos e imagens baseados na semântica da IA, forçando VÍDEO para cenas com 4s ou mais para evitar mídias estáticas.
+                          </span>
+                        </div>
+                      </label>
                     </div>
 
                     {/* Checkbox Direção de Arte Ultra-Cinematográfica */}

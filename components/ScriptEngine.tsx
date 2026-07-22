@@ -1322,6 +1322,7 @@ interface ExecutionSnapshot {
   visualBlueprintSetting?: string;
   visualBlueprintCast?: Array<{ name: string; description: string }>;
   forceAllAsVideo?: boolean;
+  assetAllocationMode?: AssetAllocationMode;
   ultraCinematic?: boolean;
   preserveBrackets?: boolean;
   promptPrefix?: string;
@@ -2461,6 +2462,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
       if (typeof snapshot?.visualBlueprintCast === 'object') setVisualBlueprintCast(snapshot.visualBlueprintCast);
       if (typeof snapshot?.forceAllAsVideo === 'boolean') setForceAllAsVideo(snapshot.forceAllAsVideo);
+      if (['hybrid_smart', 'force_all_video', 'alternating', 'all_image'].includes(snapshot?.assetAllocationMode)) setAssetAllocationMode(snapshot.assetAllocationMode);
       if (typeof snapshot?.ultraCinematic === 'boolean') setUltraCinematic(snapshot.ultraCinematic);
       if (typeof snapshot?.preserveBrackets === 'boolean') setPreserveBrackets(snapshot.preserveBrackets);
       if (typeof snapshot?.promptPrefix === 'string') setPromptPrefix(snapshot.promptPrefix);

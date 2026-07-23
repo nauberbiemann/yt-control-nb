@@ -1,0 +1,323 @@
+﻿diff --git a/components/ScriptEngine.tsx b/components/ScriptEngine.tsx
+index 8a71553..d94fdb0 100644
+--- a/components/ScriptEngine.tsx
++++ b/components/ScriptEngine.tsx
+@@ -962,6 +962,8 @@ interface ExecutionSnapshot {
+   preserveBrackets?: boolean;
+   promptPrefix?: string;
+   _themeId?: string; // stable ID to find the theme even after a title rename
++  useAdvancedRetention?: boolean;
++  selectedThumbnailStyle?: string;
+ }
+ 
+ interface ScriptEngineProps {
+@@ -1219,6 +1221,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData,
+   const [componentsHydrated, setComponentsHydrated] = useState(false);
+   const [selectedHookId, setSelectedHookId] = useState<string>('h_S1');
+   const [selectedCtaId, setSelectedCtaId] = useState<string>('cta_default');
++  const [useAdvancedRetention, setUseAdvancedRetention] = useState<boolean>(false);
++  const [selectedThumbnailStyle, setSelectedThumbnailStyle] = useState<string>('Default');
++  const [isMobilePreview, setIsMobilePreview] = useState<boolean>(false);
+   const executionStorageKey = activeProject?.id ? `ws_script_execution_${activeProject.id}` : null;
+   const defaultExecutionMode: ExecutionMode = activeProject?.default_execution_mode === 'external' ? 'external' : 'internal';
+ 
+@@ -1529,6 +1534,8 @@ Adapte e enrique├ºa os detalhes em ingl├¬s para o tema atual. N├úo adicione expl
+     ultraCinematic,
+     preserveBrackets,
+     promptPrefix,
++    useAdvancedRetention,
++    selectedThumbnailStyle,
+     ...overrides,
+   });
+ 
+@@ -1907,6 +1914,8 @@ Adapte e enrique├ºa os detalhes em ingl├¬s para o tema atual. N├úo adicione expl
+                 if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
+                 if (typeof cloudSnapshot.preserveBrackets === 'boolean') setPreserveBrackets(cloudSnapshot.preserveBrackets);
+                 if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
++                if (typeof cloudSnapshot.useAdvancedRetention === 'boolean') setUseAdvancedRetention(cloudSnapshot.useAdvancedRetention);
++                if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
+                 
+                 if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
+                 if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
+@@ -1954,6 +1963,8 @@ Adapte e enrique├ºa os detalhes em ingl├¬s para o tema atual. N├úo adicione expl
+       if (typeof snapshot?.ultraCinematic === 'boolean') setUltraCinematic(snapshot.ultraCinematic);
+       if (typeof snapshot?.preserveBrackets === 'boolean') setPreserveBrackets(snapshot.preserveBrackets);
+       if (typeof snapshot?.promptPrefix === 'string') setPromptPrefix(snapshot.promptPrefix);
++      if (typeof snapshot?.useAdvancedRetention === 'boolean') setUseAdvancedRetention(snapshot.useAdvancedRetention);
++      if (typeof snapshot?.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(snapshot.selectedThumbnailStyle);
+       // Detect pending title update injected by ThemeBank on resume
+       if (snapshot?._pendingTitleUpdate && snapshot?._originalApprovedTitle) {
+         setPendingTitleUpdate({ newTitle: snapshot._pendingTitleUpdate, oldTitle: snapshot._originalApprovedTitle });
+@@ -2677,6 +2688,22 @@ ${videoFormat === 'catalog' ? `
+ - RIGOR HIST├ôRICO E FATOS REAIS: ├ë expressamente proibido alucinar ou inventar qualquer dado. Todas as datas, nomes, localiza├º├Áes, dados cient├¡ficos e hist├│ricos devem ser estritamente reais, precisos, documentados e verific├íveis. Se n├úo tiver certeza absoluta de um fato, use um fato real conhecido semelhante.
+ - FORMATO DE IMAGEM/V├ìDEO CLEAN BRANDING: O roteiro far├í refer├¬ncias a marcas comerciais ou produtos consagrados de forma puramente descritiva ou usando placeholders como "[Product Placeholder: Nome do Produto/Marca]", facilitando a identifica├º├úo visual.` : ''}
+ 
++- Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.
++
++${useAdvancedRetention ? `[DIRETRIZES DE RETEN├ç├âO AVAN├çADA - PDF 2026-2027]
++1. ENTRADA "OUTCOME-FIRST" (RESULTADO PRIMEIRO):
++   - O primeiro bloco de desenvolvimento (Abertura/Hook) deve ser escrito entregando o resultado final, a revela├º├úo principal ou o ├ípice do tema nos primeiros 2 segundos.
++   - ├ë terminantemente proibido iniciar com pre├ómbulo hist├│rico ou cronol├│gico. Mostre o "depois" antes do "antes".
++2. ALINHAMENTO COM TIMING GATES:
++   - Estruture a cad├¬ncia de forma que a revela├º├úo ou aprofundamento mais intrigante seja posicionado entre os segundos 13 e 16 (Gate 2).
++   - O primeiro bloco deve fixar a aten├º├úo e a promessa em at├® 3 segundos (Gate 1).
++3. INCOMPLETUDE ESTRAT├ëGICA (COMMENTS BAIT):
++   - Ao escrever o roteiro, apresente 80% do racioc├¡nio com clareza cristalina, mas deliberadamente deixe um gap de 20% que force o espectador a fazer perguntas no campo de coment├írios (exemplo: "duas dessas raz├Áes eu explico agora, a terceira poucas pessoas est├úo prontas para ouvir...").
++4. REWATCH BAIT (REPLAY FOR├çADO):
++   - Incorpore micro-informa├º├Áes densas, como n├║meros espec├¡ficos, fatos surpreendentes e dados complexos r├ípidos para incentivar o replay dos primeiros blocos.
++${videoFormat !== 'catalog' ? `5. MECANISMO STOP STACK (SHORTS/REELS):
++   - Se for formato Shorts/Reels, o primeiro frame deve ter uma interrup├º├úo f├¡sica de padr├úo (STOP) sonora ou textual abrupta para frear o scroll do polegar, acumulando significado intelectual (STACK) logo no primeiro segundo.` : ''}
++` : ''}
+ FORMATO DE SAIDA
+ - Escreva o roteiro inteiro como texto corrido de narrador, sem nenhuma divisao visual.
+ - Toda a geracao deve acontecer em um ├║nico turno de resposta continuo (thread unica). Nao use ou simule requisicoes independentes.
+@@ -6150,6 +6177,78 @@ COMO USAR NO WINDOWS:
+           : 'pending'
+       : null;
+ 
++  const getStylePrompts = (
++    styleName: string,
++    theme: string,
++    thumbnailTextPtBr: string,
++    accent: string,
++    layoutHint: string,
++    environmentCue: string,
++    heroExpression: string,
++    symbolicLine: string,
++    puc: string
++  ) => {
++    switch (styleName) {
++      case 'Neo-Minimalism':
++        return {
++          noText: `Create a minimalist YouTube thumbnail in a Neo-Minimalism style, photorealistic, 16:9. Accent color ${accent}, ${layoutHint}. Show a single central object or visual subject related to "${theme}" with pure white background or extremely clean monochrome background, having at least 50% empty negative space. Maximum of 2 main colors, high contrast visual focus on the center, clean design, premium aesthetic, no watermarks, 4K.`,
++          withText: `Create a minimalist YouTube thumbnail in a Neo-Minimalism style, photorealistic, 16:9. Accent color ${accent}, ${layoutHint}. Show a single central object or visual subject related to "${theme}" with pure white background or extremely clean monochrome background, having at least 50% empty negative space. Maximum of 2 main colors, high contrast visual focus on the center, clean design. Include a short, bold, clean headline of maximum 3 words in Brazilian Portuguese: "${thumbnailTextPtBr}". Keep the typography extremely clean, legible, premium, no watermarks, 4K.`
++        };
++      case 'Whiteboard':
++        return {
++          noText: `Create a YouTube thumbnail in a Whiteboard style, 16:9. Show handwritten diagrams, technical schemas, drawings, arrows, and technical annotations written in a real whiteboard about "${theme}", technical and educational, premium, authentic, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail in a Whiteboard style, 16:9. Show handwritten diagrams, technical schemas, drawings, arrows, and technical annotations written in a real whiteboard about "${theme}". Include a short, bold handwritten headline of maximum 4 words in Brazilian Portuguese: "${thumbnailTextPtBr}". Keep the style authentic and technical, premium, no watermark, 4K.`
++        };
++      case 'Interface Hijacking':
++        return {
++          noText: `Create a YouTube thumbnail mimicking a recognizable website or application interface card (such as a verified tweet, Amazon review cards, Reddit listing, or app store card) related to "${theme}". Replicate the visual style, spacing, fonts, and clean layout of the platform faithfully, high contrast, clean composition, 16:9, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail mimicking a recognizable website or application interface card (such as a verified tweet, Amazon review cards, Reddit listing, or app store card) related to "${theme}". Replicate the visual style, spacing, fonts, and clean layout of the platform faithfully. Include a short, bold headline of maximum 5 words in Brazilian Portuguese: "${thumbnailTextPtBr}" as if it were a post or review. 16:9, no watermark, 4K.`
++        };
++      case 'Cinematic Text':
++        return {
++          noText: `Create a cinematic YouTube thumbnail in a film still style, photorealistic, 16:9. Show a cinematic frame with negative space related to "${theme}" in a ${environmentCue}, dramatic studio lighting, strong contrast, clean composition, premium tech senior aesthetic, no watermark, 4K.`,
++          withText: `Create a cinematic YouTube thumbnail in a film still style, photorealistic, 16:9. Show a cinematic frame with negative space related to "${theme}" in a ${environmentCue}, dramatic studio lighting, strong contrast, clean composition. Include a short, bold headline of maximum 3 words in yellow text that lives inside the scene, interacting organically with the scene's ambient lighting and shadows: "${thumbnailTextPtBr}". Premium tech senior aesthetic, no watermark, 4K.`
++        };
++      case 'Warped Faces':
++        return {
++          noText: `Create a psychological YouTube thumbnail in a Warped Faces style, photorealistic, 16:9. Show a person with subtle, intentional digital distortion, double exposure or ghostly overlay related to "${theme}". High contrast, clean blend, representing dualism, identity crisis or a hard truth, no text, no watermark, 4K.`,
++          withText: `Create a psychological YouTube thumbnail in a Warped Faces style, photorealistic, 16:9. Show a person with subtle, intentional digital distortion, double exposure or ghostly overlay related to "${theme}". High contrast, clean blend, representing dualism, identity crisis or a hard truth. Include a short, bold, clean text overlay of maximum 3 words in Brazilian Portuguese: "${thumbnailTextPtBr}". No watermark, 4K.`
++        };
++      case 'Rainbow Ranking':
++        return {
++          noText: `Create a YouTube thumbnail in a Rainbow Ranking style, 16:9. Show a comparison ranking of 3, 5, or 7 items related to "${theme}" side-by-side. Apply a distinct color gradient from red (worst/lowest) to blue (best/highest) across the items, creating a clear visual classification. High contrast, clean, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail in a Rainbow Ranking style, 16:9. Show a comparison ranking of 3, 5, or 7 items related to "${theme}" side-by-side. Apply a distinct color gradient from red (worst) to blue (best) across the items. Add a simple, bold ranking text/number label or a headline of maximum 3 words in Brazilian Portuguese: "${thumbnailTextPtBr}". No watermark, 4K.`
++        };
++      case 'Surround':
++        return {
++          noText: `Create a YouTube thumbnail in a Surround style, photorealistic, 16:9. Show the main creator or product in the absolute center, surrounded by an organized collection of elements, icons or objects related to "${theme}" arranged in a circle or neat grid. High contrast, clean composition, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail in a Surround style, photorealistic, 16:9. Show the main creator or product in the absolute center, surrounded by an organized collection of elements, icons or objects related to "${theme}" arranged in a circle or neat grid. Include a short, bold headline of maximum 4 words in Brazilian Portuguese: "${thumbnailTextPtBr}". No watermark, 4K.`
++        };
++      case 'Collection Maximalism':
++        return {
++          noText: `Create a YouTube thumbnail in a Collection Maximalism style, photorealistic, 16:9. The entire frame is filled with a meticulously organized and detailed collection of objects, tools, or items related to "${theme}". The collection itself is the star. High contrast, premium layout, no watermarks, 4K.`,
++          withText: `Create a YouTube thumbnail in a Collection Maximalism style, photorealistic, 16:9. The entire frame is filled with a meticulously organized and detailed collection of objects, tools, or items related to "${theme}". Include a short, bold headline of maximum 3 words in Brazilian Portuguese: "${thumbnailTextPtBr}". No watermarks, 4K.`
++        };
++      case 'Encyclopedia':
++        return {
++          noText: `Create a YouTube thumbnail in an Encyclopedia Grid style, 16:9. Replicate a clean grid of simple, consistent flat icons (all circles or all squares) related to "${theme}". Neutral background, high contrast, clean educational explainer layout, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail in an Encyclopedia Grid style, 16:9. Replicate a clean grid of simple, consistent flat icons (all circles or all squares) related to "${theme}". Include 1 or 2 words label under each icon in Brazilian Portuguese, and a short overall title of maximum 3 words: "${thumbnailTextPtBr}". No watermark, 4K.`
++        };
++      case 'Candid Fakes':
++        return {
++          noText: `Create a YouTube thumbnail in a Candid Fakes style, photorealistic, 16:9. Show a candid-looking scene that looks spontaneously captured at the perfect moment, but is slightly impossible or intriguing, related to "${theme}". No text, no arrows, no red circles. High realism, narrative-driven frame, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail in a Candid Fakes style, photorealistic, 16:9. Show a candid-looking scene that looks spontaneously captured at the perfect moment, but is slightly impossible or intriguing, related to "${theme}". Include a short, bold headline of maximum 3 words in Brazilian Portuguese: "${thumbnailTextPtBr}". No watermark, 4K.`
++        };
++      case 'Anti-Thumbnail':
++        return {
++          noText: `Create a YouTube thumbnail in an Anti-Thumbnail style, photorealistic, 16:9. Clean dark minimalist background, a single serious person looking directly into the camera making eye contact. Zero decorations, dramatic, dark, premium tech senior aesthetic, no watermark, 4K.`,
++          withText: `Create a YouTube thumbnail in an Anti-Thumbnail style, photorealistic, 16:9. Clean dark minimalist background, a single serious person looking directly into the camera making eye contact. Include a simple overlay indicating a specific, non-rounded time limit (such as "54s" or "59s") and a simple text of maximum 3 words in Brazilian Portuguese: "${thumbnailTextPtBr}". No watermark, 4K.`
++        };
++      default:
++        return null;
++    }
++  };
++
+   const projectPillars = activeProject?.playlists?.tactical_journey || [];
+   const projectPersona = activeProject?.persona_matrix || {};
+   const projectSop = activeProject?.editing_sop || {};
+@@ -6173,11 +6272,12 @@ COMO USAR NO WINDOWS:
+     || String(externalSrtFileName || '').replace(/\.[^.]+$/, '')
+     || 'assets-srt';
+ 
+-  const generateThumbnailDirective = () => {
++  const generateThumbnailDirective = (forcedStyle?: string) => {
+     if (!activeProject) return;
+     const { theme, variation } = getCommandContext();
+     if (!theme) return alert('Selecione/compile um tema antes de gerar a diretriz.');
+ 
++    const styleToUse = forcedStyle || selectedThumbnailStyle || 'Default';
+     const themeLower = String(theme || '').toLowerCase();
+     const persona = activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience || 'o publico-alvo';
+     const puc = activeProject?.puc || activeProject?.puc_promise || 'a transformacao central do projeto';
+@@ -6247,11 +6347,15 @@ COMO USAR NO WINDOWS:
+       ? symbolicElements.join(', ')
+       : 'alertas sutis de sistema, contraste entre controle e desgaste, detalhes tecnicos que traduzem alta pressao';
+ 
++    const customStylePrompts = getStylePrompts(styleToUse, theme, thumbnailTextPtBr, accent, layoutHint, environmentCue, heroExpression, symbolicLine, puc);
++
+     const directive = {
+-      visualConcept: `Traduzir o tema em uma cena simbolica de tensao contra controle. Layout ${layoutHint}. Fundo escuro premium com acento ${accent}. Persona visual: ${persona}. Elementos-chave: ${symbolicLine}. Estrutura narrativa: ${variation}.`,
++      visualConcept: customStylePrompts 
++        ? `Estilo Visual: ${styleToUse}. Traduzir o tema em uma cena simbolica de tensao contra controle. Layout ${layoutHint}. Fundo escuro premium com acento ${accent}. Persona visual: ${persona}. Elementos-chave: ${symbolicLine}. Estrutura narrativa: ${variation}.`
++        : `Traduzir o tema em uma cena simbolica de tensao contra controle. Layout ${layoutHint}. Fundo escuro premium com acento ${accent}. Persona visual: ${persona}. Elementos-chave: ${symbolicLine}. Estrutura narrativa: ${variation}.`,
+       viralTitle,
+-      thumbnailPromptNoText: `Create a cinematic YouTube thumbnail, dark premium background, vivid accent color ${accent}, ${layoutHint}, photorealistic, 16:9. Show a senior tech professional in a ${environmentCue}, with ${heroExpression}. Add symbolic visual cues such as ${symbolicLine}. The image must communicate hidden cost, overload, recovery or regained control through symbolism, expression, lighting and composition, without adding any artificial headline, caption or phrase over the image. Do not render big title text, callout text or promotional wording. Only allow natural text that would already exist inside the scene, such as small interface labels on monitors, subtle dashboard readouts or ambient screen details. Use dramatic studio lighting, strong contrast, clean composition, one dominant focal point, subtle UI overlays, premium tech aesthetic, no watermark, 4K.`,
+-      thumbnailPromptWithPtBrText: `Create a cinematic YouTube thumbnail, dark premium background, vivid accent color ${accent}, ${layoutHint}, photorealistic, 16:9. Show a senior tech professional in a ${environmentCue}, with ${heroExpression}. Add symbolic visual cues such as ${symbolicLine}. Include a short, bold headline with a maximum of 5 words, and the headline must be written in Brazilian Portuguese only. Do not use English words in the headline. Make the typography clean, legible, premium and high contrast. Suggested headline direction: "${thumbnailTextPtBr}". The text must feel native for a Brazilian audience and should visually support this promise: "${puc}". Use dramatic studio lighting, strong contrast, clean composition, one dominant focal point, subtle UI overlays, premium tech aesthetic, no watermark, 4K.`,
++      thumbnailPromptNoText: customStylePrompts?.noText || `Create a cinematic YouTube thumbnail, dark premium background, vivid accent color ${accent}, ${layoutHint}, photorealistic, 16:9. Show a senior tech professional in a ${environmentCue}, with ${heroExpression}. Add symbolic visual cues such as ${symbolicLine}. The image must communicate hidden cost, overload, recovery or regained control through symbolism, expression, lighting and composition, without adding any artificial headline, caption or phrase over the image. Do not render big title text, callout text or promotional wording. Only allow natural text that would already exist inside the scene, such as small interface labels on monitors, subtle dashboard readouts or ambient screen details. Use dramatic studio lighting, strong contrast, clean composition, one dominant focal point, subtle UI overlays, premium tech aesthetic, no watermark, 4K.`,
++      thumbnailPromptWithPtBrText: customStylePrompts?.withText || `Create a cinematic YouTube thumbnail, dark premium background, vivid accent color ${accent}, ${layoutHint}, photorealistic, 16:9. Show a senior tech professional in a ${environmentCue}, with ${heroExpression}. Add symbolic visual cues such as ${symbolicLine}. Include a short, bold headline with a maximum of 5 words, and the headline must be written in Brazilian Portuguese only. Do not use English words in the headline. Make the typography clean, legible, premium and high contrast. Suggested headline direction: "${thumbnailTextPtBr}". The text must feel native for a Brazilian audience and should visually support this promise: "${puc}". Use dramatic studio lighting, strong contrast, clean composition, one dominant focal point, subtle UI overlays, premium tech aesthetic, no watermark, 4K.`,
+       thumbnailTextPtBr,
+       tags,
+     };
+@@ -6410,12 +6514,53 @@ COMO USAR NO WINDOWS:
+       ref={thumbnailPanelRef}
+       className="mx-6 xl:mx-8 mt-4 rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 xl:p-6 space-y-5 shadow-[0_0_30px_rgba(168,85,247,0.08)]"
+     >
+-      <div className="flex items-center justify-between gap-3">
++      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+         <div>
+           <p className="text-[10px] font-black uppercase tracking-widest text-purple-300">Diretriz de Thumbnail</p>
+           <p className="mt-1 text-[11px] text-white/50 leading-relaxed">Baseada no tema aprovado e nas camadas narrativas selecionadas.</p>
+         </div>
+-        <button onClick={() => setShowThumbnailPanel(false)} className="text-white/20 hover:text-white text-sm">x</button>
++        <div className="flex flex-wrap items-center gap-3">
++          <div className="flex items-center gap-2">
++            <span className="text-[9px] font-black uppercase text-white/40">Estilo:</span>
++            <select
++              value={selectedThumbnailStyle}
++              onChange={(e) => {
++                const nextStyle = e.target.value;
++                setSelectedThumbnailStyle(nextStyle);
++                persistExecutionSnapshotLocally({ selectedThumbnailStyle: nextStyle });
++                generateThumbnailDirective(nextStyle);
++              }}
++              className="bg-midnight border border-white/10 rounded-lg px-2.5 py-1 text-[9px] uppercase font-black tracking-widest text-white outline-none focus:border-purple-500/40"
++            >
++              <option value="Default">Padr├úo</option>
++              <option value="Neo-Minimalism">Neo-Minimalismo</option>
++              <option value="Whiteboard">Quadro Branco</option>
++              <option value="Interface Hijacking">Sequestro de Interface</option>
++              <option value="Cinematic Text">Texto Cinem├ítico</option>
++              <option value="Warped Faces">Rostos Distorcidos</option>
++              <option value="Rainbow Ranking">Ranking de Arco-├ìris</option>
++              <option value="Surround">Cercado</option>
++              <option value="Collection Maximalism">Maximalismo de Cole├º├úo</option>
++              <option value="Encyclopedia">Enciclop├®dia</option>
++              <option value="Candid Fakes">Falsos C├óndidos</option>
++              <option value="Anti-Thumbnail">Anti-Miniatura</option>
++            </select>
++          </div>
++
++          <button
++            onClick={() => setIsMobilePreview(!isMobilePreview)}
++            className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
++              isMobilePreview 
++                ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]' 
++                : 'bg-white/5 border-white/10 text-white/55 hover:border-white/20'
++            }`}
++            title="Simular tamanho de polegar no feed mobile (160px)"
++          >
++            Feed Mobile (160px)
++          </button>
++          
++          <button onClick={() => setShowThumbnailPanel(false)} className="text-white/20 hover:text-white text-sm pl-2">x</button>
++        </div>
+       </div>
+ 
+       <div className="grid grid-cols-1 gap-4">
+@@ -6453,6 +6598,48 @@ COMO USAR NO WINDOWS:
+                 </p>
+               </div>
+             </div>
++
++            <div className="rounded-xl bg-midnight/40 border border-white/5 p-4 flex flex-col items-center">
++              <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-2 self-start">SIMULA├ç├âO DE FEED</span>
++              
++              <div 
++                className="relative bg-gradient-to-br from-purple-950/20 to-midnight rounded-xl border flex flex-col justify-between p-4 aspect-video transition-all duration-300 shadow-lg overflow-hidden group w-full"
++                style={{ 
++                  maxWidth: isMobilePreview ? '160px' : '360px',
++                  borderColor: activeProject?.accent_color || '#9BB0A5',
++                }}
++              >
++                {/* Visual Accent Cue */}
++                <div className="absolute top-0 right-0 w-20 h-20 rounded-full filter blur-xl opacity-20 pointer-events-none" style={{ backgroundColor: activeProject?.accent_color || '#9BB0A5' }} />
++                
++                {/* Style Badge */}
++                <span className="text-[7px] font-black uppercase bg-black/40 border border-white/10 px-1.5 py-0.5 rounded text-white/60 w-max leading-none">
++                  {selectedThumbnailStyle === 'Default' ? 'Padr├úo' : selectedThumbnailStyle}
++                </span>
++
++                {/* Simulated Visual Subject */}
++                <div className="flex-1 flex items-center justify-center py-1">
++                  <div className="text-center space-y-1">
++                    <p className="text-[8px] font-bold text-white/40 group-hover:text-white/60 transition-colors capitalize">
++                      {selectedThumbnailStyle === 'Whiteboard' ? 'Ô£Å´©Å Desenho T├®cnico' : 
++                       selectedThumbnailStyle === 'Neo-Minimalism' ? '­ƒöì Foco ├Ünico' : 
++                       selectedThumbnailStyle === 'Interface Hijacking' ? '­ƒô▒ Mock Interface' : '­ƒÄ¼ Still de V├¡deo'}
++                    </p>
++                  </div>
++                </div>
++
++                {/* Text overlay simulation */}
++                <p 
++                  className="font-black text-center text-white break-words drop-shadow-md uppercase tracking-wider leading-none"
++                  style={{
++                    fontSize: isMobilePreview ? '7px' : '13px',
++                    color: selectedThumbnailStyle === 'Cinematic Text' ? '#FBBF24' : '#FFFFFF',
++                  }}
++                >
++                  {thumbnailDirective.thumbnailTextPtBr || 'T├ìTULO'}
++                </p>
++              </div>
++            </div>
+           </div>
+         </div>
+ 
+@@ -6928,7 +7115,31 @@ COMO USAR NO WINDOWS:
+               })}
+               </div>
+             </div>
+-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
++            
++            <div className="flex-1 flex flex-col justify-center xl:border-l border-white/10 xl:pl-6 gap-2">
++              <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Estrategia de Conteudo</span>
++              <div className="flex items-center gap-2.5">
++                <input
++                  type="checkbox"
++                  id="advanced-retention-toggle"
++                  checked={useAdvancedRetention}
++                  onChange={(e) => {
++                    const nextVal = e.target.checked;
++                    setUseAdvancedRetention(nextVal);
++                    persistExecutionSnapshotLocally({ useAdvancedRetention: nextVal });
++                  }}
++                  className="w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
++                />
++                <label htmlFor="advanced-retention-toggle" className="text-[10px] font-black uppercase tracking-widest text-white/70 cursor-pointer select-none">
++                  Retencao Avancada (PDF 2026-2027)
++                </label>
++              </div>
++              <p className="text-[9px] text-white/40 leading-normal max-w-sm">
++                Aplica no prompt as regras de Outcome-First, timing gates, incompletude estrategica e Stop Stack.
++              </p>
++            </div>
++
++            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                 <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
+                   Data e hora de postagem
+                 </label>

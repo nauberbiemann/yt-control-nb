@@ -509,6 +509,26 @@ export const cleanHeyGenPrefixes = (prompt: string): string => {
   return cleaned;
 };
 
+export const cleanImagePromptBoilerplates = (prompt: string): string => {
+  let cleaned = cleanHeyGenPrefixes(prompt);
+  // Strip Image-to-Video animation instructions from image prompts
+  cleaned = cleaned
+    .replace(/^Create\s+a\s+\d+[- ]second\s+/i, '')
+    .replace(/^Create\s+an\s+\d+[- ]second\s+/i, '')
+    .replace(/Use\s+the\s+supplied\s+image\s+as\s+the\s+exact\s+first\s+frame\s+and\s+visual\s+authority[\s\S]*$/i, '')
+    .replace(/Preserve\s+its\s+identity[\s\S]*$/i, '')
+    .replace(/Keep\s+the\s+visible\0world\s+coherent[\s\S]*$/i, '')
+    .replace(/animate\s+only\s+the\s+planned\s+motion[\s\S]*$/i, '')
+    .replace(/No\s+other\s+changes\.?/i, '')
+    .replace(/ambient\s+sound\s+only[\s\S]*$/i, '')
+    .trim();
+
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return cleaned;
+};
+
 export const buildPromptTxtOutputs = (
   rows: SrtAssetRow[],
   videoFormat: 'avatar' | 'faceless' | 'vlog' | 'avatar_flow' | 'catalog' = 'avatar'
@@ -569,12 +589,12 @@ export const buildPromptTxtOutputs = (
         rawPrompt = 'Clean';
       } else if (assetType === 'hyperframe') {
         rawPrompt = isFaceless
-          ? `📷HyperFrames by HeyGen. Create a cinematic background animation representing ${row.texto.slice(0, 60).trim()}.`
+          ? `📷HyperFrames by HeyGen. Create a cinematic background animation representing the topic.`
           : 'hf_focus';
       } else if (assetType === 'imagem') {
-        rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
+        rawPrompt = `Photorealistic cinematic still image representing the narrative concept, high detail, 8k resolution.`;
       } else {
-        rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+        rawPrompt = `Cinematic technical video animation of the system concept with volumetric lighting and smooth camera motion.`;
       }
     }
 
@@ -629,9 +649,13 @@ export const buildPromptTxtOutputs = (
     const line = `${prefix}: ${prompt}`;
 
     if (assetType === 'vídeo' || isFacelessHf) {
+      const prompt = cleanHeyGenPrefixes(rawPrompt);
+      const line = `${prefix}: ${prompt}`;
       videoLines.push(line);
       hybridLines.push(`[IV] ${prefix}: ${prompt}`);
     } else if (assetType === 'imagem') {
+      const prompt = cleanImagePromptBoilerplates(rawPrompt);
+      const line = `${prefix}: ${prompt}`;
       imageLines.push(line);
       hybridLines.push(`[I] ${prefix}: ${prompt}`);
     }

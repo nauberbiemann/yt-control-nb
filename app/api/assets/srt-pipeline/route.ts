@@ -446,9 +446,9 @@ const validatePromptBatch = (
         } else if (item.asset === 'hyperframe') {
           fallback = item.template_name || 'hf_break';
         } else if (item.asset === 'image') {
-          fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
+          fallback = `Photorealistic cinematic still image representing the narrative scene, dramatic lighting, 8k resolution.`;
         } else {
-          fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+          fallback = `Cinematic technical video animation of the system concept with volumetric lighting, ambient sound only, no dialogue, no voice-over.`;
         }
         promptMap.set(item.row_number, { 
           prompt: fallback,

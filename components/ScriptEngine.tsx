@@ -659,9 +659,9 @@ const validatePromptBatch = (
         } else if (item.asset === 'hyperframe') {
           fallback = item.template_name || 'hf_break';
         } else if (item.asset === 'image') {
-          fallback = `Photorealistic still image of ${item.text.slice(0, 60).trim()}.`;
+          fallback = `Photorealistic cinematic still image representing the narrative scene, dramatic lighting, 8k resolution.`;
         } else {
-          fallback = `3D technical animation of ${item.text.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+          fallback = `Cinematic technical video animation of the system concept with volumetric lighting, ambient sound only, no dialogue, no voice-over.`;
         }
         promptMap.set(item.row_number, { 
           prompt: fallback,
@@ -1936,6 +1936,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     visualBlueprintSetting,
     visualBlueprintCast,
     forceAllAsVideo,
+    useHybridAssets,
+    assetAllocationMode,
     ultraCinematic,
     preserveBrackets,
     promptPrefix,
@@ -2068,7 +2070,15 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       visualBlueprintSetting: executionSnapshot.visualBlueprintSetting,
       visualBlueprintCast: executionSnapshot.visualBlueprintCast,
       forceAllAsVideo: executionSnapshot.forceAllAsVideo,
+      useHybridAssets: executionSnapshot.useHybridAssets,
+      assetAllocationMode: executionSnapshot.assetAllocationMode,
       ultraCinematic: executionSnapshot.ultraCinematic,
+      preserveBrackets: executionSnapshot.preserveBrackets,
+      promptPrefix: executionSnapshot.promptPrefix,
+      pipelineVideos: executionSnapshot.pipelineVideos,
+      pipelineImages: executionSnapshot.pipelineImages,
+      pipelineTexts: executionSnapshot.pipelineTexts,
+      pipelineHyperframes: executionSnapshot.pipelineHyperframes,
       // Stripped: externalScriptText, externalSrtText, scriptBlocks, externalSrtPipeline, postScriptPackage, externalSrtObserver
       scriptBlocks: [],     // stripped - regenerated from briefing when needed
       externalScriptText: '',  // stripped
@@ -2198,6 +2208,11 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
           id: existingTheme?.id || crypto.randomUUID(),
           created_at: new Date().toISOString(),
         });
+      }
+
+      if (themeId && executionSnapshot) {
+        await upsertScriptExecution(themeId, executionSnapshot);
+        console.log('[ScriptEngine] Sincronizado snapshot completo do tema em script_executions na nuvem.');
       }
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao sincronizar tema manual com o Banco de Temas.', error);
@@ -2422,6 +2437,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
                 if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
                 if (typeof cloudSnapshot.forceAllAsVideo === 'boolean') setForceAllAsVideo(cloudSnapshot.forceAllAsVideo);
+                if (typeof cloudSnapshot.useHybridAssets === 'boolean') setUseHybridAssets(cloudSnapshot.useHybridAssets);
+                if (['hybrid_smart', 'force_all_video', 'alternating', 'all_image'].includes(cloudSnapshot.assetAllocationMode)) setAssetAllocationMode(cloudSnapshot.assetAllocationMode);
                 if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
                 if (typeof cloudSnapshot.preserveBrackets === 'boolean') setPreserveBrackets(cloudSnapshot.preserveBrackets);
                 if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
@@ -9373,8 +9390,49 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                           </div>
                         </div>
                       </div>
+                              <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  copyTextToClipboard(compileUnifiedImagePrompts(), 'Prompts copiados.');
+                                }}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                              >
+                                <Copy size={12} className="inline mr-2" /> Copiar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', compileUnifiedImagePrompts());
+                                }}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                              >
+                                <FileText size={12} className="inline mr-2" /> TXT
+                              </button>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Inline error banner */}
+                          {hfBgPrompts?.[0]?.rowNumber === -1 && (
+                            <div className="rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-[11px] text-red-300">
+                              ❌ {hfBgPrompts[0].prompt}
+                            </div>
+                          )}
+                          {/* Success banner */}
+                          {hfBgPrompts && hfBgPrompts[0]?.rowNumber !== -1 && (
+                            <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-2 text-[11px] text-violet-300">
+                              ✅ {hfBgPrompts.length} fundo(s) gerado(s) — veja abaixo no textarea
+                            </div>
+                          )}
+                          <textarea
+                            readOnly
+                            value={compileUnifiedImagePrompts() || 'Nenhum prompt de imagem foi gerado para este SRT.'}
+                            className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                          />
+                        </div>
+                      </div>
 
-                      {/* Painel de Prompts Mesclados Híbridos (Vídeo + Imagem) */}
+                      {/* Painel de Prompts Mesclados Híbridos (Vídeo + Imagem) - ABAIXO */}
                       {externalSrtPipeline && (() => {
                         const compileHybridPromptsText = () => {
                           if (externalSrtPipeline.hybridPromptsTxt) {
@@ -9400,12 +9458,13 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                             if (isHf && !isFaceless) return;
 
                             const prefix = isHf && isFaceless ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
-                            const cleanP = cleanHeyGenPrefixes(rawPrompt);
                             const charPrefix = promptPrefix !== 'none' ? `${promptPrefix} ` : '';
 
                             if (type === 'imagem') {
+                              const cleanP = cleanImagePromptBoilerplates(rawPrompt);
                               lines.push(`[I] ${charPrefix}${prefix}: ${cleanP}`);
                             } else if (type === 'vídeo' || (isHf && isFaceless)) {
+                              const cleanP = cleanHeyGenPrefixes(rawPrompt);
                               lines.push(`[IV] ${charPrefix}${prefix}: ${cleanP}`);
                             }
                           });
@@ -9416,7 +9475,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                         if (!hybridContent && !useHybridAssets) return null;
 
                         return (
-                          <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.04] p-4 space-y-3 mb-4">
+                          <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.04] p-4 space-y-3 mt-4 mb-4">
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300 flex items-center gap-1.5">
@@ -9451,9 +9510,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                           </div>
                         );
                       })()}
-
-                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de video</p>

@@ -36,6 +36,7 @@ export interface SrtAssetPipelineResult {
   csvContent: string;
   videoPromptsTxt: string;
   imagePromptsTxt: string;
+  hybridPromptsTxt?: string;
   stats: SrtAssetStats;
   textRender: SrtTextRenderInfo | null;
   generatedAt?: string;
@@ -553,6 +554,7 @@ export const buildPromptTxtOutputs = (
 
   const videoLines: string[] = [];
   const imageLines: string[] = [];
+  const hybridLines: string[] = [];
 
   // Determine if the rows are from a faceless video by checking the explicit format.
   const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
@@ -628,14 +630,17 @@ export const buildPromptTxtOutputs = (
 
     if (assetType === 'vídeo' || isFacelessHf) {
       videoLines.push(line);
+      hybridLines.push(`[IV] ${prefix}: ${prompt}`);
     } else if (assetType === 'imagem') {
       imageLines.push(line);
+      hybridLines.push(`[I] ${prefix}: ${prompt}`);
     }
   });
 
   return {
     videoPromptsTxt: videoLines.join('\n'),
     imagePromptsTxt: imageLines.join('\n'),
+    hybridPromptsTxt: hybridLines.join('\n'),
   };
 };
 
@@ -1154,13 +1159,14 @@ export const buildPipelineResult = (
     ...row,
     asset: normalizeAssetType(row.asset),
   }));
-  const { videoPromptsTxt, imagePromptsTxt } = buildPromptTxtOutputs(normalizedRows, videoFormat);
+  const { videoPromptsTxt, imagePromptsTxt, hybridPromptsTxt } = buildPromptTxtOutputs(normalizedRows, videoFormat);
 
   return {
     rows: normalizedRows,
     csvContent: serializeRowsToCsv(normalizedRows),
     videoPromptsTxt,
     imagePromptsTxt,
+    hybridPromptsTxt,
     stats: buildAssetStats(normalizedRows),
     textRender,
   };

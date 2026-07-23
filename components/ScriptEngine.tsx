@@ -1471,13 +1471,13 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [externalSourceLabel, setExternalSourceLabel] = useState('');
   const [externalSrtText, setExternalSrtText] = useState('');
   const [externalSrtFileName, setExternalSrtFileName] = useState('');
-  const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('male');
+  const [videoCharacterMode, setVideoCharacterMode] = useState<VideoCharacterMode>('custom');
   const [videoCharacterCustom, setVideoCharacterCustom] = useState('');
   const [videoFormat, setVideoFormat] = useState<VideoFormat>('avatar');
   const [preserveBrackets, setPreserveBrackets] = useState<boolean>(false);
   const [promptPrefix, setPromptPrefix] = useState<string>('none');
   const [forceAllAsVideo, setForceAllAsVideo] = useState<boolean>(false);
-  const [useHybridAssets, setUseHybridAssets] = useState<boolean>(true);
+  const [useHybridAssets, setUseHybridAssets] = useState<boolean>(false);
   const [assetAllocationMode, setAssetAllocationMode] = useState<AssetAllocationMode>('hybrid_smart');
   const [ultraCinematic, setUltraCinematic] = useState<boolean>(false);
   const [pipelineVideos, setPipelineVideos] = useState<boolean>(true);
@@ -1706,6 +1706,21 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   useEffect(() => {
     void fetchComponents();
   }, [activeProject?.id]);
+
+  useEffect(() => {
+    if (activeProject && (!videoCharacterCustom || videoCharacterCustom.trim() === '')) {
+      const channelStyle = activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity || '';
+      const resolved = resolveCharacterProfileInFrontend(
+        'custom',
+        videoFormat,
+        activeProject?.name || activeProject?.project_name,
+        undefined,
+        activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
+        channelStyle
+      );
+      setVideoCharacterCustom(resolved);
+    }
+  }, [activeProject?.id, videoFormat]);
 
   useEffect(() => {
     const parts = getManualPublishDateParts(manualPublishDate);

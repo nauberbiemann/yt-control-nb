@@ -7402,6 +7402,44 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
   const manualPublishParts = getManualPublishDateParts(manualPublishDate);
   const pendingManualPublishValue = composeManualPublishDate(manualPublishDraftDate, manualPublishDraftTime);
   const hasPendingManualPublishChange = pendingManualPublishValue !== manualPublishDate;
+  const compileHybridPromptsText = () => {
+    if (!externalSrtPipeline) return '';
+    if (externalSrtPipeline.hybridPromptsTxt) {
+      return compilePromptText(externalSrtPipeline.hybridPromptsTxt);
+    }
+    const lines: string[] = [];
+    const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
+
+    externalSrtPipeline.rows.forEach((row) => {
+      const type = normalizeAssetType(row.asset);
+      if (type !== 'vídeo' && type !== 'imagem' && type !== 'hyperframe') return;
+
+      let rawPrompt = sanitizePrompt(row.prompt || '');
+      if (!rawPrompt) {
+        if (type === 'imagem') {
+          rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
+        } else {
+          rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+        }
+      }
+
+      const isHf = type === 'hyperframe';
+      if (isHf && !isFaceless) return;
+
+      const prefix = isHf && isFaceless ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
+      const charPrefix = promptPrefix !== 'none' ? `${promptPrefix} ` : '';
+
+      if (type === 'imagem') {
+        const cleanP = cleanImagePromptBoilerplates(rawPrompt);
+        lines.push(`[I] ${charPrefix}${prefix}: ${cleanP}`);
+      } else if (type === 'vídeo' || (isHf && isFaceless)) {
+        const cleanP = cleanHeyGenPrefixes(rawPrompt);
+        lines.push(`[IV] ${charPrefix}${prefix}: ${cleanP}`);
+      }
+    });
+    return lines.join('\n');
+  };
+
   const activeStageBlockId = scriptBlocks.some((block) => block.id === expandedStageId)
     ? expandedStageId
     : scriptBlocks[0]?.id || null;
@@ -9325,7 +9363,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                   </div>
 
                   {externalSrtPipeline && (
-                    <>
+                    <div className="space-y-4">
                       {/* Opções de Formatação de Prompts (Colchetes e Prefixo) */}
                       <div className="flex flex-col md:flex-row gap-4 bg-midnight/25 border border-white/10 rounded-2xl p-4 mb-4">
                         {/* Checkbox global de colchetes */}
@@ -9494,43 +9532,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
                       {/* Painel de Prompts Mesclados Híbridos (Vídeo + Imagem) - ABAIXO */}
                       {externalSrtPipeline && (() => {
-                        const compileHybridPromptsText = () => {
-                          if (externalSrtPipeline.hybridPromptsTxt) {
-                            return compilePromptText(externalSrtPipeline.hybridPromptsTxt);
-                          }
-                          const lines: string[] = [];
-                          const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
-
-                          externalSrtPipeline.rows.forEach((row) => {
-                            const type = normalizeAssetType(row.asset);
-                            if (type !== 'vídeo' && type !== 'imagem' && type !== 'hyperframe') return;
-
-                            let rawPrompt = sanitizePrompt(row.prompt || '');
-                            if (!rawPrompt) {
-                              if (type === 'imagem') {
-                                rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
-                              } else {
-                                rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
-                              }
-                            }
-
-                            const isHf = type === 'hyperframe';
-                            if (isHf && !isFaceless) return;
-
-                            const prefix = isHf && isFaceless ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
-                            const charPrefix = promptPrefix !== 'none' ? `${promptPrefix} ` : '';
-
-                            if (type === 'imagem') {
-                              const cleanP = cleanImagePromptBoilerplates(rawPrompt);
-                              lines.push(`[I] ${charPrefix}${prefix}: ${cleanP}`);
-                            } else if (type === 'vídeo' || (isHf && isFaceless)) {
-                              const cleanP = cleanHeyGenPrefixes(rawPrompt);
-                              lines.push(`[IV] ${charPrefix}${prefix}: ${cleanP}`);
-                            }
-                          });
-                          return lines.join('\n');
-                        };
-
                         const hybridContent = compileHybridPromptsText();
                         if (!hybridContent && !useHybridAssets) return null;
 
@@ -9570,8 +9571,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                           </div>
                         );
                       })()}
-                    </>
-                  )}
 
                       {/* FCPXML CapCut Timeline Synchronizer */}
                       {!externalSrtPipeline ? (
@@ -10009,7 +10008,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                           </div>
                         </div>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               )}

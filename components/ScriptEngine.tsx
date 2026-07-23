@@ -23,6 +23,7 @@ import {
   buildCapCutDraft,
   sanitizePrompt,
   cleanHeyGenPrefixes,
+  cleanImagePromptBoilerplates,
   parseDnaBlocks,
   getProtagonistReplacement,
   sanitizeProperNames,

@@ -9389,6 +9389,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                             ))}
                           </div>
                         </div>
+                      </div>
+
                       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                         <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                           <div className="flex items-center justify-between gap-3">

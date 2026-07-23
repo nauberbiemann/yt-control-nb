@@ -2211,7 +2211,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         });
       }
 
-      if (themeId && executionSnapshot && !executionSnapshot._isCompact && (executionSnapshot.externalSrtPipeline || executionSnapshot.postScriptPackage)) {
+      if (themeId && executionSnapshot && !(executionSnapshot as any)._isCompact && (executionSnapshot.externalSrtPipeline || executionSnapshot.postScriptPackage)) {
         await upsertScriptExecution(themeId, executionSnapshot);
         console.log('[ScriptEngine] Sincronizado snapshot completo do tema em script_executions na nuvem.');
       }

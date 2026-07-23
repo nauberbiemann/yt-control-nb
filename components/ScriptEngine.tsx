@@ -2211,7 +2211,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         });
       }
 
-      if (themeId && executionSnapshot) {
+      if (themeId && executionSnapshot && !executionSnapshot._isCompact && (executionSnapshot.externalSrtPipeline || executionSnapshot.postScriptPackage)) {
         await upsertScriptExecution(themeId, executionSnapshot);
         console.log('[ScriptEngine] Sincronizado snapshot completo do tema em script_executions na nuvem.');
       }
@@ -2291,82 +2291,11 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         if (raw) snapshot = JSON.parse(raw);
       }
 
-      // Check if the loaded snapshot is a finished theme in the bank
-      if (snapshot && !pendingData && !snapshot._isResume) {
-        const themeIdForCheck = snapshot._themeId || snapshot.themeId || snapshot.id;
-        const titleForCheck = snapshot.approvedTheme || snapshot.approvedBriefing?.title || snapshot.title || snapshot.raw_theme || '';
-        if (isFinishedTheme(themeIdForCheck, titleForCheck)) {
-          console.log('[ScriptEngine] Snapshot represents an already finished/published theme. Auto-syncing and clearing state.');
-          
-          const autoSyncAndClear = async () => {
-            if (themeIdForCheck && supabase) {
-              try {
-                let fullSnapshot = { ...snapshot };
-                const srtPipelineKey = `${executionStorageKey}_srt_pipeline`;
-                const postPackageKey = `${executionStorageKey}_post_package`;
-                const hfKey = `yt_hf_bg_${executionStorageKey}`;
-                
-                const localSrt = localStorage.getItem(srtPipelineKey);
-                if (localSrt) {
-                  fullSnapshot.externalSrtPipeline = JSON.parse(localSrt);
-                }
-                const localPost = localStorage.getItem(postPackageKey);
-                if (localPost) {
-                  fullSnapshot.postScriptPackage = JSON.parse(localPost);
-                }
-                const localHf = localStorage.getItem(hfKey);
-                if (localHf) {
-                  fullSnapshot.hfBgPrompts = JSON.parse(localHf);
-                }
-
-                await upsertScriptExecution(themeIdForCheck, fullSnapshot);
-                console.log('[ScriptEngine] Auto-synced finished theme heavy assets to Supabase.');
-              } catch (e) {
-                console.warn('[ScriptEngine] Failed to auto-sync heavy assets before clear:', e);
-              }
-            }
-            clearExecutionState();
-          };
-
-          autoSyncAndClear();
-          snapshot = null;
-        }
-      }
-
       // If there is still pendingData (but no approvedTheme), it's a new generation. 
       // We skip hydration and let the Assembler V4 effect handle it.
       if (!snapshot && pendingData) {
         setExecutionHydrated(true);
         return;
-      }
-
-      // NEW: Check if the snapshot represents a finished (scheduled/published) script
-      if (snapshot && snapshot.manualPublishDate && !pendingData) {
-        const activeSessionThemeId = sessionStorage.getItem(`active_script_theme_${activeProject.id}`);
-        const isCurrentlyActiveSession = activeSessionThemeId && (activeSessionThemeId === snapshot._themeId || activeSessionThemeId === snapshot.themeId || activeSessionThemeId === snapshot.id);
-
-        if (snapshot._isResume || isCurrentlyActiveSession) {
-          // Deliberate resume or active session refresh: allow hydration
-          console.log('[ScriptEngine] Resuming/hydrating scheduled script in active session.');
-          if (snapshot._themeId) {
-            sessionStorage.setItem(`active_script_theme_${activeProject.id}`, snapshot._themeId);
-          } else if (snapshot.themeId) {
-            sessionStorage.setItem(`active_script_theme_${activeProject.id}`, snapshot.themeId);
-          }
-
-          if (snapshot._isResume) {
-            delete snapshot._isResume;
-            try {
-              localStorage.setItem(executionStorageKey, JSON.stringify(snapshot));
-            } catch { /* ignore */ }
-          }
-        } else {
-          // Navigating via sidebar: bypass hydration of finished script to keep workspace clean
-          console.log('[ScriptEngine] Bypassing hydration of finished/scheduled script for a clean workspace.');
-          clearExecutionState();
-          setExecutionHydrated(true);
-          return;
-        }
       }
 
       if (snapshot) {
@@ -2399,18 +2328,6 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
-                
-                // NEW: Bypass cloud hydration if the script has already been scheduled/published
-                // (Only bypass if we are NOT in an active session refresh for a specific theme)
-                const cloudThemeId = cloudSnapshot._themeId || cloudSnapshot.themeId || cloudSnapshot.id;
-                const cloudTitle = cloudSnapshot.approvedTheme || cloudSnapshot.approvedBriefing?.title || cloudSnapshot.title || cloudSnapshot.raw_theme || '';
-                const isCloudThemeFinished = isFinishedTheme(cloudThemeId, cloudTitle);
-                if ((cloudSnapshot.manualPublishDate || isCloudThemeFinished) && !activeSessionThemeId) {
-                  console.log('[ScriptEngine] Cloud snapshot is already scheduled/published or finished. Bypassing cloud hydration.');
-                  clearExecutionState();
-                  setExecutionHydrated(true);
-                  return;
-                }
 
                 console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
                 
@@ -3385,28 +3302,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
         if (success) {
           showToast(`✅ Sincronizado com a nuvem e espaço local liberado (${(bytesFreed / 1024 / 1024).toFixed(2)} MB).`);
-          
-          // Clear states locally as they are safely in Supabase now
-          setExternalScriptText('');
-          setExternalSrtText('');
-          setExternalSrtObserver(buildInitialSrtObserver());
-          setExternalSrtPipeline(null);
-          setPostScriptPackage(null);
-
-          // Remove the active theme ID from sessionStorage because it's now finished/scheduled
-          if (typeof window !== 'undefined' && activeProject?.id) {
-            sessionStorage.removeItem(`active_script_theme_${activeProject.id}`);
-          }
 
           // Update theme status in theme bank table to represent compact scheduled/published
           if (approvedBriefing && approvedTheme) {
             await syncApprovedThemeSnapshot({
               manualPublishDate: nextValue,
-              externalScriptText: '',
-              externalSrtText: '',
-              externalSrtObserver: [],
-              externalSrtPipeline: null,
-              postScriptPackage: null,
             });
           }
           return;
@@ -3425,30 +3325,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     if (approvedBriefing && approvedTheme) {
       await syncApprovedThemeSnapshot({
         manualPublishDate: nextValue,
-        ...(isSchedulingOrPublishing ? {
-          externalScriptText: '',
-          externalSrtText: '',
-          externalSrtObserver: [],
-        } : {}),
       });
     }
 
     persistExecutionSnapshotLocally({
       manualPublishDate: nextValue,
-      ...(isSchedulingOrPublishing ? {
-        externalScriptText: '',
-        externalSrtText: '',
-        externalSrtObserver: [],
-      } : {}),
     });
-
-    if (isSchedulingOrPublishing) {
-      showToast('Conteúdo de texto liberado. Espaço de armazenamento otimizado.');
-      // Remove the active theme ID from sessionStorage because it's now finished/scheduled
-      if (typeof window !== 'undefined' && activeProject?.id) {
-        sessionStorage.removeItem(`active_script_theme_${activeProject.id}`);
-      }
-    }
   };
 
   const clearPublishDate = async () => {

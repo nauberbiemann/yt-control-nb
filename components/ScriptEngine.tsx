@@ -9374,6 +9374,84 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                         </div>
                       </div>
 
+                      {/* Painel de Prompts Mesclados Híbridos (Vídeo + Imagem) */}
+                      {externalSrtPipeline && (() => {
+                        const compileHybridPromptsText = () => {
+                          if (externalSrtPipeline.hybridPromptsTxt) {
+                            return compilePromptText(externalSrtPipeline.hybridPromptsTxt);
+                          }
+                          const lines: string[] = [];
+                          const isFaceless = videoFormat === 'faceless' || videoFormat === 'catalog';
+
+                          externalSrtPipeline.rows.forEach((row) => {
+                            const type = normalizeAssetType(row.asset);
+                            if (type !== 'vídeo' && type !== 'imagem' && type !== 'hyperframe') return;
+
+                            let rawPrompt = sanitizePrompt(row.prompt || '');
+                            if (!rawPrompt) {
+                              if (type === 'imagem') {
+                                rawPrompt = `Photorealistic still image of ${row.texto.slice(0, 60).trim()}.`;
+                              } else {
+                                rawPrompt = `3D technical animation of ${row.texto.slice(0, 60).trim()}. Ambient sound only, no dialogue, no voice-over.`;
+                              }
+                            }
+
+                            const isHf = type === 'hyperframe';
+                            if (isHf && !isFaceless) return;
+
+                            const prefix = isHf && isFaceless ? `${row.rowNumber}-HF` : `${row.rowNumber}`;
+                            const cleanP = cleanHeyGenPrefixes(rawPrompt);
+                            const charPrefix = promptPrefix !== 'none' ? `${promptPrefix} ` : '';
+
+                            if (type === 'imagem') {
+                              lines.push(`[I] ${charPrefix}${prefix}: ${cleanP}`);
+                            } else if (type === 'vídeo' || (isHf && isFaceless)) {
+                              lines.push(`[IV] ${charPrefix}${prefix}: ${cleanP}`);
+                            }
+                          });
+                          return lines.join('\n');
+                        };
+
+                        const hybridContent = compileHybridPromptsText();
+                        if (!hybridContent && !useHybridAssets) return null;
+
+                        return (
+                          <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.04] p-4 space-y-3 mb-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300 flex items-center gap-1.5">
+                                  <span>🔀 Prompts Mesclados Híbridos (Vídeo + Imagem)</span>
+                                </p>
+                                <p className="text-[10px] text-white/50 mt-0.5 leading-relaxed">
+                                  Lista sequencial contínua da timeline do SRT. Imagens marcadas com <strong className="text-cyan-300">[I]</strong> e vídeos com <strong className="text-cyan-300">[IV]</strong>.
+                                </p>
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextToClipboard(hybridContent, 'Prompts híbridos (Vídeo + Imagem) copiados.')}
+                                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
+                                >
+                                  <Copy size={12} className="inline mr-1" /> Copiar Híbrido
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_hibridos', hybridContent)}
+                                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
+                                >
+                                  <FileText size={12} className="inline mr-1" /> TXT Híbrido
+                                </button>
+                              </div>
+                            </div>
+                            <textarea
+                              readOnly
+                              value={hybridContent || 'Nenhum prompt híbrido gerado.'}
+                              className="w-full min-h-[140px] resize-y rounded-2xl border border-cyan-500/20 bg-black/40 px-4 py-4 text-[11px] leading-6 text-cyan-100/90 font-mono outline-none focus:border-cyan-400/40"
+                            />
+                          </div>
+                        );
+                      })()}
+
                       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                         <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
                           <div className="flex items-center justify-between gap-3">

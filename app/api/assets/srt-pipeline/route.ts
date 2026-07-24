@@ -56,8 +56,9 @@ Rules for asset types:
 - asset == "video":
   - First, identify what is being described in the subtitle text: a character action, historical scene, feeling, concept, process, place, or personal moment.
   - STRUCTURE FOR IMAGE-TO-VIDEO AND HIGH CONSISTENCY:
+    - CRITICAL RULE: Every single video prompt MUST be completely self-contained and describe a detailed visual scene. Even if the subtitle text is a short phrase, a continuation of a prior sentence, or an abstract concept, you MUST NOT omit the scene's visual composition. You are STRICTLY FORBIDDEN from starting the prompt directly with "Motion and lock directive:" or skipping the first frame composition.
     - You must write the prompt in two distinct parts:
-      1. THE FIRST FRAME COMPOSITION: Describe the static scene (subject, setting, clothing, lighting, camera position).
+      1. THE FIRST FRAME COMPOSITION: Describe the static scene in detail (e.g. subject, objects, cards, text labels, setting, clothing, lighting, camera position, background).
       2. THE MOTION AND LOCK DIRECTIVE: Instruct the animation engine exactly what moves and what stays locked. End with this exact formula phrase: "Use the supplied image as the exact first frame and visual authority. Preserve its identity, anatomy, wardrobe, props, lighting, texture, spatial layout and geometry. Keep the visible world coherent; animate only the planned motion. [Insert specific camera motion or character movement here]. No other changes."
   - CINEMATIC CAMERA ENGINE RULES:
     - You must choose one of the following operations and declare it in the motion section:

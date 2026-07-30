@@ -1516,9 +1516,9 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [autoDownloadBats, setAutoDownloadBats] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('yt_auto_download_bats');
-      return saved !== 'false';
+      return saved === 'true';
     }
-    return true;
+    return false;
   });
   // Template Studio
   const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
@@ -8281,7 +8281,14 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                 { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
                 { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
                 { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
-                { label: 'Chars', value: approvedBriefing.estimatedChars ? `${executionMode === 'external' ? '' : '~'}${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}` : 'N/D' },
+                {
+                  label: 'Chars',
+                  value: (executionMode === 'external' && externalScriptText)
+                    ? externalScriptText.length.toLocaleString('pt-BR')
+                    : approvedBriefing.estimatedChars
+                      ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}`
+                      : 'N/D'
+                },
               ].map((item) => (
                 <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
                   <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>

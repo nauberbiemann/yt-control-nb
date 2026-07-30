@@ -55,6 +55,18 @@ export function LocalRescueTool() {
     calculateStorage();
     setGcLog(getGCLog());
 
+    // Recupera logs de Sync & Purge salvos antes do reload se existirem
+    if (typeof window !== 'undefined') {
+      const savedSyncLog = localStorage.getItem('ws_sync_purge_log');
+      if (savedSyncLog) {
+        try {
+          setSyncAndPurgeLog(JSON.parse(savedSyncLog));
+          setShowGcLogs(true);
+          localStorage.removeItem('ws_sync_purge_log');
+        } catch {}
+      }
+    }
+
     const interval = setInterval(() => {
       calculateStorage();
       setGcLog(getGCLog());

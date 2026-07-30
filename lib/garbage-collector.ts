@@ -419,7 +419,21 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         projectId = subKey.substring(prefix.length, subKey.length - '_post_package'.length);
       }
       const wsMainKey = `${prefix}${projectId}`;
-      if (!localStorage.getItem(wsMainKey)) {
+      const wsMainRaw = localStorage.getItem(wsMainKey);
+      let isOrphan = false;
+      if (!wsMainRaw) {
+        isOrphan = true;
+      } else {
+        try {
+          const wsMain = JSON.parse(wsMainRaw);
+          const themeId = wsMain._themeId || wsMain.themeId;
+          if (!themeId) isOrphan = true;
+        } catch {
+          isOrphan = true;
+        }
+      }
+
+      if (isOrphan) {
         try {
           const val = localStorage.getItem(subKey);
           let freed = 0;
@@ -489,6 +503,40 @@ export const executeBackgroundGarbageCollection = async (force = false): Promise
         const themeId = wsMain._themeId || wsMain.themeId;
 
         if (themeId) {
+          // Verifica se o tema ainda existe na nuvem para evitar órfãos permanentes de temas excluídos
+          const { data: themeExists, error: themeError } = await supabase
+            .from('themes')
+            .select('id')
+            .eq('id', themeId)
+            .maybeSingle();
+
+          if (!themeError && !themeExists) {
+            logDetails.push(`[GC] Tema ${themeId} foi excluído na nuvem. Removendo resíduos locais...`);
+            const srtRaw = localStorage.getItem(srtKey);
+            const postRaw = localStorage.getItem(postKey);
+            const hfKey = `yt_hf_bg_${wsMainKey}`;
+
+            let freed = getStringSize(wsMainRaw);
+            localStorage.removeItem(wsMainKey);
+
+            if (srtRaw) {
+              freed += getStringSize(srtRaw);
+              localStorage.removeItem(srtKey);
+            }
+            if (postRaw) {
+              freed += getStringSize(postRaw);
+              localStorage.removeItem(postKey);
+            }
+            const hfRaw = localStorage.getItem(hfKey);
+            if (hfRaw) {
+              freed += getStringSize(hfRaw);
+              localStorage.removeItem(hfKey);
+            }
+
+            totalBytesCleaned += freed;
+            continue;
+          }
+
           const { data: remoteExecutions, error: execError } = await supabase
             .from('script_executions')
             .select('theme_id, execution_snapshot')
@@ -650,9 +698,58 @@ export const syncAndPurgeAll = async (): Promise<{
       if (!wsMainRaw) continue;
 
       try {
-        const wsMain = JSON.parse(wsMainRaw);
+        let wsMain;
+        try {
+          wsMain = JSON.parse(wsMainRaw);
+        } catch (jsonErr) {
+          logDetails.push(`[Sync & Purge] Chave ${mainKey} contém JSON inválido. Removendo...`);
+          let freed = getStringSize(wsMainRaw);
+          localStorage.removeItem(mainKey);
+          const srtKey = `${mainKey}_srt_pipeline`;
+          const postKey = `${mainKey}_post_package`;
+          const hfKey = `yt_hf_bg_${mainKey}`;
+          [srtKey, postKey, hfKey].forEach(k => {
+            const v = localStorage.getItem(k);
+            if (v) {
+              freed += getStringSize(v);
+              localStorage.removeItem(k);
+            }
+          });
+          totalBytesCleaned += freed;
+          continue;
+        }
+
         const themeId = wsMain._themeId || wsMain.themeId;
         const projectId = wsMain.projectId || wsMain.project_id || mainKey.replace('ws_script_execution_', '');
+
+        if (!themeId) {
+          logDetails.push(`[Sync & Purge] Chave principal ${mainKey} não possui themeId ativo. Removendo chaves órfãs locais...`);
+          const srtKey = `${mainKey}_srt_pipeline`;
+          const postKey = `${mainKey}_post_package`;
+          const hfKey = `yt_hf_bg_${mainKey}`;
+
+          let freed = getStringSize(wsMainRaw);
+          localStorage.removeItem(mainKey);
+
+          const srtRaw = localStorage.getItem(srtKey);
+          if (srtRaw) {
+            freed += getStringSize(srtRaw);
+            localStorage.removeItem(srtKey);
+          }
+          const postRaw = localStorage.getItem(postKey);
+          if (postRaw) {
+            freed += getStringSize(postRaw);
+            localStorage.removeItem(postKey);
+          }
+          const hfRaw = localStorage.getItem(hfKey);
+          if (hfRaw) {
+            freed += getStringSize(hfRaw);
+            localStorage.removeItem(hfKey);
+          }
+
+          totalBytesCleaned += freed;
+          continue;
+        }
 
         if (themeId && projectId) {
           // Reunir srt_pipeline e post_package se existirem localmente
@@ -660,6 +757,44 @@ export const syncAndPurgeAll = async (): Promise<{
           const postKey = `${mainKey}_post_package`;
           const srtRaw = localStorage.getItem(srtKey);
           const postRaw = localStorage.getItem(postKey);
+
+          // Verifica se o tema existe na nuvem para evitar erros de chave estrangeira
+          const { data: themeExists, error: themeCheckError } = await supabase
+            .from('themes')
+            .select('id')
+            .eq('id', themeId)
+            .maybeSingle();
+
+          if (!themeCheckError && !themeExists) {
+            logDetails.push(`[Sync & Purge] Tema ${themeId} foi excluído na nuvem. Removendo dados locais para liberar espaço...`);
+            const hfKey = `yt_hf_bg_${mainKey}`;
+            const snapKey = `snapshot_${themeId}`;
+
+            let freed = getStringSize(wsMainRaw);
+            localStorage.removeItem(mainKey);
+
+            if (srtRaw) {
+              freed += getStringSize(srtRaw);
+              localStorage.removeItem(srtKey);
+            }
+            if (postRaw) {
+              freed += getStringSize(postRaw);
+              localStorage.removeItem(postKey);
+            }
+            const hfRaw = localStorage.getItem(hfKey);
+            if (hfRaw) {
+              freed += getStringSize(hfRaw);
+              localStorage.removeItem(hfKey);
+            }
+            const snapRaw = localStorage.getItem(snapKey);
+            if (snapRaw) {
+              freed += getStringSize(snapRaw);
+              localStorage.removeItem(snapKey);
+            }
+
+            totalBytesCleaned += freed;
+            continue;
+          }
 
           const fullSnapshot = {
             ...wsMain,
@@ -719,7 +854,7 @@ export const syncAndPurgeAll = async (): Promise<{
 
           if (upsertResult.error) {
             logDetails.push(`[Aviso] Falha ao enviar execução do tema ${themeId}: ${upsertResult.error.message}`);
-          } else if (upsertResult.data) {
+          } else if (!upsertResult.error) {
             // Confirmado! Pode expurgar do localStorage
             const hfKey = `yt_hf_bg_${mainKey}`;
             const snapKey = `snapshot_${themeId}`;
@@ -776,7 +911,21 @@ export const syncAndPurgeAll = async (): Promise<{
         projectId = subKey.substring(prefix.length, subKey.length - '_post_package'.length);
       }
       const wsMainKey = `${prefix}${projectId}`;
-      if (!localStorage.getItem(wsMainKey)) {
+      const wsMainRaw = localStorage.getItem(wsMainKey);
+      let isOrphan = false;
+      if (!wsMainRaw) {
+        isOrphan = true;
+      } else {
+        try {
+          const wsMain = JSON.parse(wsMainRaw);
+          const themeId = wsMain._themeId || wsMain.themeId;
+          if (!themeId) isOrphan = true;
+        } catch {
+          isOrphan = true;
+        }
+      }
+
+      if (isOrphan) {
         try {
           const val = localStorage.getItem(subKey);
           let freed = 0;
@@ -927,6 +1076,10 @@ export const syncAndPurgeAll = async (): Promise<{
     const finalSizeMB = getLocalStorageSizeMB();
     logDetails.push(`[Sync & Purge] Finalizado! Tamanho final: ${finalSizeMB.toFixed(2)} MB. Total liberado: ${(totalBytesCleaned / 1024 / 1024).toFixed(2)} MB`);
 
+    try {
+      localStorage.setItem('ws_sync_purge_log', JSON.stringify(logDetails));
+    } catch {}
+
     return {
       success: true,
       bytesFreed: totalBytesCleaned,
@@ -934,6 +1087,9 @@ export const syncAndPurgeAll = async (): Promise<{
     };
   } catch (err: any) {
     logDetails.push(`[ERRO CRÍTICO] Falha na limpeza forçada: ${err.message || err}`);
+    try {
+      localStorage.setItem('ws_sync_purge_log', JSON.stringify(logDetails));
+    } catch {}
     return {
       success: false,
       bytesFreed: totalBytesCleaned,

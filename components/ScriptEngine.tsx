@@ -2377,7 +2377,14 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 if (Array.isArray(cloudSnapshot.externalSrtObserver)) setExternalSrtObserver(cloudSnapshot.externalSrtObserver);
                 if (Array.isArray(cloudSnapshot.hfBgPrompts)) setHfBgPrompts(cloudSnapshot.hfBgPrompts);
 
-                localStorage.setItem(executionStorageKey, JSON.stringify(cloudSnapshot));
+                // Split large objects from the compact snapshot before writing to localStorage
+                const { externalSrtPipeline, postScriptPackage, ...compactCloudSnapshot } = cloudSnapshot;
+                const compactToSave = {
+                  ...compactCloudSnapshot,
+                  _hasSrtPipeline: !!externalSrtPipeline,
+                  _hasPostPackage: !!postScriptPackage,
+                };
+                localStorage.setItem(executionStorageKey, JSON.stringify(compactToSave));
               }
             } catch (err) {
               console.warn('[ScriptEngine] Falha ao tentar carregar última execução do Supabase:', err);
@@ -2562,40 +2569,22 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
         if (loadedSrt) {
           setExternalSrtPipeline(loadedSrt);
-          // Auto-repair local storage key if it was missing
-          if (themeId) {
-            const localKey = `${executionStorageKey}_srt_pipeline`;
-            if (!localStorage.getItem(localKey)) {
-              try {
-                localStorage.setItem(localKey, JSON.stringify(loadedSrt));
-              } catch {}
-            }
-            // Auto-repair/sync to cloud table (script_executions) if missing
-            if (supabase) {
-              getScriptExecution(themeId).then(({ data }) => {
-                if (!data || !data.execution_snapshot || !data.execution_snapshot.externalSrtPipeline) {
-                  console.log(`[ScriptEngine] Auto-sync: salvando SRT pipeline e post package em script_executions na nuvem...`);
-                  upsertScriptExecution(themeId, {
-                    externalSrtPipeline: loadedSrt || undefined,
-                    postScriptPackage: loadedPost || undefined,
-                  }).catch(err => console.warn('[ScriptEngine] Falha ao upsertar heavy assets em script_executions:', err));
-                }
-              });
-            }
+          // Auto-repair/sync to cloud table (script_executions) if missing
+          if (themeId && supabase) {
+            getScriptExecution(themeId).then(({ data }) => {
+              if (!data || !data.execution_snapshot || !data.execution_snapshot.externalSrtPipeline) {
+                console.log(`[ScriptEngine] Auto-sync: salvando SRT pipeline e post package em script_executions na nuvem...`);
+                upsertScriptExecution(themeId, {
+                  externalSrtPipeline: loadedSrt || undefined,
+                  postScriptPackage: loadedPost || undefined,
+                }).catch(err => console.warn('[ScriptEngine] Falha ao upsertar heavy assets em script_executions:', err));
+              }
+            });
           }
         }
         
         if (loadedPost) {
           setPostScriptPackage(loadedPost);
-          // Auto-repair local storage key if it was missing
-          if (themeId) {
-            const localKey = `${executionStorageKey}_post_package`;
-            if (!localStorage.getItem(localKey)) {
-              try {
-                localStorage.setItem(localKey, JSON.stringify(loadedPost));
-              } catch {}
-            }
-          }
         }
       };
 
@@ -3400,7 +3389,17 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           upsertScriptExecution(currentThemeId, {
             externalSrtPipeline: srtPipeline || undefined,
             postScriptPackage: postPkg || undefined,
-          }).catch(err => console.warn('[ScriptEngine] Failed to save heavy assets to Supabase', err));
+          })
+          .then(({ error }) => {
+            if (!error) {
+              // Successfully saved to cloud! We can safely remove the local heavy keys to save space
+              try {
+                localStorage.removeItem(srtPipelineKey);
+                localStorage.removeItem(postPackageKey);
+              } catch {}
+            }
+          })
+          .catch(err => console.warn('[ScriptEngine] Failed to save heavy assets to Supabase', err));
         } else {
           // OFFLINE FALLBACK: Save to localStorage (may throw QuotaExceededError)
           if (srtPipeline) {

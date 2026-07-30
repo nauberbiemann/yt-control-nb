@@ -222,7 +222,7 @@ export function LocalRescueTool() {
   };
 
   const handlePurge = () => {
-    if (!confirm('ATENÇÃO: Você tem certeza absoluta que o backup foi concluído ou baixado? Isso vai limpar sua memória local!')) return;
+    if (!confirm('ATENÇÃO: Isso irá apagar TODOS os dados locais do navegador (incluindo roteiros ativos, prompts e pipelines que ainda não foram finalizados ou sincronizados com a nuvem). Certifique-se de ter baixado o Backup JSON de Segurança antes de continuar.\n\nDeseja realmente prosseguir?')) return;
     setIsPurging(true);
     try {
       const keysToRemove: string[] = [];

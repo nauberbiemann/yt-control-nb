@@ -1513,6 +1513,13 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const _pipelineResultRef  = useRef<any>(null);  // captura pipeline SRT entre setState assíncronos
   const _postScriptResultRef = useRef<any>(null); // captura pacote pós-roteiro entre setState assíncronos
   const [pipelineWarnings, setPipelineWarnings] = useState<string[]>([]); // avisos não-fatais
+  const [autoDownloadBats, setAutoDownloadBats] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yt_auto_download_bats');
+      return saved !== 'false';
+    }
+    return true;
+  });
   // Template Studio
   const [isTemplateStudioExpanded, setIsTemplateStudioExpanded] = useState(false);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
@@ -3534,6 +3541,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       content: sections[index] || block.content,
     }));
 
+    const exactChars = text.length;
+    let updatedBriefing = null;
+    if (approvedBriefing) {
+      updatedBriefing = {
+        ...approvedBriefing,
+        estimatedChars: exactChars
+      };
+      setApprovedBriefing(updatedBriefing);
+    }
+
     setScriptBlocks(nextBlocks);
     setScriptStage('final');
     setPostScriptPackage(null);
@@ -3548,6 +3565,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       externalSrtText,
       externalSrtFileName,
       postScriptPackage: null,
+      approvedBriefing: updatedBriefing
     });
 
     await syncApprovedThemeSnapshot({
@@ -3576,6 +3594,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       setExternalFactCheckReport(null);
       setExternalHumanizeReport(null);
       setPendingHumanizedText(null);
+      const exactChars = text.length;
+      let updatedBriefing = null;
+      if (approvedBriefing) {
+        updatedBriefing = {
+          ...approvedBriefing,
+          estimatedChars: exactChars
+        };
+        setApprovedBriefing(updatedBriefing);
+      }
       persistExecutionSnapshotLocally({
         executionMode: 'external',
         externalScriptText: text,
@@ -3585,6 +3612,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         externalFactCheckReport: null,
         externalHumanizeReport: null,
         pendingHumanizedText: null,
+        approvedBriefing: updatedBriefing
       });
     } catch (error) {
       console.warn('[ScriptEngine] Falha ao ler arquivo externo.', error);
@@ -3840,15 +3868,26 @@ ${textToAnalyze}`;
     setExternalScriptText(pendingHumanizedText);
     setPendingHumanizedText(null);
     setExternalHumanizeReport(null);
+    const exactChars = pendingHumanizedText.length;
+    let updatedBriefing = null;
+    if (approvedBriefing) {
+      updatedBriefing = {
+        ...approvedBriefing,
+        estimatedChars: exactChars
+      };
+      setApprovedBriefing(updatedBriefing);
+    }
     persistExecutionSnapshotLocally({
       externalScriptText: pendingHumanizedText,
       pendingHumanizedText: null,
-      externalHumanizeReport: null
+      externalHumanizeReport: null,
+      approvedBriefing: updatedBriefing
     });
     await syncSnapshotToCloud({
       externalScriptText: pendingHumanizedText,
       pendingHumanizedText: null,
-      externalHumanizeReport: null
+      externalHumanizeReport: null,
+      approvedBriefing: updatedBriefing
     });
     showToast('✨ Texto humanizado aplicado com sucesso!');
   };
@@ -5123,39 +5162,41 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       ];
       const batContent = batLines.join('\r\n');
       
-      downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(activePipeline.csvContent, activePackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
-      
-      setTimeout(() => {
-      downloadTextArtifact(srtArtifactStem, '1_renderizar_textos', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
-      }, 500);
-
-      // Bat 2 — HyperFrames overlays (only if hyperframe rows exist)
-      const hfRows = activePipeline.rows.filter(
-        (r: any) => normalizeAssetType(r.asset) === 'hyperframe',
-      );
-      if (hfRows.length > 0 && videoFormat !== 'faceless') {
-        const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, activePackage?.hfContextTitles, videoFormat);
+      if (autoDownloadBats) {
+        downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(activePipeline.csvContent, activePackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
+        
         setTimeout(() => {
-          downloadTextArtifact(
-            srtArtifactStem,
-            '2_hyperframes',
-            batHyperframes,
-            { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
-          );
-        }, 1000);
-      }
+          downloadTextArtifact(srtArtifactStem, '1_renderizar_textos', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
+        }, 500);
 
-      const sfxTimeline = activePackage?.sfxTimelineTxt || '';
-      const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, activePipeline.rows);
-      if (batSfx) {
-        setTimeout(() => {
-          downloadTextArtifact(
-            srtArtifactStem,
-            '3_sfx',
-            batSfx,
-            { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
-          );
-        }, 1500);
+        // Bat 2 — HyperFrames overlays (only if hyperframe rows exist)
+        const hfRows = activePipeline.rows.filter(
+          (r: any) => normalizeAssetType(r.asset) === 'hyperframe',
+        );
+        if (hfRows.length > 0 && videoFormat !== 'faceless') {
+          const batHyperframes = buildHyperframesBat(hfRows, srtArtifactStem, undefined, activePackage?.hfContextTitles, videoFormat);
+          setTimeout(() => {
+            downloadTextArtifact(
+              srtArtifactStem,
+              '2_hyperframes',
+              batHyperframes,
+              { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
+            );
+          }, 1000);
+        }
+
+        const sfxTimeline = activePackage?.sfxTimelineTxt || '';
+        const batSfx = buildSfxBatFromTimeline(sfxTimeline, srtArtifactStem, activePipeline.rows);
+        if (batSfx) {
+          setTimeout(() => {
+            downloadTextArtifact(
+              srtArtifactStem,
+              '3_sfx',
+              batSfx,
+              { extension: 'bat', mimeType: 'text/plain;charset=utf-8' },
+            );
+          }, 1500);
+        }
       }
 
       const persistedAt = new Date().toISOString();
@@ -8240,7 +8281,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                 { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
                 { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
                 { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
-                { label: 'Chars', value: approvedBriefing.estimatedChars ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}` : 'N/D' },
+                { label: 'Chars', value: approvedBriefing.estimatedChars ? `${executionMode === 'external' ? '' : '~'}${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}` : 'N/D' },
               ].map((item) => (
                 <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
                   <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
@@ -8441,7 +8482,21 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                     onChange={(e) => {
                       const val = e.target.value;
                       setExternalScriptText(val);
-                      persistExecutionSnapshotLocally({ externalScriptText: val });
+                      
+                      const exactChars = val.length;
+                      let updatedBriefing = null;
+                      if (approvedBriefing) {
+                        updatedBriefing = {
+                          ...approvedBriefing,
+                          estimatedChars: exactChars
+                        };
+                        setApprovedBriefing(updatedBriefing);
+                      }
+                      
+                      persistExecutionSnapshotLocally({ 
+                        externalScriptText: val,
+                        approvedBriefing: updatedBriefing
+                      });
                     }}
                     placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
                     className="w-full min-h-[100px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
@@ -8938,6 +8993,23 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                       ? 'Pipeline em execução — aguarde a conclusão de cada etapa...'
                       : 'Executa automaticamente: SRT → Fundos HF → Pacote Pós-Roteiro → BATs'}
                   </p>
+                  
+                  <div className="flex items-center justify-center gap-2 py-0.5 mt-0.5">
+                    <input
+                      type="checkbox"
+                      id="autoDownloadBats"
+                      checked={autoDownloadBats}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAutoDownloadBats(checked);
+                        localStorage.setItem('yt_auto_download_bats', String(checked));
+                      }}
+                      className="w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <label htmlFor="autoDownloadBats" className="text-[9px] font-black uppercase tracking-wider text-white/50 select-none cursor-pointer hover:text-white/80 transition-colors">
+                      Baixar arquivos (.bat / .csv) ao concluir
+                    </label>
+                  </div>
                   {/* ── Warnings: prompts que não foram resolvidos mesmo após retry ── */}
                   {pipelineWarnings.length > 0 && (
                     <details className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 space-y-1">

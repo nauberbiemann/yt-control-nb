@@ -73,7 +73,7 @@ const mergeProjectRecords = (local: any, remote: any): any => {
       return;
     }
 
-    merged[key] = hasMeaningfulValue(localValue) ? localValue : hasMeaningfulValue(remoteValue) ? remoteValue : local;
+    merged[key] = hasMeaningfulValue(localValue) ? localValue : hasMeaningfulValue(remoteValue) ? remoteValue : (localValue ?? remoteValue ?? '');
   });
 
   return merged;
@@ -336,10 +336,16 @@ const readLocalProjectCaches = (): Project[] => {
 };
 
 const writeLocalProjectCaches = (projects: Project[]) => {
-  const safeProjects = Array.isArray(projects) && projects.length > 0 ? projects : [createBootstrapProject()];
-  const enrichedProjects = safeProjects.map(enrichProjectWithDedicatedCaches);
+  const currentPrimary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
+  const currentBackup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
+  const existingLocal = mergeProjectCollections(currentPrimary, currentBackup);
 
-  // Também salvar chaves dedicadas individuais para garantir backup redundante inviolável
+  const safeProjects = Array.isArray(projects) && projects.length > 0 ? projects : [createBootstrapProject()];
+
+  // Preservação absoluta: Mesclar a nova lista com os projetos locais existentes para NUNCA perder nada
+  const mergedProjects = mergeProjectCollections(existingLocal, safeProjects);
+  const enrichedProjects = mergedProjects.map(enrichProjectWithDedicatedCaches);
+
   enrichedProjects.forEach((p) => {
     if (p.id) {
       if (p.channel_dna && Object.keys(p.channel_dna).length > 0) {
@@ -487,12 +493,14 @@ export const useProjectStore = create<ProjectStore>()(
         set({ activeProjectId: id, activeProject: project });
       },
 
-        setProjects: (projects) => {
-          const projectList = normalizeProjectList(projects || []);
-          const activeId = get().activeProjectId;
-          const activeProject = activeId
-            ? (projectList.find((p: any) => p.id === activeId) || projectList[0] || null)
-            : (projectList[0] || null);
+      setProjects: (projects) => {
+        const currentProjects = get().projects.filter((p) => p.id && !p.is_recovered_project);
+        const combined = mergeProjectCollections(currentProjects, projects || []);
+        const projectList = normalizeProjectList(combined.length > 0 ? combined : projects || []);
+        const activeId = get().activeProjectId;
+        const activeProject = activeId
+          ? (projectList.find((p: any) => p.id === activeId) || projectList[0] || null)
+          : (projectList[0] || null);
         const activeProjectId = activeProject?.id || null;
         writeLocalProjectCaches(projectList);
         set({ projects: projectList, activeProjectId, activeProject, projectsLoaded: true });

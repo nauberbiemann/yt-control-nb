@@ -161,11 +161,12 @@ export function parseChannelMarkdown(markdown: string) {
   }
 
   // Extrair Pilares Editoriais
-  const pillarsSection = markdown.match(/Pilares Editoriais[\s\S]*?(?=\n##|\n###|$)/i);
+  const pillarsSection = markdown.match(/Linha Editorial[\s\S]*?(?=\n##|\n###|$)/i) 
+    || markdown.match(/Pilares Editoriais[\s\S]*?(?=\n##|\n###|$)/i);
   if (pillarsSection) {
     const list = pillarsSection[0].split('\n')
-      .map(line => line.replace(/^[\d.*-]+\s*/, '').trim())
-      .filter(line => line && !line.toLowerCase().includes('pilares'));
+      .map(line => line.replace(/^[\d.*-]+\s*/, '').replace(/`/g, '').trim())
+      .filter(line => line && !line.toLowerCase().includes('pilares') && !line.toLowerCase().includes('linha editorial'));
     result.editorial_pillars = list.slice(0, 5);
   }
 

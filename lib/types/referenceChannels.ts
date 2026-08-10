@@ -80,6 +80,22 @@ export function parseChannelMarkdown(markdown: string) {
     character_dna?: string;
     extras_dna?: string;
     negative_dna?: string;
+    atmosphere?: string;
+    narrator_identity?: string;
+    positioning_angle?: string;
+    content_boundaries?: string;
+    prohibited_terms?: string;
+    cut_rhythm?: string;
+    zoom_style?: string;
+    soundtrack?: string;
+    duration_min?: number;
+    duration_max?: number;
+    blocks_min?: number;
+    blocks_max?: number;
+    measurement_focus?: string;
+    t1_value?: string;
+    t2_value?: string;
+    t3_value?: string;
     extracted_channels?: ReferenceChannel[];
     narrative_patterns?: Array<{ name: string; tag: string; description?: string; core_pattern: string }>;
   } = {};
@@ -158,6 +174,71 @@ export function parseChannelMarkdown(markdown: string) {
   if (thumbSection) {
     result.thumb_rules = thumbSection[0].trim();
   }
+
+  // Atmosfera e Narrador
+  const atmosMatch = markdown.match(/Atmosfera Narrativa[\s\S]*?Seleção:\*\*\s*`?([^`\r\n]+)`?/i);
+  if (atmosMatch) result.atmosphere = cleanMarkdownText(atmosMatch[1]);
+
+  const narratorMatch = markdown.match(/Identidade do Narrador\s*[\r\n]+>\s*(.*)/i);
+  if (narratorMatch) result.narrator_identity = cleanMarkdownText(narratorMatch[1]);
+
+  // Ângulo Editorial
+  const angleMatch = markdown.match(/Ângulo Editorial\s*[\r\n]+>\s*(.*)/i);
+  if (angleMatch) result.positioning_angle = cleanMarkdownText(angleMatch[1]);
+
+  // Fronteiras de Conteúdo
+  const boundariesSection = markdown.match(/Fronteiras de Conteúdo[\s\S]*?(?=\n##|\n###|$)/i);
+  if (boundariesSection) {
+    result.content_boundaries = cleanMarkdownText(boundariesSection[0].replace(/Fronteiras de Conteúdo/i, ''));
+  }
+
+  // Termos Proibidos
+  const prohibitedSection = markdown.match(/Termos Proibidos[\s\S]*?(?=\n##|\n###|$)/i);
+  if (prohibitedSection) {
+    const backticks = prohibitedSection[0].match(/`([^`]+)`/g);
+    if (backticks) {
+      result.prohibited_terms = backticks.map(t => t.replace(/`/g, '')).join(', ');
+    } else {
+      result.prohibited_terms = cleanMarkdownText(prohibitedSection[0].replace(/Termos Proibidos/i, ''));
+    }
+  }
+
+  // SOP Parâmetros Técnicos
+  const cutMatch = markdown.match(/Ritmo de Corte:\*\*?\s*`?([^`\r\n\s(]+)`?/i);
+  if (cutMatch) result.cut_rhythm = cleanMarkdownText(cutMatch[1]);
+
+  const zoomMatch = markdown.match(/Estilo de Zoom:\*\*?\s*`?([^`\r\n\s(]+)`?/i);
+  if (zoomMatch) result.zoom_style = cleanMarkdownText(zoomMatch[1]);
+
+  const soundtrackMatch = markdown.match(/Trilha Sonora:\*\*?\s*`?([^`\r\n\s(]+)`?/i);
+  if (soundtrackMatch) result.soundtrack = cleanMarkdownText(soundtrackMatch[1]);
+
+  // Controle de Range
+  const durMinMatch = markdown.match(/Duração Mínima:\s*(\d+)/i);
+  if (durMinMatch) result.duration_min = parseInt(durMinMatch[1], 10);
+
+  const durMaxMatch = markdown.match(/Duração Máxima:\s*(\d+)/i);
+  if (durMaxMatch) result.duration_max = parseInt(durMaxMatch[1], 10);
+
+  const blocksMinMatch = markdown.match(/Mínimo de Blocos:\s*(\d+)/i);
+  if (blocksMinMatch) result.blocks_min = parseInt(blocksMinMatch[1], 10);
+
+  const blocksMaxMatch = markdown.match(/Máximo de Blocos:\s*(\d+)/i);
+  if (blocksMaxMatch) result.blocks_max = parseInt(blocksMaxMatch[1], 10);
+
+  // Foco de Análise
+  const focusMatch = markdown.match(/Foco de Análise e Revisão\s*[\r\n]+>\s*(.*)/i);
+  if (focusMatch) result.measurement_focus = cleanMarkdownText(focusMatch[1]);
+
+  // Jornada Tática
+  const t1Match = markdown.match(/T1 — Topo de Funil.*?\*\*?\s*(.*)/i);
+  if (t1Match) result.t1_value = cleanMarkdownText(t1Match[1]);
+
+  const t2Match = markdown.match(/T2 — Meio de Funil.*?\*\*?\s*(.*)/i);
+  if (t2Match) result.t2_value = cleanMarkdownText(t2Match[1]);
+
+  const t3Match = markdown.match(/T3 — Fundo de Funil.*?\*\*?\s*(.*)/i);
+  if (t3Match) result.t3_value = cleanMarkdownText(t3Match[1]);
 
   // Extrair Canais de Referência presentes no Markdown (ex: do arquivo A1_lente_unica_radar_explicado.md)
   const extractedRefChannels: ReferenceChannel[] = [];

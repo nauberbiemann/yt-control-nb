@@ -309,20 +309,69 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       channel_language: formData.persona_matrix?.channel_language || 'Português',
                     };
                   }
-                  if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0) {
+                  if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0 || parsedData?.positioning_angle || parsedData?.content_boundaries) {
                     updates.editorial_line = {
-                      ...formData.editorial_line,
-                      pillars: parsedData.editorial_pillars,
+                      pillars: parsedData.editorial_pillars || formData.editorial_line?.pillars || ['', '', '', '', ''],
+                      positioning_angle: parsedData.positioning_angle || formData.editorial_line?.positioning_angle || '',
+                      content_boundaries: parsedData.content_boundaries || formData.editorial_line?.content_boundaries || '',
+                    };
+                  }
+                  if (parsedData?.atmosphere || parsedData?.narrator_identity) {
+                    const parsedAtmosphere: string[] = [];
+                    const textAtmos = (parsedData.atmosphere || '').toLowerCase();
+                    if (textAtmos.includes('storyteller')) parsedAtmosphere.push('Storyteller');
+                    if (textAtmos.includes('técnico') || textAtmos.includes('perito')) parsedAtmosphere.push('Técnico');
+                    if (textAtmos.includes('reflexivo')) parsedAtmosphere.push('Reflexivo');
+                    if (textAtmos.includes('cético')) parsedAtmosphere.push('Cético');
+
+                    updates.narrative_voice = {
+                      atmosphere: parsedAtmosphere.length > 0 ? parsedAtmosphere : (formData.narrative_voice?.atmosphere || []),
+                      positioning: parsedData.narrator_identity || formData.narrative_voice?.positioning || '',
                     };
                   }
                   if (parsedData?.metaphors && parsedData.metaphors.length > 0) {
                     updates.metaphor_library = parsedData.metaphors.join(', ');
+                  }
+                  if (parsedData?.prohibited_terms) {
+                    updates.prohibited_terms = parsedData.prohibited_terms;
                   }
                   if (parsedData?.thumb_rules) {
                     updates.thumb_strategy = {
                       ...formData.thumb_strategy,
                       consistency_rules: parsedData.thumb_rules,
                     };
+                  }
+                  // SOP e Limites
+                  if (
+                    parsedData?.cut_rhythm ||
+                    parsedData?.zoom_style ||
+                    parsedData?.soundtrack ||
+                    parsedData?.duration_min ||
+                    parsedData?.duration_max ||
+                    parsedData?.blocks_min ||
+                    parsedData?.blocks_max ||
+                    parsedData?.measurement_focus
+                  ) {
+                    updates.editing_sop = {
+                      ...formData.editing_sop,
+                      cut_rhythm: parsedData.cut_rhythm || formData.editing_sop?.cut_rhythm || '',
+                      zoom_style: parsedData.zoom_style || formData.editing_sop?.zoom_style || '',
+                      soundtrack: parsedData.soundtrack || formData.editing_sop?.soundtrack || '',
+                      duration_min: parsedData.duration_min !== undefined ? parsedData.duration_min : formData.editing_sop?.duration_min,
+                      duration_max: parsedData.duration_max !== undefined ? parsedData.duration_max : formData.editing_sop?.duration_max,
+                      blocks_min: parsedData.blocks_min !== undefined ? parsedData.blocks_min : formData.editing_sop?.blocks_min,
+                      blocks_max: parsedData.blocks_max !== undefined ? parsedData.blocks_max : formData.editing_sop?.blocks_max,
+                      measurement_focus: parsedData.measurement_focus || formData.editing_sop?.measurement_focus || '',
+                    };
+                  }
+                  // Jornada Tática
+                  if (parsedData?.t1_value || parsedData?.t2_value || parsedData?.t3_value) {
+                    updates.tactical_journey = formData.tactical_journey.map((item: any) => {
+                      if (item.id === 't1' && parsedData.t1_value) return { ...item, value: parsedData.t1_value };
+                      if (item.id === 't2' && parsedData.t2_value) return { ...item, value: parsedData.t2_value };
+                      if (item.id === 't3' && parsedData.t3_value) return { ...item, value: parsedData.t3_value };
+                      return item;
+                    });
                   }
                   updateFormData(updates);
                 }}
@@ -854,20 +903,69 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     channel_language: formData.persona_matrix?.channel_language || 'Português',
                   };
                 }
-                if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0) {
+                if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0 || parsedData?.positioning_angle || parsedData?.content_boundaries) {
                   updates.editorial_line = {
-                    ...formData.editorial_line,
-                    pillars: parsedData.editorial_pillars,
+                    pillars: parsedData.editorial_pillars || formData.editorial_line?.pillars || ['', '', '', '', ''],
+                    positioning_angle: parsedData.positioning_angle || formData.editorial_line?.positioning_angle || '',
+                    content_boundaries: parsedData.content_boundaries || formData.editorial_line?.content_boundaries || '',
+                  };
+                }
+                if (parsedData?.atmosphere || parsedData?.narrator_identity) {
+                  const parsedAtmosphere: string[] = [];
+                  const textAtmos = (parsedData.atmosphere || '').toLowerCase();
+                  if (textAtmos.includes('storyteller')) parsedAtmosphere.push('Storyteller');
+                  if (textAtmos.includes('técnico') || textAtmos.includes('perito')) parsedAtmosphere.push('Técnico');
+                  if (textAtmos.includes('reflexivo')) parsedAtmosphere.push('Reflexivo');
+                  if (textAtmos.includes('cético')) parsedAtmosphere.push('Cético');
+
+                  updates.narrative_voice = {
+                    atmosphere: parsedAtmosphere.length > 0 ? parsedAtmosphere : (formData.narrative_voice?.atmosphere || []),
+                    positioning: parsedData.narrator_identity || formData.narrative_voice?.positioning || '',
                   };
                 }
                 if (parsedData?.metaphors && parsedData.metaphors.length > 0) {
                   updates.metaphor_library = parsedData.metaphors.join(', ');
+                }
+                if (parsedData?.prohibited_terms) {
+                  updates.prohibited_terms = parsedData.prohibited_terms;
                 }
                 if (parsedData?.thumb_rules) {
                   updates.thumb_strategy = {
                     ...formData.thumb_strategy,
                     consistency_rules: parsedData.thumb_rules,
                   };
+                }
+                // SOP e Limites
+                if (
+                  parsedData?.cut_rhythm ||
+                  parsedData?.zoom_style ||
+                  parsedData?.soundtrack ||
+                  parsedData?.duration_min ||
+                  parsedData?.duration_max ||
+                  parsedData?.blocks_min ||
+                  parsedData?.blocks_max ||
+                  parsedData?.measurement_focus
+                ) {
+                  updates.editing_sop = {
+                    ...formData.editing_sop,
+                    cut_rhythm: parsedData.cut_rhythm || formData.editing_sop?.cut_rhythm || '',
+                    zoom_style: parsedData.zoom_style || formData.editing_sop?.zoom_style || '',
+                    soundtrack: parsedData.soundtrack || formData.editing_sop?.soundtrack || '',
+                    duration_min: parsedData.duration_min !== undefined ? parsedData.duration_min : formData.editing_sop?.duration_min,
+                    duration_max: parsedData.duration_max !== undefined ? parsedData.duration_max : formData.editing_sop?.duration_max,
+                    blocks_min: parsedData.blocks_min !== undefined ? parsedData.blocks_min : formData.editing_sop?.blocks_min,
+                    blocks_max: parsedData.blocks_max !== undefined ? parsedData.blocks_max : formData.editing_sop?.blocks_max,
+                    measurement_focus: parsedData.measurement_focus || formData.editing_sop?.measurement_focus || '',
+                  };
+                }
+                // Jornada Tática
+                if (parsedData?.t1_value || parsedData?.t2_value || parsedData?.t3_value) {
+                  updates.tactical_journey = formData.tactical_journey.map((item: any) => {
+                    if (item.id === 't1' && parsedData.t1_value) return { ...item, value: parsedData.t1_value };
+                    if (item.id === 't2' && parsedData.t2_value) return { ...item, value: parsedData.t2_value };
+                    if (item.id === 't3' && parsedData.t3_value) return { ...item, value: parsedData.t3_value };
+                    return item;
+                  });
                 }
                 updateFormData(updates);
               }}

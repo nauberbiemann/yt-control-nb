@@ -63,12 +63,13 @@ export default function ReferenceChannelsManager({
       if (channelDna.extras_dna !== undefined && channelDna.extras_dna !== extrasDna) setExtrasDna(channelDna.extras_dna);
       if (channelDna.negative_dna !== undefined && channelDna.negative_dna !== negativeDna) setNegativeDna(channelDna.negative_dna);
       if (channelDna.thumb_rules !== undefined && channelDna.thumb_rules !== thumbRules) setThumbRules(channelDna.thumb_rules);
+      if (channelDna.loaded_files !== undefined && JSON.stringify(channelDna.loaded_files) !== JSON.stringify(loadedFiles)) setLoadedFiles(channelDna.loaded_files);
     }
   }, [channelDna]);
 
   // Drag & Drop State
   const [isDragging, setIsDragging] = useState(false);
-  const [loadedFiles, setLoadedFiles] = useState<string[]>([]);
+  const [loadedFiles, setLoadedFiles] = useState<string[]>(channelDna.loaded_files || []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Modal / Form state para novo canal de referência
@@ -117,9 +118,11 @@ export default function ReferenceChannelsManager({
     if (field === 'thumb_rules') { setThumbRules(val); nextThumb = val; }
     if (field === 'raw_markdown') { setDnaMarkdown(val); nextMd = val; }
 
+    const nextLoadedFiles = [...new Set([...(channelDna.loaded_files || []), ...loadedFiles])];
     const updatedDna: ChannelDnaConfig = {
       ...channelDna,
       raw_markdown: nextMd,
+      loaded_files: nextLoadedFiles,
       style_dna: nextStyle,
       character_dna: nextChar,
       extras_dna: nextExtras,
@@ -155,8 +158,9 @@ export default function ReferenceChannelsManager({
 
     const combinedMarkdown = fileContents.join('\n');
     const newMarkdownText = dnaMarkdown ? dnaMarkdown + '\n' + combinedMarkdown : combinedMarkdown;
+    const combinedLoadedFiles = [...new Set([...loadedFiles, ...names])];
     setDnaMarkdown(newMarkdownText);
-    setLoadedFiles(prev => [...new Set([...prev, ...names])]);
+    setLoadedFiles(combinedLoadedFiles);
 
     // Executar auto-parse nos conteúdos combinados
     const parsed = parseChannelMarkdown(newMarkdownText);
@@ -165,6 +169,7 @@ export default function ReferenceChannelsManager({
       const updatedDna: ChannelDnaConfig = {
         ...channelDna,
         raw_markdown: newMarkdownText,
+        loaded_files: combinedLoadedFiles,
         style_dna: parsed.style_dna || styleDna,
         character_dna: parsed.character_dna || characterDna,
         extras_dna: parsed.extras_dna || extrasDna,

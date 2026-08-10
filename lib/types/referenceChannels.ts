@@ -38,6 +38,7 @@ export interface ReferenceChannel {
 
 export interface ChannelDnaConfig {
   raw_markdown?: string;
+  loaded_files?: string[];
   style_dna?: string;
   character_dna?: string;
   extras_dna?: string;
@@ -104,16 +105,16 @@ export function parseChannelMarkdown(markdown: string) {
   if (demandMatch) result.demand = demandMatch[1].trim();
 
   // Extrair Prompts DNA
-  const styleMatch = markdown.match(/STYLE_DNA:\s*(.*)/i);
+  const styleMatch = markdown.match(/STYLE_DNA:\s*([^\n\r]+)/i);
   if (styleMatch) result.style_dna = styleMatch[1].trim();
 
-  const charMatch = markdown.match(/CHARACTER_DNA:\s*(.*)/i);
+  const charMatch = markdown.match(/CHARACTER_DNA:\s*([^\n\r]+)/i);
   if (charMatch) result.character_dna = charMatch[1].trim();
 
-  const extrasMatch = markdown.match(/EXTRAS_DNA:\s*(.*)/i);
+  const extrasMatch = markdown.match(/EXTRAS_DNA:\s*([^\n\r]+)/i);
   if (extrasMatch) result.extras_dna = extrasMatch[1].trim();
 
-  const negMatch = markdown.match(/NEGATIVE_DNA:\s*(.*)/i);
+  const negMatch = markdown.match(/NEGATIVE_DNA:\s*([^\n\r]+)/i);
   if (negMatch) result.negative_dna = negMatch[1].trim();
 
   // Extrair Metáforas

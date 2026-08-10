@@ -49,7 +49,7 @@ const isPlainObject = (value: unknown): value is Record<string, any> =>
 
 const mergeProjectRecords = (local: any, remote: any): any => {
   if (!isPlainObject(local) || !isPlainObject(remote)) {
-    return hasMeaningfulValue(remote) ? remote : local;
+    return hasMeaningfulValue(local) ? local : remote;
   }
 
   const merged: Record<string, any> = { ...local };
@@ -60,7 +60,9 @@ const mergeProjectRecords = (local: any, remote: any): any => {
     const remoteValue = remote[key];
 
     if (Array.isArray(localValue) || Array.isArray(remoteValue)) {
-      merged[key] = Array.isArray(remoteValue) && remoteValue.length > 0
+      merged[key] = Array.isArray(localValue) && localValue.length > 0
+        ? localValue
+        : Array.isArray(remoteValue) && remoteValue.length > 0
         ? remoteValue
         : localValue ?? remoteValue ?? [];
       return;
@@ -71,7 +73,7 @@ const mergeProjectRecords = (local: any, remote: any): any => {
       return;
     }
 
-    merged[key] = hasMeaningfulValue(remoteValue) ? remoteValue : localValue;
+    merged[key] = hasMeaningfulValue(localValue) ? localValue : hasMeaningfulValue(remoteValue) ? remoteValue : local;
   });
 
   return merged;

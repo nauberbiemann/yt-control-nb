@@ -573,17 +573,12 @@ export const useProjectStore = create<ProjectStore>()(
                 : cloudProject;
             });
 
-            const remoteIds = new Set(data.map((p: Project) => p.id));
-            const localOnly = localProjects.filter((p) => !remoteIds.has(p.id));
-            const finalProjects = normalizeProjectList([...mergedCloudProjects, ...localOnly]);
+            // 🛡️ Segurança Absoluta: Mesclar os projetos da nuvem com os projetos locais sem NUNCA descartar nenhum projeto do usuário
+            const safeProjects = normalizeProjectList(
+              mergeProjectCollections(localProjects, mergedCloudProjects)
+            );
 
-            // 🛡️ Safety guard: never let a Supabase response result in fewer projects than local cache.
-            // This prevents partial cloud data from overwriting a richer local state.
-            const safeProjects = finalProjects.length >= localProjects.length
-              ? finalProjects
-              : normalizeProjectList([...finalProjects, ...localProjects]);
-
-            console.log(`[ProjectStore] ☁️ Cloud-wins+rescue: ${data.length} cloud, ${localOnly.length} local-only → ${safeProjects.length} final`);
+            console.log(`[ProjectStore] ☁️ Cloud-wins+rescue: ${data.length} cloud, ${localProjects.length} local → ${safeProjects.length} final`);
             get().setProjects(safeProjects);
           } else {
             // Cloud empty → local cache already rendered above, nothing to do

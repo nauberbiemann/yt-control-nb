@@ -104,7 +104,7 @@ const hasUsefulCachePayload = (value: unknown) => {
   return typeof value === 'string' && value.trim().length > 0;
 };
 
-const AUXILIARY_PROJECT_PREFIXES = ['themes_', 'ws_script_execution_', 'ws_narrative_', 'bi_'];
+const AUXILIARY_PROJECT_PREFIXES = ['themes_', 'ws_script_execution_', 'ws_narrative_', 'bi_', 'ws_channel_dna_', 'ws_ref_channels_'];
 
 const mergeProjectCollections = (primary: Project[], secondary: Project[]) => {
   const merged = new Map<string, Project>();
@@ -281,12 +281,28 @@ const readArchivedProjects = (): Project[] => {
       if (!Array.isArray(snapshot?.projects) || snapshot.projects.length === 0) return acc;
       return mergeProjectCollections(acc, snapshot.projects);
     }, []);
-  } catch {
+} catch {
     return [];
   }
 };
 
-const readLocalProjectCaches = () => {
+const enrichProjectWithDedicatedCaches = (project: Project): Project => {
+  if (!project?.id) return project;
+  const dedicatedDna = readJsonCache(`ws_channel_dna_${project.id}`);
+  const dedicatedRefs = readJsonCache(`ws_ref_channels_${project.id}`);
+
+  let updated = { ...project };
+  if (hasUsefulCachePayload(dedicatedDna)) {
+    const currentDna = project.channel_dna || {};
+    updated.channel_dna = { ...currentDna, ...dedicatedDna };
+  }
+  if (hasUsefulCachePayload(dedicatedRefs) && (!project.reference_channels || project.reference_channels.length === 0)) {
+    updated.reference_channels = dedicatedRefs;
+  }
+  return updated;
+};
+
+const readLocalProjectCaches = (): Project[] => {
   const primary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
   const backup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
   const archived = readArchivedProjects();
@@ -311,14 +327,31 @@ const readLocalProjectCaches = () => {
   const stableBackup = repairedBackup.filter((project) => !project.is_recovered_project);
   const stableArchived = archived.filter((project) => !project.is_recovered_project);
 
-  return mergeProjectCollections(
+  const merged = mergeProjectCollections(
     mergeProjectCollections(mergeProjectCollections(stablePrimary, stableBackup), stableArchived),
     validRecoveredProjects
   );
+
+  return merged.map(enrichProjectWithDedicatedCaches);
 };
 
 const writeLocalProjectCaches = (projects: Project[]) => {
   const safeProjects = Array.isArray(projects) && projects.length > 0 ? projects : [createBootstrapProject()];
+  const enrichedProjects = safeProjects.map(enrichProjectWithDedicatedCaches);
+
+  // Também salvar chaves dedicadas individuais para garantir backup redundante inviolável
+  enrichedProjects.forEach((p) => {
+    if (p.id) {
+      if (p.channel_dna && Object.keys(p.channel_dna).length > 0) {
+        localStorage.setItem(`ws_channel_dna_${p.id}`, JSON.stringify(p.channel_dna));
+      }
+      if (Array.isArray(p.reference_channels) && p.reference_channels.length > 0) {
+        localStorage.setItem(`ws_ref_channels_${p.id}`, JSON.stringify(p.reference_channels));
+      }
+    }
+  });
+
+  const payload = JSON.stringify(enrichedProjects);
   const hasOnlySyntheticBootstrap =
     safeProjects.length === 1 &&
     isBootstrapProject(safeProjects[0]) &&
@@ -326,7 +359,6 @@ const writeLocalProjectCaches = (projects: Project[]) => {
     !localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY) &&
     !localStorage.getItem(PROJECTS_ARCHIVE_STORAGE_KEY);
 
-  const payload = JSON.stringify(safeProjects);
   localStorage.setItem(PROJECTS_STORAGE_KEY, payload);
   localStorage.setItem(PROJECTS_BACKUP_STORAGE_KEY, payload);
 
@@ -423,31 +455,22 @@ const createBootstrapProject = (): Project => ({
 const normalizeProjectList = (projects: Project[]) => {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
 
-  // Separate real projects (from cloud/localStorage) from recovered ghost copies
+  // Separar projetos reais de cópias de recuperação
   const realProjects = list.filter((project) => !project.is_recovered_project);
   const recoveredProjects = list.filter((project) => project.is_recovered_project);
 
-  // Real project IDs take priority — recovered copies of same ID are discarded
   const realIds = new Set(realProjects.map((p) => p.id));
   const additionalRecovered = recoveredProjects
-    .filter((p) => !realIds.has(p.id)) // only add if there's no real version
+    .filter((p) => !realIds.has(p.id))
     .sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0));
 
   const merged = [...realProjects, ...additionalRecovered];
 
-  // Separate bootstrap from real user projects
-  const withoutBootstrap = merged.filter((project) => !isBootstrapProject(project));
-  const bootstrapProject = merged.find((project) => isBootstrapProject(project));
-
-  // If there are real user projects (with or without DevZen name), show them without bootstrap
-  if (withoutBootstrap.some(isDevZenLikeProject) || withoutBootstrap.length > 0) {
-    return withoutBootstrap;
+  if (merged.length === 0) {
+    return [createBootstrapProject()];
   }
 
-  return [
-    bootstrapProject || createBootstrapProject(),
-    ...withoutBootstrap,
-  ];
+  return merged;
 };
 
 export const useProjectStore = create<ProjectStore>()(

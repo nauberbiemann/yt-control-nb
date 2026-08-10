@@ -1175,6 +1175,16 @@ export default function Home() {
 
       console.log("[ContentOS] Dados preparados para salvamento:", projectData);
 
+      // Gravação imediata e redundante em chaves dedicadas
+      if (projectData.id) {
+        if (projectData.channel_dna && Object.keys(projectData.channel_dna).length > 0) {
+          localStorage.setItem(`ws_channel_dna_${projectData.id}`, JSON.stringify(projectData.channel_dna));
+        }
+        if (Array.isArray(projectData.reference_channels) && projectData.reference_channels.length > 0) {
+          localStorage.setItem(`ws_ref_channels_${projectData.id}`, JSON.stringify(projectData.reference_channels));
+        }
+      }
+
       const currentProjects = [...projects];
       const index = currentProjects.findIndex(p => p.id === projectData.id);
       if (index !== -1) currentProjects[index] = projectData;

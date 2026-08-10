@@ -47,7 +47,26 @@ const hasMeaningfulValue = (value: unknown) =>
 const isPlainObject = (value: unknown): value is Record<string, any> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const mergeProjectRecords = (local: any, remote: any): any => {
+const sanitizeProjectRecord = (proj: any, depth = 0): any => {
+  if (depth > 5) return '';
+  if (!isPlainObject(proj)) return proj;
+
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(proj)) {
+    const val: any = proj[key];
+    if (val === proj) continue;
+    if (isPlainObject(val)) {
+      if (val.id && proj.id && val.id === proj.id) continue;
+      clean[key] = sanitizeProjectRecord(val, depth + 1);
+    } else {
+      clean[key] = val;
+    }
+  }
+  return clean;
+};
+
+const mergeProjectRecords = (local: any, remote: any, depth = 0): any => {
+  if (depth > 5) return hasMeaningfulValue(local) ? local : remote;
   if (!isPlainObject(local) || !isPlainObject(remote)) {
     return hasMeaningfulValue(local) ? local : remote;
   }
@@ -69,11 +88,16 @@ const mergeProjectRecords = (local: any, remote: any): any => {
     }
 
     if (isPlainObject(localValue) && isPlainObject(remoteValue)) {
-      merged[key] = mergeProjectRecords(localValue, remoteValue);
+      if (localValue.id && local.id && localValue.id === local.id) {
+        merged[key] = remoteValue;
+        return;
+      }
+      merged[key] = mergeProjectRecords(localValue, remoteValue, depth + 1);
       return;
     }
 
-    merged[key] = hasMeaningfulValue(localValue) ? localValue : hasMeaningfulValue(remoteValue) ? remoteValue : (localValue ?? remoteValue ?? '');
+    const simpleVal = hasMeaningfulValue(localValue) ? localValue : hasMeaningfulValue(remoteValue) ? remoteValue : (localValue ?? remoteValue ?? '');
+    merged[key] = isPlainObject(simpleVal) ? '' : simpleVal;
   });
 
   return merged;
@@ -83,7 +107,8 @@ const parseProjectCache = (raw: string | null): Project[] => {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((p) => sanitizeProjectRecord(p)).filter(Boolean);
   } catch {
     return [];
   }

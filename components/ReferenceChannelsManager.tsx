@@ -397,10 +397,24 @@ export default function ReferenceChannelsManager({
   };
 
   const handleRemoveChannel = (id: string) => {
-    const updated = channels.filter((c) => c.id !== id);
-    onChange(updated);
-    if (activeChannelId === id) {
-      setActiveChannelId(updated[0]?.id || null);
+    const chanToRemove = channels.find((c) => c.id === id);
+    if (confirm(`Deseja realmente remover o canal concorrente "${chanToRemove?.name || 'selecionado'}"?`)) {
+      const updated = channels.filter((c) => c.id !== id);
+      onChange(updated);
+      if (activeChannelId === id) {
+        setActiveChannelId(updated[0]?.id || null);
+      }
+      setParseStatusMessage(`🗑️ Canal "${chanToRemove?.name || ''}" removido com sucesso!`);
+      setTimeout(() => setParseStatusMessage(null), 3000);
+    }
+  };
+
+  const handleClearAllChannels = () => {
+    if (confirm(`Deseja realmente remover TODOS os ${channels.length} canais concorrentes de referência?`)) {
+      onChange([]);
+      setActiveChannelId(null);
+      setParseStatusMessage('🧹 Todos os canais de referência foram removidos com sucesso!');
+      setTimeout(() => setParseStatusMessage(null), 3000);
     }
   };
 
@@ -820,14 +834,28 @@ export default function ReferenceChannelsManager({
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsAddingChannel(true)}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Novo Canal Concorrente</span>
-            </button>
+            <div className="flex items-center space-x-2 shrink-0">
+              {channels.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearAllChannels}
+                  className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm"
+                  title="Remover todos os canais concorrentes de referência"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Limpar Todos</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsAddingChannel(true)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Novo Canal Concorrente</span>
+              </button>
+            </div>
           </div>
 
           {/* Form de Criação de Canal */}

@@ -16,7 +16,8 @@ import {
   UploadCloud,
   FileCheck,
   Sliders,
-  BookOpen
+  BookOpen,
+  X
 } from 'lucide-react';
 import { 
   ReferenceChannel, 
@@ -133,6 +134,72 @@ export default function ReferenceChannelsManager({
     if (onDnaChange) {
       onDnaChange(updatedDna);
     }
+  };
+
+  // Excluir 1 arquivo .md individualmente da lista e re-processar o restante
+  const handleRemoveFile = (filenameToRemove: string) => {
+    const nextLoadedFiles = loadedFiles.filter(f => f !== filenameToRemove);
+    setLoadedFiles(nextLoadedFiles);
+
+    // Remover o bloco correspondente no texto do markdown
+    let nextMarkdown = dnaMarkdown;
+    const blockRegex = new RegExp(`\\n*--- ARCHIVE:\\s*${filenameToRemove.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*---[\\s\\S]*?(?=\\n--- ARCHIVE:|$|\\n#|\\n##)`, 'gi');
+    nextMarkdown = nextMarkdown.replace(blockRegex, '').trim();
+
+    setDnaMarkdown(nextMarkdown);
+
+    if (!nextMarkdown.trim() || nextLoadedFiles.length === 0) {
+      const updatedDna: ChannelDnaConfig = {
+        ...channelDna,
+        raw_markdown: '',
+        loaded_files: [],
+      };
+      if (onDnaChange) onDnaChange(updatedDna);
+      setParseStatusMessage(`🗑️ Arquivo "${filenameToRemove}" removido!`);
+      setTimeout(() => setParseStatusMessage(null), 3000);
+      return;
+    }
+
+    const parsed = parseChannelMarkdown(nextMarkdown);
+    const updatedDna: ChannelDnaConfig = {
+      ...channelDna,
+      raw_markdown: nextMarkdown,
+      loaded_files: nextLoadedFiles,
+      style_dna: parsed?.style_dna || styleDna,
+      character_dna: parsed?.character_dna || characterDna,
+      extras_dna: parsed?.extras_dna || extrasDna,
+      negative_dna: parsed?.negative_dna || negativeDna,
+      thumb_rules: parsed?.thumb_rules || thumbRules,
+      metaphors: parsed?.metaphors || channelDna.metaphors,
+    };
+
+    if (parsed?.style_dna) setStyleDna(parsed.style_dna);
+    if (parsed?.character_dna) setCharacterDna(parsed.character_dna);
+    if (parsed?.extras_dna) setExtrasDna(parsed.extras_dna);
+    if (parsed?.negative_dna) setNegativeDna(parsed.negative_dna);
+    if (parsed?.thumb_rules) setThumbRules(parsed.thumb_rules);
+
+    if (onDnaChange) onDnaChange(updatedDna, parsed);
+
+    setParseStatusMessage(`🗑️ Arquivo "${filenameToRemove}" removido! (${nextLoadedFiles.length} restante(s))`);
+    setTimeout(() => setParseStatusMessage(null), 3000);
+  };
+
+  // Limpar todos os arquivos .md lidos
+  const handleClearAllFiles = () => {
+    if (!confirm('Deseja realmente remover todos os arquivos .md lidos?')) return;
+    setLoadedFiles([]);
+    setDnaMarkdown('');
+
+    const updatedDna: ChannelDnaConfig = {
+      ...channelDna,
+      raw_markdown: '',
+      loaded_files: [],
+    };
+
+    if (onDnaChange) onDnaChange(updatedDna);
+    setParseStatusMessage('🧹 Todos os arquivos .md foram removidos!');
+    setTimeout(() => setParseStatusMessage(null), 3000);
   };
 
   // Processador de múltiplos arquivos Markdown (.md)
@@ -554,18 +621,40 @@ export default function ReferenceChannelsManager({
 
                 {/* Lista de Arquivos Carregados */}
                 {loadedFiles.length > 0 && (
-                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-lg p-2.5 space-y-1.5">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center space-x-1.5">
-                      <FileCheck className="w-3.5 h-3.5" />
-                      <span>{loadedFiles.length} Arquivo(s) Lido(s):</span>
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-lg p-2.5 space-y-2">
+                    <div className="flex items-center justify-between border-b border-zinc-800/60 pb-1.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center space-x-1.5">
+                        <FileCheck className="w-3.5 h-3.5" />
+                        <span>{loadedFiles.length} Arquivo(s) Lido(s):</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleClearAllFiles}
+                        className="text-[9px] font-bold text-rose-400/80 hover:text-rose-300 hover:bg-rose-950/40 px-2 py-0.5 rounded transition-all flex items-center space-x-1 border border-rose-500/20"
+                        title="Remover todos os arquivos lidos"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Limpar Todos</span>
+                      </button>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {loadedFiles.map((fname, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] font-mono text-blue-300"
+                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:border-rose-500/40 text-[10px] font-mono text-blue-300 transition-all group"
                         >
                           <span>📄 {fname}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveFile(fname);
+                            }}
+                            className="text-zinc-500 hover:text-rose-400 p-0.5 rounded transition-colors ml-1"
+                            title={`Remover o arquivo ${fname}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </span>
                       ))}
                     </div>

@@ -521,6 +521,8 @@ export const useProjectStore = create<ProjectStore>()(
               'editorial_line',
               'narrative_voice',
               'thumb_strategy',
+              'reference_channels',
+              'channel_dna',
             ] as const;
 
             const localById = new Map(localProjects.map((p) => [p.id, p]));

@@ -147,12 +147,14 @@ export default function Home() {
       editing_sop: project?.editing_sop || project?.detailed_sop || null,
       traceability_summary: project?.traceability_summary || [],
       traceability_sources: project?.traceability_sources || {},
-      // JSONB columns — added by migration_strategic_fields.sql
+      // JSONB columns — added by migration_strategic_fields.sql & migration_v12_reference_channels.sql
       phd_strategy: project?.phd_strategy || null,
       persona_matrix: project?.persona_matrix || null,
       editorial_line: project?.editorial_line || null,
       narrative_voice: project?.narrative_voice || null,
       thumb_strategy: project?.thumb_strategy || null,
+      reference_channels: project?.reference_channels || [],
+      channel_dna: project?.channel_dna || {},
       // TEXT columns
       metaphor_library: project?.metaphor_library || null,
       prohibited_terms: project?.prohibited_terms || null,
@@ -1161,6 +1163,8 @@ export default function Home() {
         detailed_sop: normalizedSop,
         editing_sop: normalizedSop,
         thumb_strategy: normalizedThumb,
+        reference_channels: formData.reference_channels || baseProject.reference_channels || [],
+        channel_dna: formData.channel_dna || baseProject.channel_dna || {},
         default_execution_mode: formData.default_execution_mode || baseProject.default_execution_mode || 'internal',
         traceability_summary: formData.traceability_summary || [],
         traceability_sources: formData.traceability_sources || {},

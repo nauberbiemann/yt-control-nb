@@ -90,32 +90,37 @@ export function parseChannelMarkdown(markdown: string) {
     || markdown.match(/#\s*([^—\n]+)/);
   if (nameMatch) result.name = nameMatch[1].replace(/^[\d.✈️📊\s]+/, '').trim();
 
+  const cleanMarkdownText = (text: string) => {
+    if (!text) return '';
+    return text.replace(/^[\s*#>:-]+/, '').replace(/[\s*#>-]+$/, '').trim();
+  };
+
   // Extrair PUC
   const pucMatch = markdown.match(/Proposta Única do Canal.*?\n>\s*\*?(.*?)\*?\n/i) || markdown.match(/PUC:\s*(.*)/i);
-  if (pucMatch) result.puc = pucMatch[1].trim();
+  if (pucMatch) result.puc = cleanMarkdownText(pucMatch[1]);
 
   // Extrair Passion, Skill, Demand
   const passionMatch = markdown.match(/PASSION:\s*(.*)/i) || markdown.match(/PASSION \(.*?\):\s*(.*)/i);
-  if (passionMatch) result.passion = passionMatch[1].trim();
+  if (passionMatch) result.passion = cleanMarkdownText(passionMatch[1]);
 
   const skillMatch = markdown.match(/SKILL:\s*(.*)/i) || markdown.match(/SKILL \(.*?\):\s*(.*)/i);
-  if (skillMatch) result.skill = skillMatch[1].trim();
+  if (skillMatch) result.skill = cleanMarkdownText(skillMatch[1]);
 
   const demandMatch = markdown.match(/DEMAND:\s*(.*)/i) || markdown.match(/DEMAND \(.*?\):\s*(.*)/i);
-  if (demandMatch) result.demand = demandMatch[1].trim();
+  if (demandMatch) result.demand = cleanMarkdownText(demandMatch[1]);
 
   // Extrair dados da Persona
   const demoMatch = markdown.match(/Lifestyle \/ Demografia:\s*(.*)/i) || markdown.match(/Demografia:\s*(.*)/i);
-  if (demoMatch) result.persona_demographics = demoMatch[1].trim();
+  if (demoMatch) result.persona_demographics = cleanMarkdownText(demoMatch[1]);
 
   const painMatch = markdown.match(/Ponto de Dor Central:\s*(.*)/i) || markdown.match(/Dor Central:\s*(.*)/i);
-  if (painMatch) result.persona_pain = painMatch[1].trim();
+  if (painMatch) result.persona_pain = cleanMarkdownText(painMatch[1]);
 
   const langMatch = markdown.match(/Linguagem e Repertório:\s*(.*)/i) || markdown.match(/Linguagem:\s*(.*)/i);
-  if (langMatch) result.persona_language = langMatch[1].trim();
+  if (langMatch) result.persona_language = cleanMarkdownText(langMatch[1]);
 
   const transMatch = markdown.match(/Transformação Desejada:\s*(.*)/i) || markdown.match(/Transformação:\s*(.*)/i);
-  if (transMatch) result.persona_transformation = transMatch[1].trim();
+  if (transMatch) result.persona_transformation = cleanMarkdownText(transMatch[1]);
 
   // Extrair Prompts DNA
   const styleMatch = markdown.match(/STYLE_DNA:\s*([^\n\r]+)/i);

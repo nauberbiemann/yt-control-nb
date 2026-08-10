@@ -299,6 +299,16 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       demand: parsedData.demand || formData.phd_strategy?.demand || '',
                     };
                   }
+                  if (parsedData?.persona_demographics || parsedData?.persona_pain || parsedData?.persona_language || parsedData?.persona_transformation) {
+                    updates.persona_matrix = {
+                      demographics: parsedData.persona_demographics || formData.persona_matrix?.demographics || '',
+                      pain_alignment: parsedData.persona_pain || formData.persona_matrix?.pain_alignment || '',
+                      language: parsedData.persona_language || formData.persona_matrix?.language || '',
+                      desired_outcome: parsedData.persona_transformation || formData.persona_matrix?.desired_outcome || '',
+                      proof_points: formData.persona_matrix?.proof_points || '',
+                      channel_language: formData.persona_matrix?.channel_language || 'Português',
+                    };
+                  }
                   if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0) {
                     updates.editorial_line = {
                       ...formData.editorial_line,
@@ -825,14 +835,38 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               onChange={(updated) => updateFormData({ reference_channels: updated })}
               onDnaChange={(updatedDna, parsedData) => {
                 const updates: any = { channel_dna: updatedDna };
-                if (parsedData?.name && !formData.name) updates.name = parsedData.name;
-                if (parsedData?.puc && !formData.puc) updates.puc = parsedData.puc;
-                if (parsedData?.passion && !formData.phd_strategy?.passion) {
+                if (parsedData?.name) updates.name = parsedData.name;
+                if (parsedData?.puc) updates.puc = parsedData.puc;
+                if (parsedData?.passion || parsedData?.skill || parsedData?.demand) {
                   updates.phd_strategy = {
-                    ...formData.phd_strategy,
-                    passion: parsedData.passion,
-                    skill: parsedData.skill || formData.phd_strategy?.skill,
-                    demand: parsedData.demand || formData.phd_strategy?.demand,
+                    passion: parsedData.passion || formData.phd_strategy?.passion || '',
+                    skill: parsedData.skill || formData.phd_strategy?.skill || '',
+                    demand: parsedData.demand || formData.phd_strategy?.demand || '',
+                  };
+                }
+                if (parsedData?.persona_demographics || parsedData?.persona_pain || parsedData?.persona_language || parsedData?.persona_transformation) {
+                  updates.persona_matrix = {
+                    demographics: parsedData.persona_demographics || formData.persona_matrix?.demographics || '',
+                    pain_alignment: parsedData.persona_pain || formData.persona_matrix?.pain_alignment || '',
+                    language: parsedData.persona_language || formData.persona_matrix?.language || '',
+                    desired_outcome: parsedData.persona_transformation || formData.persona_matrix?.desired_outcome || '',
+                    proof_points: formData.persona_matrix?.proof_points || '',
+                    channel_language: formData.persona_matrix?.channel_language || 'Português',
+                  };
+                }
+                if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0) {
+                  updates.editorial_line = {
+                    ...formData.editorial_line,
+                    pillars: parsedData.editorial_pillars,
+                  };
+                }
+                if (parsedData?.metaphors && parsedData.metaphors.length > 0) {
+                  updates.metaphor_library = parsedData.metaphors.join(', ');
+                }
+                if (parsedData?.thumb_rules) {
+                  updates.thumb_strategy = {
+                    ...formData.thumb_strategy,
+                    consistency_rules: parsedData.thumb_rules,
                   };
                 }
                 updateFormData(updates);

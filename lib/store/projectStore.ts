@@ -327,6 +327,109 @@ const enrichProjectWithDedicatedCaches = (project: Project): Project => {
   return updated;
 };
 
+export const SYSTEM_PRESET_PROJECTS: Project[] = [
+  {
+    id: 'dd5d5231-cb89-4cf6-824f-08e217b31704',
+    name: 'Radar Explicado',
+    project_name: 'Radar Explicado',
+    puc: 'Desvendar minuciosamente, através de análises forenses e suporte tecnológico, os bastidores ocultos, erros de aviação e grandes obras.',
+    puc_promise: 'Desvendar minuciosamente, através de análises forenses e suporte tecnológico, os bastidores ocultos, erros de aviação e grandes obras.',
+    description: 'Desvendar minuciosamente, através de análises forenses e suporte tecnológico, os bastidores ocultos, erros de aviação e grandes obras.',
+    accent_color: '#3b82f6',
+    status: 'active'
+  },
+  {
+    id: '75314d88-b4bf-4a6e-8edb-69bae8448d27',
+    name: 'Garage 2050',
+    project_name: 'Garage 2050',
+    puc: 'O canal que ensina o motorista brasileiro a diagnosticar, cuidar e economizar no próprio carro usando só o que tem em casa.',
+    puc_promise: 'O canal que ensina o motorista brasileiro a diagnosticar, cuidar e economizar no próprio carro usando só o que tem em casa.',
+    description: 'O canal que ensina o motorista brasileiro a diagnosticar, cuidar e economizar no próprio carro usando só o que tem em casa.',
+    accent_color: '#ef4444',
+    status: 'active'
+  },
+  {
+    id: 'd463eafc-506c-48f6-aed8-b05ce45c5b92',
+    name: 'Alimento Inteligente',
+    project_name: 'Alimento Inteligente',
+    puc: 'Traduzir a ciência oculta de alimentos e suplementos em guias sequenciais brutais de performance física e mental.',
+    puc_promise: 'Traduzir a ciência oculta de alimentos e suplementos em guias sequenciais brutais de performance física e mental.',
+    description: 'Traduzir a ciência oculta de alimentos e suplementos em guias sequenciais brutais de performance física e mental.',
+    accent_color: '#10b981',
+    status: 'active'
+  },
+  {
+    id: '5c24efcd-098c-41f1-88b2-b3173fbeb5eb',
+    name: 'Metabolismo de Ouro',
+    project_name: 'Metabolismo de Ouro',
+    puc: 'Desvendar os segredos para reativar o metabolismo e a vitalidade após os 45 anos, através da sabedoria prática e nutrição.',
+    puc_promise: 'Desvendar os segredos para reativar o metabolismo e a vitalidade após os 45 anos, através da sabedoria prática e nutrição.',
+    description: 'Desvendar os segredos para reativar o metabolismo e a vitalidade após os 45 anos, através da sabedoria prática e nutrição.',
+    accent_color: '#f59e0b',
+    status: 'active'
+  },
+  {
+    id: '2583117d-9f1c-48c9-bdac-50893c761dff',
+    name: 'Miracle Ledger',
+    project_name: 'Miracle Ledger',
+    puc: 'Reconstructing absolute human crises through gripping, emotionally resonant confessional narratives where faith intervenes.',
+    puc_promise: 'Reconstructing absolute human crises through gripping, emotionally resonant confessional narratives where faith intervenes.',
+    description: 'Reconstructing absolute human crises through gripping, emotionally resonant confessional narratives where faith intervenes.',
+    accent_color: '#8b5cf6',
+    status: 'active'
+  },
+  {
+    id: '33998a3d-defb-4169-a6f1-dbceaeb5e9aa',
+    name: 'Urbanalypse',
+    project_name: 'Urbanalypse',
+    puc: 'We curate and synthesize lost engineering and ancient survival wisdom to engineer resilience for the urban apocalypse.',
+    puc_promise: 'We curate and synthesize lost engineering and ancient survival wisdom to engineer resilience for the urban apocalypse.',
+    description: 'We curate and synthesize lost engineering and ancient survival wisdom to engineer resilience for the urban apocalypse.',
+    accent_color: '#6366f1',
+    status: 'active'
+  },
+  {
+    id: '2847bb4b-d009-4f03-a0b6-df86c10faa20',
+    name: 'Vó do Campo',
+    project_name: 'Vó do Campo',
+    puc: 'Sabedoria ancestral do campo aplicada à produtividade real para quem quer independência financeira no quintal.',
+    puc_promise: 'Sabedoria ancestral do campo aplicada à produtividade real para quem quer independência financeira no quintal.',
+    description: 'Sabedoria ancestral do campo aplicada à produtividade real para quem quer independência financeira no quintal.',
+    accent_color: '#84cc16',
+    status: 'active'
+  },
+  {
+    id: '7919dbc5-e1da-4ca1-88dd-3e33c91ba5b7',
+    name: 'Fabrica Y',
+    project_name: 'Fabrica Y',
+    puc: 'Análises de engenharia, defesa e alta tecnologia da aviação e indústrias de ponta.',
+    puc_promise: 'Análises de engenharia, defesa e alta tecnologia da aviação e indústrias de ponta.',
+    description: 'Análises de engenharia, defesa e alta tecnologia da aviação e indústrias de ponta.',
+    accent_color: '#06b6d4',
+    status: 'active'
+  },
+  {
+    id: '9d1b5e3d-c0bf-4931-a30e-0f297232ba89',
+    name: 'Warhammer Legends BR',
+    project_name: 'Warhammer Legends BR',
+    puc: 'A história profunda, personagens e mitologia do universo Warhammer 40k em português.',
+    puc_promise: 'A história profunda, personagens e mitologia do universo Warhammer 40k em português.',
+    description: 'A história profunda, personagens e mitologia do universo Warhammer 40k em português.',
+    accent_color: '#a855f7',
+    status: 'active'
+  },
+  {
+    id: '08124252-c007-48ee-81ba-d075e26a41ab',
+    name: 'DevZen',
+    project_name: 'DevZen',
+    puc: 'O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.',
+    puc_promise: 'O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.',
+    description: 'O diferencial imbatível: transformar desenvolvedores sêniores em arquitetos do próprio estilo de vida.',
+    accent_color: '#3b82f6',
+    status: 'active'
+  }
+];
+
 const readLocalProjectCaches = (): Project[] => {
   const primary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
   const backup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
@@ -352,8 +455,10 @@ const readLocalProjectCaches = (): Project[] => {
   const stableBackup = repairedBackup.filter((project) => !project.is_recovered_project);
   const stableArchived = archived.filter((project) => !project.is_recovered_project);
 
+  const baseCatalog = mergeProjectCollections(SYSTEM_PRESET_PROJECTS, stablePrimary);
+
   const merged = mergeProjectCollections(
-    mergeProjectCollections(mergeProjectCollections(stablePrimary, stableBackup), stableArchived),
+    mergeProjectCollections(mergeProjectCollections(baseCatalog, stableBackup), stableArchived),
     validRecoveredProjects
   );
 

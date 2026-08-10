@@ -435,34 +435,11 @@ const readLocalProjectCaches = (): Project[] => {
   const backup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
   const archived = readArchivedProjects();
   const recovered = recoverProjectsFromAuxiliaryCaches();
-  const bestRecovered = recovered[0];
 
-  if (
-    bestRecovered?.id &&
-    bestRecovered.id !== BOOTSTRAP_PROJECT_ID &&
-    Number(bestRecovered.recovery_score || 0) > getProjectRecoveryScore(BOOTSTRAP_PROJECT_ID)
-  ) {
-    repairBootstrapAuxiliaryCaches(bestRecovered.id);
-  }
+  const allRawProjects = [...primary, ...backup, ...archived, ...recovered];
+  const mergedLocal = mergeProjectCollections(SYSTEM_PRESET_PROJECTS, allRawProjects);
 
-  const repairedPrimary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
-  const repairedBackup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
-  const repairedRecovered = recoverProjectsFromAuxiliaryCaches();
-  const validRecoveredProjects = repairedRecovered.filter(
-    (p) => p.id && p.id !== BOOTSTRAP_PROJECT_ID && getProjectRecoveryScore(p.id) > 0
-  );
-  const stablePrimary = repairedPrimary.filter((project) => !project.is_recovered_project);
-  const stableBackup = repairedBackup.filter((project) => !project.is_recovered_project);
-  const stableArchived = archived.filter((project) => !project.is_recovered_project);
-
-  const baseCatalog = mergeProjectCollections(SYSTEM_PRESET_PROJECTS, stablePrimary);
-
-  const merged = mergeProjectCollections(
-    mergeProjectCollections(mergeProjectCollections(baseCatalog, stableBackup), stableArchived),
-    validRecoveredProjects
-  );
-
-  return merged.map(enrichProjectWithDedicatedCaches);
+  return mergedLocal.map(enrichProjectWithDedicatedCaches);
 };
 
 const writeLocalProjectCaches = (projects: Project[]) => {
@@ -596,23 +573,18 @@ const isGhostRecoveredProject = (p: Project) => {
 
 const normalizeProjectList = (projects: Project[]) => {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
+  const cleanProjects = list.filter((p) => !isGhostRecoveredProject(p));
 
-  // Separar projetos reais de cópias de recuperação fantasma
-  const realProjects = list.filter((p) => !isGhostRecoveredProject(p));
-  const ghostProjects = list.filter((p) => isGhostRecoveredProject(p));
+  // Mesclar sempre com o catálogo mestre SYSTEM_PRESET_PROJECTS
+  const merged = mergeProjectCollections(SYSTEM_PRESET_PROJECTS, cleanProjects);
 
-  // Se já temos canais reais cadastrados do usuário, descarta totalmente todas as cópias fantasmas
-  if (realProjects.length > 0) {
-    return realProjects;
+  // Se o DevZen com UUID real '08124252-c007-48ee-81ba-d075e26a41ab' estiver presente, descarta a duplicata sintética 'demo-devzen-project'
+  const hasRealDevZen = merged.some((p) => p.id === '08124252-c007-48ee-81ba-d075e26a41ab');
+  if (hasRealDevZen) {
+    return merged.filter((p) => p.id !== BOOTSTRAP_PROJECT_ID);
   }
 
-  // Se não temos nenhum canal real, mantemos apenas o fantasma de maior pontuação
-  if (ghostProjects.length > 0) {
-    const bestGhost = ghostProjects.sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0))[0];
-    return [bestGhost];
-  }
-
-  return [createBootstrapProject()];
+  return merged;
 };
 
 export const useProjectStore = create<ProjectStore>()(

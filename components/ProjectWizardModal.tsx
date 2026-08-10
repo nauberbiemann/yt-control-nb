@@ -161,7 +161,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       
       // Stage 4: Produção (SOP)
       editing_sop: editingSop,
-      tactical_journey: journey
+      tactical_journey: journey,
+      reference_channels: d.reference_channels || []
     };
   });
 

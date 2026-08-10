@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Tv, Settings, X } from 'lucide-react';
+import { Tv, Settings, X, Sparkles } from 'lucide-react';
 import ReferenceChannelsManager from './ReferenceChannelsManager';
-import { ReferenceChannel } from '@/lib/types/referenceChannels';
+import { ReferenceChannel, ChannelDnaConfig } from '@/lib/types/referenceChannels';
 
 interface ProjectModalProps {
   onClose: () => void;
@@ -20,6 +20,17 @@ export default function ProjectModal({ onClose, onSave, initialData }: ProjectMo
   const [referenceChannels, setReferenceChannels] = useState<ReferenceChannel[]>(
     initialData?.reference_channels || []
   );
+  const [channelDna, setChannelDna] = useState<ChannelDnaConfig>(
+    initialData?.channel_dna || {}
+  );
+
+  const handleDnaUpdate = (updatedDna: ChannelDnaConfig, parsedData?: any) => {
+    setChannelDna(updatedDna);
+    if (parsedData) {
+      if (parsedData.name && !name) setName(parsedData.name);
+      if (parsedData.puc && !description) setDescription(parsedData.puc);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,13 +45,14 @@ export default function ProjectModal({ onClose, onSave, initialData }: ProjectMo
       primary_color: color,
       accent_color: color,
       reference_channels: referenceChannels,
+      channel_dna: channelDna,
     });
   };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
       <div 
-        className="bg-zinc-950 border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-zinc-950 border rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
         style={{ borderColor: `${color}55` }}
       >
         {/* Header com Tabs */}
@@ -49,7 +61,7 @@ export default function ProjectModal({ onClose, onSave, initialData }: ProjectMo
             <h2 className="text-lg font-bold text-zinc-100 flex items-center space-x-2">
               <span>{initialData ? 'Configurações do Canal' : 'Novo Projeto de Canal'}</span>
             </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">Gerencie os parâmetros do projeto e seus benchmarks</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Gerencie os parâmetros do projeto, manual de DNA (.md) e benchmarks</p>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -77,7 +89,7 @@ export default function ProjectModal({ onClose, onSave, initialData }: ProjectMo
                 }`}
               >
                 <Tv className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Canais de Referência ({referenceChannels.length})</span>
+                <span>DNA & Canais de Referência</span>
               </button>
             </div>
 
@@ -100,7 +112,7 @@ export default function ProjectModal({ onClose, onSave, initialData }: ProjectMo
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: Dev Zen ou O Segredo Sagrado"
+                  placeholder="Ex: Radar Explicado, Dev Zen ou O Segredo Sagrado"
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
                 />
               </div>
@@ -145,15 +157,22 @@ export default function ProjectModal({ onClose, onSave, initialData }: ProjectMo
           ) : (
             <ReferenceChannelsManager
               channels={referenceChannels}
+              channelDna={channelDna}
               onChange={(updated) => setReferenceChannels(updated)}
+              onDnaChange={handleDnaUpdate}
             />
           )}
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-zinc-800/80 bg-zinc-900/40 flex items-center justify-between">
-          <div className="text-xs text-zinc-500">
-            {referenceChannels.length} canal(is) de referência cadastrado(s)
+          <div className="text-xs text-zinc-500 flex items-center space-x-3">
+            <span>{referenceChannels.length} concorrente(s) cadastrado(s)</span>
+            {channelDna?.style_dna && (
+              <span className="px-2 py-0.5 bg-blue-950 text-blue-300 rounded font-mono text-[10px]">
+                🧬 Prompts DNA Ativos
+              </span>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">

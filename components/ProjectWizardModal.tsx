@@ -766,7 +766,22 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
           <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-4">
             <ReferenceChannelsManager
               channels={formData.reference_channels}
+              channelDna={formData.channel_dna}
               onChange={(updated) => updateFormData({ reference_channels: updated })}
+              onDnaChange={(updatedDna, parsedData) => {
+                const updates: any = { channel_dna: updatedDna };
+                if (parsedData?.name && !formData.name) updates.name = parsedData.name;
+                if (parsedData?.puc && !formData.puc) updates.puc = parsedData.puc;
+                if (parsedData?.passion && !formData.phd_strategy?.passion) {
+                  updates.phd_strategy = {
+                    ...formData.phd_strategy,
+                    passion: parsedData.passion,
+                    skill: parsedData.skill || formData.phd_strategy?.skill,
+                    demand: parsedData.demand || formData.phd_strategy?.demand,
+                  };
+                }
+                updateFormData(updates);
+              }}
             />
           </div>
         );

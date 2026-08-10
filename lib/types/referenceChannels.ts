@@ -35,3 +35,131 @@ export interface ReferenceChannel {
   thumbnail_refs: ThumbnailRef[];
   created_at?: string;
 }
+
+export interface ChannelDnaConfig {
+  raw_markdown?: string;
+  style_dna?: string;
+  character_dna?: string;
+  extras_dna?: string;
+  negative_dna?: string;
+  narrator_archetype?: string;
+  editorial_angle?: string;
+  metaphors?: string[];
+  thumb_rules?: string;
+  color_palette_hex?: string[];
+  typography?: string;
+  narrative_patterns?: Array<{
+    name: string;
+    tag: string;
+    description?: string;
+    core_pattern: string;
+  }>;
+}
+
+/**
+ * Helper para extrair Prompts DNA e dados estruturados de um arquivo Markdown de Identidade de Canal
+ */
+export function parseChannelMarkdown(markdown: string) {
+  if (!markdown || !markdown.trim()) return null;
+
+  const result: {
+    name?: string;
+    puc?: string;
+    passion?: string;
+    skill?: string;
+    demand?: string;
+    persona_demographics?: string;
+    persona_pain?: string;
+    persona_language?: string;
+    persona_transformation?: string;
+    editorial_pillars?: string[];
+    metaphors?: string[];
+    thumb_rules?: string;
+    style_dna?: string;
+    character_dna?: string;
+    extras_dna?: string;
+    negative_dna?: string;
+    narrative_patterns?: Array<{ name: string; tag: string; description?: string; core_pattern: string }>;
+  } = {};
+
+  // Extrair Nome do Projeto
+  const nameMatch = markdown.match(/Nome de Destaque da Instância:\s*`([^`]+)`/i) || markdown.match(/#\s*([^—\n]+)/);
+  if (nameMatch) result.name = nameMatch[1].trim();
+
+  // Extrair PUC
+  const pucMatch = markdown.match(/Proposta Única do Canal.*?\n>\s*\*?(.*?)\*?\n/i) || markdown.match(/PUC:\s*(.*)/i);
+  if (pucMatch) result.puc = pucMatch[1].trim();
+
+  // Extrair Passion, Skill, Demand
+  const passionMatch = markdown.match(/PASSION:\s*(.*)/i);
+  if (passionMatch) result.passion = passionMatch[1].trim();
+
+  const skillMatch = markdown.match(/SKILL:\s*(.*)/i);
+  if (skillMatch) result.skill = skillMatch[1].trim();
+
+  const demandMatch = markdown.match(/DEMAND:\s*(.*)/i);
+  if (demandMatch) result.demand = demandMatch[1].trim();
+
+  // Extrair Prompts DNA
+  const styleMatch = markdown.match(/STYLE_DNA:\s*(.*)/i);
+  if (styleMatch) result.style_dna = styleMatch[1].trim();
+
+  const charMatch = markdown.match(/CHARACTER_DNA:\s*(.*)/i);
+  if (charMatch) result.character_dna = charMatch[1].trim();
+
+  const extrasMatch = markdown.match(/EXTRAS_DNA:\s*(.*)/i);
+  if (extrasMatch) result.extras_dna = extrasMatch[1].trim();
+
+  const negMatch = markdown.match(/NEGATIVE_DNA:\s*(.*)/i);
+  if (negMatch) result.negative_dna = negMatch[1].trim();
+
+  // Extrair Metáforas
+  const metaphorsSection = markdown.match(/Metáforas Proprietárias[\s\S]*?(?=\n##|\n###|$)/i);
+  if (metaphorsSection) {
+    const list = metaphorsSection[0].split('\n')
+      .map(line => line.replace(/^[\d.*-]+\s*/, '').trim())
+      .filter(line => line && !line.toLowerCase().includes('metáforas'));
+    result.metaphors = list;
+  }
+
+  // Extrair Pilares Editoriais
+  const pillarsSection = markdown.match(/Pilares Editoriais[\s\S]*?(?=\n##|\n###|$)/i);
+  if (pillarsSection) {
+    const list = pillarsSection[0].split('\n')
+      .map(line => line.replace(/^[\d.*-]+\s*/, '').trim())
+      .filter(line => line && !line.toLowerCase().includes('pilares'));
+    result.editorial_pillars = list.slice(0, 5);
+  }
+
+  // Extrair Regras de Thumbnails
+  const thumbSection = markdown.match(/Regras de Consistência Visual[\s\S]*?(?=\n##|\n###|$)/i);
+  if (thumbSection) {
+    result.thumb_rules = thumbSection[0].trim();
+  }
+
+  // Extrair Patterns Narrativos
+  const patterns: Array<{ name: string; tag: string; description?: string; core_pattern: string }> = [];
+  const patternBlocks = markdown.split(/Nome do Pattern:\s*/i).slice(1);
+  for (const block of patternBlocks) {
+    const lines = block.split('\n');
+    const name = lines[0]?.trim() || '';
+    const tagMatch = block.match(/Tag Interna:\s*(.*)/i);
+    const descMatch = block.match(/Descrição Tática:\s*(.*)/i);
+    const coreMatch = block.match(/Core Pattern:\s*(.*)/i);
+
+    if (name && coreMatch) {
+      patterns.push({
+        name,
+        tag: tagMatch ? tagMatch[1].trim() : 'PATTERN',
+        description: descMatch ? descMatch[1].trim() : '',
+        core_pattern: coreMatch[1].trim(),
+      });
+    }
+  }
+
+  if (patterns.length > 0) {
+    result.narrative_patterns = patterns;
+  }
+
+  return result;
+}

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
-import { ReferenceChannel } from '@/lib/types/referenceChannels';
+import { ReferenceChannel, ChannelDnaConfig } from '@/lib/types/referenceChannels';
 
 const PROJECTS_STORAGE_KEY = 'writer_studio_projects';
 const PROJECTS_BACKUP_STORAGE_KEY = 'writer_studio_projects_backup';
@@ -22,6 +22,7 @@ export interface Project {
   editing_sop?: any;
   ai_engine_rules?: any;
   reference_channels?: ReferenceChannel[];
+  channel_dna?: ChannelDnaConfig;
   [key: string]: any;
 }
 

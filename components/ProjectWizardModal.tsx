@@ -17,7 +17,8 @@ import {
   Trash2,
   Layout,
   HelpCircle,
-  Tv
+  Tv,
+  Sparkles
 } from 'lucide-react';
 import ReferenceChannelsManager from './ReferenceChannelsManager';
 

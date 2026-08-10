@@ -16,8 +16,10 @@ import {
   Plus,
   Trash2,
   Layout,
-  HelpCircle
+  HelpCircle,
+  Tv
 } from 'lucide-react';
+import ReferenceChannelsManager from './ReferenceChannelsManager';
 
 interface WizardProps {
   onClose: () => void;
@@ -219,6 +221,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         const hasValidRanges = durationMin > 0 && durationMax >= durationMin && blocksMin > 0 && blocksMax >= blocksMin;
         const hasTacticalJourney = formData.tactical_journey.every((m: any) => m.title.trim() !== '' && m.value.trim() !== '');
         return hasSopConfig && hasValidRanges && hasTacticalJourney;
+      case 5:
+        return true;
       default: return false;
     }
   };
@@ -757,6 +761,15 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             </div>
           </div>
         );
+      case 5:
+        return (
+          <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-4">
+            <ReferenceChannelsManager
+              channels={formData.reference_channels}
+              onChange={(updated) => updateFormData({ reference_channels: updated })}
+            />
+          </div>
+        );
       default: return null;
     }
   };
@@ -770,7 +783,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
             <div className="h-1 bg-white/5 w-full">
               <div 
               className="h-full bg-blue-500 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
-              style={{ width: `${(step / 4) * 100}%` }}
+              style={{ width: `${(step / 5) * 100}%` }}
             />
           </div>
           
@@ -782,7 +795,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               <div className="flex items-center gap-3 mt-1">
                 <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded uppercase tracking-wider">Etapa 0{step}</span>
                 <span className="text-white/30 text-[10px] font-black uppercase tracking-[3px]">
-                  {step === 1 ? 'Fundação DNA' : step === 2 ? 'Crivo Editorial' : step === 3 ? 'Engenharia de Clique' : 'SOP de Produção'}
+                  {step === 1 ? 'Fundação DNA' : step === 2 ? 'Crivo Editorial' : step === 3 ? 'Engenharia de Clique' : step === 4 ? 'SOP de Produção' : 'Canais de Referência'}
                 </span>
               </div>
             </div>
@@ -806,7 +819,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         <div className="p-10 border-t border-white/5 flex justify-between items-center bg-midnight/80 backdrop-blur-xl z-20 flex-none">
           <div className="flex items-center gap-8">
             <div className="flex gap-1.5">
-              {[1, 2, 3, 4].map(s => (
+              {[1, 2, 3, 4, 5].map(s => (
                 <div key={s} className={`h-1 rounded-full transition-all duration-500 ${step === s ? 'w-8 bg-blue-500' : s < step ? 'w-4 bg-blue-500/30' : 'w-4 bg-white/10'}`} />
               ))}
             </div>
@@ -822,7 +835,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
               </button>
             )}
             <button 
-              onClick={() => step === 4 ? handleFinalize() : setStep(s => s + 1)}
+              onClick={() => step === 5 ? handleFinalize() : setStep(s => s + 1)}
               disabled={!isStepValid() || isSubmitting}
               className={`px-12 py-4 rounded-xl text-[10px] font-black uppercase tracking-[3px] transition-all duration-500 group flex items-center gap-3 ${
                 isStepValid() && !isSubmitting
@@ -830,7 +843,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 : 'bg-white/5 text-white/10 cursor-not-allowed opacity-30 border border-white/5'
               }`}
             >
-              {step === 4 ? (
+              {step === 5 ? (
                 isSubmitting ? 'SALVANDO...' : <>DEPLOY ESTRATÉGICO <Rocket size={16} className="group-hover:animate-bounce" /></>
               ) : (
                 <>PRÓXIMO PASSO <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>

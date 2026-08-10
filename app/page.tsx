@@ -32,7 +32,8 @@ import {
   Zap, 
   Database, 
   PenTool, 
-  CheckSquare, 
+  CheckSquare,
+  Tv 
   History,
   FolderOpen,
   Sparkles,
@@ -1497,9 +1498,22 @@ export default function Home() {
                         }`}>
                           {isActive ? 'Selecionado' : 'Ativo'}
                         </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1.5">
                           <button 
-                            className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-all"
+                            className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
+                            title="Gerenciar Canais de Referência & Benchmarks"
+                            onClick={(e) => { 
+                              e.stopPropagation();
+                              setEditingProject(project); 
+                              setIsModalOpen(true); 
+                            }}
+                          >
+                            <Tv size={12} />
+                            <span>Referência</span>
+                          </button>
+                          <button 
+                            className="p-1.5 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all border border-slate-700/50"
+                            title="Editar Configurações do Canal"
                             onClick={(e) => { 
                               e.stopPropagation();
                               setEditingProject(project); 

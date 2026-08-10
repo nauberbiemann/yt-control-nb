@@ -33,7 +33,7 @@ import {
   Database, 
   PenTool, 
   CheckSquare,
-  Tv 
+  Tv,
   History,
   FolderOpen,
   Sparkles,

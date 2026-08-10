@@ -369,7 +369,8 @@ const writeLocalProjectCaches = (projects: Project[]) => {
 
   // Preservação absoluta: Mesclar a nova lista com os projetos locais existentes para NUNCA perder nada
   const mergedProjects = mergeProjectCollections(existingLocal, safeProjects);
-  const enrichedProjects = mergedProjects.map(enrichProjectWithDedicatedCaches);
+  const normalized = normalizeProjectList(mergedProjects);
+  const enrichedProjects = normalized.map(enrichProjectWithDedicatedCaches);
 
   enrichedProjects.forEach((p) => {
     if (p.id) {
@@ -483,25 +484,30 @@ const createBootstrapProject = (): Project => ({
   traceability_sources: {},
 });
 
+const isGhostRecoveredProject = (p: Project) => {
+  const name = `${p?.name || ''} ${p?.project_name || ''}`.toLowerCase();
+  return p?.is_recovered_project === true || name.includes('recuperado');
+};
+
 const normalizeProjectList = (projects: Project[]) => {
   const list = Array.isArray(projects) ? projects.filter(Boolean) : [];
 
-  // Separar projetos reais de cópias de recuperação
-  const realProjects = list.filter((project) => !project.is_recovered_project);
-  const recoveredProjects = list.filter((project) => project.is_recovered_project);
+  // Separar projetos reais de cópias de recuperação fantasma
+  const realProjects = list.filter((p) => !isGhostRecoveredProject(p));
+  const ghostProjects = list.filter((p) => isGhostRecoveredProject(p));
 
-  const realIds = new Set(realProjects.map((p) => p.id));
-  const additionalRecovered = recoveredProjects
-    .filter((p) => !realIds.has(p.id))
-    .sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0));
-
-  const merged = [...realProjects, ...additionalRecovered];
-
-  if (merged.length === 0) {
-    return [createBootstrapProject()];
+  // Se já temos canais reais cadastrados do usuário, descarta totalmente todas as cópias fantasmas
+  if (realProjects.length > 0) {
+    return realProjects;
   }
 
-  return merged;
+  // Se não temos nenhum canal real, mantemos apenas o fantasma de maior pontuação
+  if (ghostProjects.length > 0) {
+    const bestGhost = ghostProjects.sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0))[0];
+    return [bestGhost];
+  }
+
+  return [createBootstrapProject()];
 };
 
 export const useProjectStore = create<ProjectStore>()(

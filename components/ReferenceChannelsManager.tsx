@@ -268,11 +268,12 @@ export default function ReferenceChannelsManager({
       }
 
       setParseStatusMessage(
-        `🚀 Sucesso! ${validFiles.length} arquivo(s) .md lido(s) e processado(s)! ` +
-        `(PUC: ${parsed.puc ? 'Extraída' : 'Não'}, Prompts DNA: ${parsed.style_dna ? 'Extraídos' : 'Manuais'}, ` +
-        `Canais de Ref: ${parsed.extracted_channels?.length || 0})`
+        `🚀 Sucesso! ${validFiles.length} arquivo(s) .md processado(s)! ` +
+        `(PUC: ${parsed.puc ? 'Ok' : 'Não'}, DNA: ${parsed.style_dna ? 'Ok' : 'Não'}, ` +
+        `Canais de Ref: ${parsed.extracted_channels?.length || 0}, ` +
+        `Padrões Narrativos: ${parsed.narrative_patterns?.length || 0} - salvos na Biblioteca Narrativa!)`
       );
-      setTimeout(() => setParseStatusMessage(null), 6000);
+      setTimeout(() => setParseStatusMessage(null), 8000);
     }
   };
 

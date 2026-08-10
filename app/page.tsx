@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { isMasterAccessEmail } from '@/lib/auth-access';
 import { useProjectStore, useActiveProject, useProjects, isBootstrapProject } from '@/lib/store/projectStore';
 import { useThemes } from '@/lib/hooks/useProjectData';
+import { parseChannelMarkdown } from '@/lib/types/referenceChannels';
 
 // 🛠️ MODO DE DESENVOLVIMENTO: Altere para true para reativar a segurança
 const ENFORCE_AUTH = true;
@@ -1136,33 +1137,61 @@ export default function Home() {
       const normalizedThumb = normalizeThumbStrategy(formData.thumb_strategy || {});
 
       const baseProject = editingProject || {};
+      
+      // Auto-extrair e mesclar todos os campos estratégicos a partir do Markdown compilado (se houver)
+      let parsedStrategy: any = {};
+      const rawMarkdown = formData.channel_dna?.raw_markdown || baseProject.channel_dna?.raw_markdown;
+      if (rawMarkdown) {
+        parsedStrategy = parseChannelMarkdown(rawMarkdown) || {};
+      }
+
       const projectData = {
         ...baseProject,
         id: projectId,
-        name: formData.name || formData.project_name || 'Canal Sem Nome',
-        project_name: formData.name || formData.project_name || 'Canal Sem Nome',
-        description: formData.puc || formData.puc_promise || '',
-        puc: formData.puc || formData.puc_promise || '',
-        puc_promise: formData.puc || formData.puc_promise || '',
-        accent_color: formData.accent_color || '#9BB0A5',
-        target_persona: formData.target_persona || {
-          audience: formData.persona_matrix?.demographics || formData.target_audience || '',
-          pain_point: formData.persona_matrix?.pain_alignment || formData.core_pain_point || ''
+        name: formData.name || formData.project_name || parsedStrategy.name || baseProject.name || 'Canal Sem Nome',
+        project_name: formData.name || formData.project_name || parsedStrategy.name || baseProject.project_name || 'Canal Sem Nome',
+        description: formData.puc || formData.puc_promise || parsedStrategy.puc || baseProject.description || '',
+        puc: formData.puc || formData.puc_promise || parsedStrategy.puc || baseProject.puc || '',
+        puc_promise: formData.puc || formData.puc_promise || parsedStrategy.puc || baseProject.puc_promise || '',
+        accent_color: formData.accent_color || baseProject.accent_color || '#9BB0A5',
+        target_persona: formData.target_persona || baseProject.target_persona || {
+          audience: formData.persona_matrix?.demographics || parsedStrategy.persona_demographics || '',
+          pain_point: formData.persona_matrix?.pain_alignment || parsedStrategy.persona_pain || ''
         },
-        ai_engine_rules: formData.ai_engine_rules || {
-          metaphors: formData.metaphor_library?.split(',').map((s: string) => s.trim()).filter(Boolean) || [],
+        ai_engine_rules: formData.ai_engine_rules || baseProject.ai_engine_rules || {
+          metaphors: formData.metaphor_library?.split(',').map((s: string) => s.trim()).filter(Boolean) || parsedStrategy.metaphors || [],
           prohibited: formData.prohibited_terms?.split(',').map((s: string) => s.trim()).filter(Boolean) || []
         },
         playlists: normalizedPlaylists,
-        phd_strategy: formData.phd_strategy || {},
-        persona_matrix: formData.persona_matrix ? normalizePersonaMatrix(formData.persona_matrix, formData.target_persona) : {},
-        editorial_line: formData.editorial_line ? normalizeEditorialLine(formData.editorial_line) : {},
-        narrative_voice: formData.narrative_voice ? normalizeNarrativeVoice(formData.narrative_voice) : {},
-        metaphor_library: formData.metaphor_library || '',
-        prohibited_terms: formData.prohibited_terms || '',
+        phd_strategy: {
+          passion: formData.phd_strategy?.passion || parsedStrategy.passion || baseProject.phd_strategy?.passion || '',
+          skill: formData.phd_strategy?.skill || parsedStrategy.skill || baseProject.phd_strategy?.skill || '',
+          demand: formData.phd_strategy?.demand || parsedStrategy.demand || baseProject.phd_strategy?.demand || '',
+        },
+        persona_matrix: {
+          demographics: formData.persona_matrix?.demographics || parsedStrategy.persona_demographics || baseProject.persona_matrix?.demographics || '',
+          language: formData.persona_matrix?.language || parsedStrategy.persona_language || baseProject.persona_matrix?.language || '',
+          pain_alignment: formData.persona_matrix?.pain_alignment || parsedStrategy.persona_pain || baseProject.persona_matrix?.pain_alignment || '',
+          desired_outcome: formData.persona_matrix?.desired_outcome || parsedStrategy.persona_transformation || baseProject.persona_matrix?.desired_outcome || '',
+          proof_points: formData.persona_matrix?.proof_points || baseProject.persona_matrix?.proof_points || '',
+          channel_language: formData.persona_matrix?.channel_language || parsedStrategy.persona_language || baseProject.persona_matrix?.channel_language || 'Português',
+        },
+        editorial_line: {
+          pillars: formData.editorial_line?.pillars || parsedStrategy.editorial_pillars || baseProject.editorial_line?.pillars || ['', '', '', '', ''],
+          positioning_angle: formData.editorial_line?.positioning_angle || baseProject.editorial_line?.positioning_angle || '',
+          content_boundaries: formData.editorial_line?.content_boundaries || baseProject.editorial_line?.content_boundaries || '',
+        },
+        narrative_voice: formData.narrative_voice ? normalizeNarrativeVoice(formData.narrative_voice) : (baseProject.narrative_voice || {}),
+        metaphor_library: formData.metaphor_library || (parsedStrategy.metaphors && parsedStrategy.metaphors.join(', ')) || baseProject.metaphor_library || '',
+        prohibited_terms: formData.prohibited_terms || baseProject.prohibited_terms || '',
         detailed_sop: normalizedSop,
         editing_sop: normalizedSop,
-        thumb_strategy: normalizedThumb,
+        thumb_strategy: {
+          layouts: normalizedThumb.layouts || baseProject.thumb_strategy?.layouts || ['Rosto+Texto'],
+          layout: normalizedThumb.layout || baseProject.thumb_strategy?.layout || 'Rosto+Texto',
+          description: normalizedThumb.description || baseProject.thumb_strategy?.description || '',
+          consistency_rules: normalizedThumb.consistency_rules || parsedStrategy.thumb_rules || baseProject.thumb_strategy?.consistency_rules || '',
+        },
         reference_channels: formData.reference_channels || baseProject.reference_channels || [],
         channel_dna: formData.channel_dna || baseProject.channel_dna || {},
         default_execution_mode: formData.default_execution_mode || baseProject.default_execution_mode || 'internal',
@@ -1172,6 +1201,96 @@ export default function Home() {
         user_id: user?.id || null,
         updated_at: new Date().toISOString()
       };
+
+      // 🧬 Sincronização em Lote de Padrões Narrativos para a Biblioteca Narrativa
+      if (parsedStrategy?.narrative_patterns && parsedStrategy.narrative_patterns.length > 0) {
+        console.log(`[ContentOS-DNA] Detectados ${parsedStrategy.narrative_patterns.length} padrões narrativos no manual. Sincronizando...`);
+        
+        const mapped = parsedStrategy.narrative_patterns.map((p: any) => {
+          let type = 'Hook';
+          let category = '';
+          const tag = (p.tag || '').toUpperCase();
+          if (tag.includes('HOOK')) {
+            type = 'Hook';
+            category = tag.replace('HOOK_', '');
+          } else if (tag.includes('CTA')) {
+            type = 'CTA';
+          } else if (tag.includes('TITULO') || tag.includes('TITLE')) {
+            type = 'Title Structure';
+          } else if (tag.includes('COMUNIDADE') || tag.includes('COMMUNITY') || tag.includes('SELO') || tag.includes('BORDAO') || tag.includes('RITUAL')) {
+            type = 'Community';
+          } else if (tag.includes('CURVA') || tag.includes('CURVE')) {
+            type = 'Narrative Curve';
+          } else if (tag.includes('ARG')) {
+            type = 'Argument Mode';
+          } else if (tag.includes('ANTI_REP')) {
+            type = 'Repetition Rule';
+          }
+
+          return {
+            id: crypto.randomUUID(),
+            project_id: projectId,
+            type,
+            name: p.name,
+            description: p.description || '',
+            content_pattern: p.core_pattern,
+            category,
+            is_active: true
+          };
+        });
+
+        // Atualizar cache local
+        let localNarrative: any[] = [];
+        try {
+          const rawLocal = localStorage.getItem(`ws_narrative_${projectId}`);
+          if (rawLocal) localNarrative = JSON.parse(rawLocal);
+        } catch {}
+
+        const mergedNarrative = [...localNarrative];
+        mapped.forEach((item: any) => {
+          const existingIdx = mergedNarrative.findIndex(
+            (c) => c.name.toLowerCase() === item.name.toLowerCase() && c.type === item.type
+          );
+          if (existingIdx !== -1) {
+            mergedNarrative[existingIdx] = {
+              ...mergedNarrative[existingIdx],
+              content_pattern: item.content_pattern,
+              description: item.description || mergedNarrative[existingIdx].description,
+            };
+          } else {
+            mergedNarrative.push(item);
+          }
+        });
+
+        localStorage.setItem(`ws_narrative_${projectId}`, JSON.stringify(mergedNarrative));
+        console.log(`[ContentOS-DNA] Padrões Narrativos sincronizados com o cache local (${mergedNarrative.length} totais).`);
+
+        // Sincronizar com Supabase em background
+        if (supabase) {
+          supabase.from('narrative_components').select('*').eq('project_id', projectId)
+            .then(({ data: dbData, error: dbErr }: { data: any; error: any }) => {
+              if (!dbErr && dbData) {
+                const mergedWithDb = [...dbData];
+                mapped.forEach((item: any) => {
+                  const dbMatch = mergedWithDb.find(
+                    (c) => c.name.toLowerCase() === item.name.toLowerCase() && c.type === item.type
+                  );
+                  if (dbMatch) {
+                    dbMatch.content_pattern = item.content_pattern;
+                    dbMatch.description = item.description || dbMatch.description;
+                  } else {
+                    mergedWithDb.push(item);
+                  }
+                });
+                supabase.from('narrative_components').upsert(mergedWithDb)
+                  .then(({ error: upsertErr }: { error: any }) => {
+                    if (upsertErr) console.warn('⚠️ Erro ao sincronizar padrões narrativos no banco:', upsertErr.message);
+                    else console.log('[ContentOS-DNA] Biblioteca Narrativa atualizada no Supabase.');
+                  });
+              }
+            });
+        }
+      }
 
       console.log("[ContentOS] Dados preparados para salvamento:", projectData);
 

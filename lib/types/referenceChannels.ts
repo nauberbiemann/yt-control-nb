@@ -95,14 +95,27 @@ export function parseChannelMarkdown(markdown: string) {
   if (pucMatch) result.puc = pucMatch[1].trim();
 
   // Extrair Passion, Skill, Demand
-  const passionMatch = markdown.match(/PASSION:\s*(.*)/i);
+  const passionMatch = markdown.match(/PASSION:\s*(.*)/i) || markdown.match(/PASSION \(.*?\):\s*(.*)/i);
   if (passionMatch) result.passion = passionMatch[1].trim();
 
-  const skillMatch = markdown.match(/SKILL:\s*(.*)/i);
+  const skillMatch = markdown.match(/SKILL:\s*(.*)/i) || markdown.match(/SKILL \(.*?\):\s*(.*)/i);
   if (skillMatch) result.skill = skillMatch[1].trim();
 
-  const demandMatch = markdown.match(/DEMAND:\s*(.*)/i);
+  const demandMatch = markdown.match(/DEMAND:\s*(.*)/i) || markdown.match(/DEMAND \(.*?\):\s*(.*)/i);
   if (demandMatch) result.demand = demandMatch[1].trim();
+
+  // Extrair dados da Persona
+  const demoMatch = markdown.match(/Lifestyle \/ Demografia:\s*(.*)/i) || markdown.match(/Demografia:\s*(.*)/i);
+  if (demoMatch) result.persona_demographics = demoMatch[1].trim();
+
+  const painMatch = markdown.match(/Ponto de Dor Central:\s*(.*)/i) || markdown.match(/Dor Central:\s*(.*)/i);
+  if (painMatch) result.persona_pain = painMatch[1].trim();
+
+  const langMatch = markdown.match(/Linguagem e Repertório:\s*(.*)/i) || markdown.match(/Linguagem:\s*(.*)/i);
+  if (langMatch) result.persona_language = langMatch[1].trim();
+
+  const transMatch = markdown.match(/Transformação Desejada:\s*(.*)/i) || markdown.match(/Transformação:\s*(.*)/i);
+  if (transMatch) result.persona_transformation = transMatch[1].trim();
 
   // Extrair Prompts DNA
   const styleMatch = markdown.match(/STYLE_DNA:\s*([^\n\r]+)/i);

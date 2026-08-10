@@ -264,6 +264,59 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
       case 1:
         return (
           <div className="flex flex-col gap-10 animate-in slide-in-from-bottom-4">
+            {/* Bloco Destaque: Importação & Drag and Drop de arquivos .md */}
+            <div className="p-6 rounded-3xl border border-blue-500/30 bg-blue-500/[0.04] space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="w-5 h-5 text-blue-400 animate-pulse" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-blue-400">
+                    Importar DNA do Canal (.md) — Auto-Preenchimento Instantâneo
+                  </h3>
+                </div>
+                <span className="text-[9px] px-2.5 py-1 bg-blue-500/20 text-blue-300 rounded-lg font-mono uppercase tracking-wider font-bold border border-blue-500/30">
+                  Arraste 1 a 5 arquivos .md
+                </span>
+              </div>
+
+              <p className="text-xs text-white/60 leading-relaxed">
+                Arraste seus arquivos <code className="text-blue-300 font-mono font-bold">.md</code> (ex: <code className="text-blue-300 font-mono">MANUAL_CONFIG.md</code>, <code className="text-blue-300 font-mono">A1_lente_unica.md</code>, <code className="text-blue-300 font-mono">A2_analista.md</code>). O aplicativo extrairá e preencherá automaticamente o Nome, PUC, Pilares, Prompts DNA e Canais Concorrentes em todas as etapas!
+              </p>
+
+              <ReferenceChannelsManager
+                channels={formData.reference_channels}
+                channelDna={formData.channel_dna}
+                compactMode={true}
+                onChange={(updated) => updateFormData({ reference_channels: updated })}
+                onDnaChange={(updatedDna, parsedData) => {
+                  const updates: any = { channel_dna: updatedDna };
+                  if (parsedData?.name) updates.name = parsedData.name;
+                  if (parsedData?.puc) updates.puc = parsedData.puc;
+                  if (parsedData?.passion || parsedData?.skill || parsedData?.demand) {
+                    updates.phd_strategy = {
+                      passion: parsedData.passion || formData.phd_strategy?.passion || '',
+                      skill: parsedData.skill || formData.phd_strategy?.skill || '',
+                      demand: parsedData.demand || formData.phd_strategy?.demand || '',
+                    };
+                  }
+                  if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0) {
+                    updates.editorial_line = {
+                      ...formData.editorial_line,
+                      pillars: parsedData.editorial_pillars,
+                    };
+                  }
+                  if (parsedData?.metaphors && parsedData.metaphors.length > 0) {
+                    updates.metaphor_library = parsedData.metaphors.join(', ');
+                  }
+                  if (parsedData?.thumb_rules) {
+                    updates.thumb_strategy = {
+                      ...formData.thumb_strategy,
+                      consistency_rules: parsedData.thumb_rules,
+                    };
+                  }
+                  updateFormData(updates);
+                }}
+              />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] uppercase font-black tracking-widest text-blue-400 mb-1">Identificador do Projeto</label>

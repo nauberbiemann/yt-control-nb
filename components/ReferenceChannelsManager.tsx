@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, type DragEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import { 
   Tv, 
   Plus, 
@@ -31,6 +31,7 @@ interface ReferenceChannelsManagerProps {
   channelDna?: ChannelDnaConfig;
   onChange: (channels: ReferenceChannel[]) => void;
   onDnaChange?: (dna: ChannelDnaConfig, parsedData?: any) => void;
+  compactMode?: boolean; // Para quando exibido na Etapa 01
 }
 
 export default function ReferenceChannelsManager({
@@ -38,6 +39,7 @@ export default function ReferenceChannelsManager({
   channelDna = {},
   onChange,
   onDnaChange,
+  compactMode = false,
 }: ReferenceChannelsManagerProps) {
   const [mainTab, setMainTab] = useState<'my_dna' | 'benchmark_channels'>('my_dna');
   const [activeChannelId, setActiveChannelId] = useState<string | null>(channels[0]?.id || null);
@@ -51,6 +53,18 @@ export default function ReferenceChannelsManager({
   const [negativeDna, setNegativeDna] = useState(channelDna.negative_dna || '');
   const [thumbRules, setThumbRules] = useState(channelDna.thumb_rules || '');
   const [parseStatusMessage, setParseStatusMessage] = useState<string | null>(null);
+
+  // Sync state quando o prop channelDna mudar
+  useEffect(() => {
+    if (channelDna) {
+      if (channelDna.raw_markdown !== undefined && channelDna.raw_markdown !== dnaMarkdown) setDnaMarkdown(channelDna.raw_markdown);
+      if (channelDna.style_dna !== undefined && channelDna.style_dna !== styleDna) setStyleDna(channelDna.style_dna);
+      if (channelDna.character_dna !== undefined && channelDna.character_dna !== characterDna) setCharacterDna(channelDna.character_dna);
+      if (channelDna.extras_dna !== undefined && channelDna.extras_dna !== extrasDna) setExtrasDna(channelDna.extras_dna);
+      if (channelDna.negative_dna !== undefined && channelDna.negative_dna !== negativeDna) setNegativeDna(channelDna.negative_dna);
+      if (channelDna.thumb_rules !== undefined && channelDna.thumb_rules !== thumbRules) setThumbRules(channelDna.thumb_rules);
+    }
+  }, [channelDna]);
 
   // Drag & Drop State
   const [isDragging, setIsDragging] = useState(false);
@@ -87,6 +101,37 @@ export default function ReferenceChannelsManager({
   // Active channel selected
   const activeChannel = channels.find((c) => c.id === activeChannelId) || channels[0] || null;
 
+  // Helper para atualizar campos individuais e comunicar ao pai instantaneamente
+  const updateDnaField = (field: keyof ChannelDnaConfig, val: string) => {
+    let nextStyle = styleDna;
+    let nextChar = characterDna;
+    let nextExtras = extrasDna;
+    let nextNeg = negativeDna;
+    let nextThumb = thumbRules;
+    let nextMd = dnaMarkdown;
+
+    if (field === 'style_dna') { setStyleDna(val); nextStyle = val; }
+    if (field === 'character_dna') { setCharacterDna(val); nextChar = val; }
+    if (field === 'extras_dna') { setExtrasDna(val); nextExtras = val; }
+    if (field === 'negative_dna') { setNegativeDna(val); nextNeg = val; }
+    if (field === 'thumb_rules') { setThumbRules(val); nextThumb = val; }
+    if (field === 'raw_markdown') { setDnaMarkdown(val); nextMd = val; }
+
+    const updatedDna: ChannelDnaConfig = {
+      ...channelDna,
+      raw_markdown: nextMd,
+      style_dna: nextStyle,
+      character_dna: nextChar,
+      extras_dna: nextExtras,
+      negative_dna: nextNeg,
+      thumb_rules: nextThumb,
+    };
+
+    if (onDnaChange) {
+      onDnaChange(updatedDna);
+    }
+  };
+
   // Processador de múltiplos arquivos Markdown (.md)
   const processMarkdownFiles = async (files: FileList | File[]) => {
     const validFiles = Array.from(files).filter(f => 
@@ -109,17 +154,17 @@ export default function ReferenceChannelsManager({
     }
 
     const combinedMarkdown = fileContents.join('\n');
-    setDnaMarkdown(prev => (prev ? prev + '\n' + combinedMarkdown : combinedMarkdown));
+    const newMarkdownText = dnaMarkdown ? dnaMarkdown + '\n' + combinedMarkdown : combinedMarkdown;
+    setDnaMarkdown(newMarkdownText);
     setLoadedFiles(prev => [...new Set([...prev, ...names])]);
 
     // Executar auto-parse nos conteúdos combinados
-    const fullText = (dnaMarkdown ? dnaMarkdown + '\n' : '') + combinedMarkdown;
-    const parsed = parseChannelMarkdown(fullText);
+    const parsed = parseChannelMarkdown(newMarkdownText);
 
     if (parsed) {
       const updatedDna: ChannelDnaConfig = {
         ...channelDna,
-        raw_markdown: fullText,
+        raw_markdown: newMarkdownText,
         style_dna: parsed.style_dna || styleDna,
         character_dna: parsed.character_dna || characterDna,
         extras_dna: parsed.extras_dna || extrasDna,
@@ -394,54 +439,58 @@ export default function ReferenceChannelsManager({
 
   return (
     <div className="space-y-6">
-      {/* Header com Navegação em 2 Sub-abas Principais */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800">
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => setMainTab('my_dna')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
-              mainTab === 'my_dna'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40 border border-blue-400/30'
-                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
-            }`}
-          >
-            <FileCode className="w-4 h-4 text-blue-400" />
-            <span>1. DNA & Manual do Meu Canal (.md)</span>
-          </button>
+      {/* Header com Navegação em 2 Sub-abas Principais (Exibido se não for compactMode) */}
+      {!compactMode && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800">
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setMainTab('my_dna')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
+                mainTab === 'my_dna'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40 border border-blue-400/30'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+              }`}
+            >
+              <FileCode className="w-4 h-4 text-blue-400" />
+              <span>1. DNA & Manual do Meu Canal (.md)</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setMainTab('benchmark_channels')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
-              mainTab === 'benchmark_channels'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-400/30'
-                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
-            }`}
-          >
-            <Tv className="w-4 h-4 text-emerald-400" />
-            <span>2. Canais de Referência Concorrentes ({channels.length})</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setMainTab('benchmark_channels')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
+                mainTab === 'benchmark_channels'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 border border-emerald-400/30'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+              }`}
+            >
+              <Tv className="w-4 h-4 text-emerald-400" />
+              <span>2. Canais de Referência Concorrentes ({channels.length})</span>
+            </button>
+          </div>
 
-        <div className="text-[11px] text-zinc-500 font-mono hidden sm:block">
-          Central de Inteligência do Canal
+          <div className="text-[11px] text-zinc-500 font-mono hidden sm:block">
+            Central de Inteligência do Canal
+          </div>
         </div>
-      </div>
+      )}
 
       {/* SUB-ABA 1: DNA DO MEU CANAL */}
-      {mainTab === 'my_dna' && (
+      {(mainTab === 'my_dna' || compactMode) && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4 flex items-start space-x-3 text-sm text-blue-200">
-            <FileCode className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
-            <div>
-              <h4 className="font-semibold text-blue-300">Manual de Identidade & Prompts DNA do Seu Canal</h4>
-              <p className="text-blue-400/80 text-xs mt-1 leading-relaxed">
-                <strong>Arraste um ou mais arquivos .md</strong> ou preencha os Prompts de DNA Visual manualmente. 
-                Estes prompts garantem que a IA renderize o mesmo personagem fotorrealista e atmosfera cinematográfica no Google Veo 3.1, Midjourney e FLUX.
-              </p>
+          {!compactMode && (
+            <div className="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4 flex items-start space-x-3 text-sm text-blue-200">
+              <FileCode className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="font-semibold text-blue-300">Manual de Identidade & Prompts DNA do Seu Canal</h4>
+                <p className="text-blue-400/80 text-xs mt-1 leading-relaxed">
+                  <strong>Arraste um ou mais arquivos .md</strong> ou preencha os Prompts de DNA Visual manualmente. 
+                  Estes prompts garantem que a IA renderize o mesmo personagem fotorrealista e atmosfera cinematográfica no Google Veo 3.1, Midjourney e FLUX.
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {parseStatusMessage && (
             <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs rounded-xl font-medium animate-in fade-in duration-200">
@@ -527,7 +576,7 @@ export default function ReferenceChannelsManager({
                     rows={6}
                     placeholder="Cole aqui o conteúdo do seu arquivo .md (ex: RADAR_EXPLICADO_WRITER_STUDIO_CONFIG.md)..."
                     value={dnaMarkdown}
-                    onChange={(e) => setDnaMarkdown(e.target.value)}
+                    onChange={(e) => updateDnaField('raw_markdown', e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 font-mono focus:border-blue-500 focus:outline-none leading-relaxed"
                   />
                 </div>
@@ -565,7 +614,7 @@ export default function ReferenceChannelsManager({
                     rows={2}
                     placeholder="Ex: Visual style: Photorealistic HD aerospace cinematography, dramatic cockpit LED lighting, high-contrast..."
                     value={styleDna}
-                    onChange={(e) => setStyleDna(e.target.value)}
+                    onChange={(e) => updateDnaField('style_dna', e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-200 font-mono focus:border-amber-500 focus:outline-none"
                   />
                 </div>
@@ -578,7 +627,7 @@ export default function ReferenceChannelsManager({
                     rows={3}
                     placeholder="Ex: [Radar Explicado Investigator] male aviation forensic investigator, 40 years old, neat hair, navy blue pilot shirt..."
                     value={characterDna}
-                    onChange={(e) => setCharacterDna(e.target.value)}
+                    onChange={(e) => updateDnaField('character_dna', e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-200 font-mono focus:border-amber-500 focus:outline-none"
                   />
                 </div>
@@ -590,7 +639,7 @@ export default function ReferenceChannelsManager({
                       type="text"
                       placeholder="Ex: Clean 2D graphic card with bold Portuguese text overlay..."
                       value={extrasDna}
-                      onChange={(e) => setExtrasDna(e.target.value)}
+                      onChange={(e) => updateDnaField('extras_dna', e.target.value)}
                       className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 font-mono focus:border-amber-500 focus:outline-none"
                     />
                   </div>
@@ -600,7 +649,7 @@ export default function ReferenceChannelsManager({
                       type="text"
                       placeholder="Ex: speech, talking, lip sync, open mouth, watermark..."
                       value={negativeDna}
-                      onChange={(e) => setNegativeDna(e.target.value)}
+                      onChange={(e) => updateDnaField('negative_dna', e.target.value)}
                       className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 font-mono focus:border-amber-500 focus:outline-none"
                     />
                   </div>
@@ -612,7 +661,7 @@ export default function ReferenceChannelsManager({
                     rows={2}
                     placeholder="Ex: Fonte Anton em ALL CAPS com outline preto 5px. Cores HEX: Vermelho #FF0000 para alerta, Amarelo #FFD700 para curiosidade."
                     value={thumbRules}
-                    onChange={(e) => setThumbRules(e.target.value)}
+                    onChange={(e) => updateDnaField('thumb_rules', e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none"
                   />
                 </div>
@@ -631,7 +680,7 @@ export default function ReferenceChannelsManager({
       )}
 
       {/* SUB-ABA 2: CANAIS DE REFERÊNCIA CONCORRENTES */}
-      {mainTab === 'benchmark_channels' && (
+      {(mainTab === 'benchmark_channels' && !compactMode) && (
         <div className="space-y-6 animate-in fade-in duration-150">
           <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-xl p-4 flex items-start space-x-3 text-sm text-emerald-200">
             <Tv className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />

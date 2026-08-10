@@ -57,7 +57,7 @@ export interface ChannelDnaConfig {
 }
 
 /**
- * Helper para extrair Prompts DNA e dados estruturados de um arquivo Markdown de Identidade de Canal
+ * Helper para extrair Prompts DNA, Canais de Referência e dados estruturados de 1 ou mais arquivos Markdown (.md)
  */
 export function parseChannelMarkdown(markdown: string) {
   if (!markdown || !markdown.trim()) return null;
@@ -79,12 +79,15 @@ export function parseChannelMarkdown(markdown: string) {
     character_dna?: string;
     extras_dna?: string;
     negative_dna?: string;
+    extracted_channels?: ReferenceChannel[];
     narrative_patterns?: Array<{ name: string; tag: string; description?: string; core_pattern: string }>;
   } = {};
 
   // Extrair Nome do Projeto
-  const nameMatch = markdown.match(/Nome de Destaque da Instância:\s*`([^`]+)`/i) || markdown.match(/#\s*([^—\n]+)/);
-  if (nameMatch) result.name = nameMatch[1].trim();
+  const nameMatch = markdown.match(/Nome de Destaque da Instância:\s*`([^`]+)`/i) 
+    || markdown.match(/Canal do Usuário:\s*\[?([^\]\n]+)\]?/i)
+    || markdown.match(/#\s*([^—\n]+)/);
+  if (nameMatch) result.name = nameMatch[1].replace(/^[\d.✈️📊\s]+/, '').trim();
 
   // Extrair PUC
   const pucMatch = markdown.match(/Proposta Única do Canal.*?\n>\s*\*?(.*?)\*?\n/i) || markdown.match(/PUC:\s*(.*)/i);
@@ -135,6 +138,38 @@ export function parseChannelMarkdown(markdown: string) {
   const thumbSection = markdown.match(/Regras de Consistência Visual[\s\S]*?(?=\n##|\n###|$)/i);
   if (thumbSection) {
     result.thumb_rules = thumbSection[0].trim();
+  }
+
+  // Extrair Canais de Referência presentes no Markdown (ex: do arquivo A1_lente_unica_radar_explicado.md)
+  const extractedRefChannels: ReferenceChannel[] = [];
+  const channelBlockMatches = markdown.split(/###\s*(?:[^\n]*?)/gi).slice(1);
+  for (const block of channelBlockMatches) {
+    const urlMatch = block.match(/URL:\s*\*?\[?(.*?)\]?\((.*?)\)/i) || block.match(/URL:\s*(https?:\/\/[^\s]+)/i);
+    const focoMatch = block.match(/Foco:\s*(.*)/i) || block.match(/O que modelar:\s*(.*)/i);
+    const nameLine = block.split('\n')[0]?.trim();
+
+    if (urlMatch && nameLine) {
+      const cleanName = nameLine.replace(/@\w+/g, '').replace(/^[\d.🇧🇷🌎\s]+/, '').split('—')[0]?.trim();
+      const url = urlMatch[2] || urlMatch[1];
+      const focus = focoMatch ? focoMatch[1].trim() : '';
+
+      if (cleanName && url) {
+        extractedRefChannels.push({
+          id: 'ref_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          name: cleanName,
+          url: url.startsWith('http') ? url : `https://${url}`,
+          niche_angle: focus,
+          notes: focus,
+          viral_scripts: [],
+          thumbnail_refs: [],
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+  }
+
+  if (extractedRefChannels.length > 0) {
+    result.extracted_channels = extractedRefChannels;
   }
 
   // Extrair Patterns Narrativos

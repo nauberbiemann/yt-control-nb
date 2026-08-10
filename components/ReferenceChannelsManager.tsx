@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, type DragEvent, type ChangeEvent } from 'react';
 import { 
   Tv, 
   Plus, 
@@ -13,11 +13,10 @@ import {
   Check, 
   FileCode, 
   Wand2, 
-  ShieldCheck, 
-  Zap,
-  BookOpen,
-  Info,
-  Sliders
+  UploadCloud,
+  FileCheck,
+  Sliders,
+  BookOpen
 } from 'lucide-react';
 import { 
   ReferenceChannel, 
@@ -53,6 +52,11 @@ export default function ReferenceChannelsManager({
   const [thumbRules, setThumbRules] = useState(channelDna.thumb_rules || '');
   const [parseStatusMessage, setParseStatusMessage] = useState<string | null>(null);
 
+  // Drag & Drop State
+  const [isDragging, setIsDragging] = useState(false);
+  const [loadedFiles, setLoadedFiles] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Modal / Form state para novo canal de referência
   const [isAddingChannel, setIsAddingChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
@@ -83,7 +87,108 @@ export default function ReferenceChannelsManager({
   // Active channel selected
   const activeChannel = channels.find((c) => c.id === activeChannelId) || channels[0] || null;
 
-  // Processador de Markdown para DNA
+  // Processador de múltiplos arquivos Markdown (.md)
+  const processMarkdownFiles = async (files: FileList | File[]) => {
+    const validFiles = Array.from(files).filter(f => 
+      f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.markdown')
+    );
+
+    if (validFiles.length === 0) {
+      setParseStatusMessage('⚠️ Selecione ou araste apenas arquivos com extensão .md ou .txt');
+      setTimeout(() => setParseStatusMessage(null), 4000);
+      return;
+    }
+
+    const fileContents: string[] = [];
+    const names: string[] = [];
+
+    for (const file of validFiles) {
+      names.push(file.name);
+      const text = await file.text();
+      fileContents.push(`\n\n--- ARCHIVE: ${file.name} ---\n\n` + text);
+    }
+
+    const combinedMarkdown = fileContents.join('\n');
+    setDnaMarkdown(prev => (prev ? prev + '\n' + combinedMarkdown : combinedMarkdown));
+    setLoadedFiles(prev => [...new Set([...prev, ...names])]);
+
+    // Executar auto-parse nos conteúdos combinados
+    const fullText = (dnaMarkdown ? dnaMarkdown + '\n' : '') + combinedMarkdown;
+    const parsed = parseChannelMarkdown(fullText);
+
+    if (parsed) {
+      const updatedDna: ChannelDnaConfig = {
+        ...channelDna,
+        raw_markdown: fullText,
+        style_dna: parsed.style_dna || styleDna,
+        character_dna: parsed.character_dna || characterDna,
+        extras_dna: parsed.extras_dna || extrasDna,
+        negative_dna: parsed.negative_dna || negativeDna,
+        thumb_rules: parsed.thumb_rules || thumbRules,
+        metaphors: parsed.metaphors || channelDna.metaphors,
+        narrative_patterns: parsed.narrative_patterns || channelDna.narrative_patterns,
+      };
+
+      if (parsed.style_dna) setStyleDna(parsed.style_dna);
+      if (parsed.character_dna) setCharacterDna(parsed.character_dna);
+      if (parsed.extras_dna) setExtrasDna(parsed.extras_dna);
+      if (parsed.negative_dna) setNegativeDna(parsed.negative_dna);
+      if (parsed.thumb_rules) setThumbRules(parsed.thumb_rules);
+
+      // Se houver canais de referência extraídos dos arquivos .md, mesclar com a lista existente
+      let mergedChannels = [...channels];
+      if (parsed.extracted_channels && parsed.extracted_channels.length > 0) {
+        for (const ext of parsed.extracted_channels) {
+          if (!mergedChannels.some(c => c.name.toLowerCase() === ext.name.toLowerCase())) {
+            mergedChannels.push(ext);
+          }
+        }
+        onChange(mergedChannels);
+      }
+
+      if (onDnaChange) {
+        onDnaChange(updatedDna, parsed);
+      }
+
+      setParseStatusMessage(
+        `🚀 Sucesso! ${validFiles.length} arquivo(s) .md lido(s) e processado(s)! ` +
+        `(PUC: ${parsed.puc ? 'Extraída' : 'Não'}, Prompts DNA: ${parsed.style_dna ? 'Extraídos' : 'Manuais'}, ` +
+        `Canais de Ref: ${parsed.extracted_channels?.length || 0})`
+      );
+      setTimeout(() => setParseStatusMessage(null), 6000);
+    }
+  };
+
+  // Drag & Drop Handlers
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processMarkdownFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processMarkdownFiles(e.target.files);
+    }
+  };
+
+  // Processador manual por texto colado
   const handleParseMarkdown = () => {
     if (!dnaMarkdown.trim()) return;
 
@@ -107,6 +212,16 @@ export default function ReferenceChannelsManager({
     if (parsed.extras_dna) setExtrasDna(parsed.extras_dna);
     if (parsed.negative_dna) setNegativeDna(parsed.negative_dna);
     if (parsed.thumb_rules) setThumbRules(parsed.thumb_rules);
+
+    let mergedChannels = [...channels];
+    if (parsed.extracted_channels && parsed.extracted_channels.length > 0) {
+      for (const ext of parsed.extracted_channels) {
+        if (!mergedChannels.some(c => c.name.toLowerCase() === ext.name.toLowerCase())) {
+          mergedChannels.push(ext);
+        }
+      }
+      onChange(mergedChannels);
+    }
 
     if (onDnaChange) {
       onDnaChange(updatedDna, parsed);
@@ -314,7 +429,7 @@ export default function ReferenceChannelsManager({
         </div>
       </div>
 
-      {/* BANNER 1: SUB-ABA 1 - DNA DO MEU CANAL */}
+      {/* SUB-ABA 1: DNA DO MEU CANAL */}
       {mainTab === 'my_dna' && (
         <div className="space-y-6 animate-in fade-in duration-150">
           <div className="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4 flex items-start space-x-3 text-sm text-blue-200">
@@ -322,7 +437,7 @@ export default function ReferenceChannelsManager({
             <div>
               <h4 className="font-semibold text-blue-300">Manual de Identidade & Prompts DNA do Seu Canal</h4>
               <p className="text-blue-400/80 text-xs mt-1 leading-relaxed">
-                Você pode importar o arquivo <strong>.md de especificação</strong> do seu canal ou preencher os Prompts de DNA Visual manualmente. 
+                <strong>Arraste um ou mais arquivos .md</strong> ou preencha os Prompts de DNA Visual manualmente. 
                 Estes prompts garantem que a IA renderize o mesmo personagem fotorrealista e atmosfera cinematográfica no Google Veo 3.1, Midjourney e FLUX.
               </p>
             </div>
@@ -334,30 +449,88 @@ export default function ReferenceChannelsManager({
             </div>
           )}
 
-          {/* DUAL OPTION: OPÇÃO A (AUTO PARSE) vs OPÇÃO B (MANUAL FORM) */}
+          {/* DUAL OPTION: OPÇÃO A (DRAG & DROP + AUTO PARSE) vs OPÇÃO B (MANUAL FORM) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* OPÇÃO A: IMPORTAÇÃO E PARSE DE MARKDOWN */}
+            
+            {/* OPÇÃO A: DRAG AND DROP ZONE & IMPORTAÇÃO DE ARQUIVOS .MD */}
             <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-5 space-y-4 flex flex-col justify-between">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center space-x-2">
                     <Wand2 className="w-4 h-4" />
-                    <span>Opção A: Importar / Colar Manual .md</span>
+                    <span>Opção A: Arrastar / Importar Arquivos .md</span>
                   </h4>
                   <span className="text-[10px] px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded font-mono">
-                    Auto-Parse
+                    Auto-Parse Multi-Arquivo
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Cole o conteúdo do seu arquivo <code>MANUAL_CONFIG.md</code>. O sistema extrairá automaticamente a PUC, Pilares, Metáforas e Prompts DNA.
-                </p>
-                <textarea
-                  rows={10}
-                  placeholder="Cole aqui o conteúdo do seu arquivo .md de identidade do canal (ex: RADAR_EXPLICADO_WRITER_STUDIO_CONFIG.md)..."
-                  value={dnaMarkdown}
-                  onChange={(e) => setDnaMarkdown(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 font-mono focus:border-blue-500 focus:outline-none leading-relaxed"
-                />
+
+                {/* DROPZONE INTERATIVA */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-2 ${
+                    isDragging
+                      ? 'border-blue-400 bg-blue-500/10 scale-[1.01]'
+                      : 'border-zinc-800 hover:border-blue-500/50 bg-zinc-900/50 hover:bg-zinc-900/80'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".md,.txt,.markdown"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+                  <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                    <UploadCloud className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-zinc-200">
+                      Arraste 1 ou mais arquivos <span className="text-blue-400">.md</span> aqui
+                    </p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                      ou clique para selecionar do seu computador
+                    </p>
+                  </div>
+                </div>
+
+                {/* Lista de Arquivos Carregados */}
+                {loadedFiles.length > 0 && (
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-lg p-2.5 space-y-1.5">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center space-x-1.5">
+                      <FileCheck className="w-3.5 h-3.5" />
+                      <span>{loadedFiles.length} Arquivo(s) Lido(s):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {loadedFiles.map((fname, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] font-mono text-blue-300"
+                        >
+                          <span>📄 {fname}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Textarea para Colar Texto Manualmente se Preferir */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+                    Ou Cole o Texto do Markdown Diretamente:
+                  </label>
+                  <textarea
+                    rows={6}
+                    placeholder="Cole aqui o conteúdo do seu arquivo .md (ex: RADAR_EXPLICADO_WRITER_STUDIO_CONFIG.md)..."
+                    value={dnaMarkdown}
+                    onChange={(e) => setDnaMarkdown(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 font-mono focus:border-blue-500 focus:outline-none leading-relaxed"
+                  />
+                </div>
               </div>
 
               <button
@@ -457,7 +630,7 @@ export default function ReferenceChannelsManager({
         </div>
       )}
 
-      {/* BANNER 2: SUB-ABA 2 - CANAIS DE REFERÊNCIA CONCORRENTES */}
+      {/* SUB-ABA 2: CANAIS DE REFERÊNCIA CONCORRENTES */}
       {mainTab === 'benchmark_channels' && (
         <div className="space-y-6 animate-in fade-in duration-150">
           <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-xl p-4 flex items-start space-x-3 text-sm text-emerald-200">

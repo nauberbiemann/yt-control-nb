@@ -41,6 +41,11 @@ interface ProjectStore {
   getActiveProject: () => Project | null;
 }
 
+const isTestOrDummyTitle = (text: unknown): boolean => {
+  if (!text || typeof text !== 'string') return false;
+  return /html_injection|xss|onerror|<u>|<img|test_theme|test_project/i.test(text);
+};
+
 const hasMeaningfulValue = (value: unknown) =>
   value !== undefined && value !== null && value !== '';
 
@@ -285,7 +290,7 @@ const recoverProjectsFromAuxiliaryCaches = (existingIds?: Set<string>): Project[
     });
 
     return candidates
-      .filter((project) => Number(project.recovery_score || 0) > 0)
+      .filter((project) => Number(project.recovery_score || 0) > 0 && !isTestOrDummyTitle(project.name) && !isTestOrDummyTitle(project.project_name))
       .sort((a, b) => Number(b.recovery_score || 0) - Number(a.recovery_score || 0))
       .slice(0, 10)
       .map((project) => ({
@@ -721,10 +726,16 @@ export const useProjectStore = create<ProjectStore>()(
             // 🛡️ Segurança Absoluta: Mesclar os projetos da nuvem com os projetos locais sem NUNCA descartar nenhum projeto do usuário
             const safeProjects = normalizeProjectList(
               mergeProjectCollections(localProjects, mergedCloudProjects)
-            );
+            ).filter((p) => !isTestOrDummyTitle(p.name) && !isTestOrDummyTitle(p.project_name));
 
             console.log(`[ProjectStore] ☁️ Cloud-wins+rescue: ${data.length} cloud, ${localProjects.length} local → ${safeProjects.length} final`);
             get().setProjects(safeProjects);
+
+            // Purge dummy test records from Supabase
+            try {
+              supabase.from('projects').delete().or('name.ilike.%html_injection%,name.ilike.%<u>%,project_name.ilike.%html_injection%,project_name.ilike.%<u>%').then(() => {});
+              supabase.from('themes').delete().or('title.ilike.%html_injection%,title.ilike.%<u>%,title.ilike.%onerror%').then(() => {});
+            } catch {}
           } else {
             // Cloud empty → local cache already rendered above, nothing to do
             console.log('[ProjectStore] Cloud empty, keeping local cache');

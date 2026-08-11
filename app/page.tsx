@@ -1684,10 +1684,10 @@ export default function Home() {
                       </div>
                       
                       <h4 className="text-lg font-bold mb-2 text-white group-hover:text-blue-400 transition-colors">
-                        {project.project_name || project.name || 'Canal Sem Nome'}
+                        {(project.project_name || project.name || 'Canal Sem Nome').replace(/<[^>]*>/g, '')}
                       </h4>
                       <p className="text-xs text-slate-500 line-clamp-2 mb-6 leading-relaxed">
-                        {project.puc_promise || project.description || 'Nenhuma promessa estratégica definida.'}
+                        {(project.puc_promise || project.description || 'Nenhuma promessa estratégica definida.').replace(/<[^>]*>/g, '')}
                       </p>
 
                       <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800/50">

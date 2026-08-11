@@ -173,16 +173,22 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
     return /navio|navios|submarino|submarinos|submersas|semissubmersíveis|semissubmersiveis|plataforma|plataformas|marinheiro|marinheiros|guindaste|guindastes|portuários|portuarios|siderurgia|casco|quebra-gelo|offshore|desmontagem|reciclagem|embarcações|embarcacoes|embarcação|propulsão|porta-aviões|porta-avioes|estaleiro|estaleiros|fundições|fundicoes|correntes gigantes/i.test(text);
   };
 
+  const isTestOrDummyTitle = (text: unknown): boolean => {
+    if (!text || typeof text !== 'string') return false;
+    return /html_injection|xss|onerror|<u>|<img|test_theme|test_project/i.test(text);
+  };
+
   const filterThemesByProjectDomain = (list: Theme[], proj: any): Theme[] => {
-    if (!proj) return list;
+    const cleanList = list.filter(t => !isTestOrDummyTitle(t.title) && !isTestOrDummyTitle(t.description));
+    if (!proj) return cleanList;
     const projName = (proj.name || proj.project_name || '').toLowerCase();
     if (projName.includes('radar')) {
-      return list.filter(t => !isNavalTitle(t.title || '', t.description || ''));
+      return cleanList.filter(t => !isNavalTitle(t.title || '', t.description || ''));
     }
     if (/fabric|fábric/i.test(projName)) {
-      return list.filter(t => !isAviationTitle(t.title || '', t.description || ''));
+      return cleanList.filter(t => !isAviationTitle(t.title || '', t.description || ''));
     }
-    return list;
+    return cleanList;
   };
 
   const reorganizeThemesByProject = async (silent = false) => {

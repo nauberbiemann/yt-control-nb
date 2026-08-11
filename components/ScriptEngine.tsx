@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
 import { immutableInsert, upsertScriptExecution, getScriptExecution, syncAndFreeTheme } from '@/lib/supabase-mutations';
-import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText, FolderOpen, Check, Loader2 } from 'lucide-react';
+import { Play, Save, Copy, Layout, Settings, MessageSquare, Sparkles, ChevronDown, Trash2, Plus, Database, PenTool, History, Zap, RotateCcw, ArrowLeft, Octagon, FileText, FolderOpen, Check, Loader2, Shield } from 'lucide-react';
 import {
   applyAssetRules,
   applyHyperframeRules,
@@ -1079,6 +1079,9 @@ const buildUserPrompt = ({
   sfxPlan,
   titleCountHint,
   titleStructures,
+  forensicFormulas,
+  forensicPowerWords,
+  forensicTone,
 }: {
   approvedTheme: string;
   approvedBriefing: any;
@@ -1090,10 +1093,17 @@ const buildUserPrompt = ({
   sfxPlan: any;
   titleCountHint?: number;
   titleStructures?: any[];
+  forensicFormulas?: Array<{name: string; skeleton: string; trigger: string; proof: string}>;
+  forensicPowerWords?: string[];
+  forensicTone?: string;
 }) => {
   const transcript = buildScriptTranscript(scriptBlocks);
   const titleStructuresStr = Array.isArray(titleStructures) && titleStructures.length > 0
     ? titleStructures.map(t => `- [${t.name}]: "${t.content_pattern}"`).join('\n')
+    : '';
+
+  const forensicFormulasStr = Array.isArray(forensicFormulas) && forensicFormulas.length > 0
+    ? forensicFormulas.map((f, i) => `F${i + 1}. "${f.name}" — Esqueleto: "${f.skeleton}" — Gatilho: ${f.trigger} — Prova: ${f.proof}`).join('\n')
     : '';
 
   const channelLanguage = projectContext?.channelLanguage || 'Português';
@@ -1112,6 +1122,12 @@ const buildUserPrompt = ({
     '',
     titleStructuresStr ? 'ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA (MANDATORIO SE DISPONIVEIS):' : '',
     titleStructuresStr ? `${titleStructuresStr}\n` : '',
+    forensicFormulasStr ? 'FORMULAS CAMPEAS COMPROVADAS POR PERFORMANCE (vidIQ — PRIORIDADE MAXIMA PARA TITULOS):' : '',
+    forensicFormulasStr ? `${forensicFormulasStr}` : '',
+    forensicFormulasStr ? `- REGRA: Distribua os ${titleCountHint ?? 15} titulos pelas formulas acima (aprox. ${Math.ceil((titleCountHint ?? 15) / (forensicFormulas?.length || 3))} por formula). Marque a formula usada ao lado de cada titulo: (F1), (F2), (F3).` : '',
+    forensicFormulasStr ? `- Copie a ESTRUTURA PSICOLOGICA (gatilho, esqueleto da frase), nunca as palavras dos titulos originais. Ineditismo absoluto.` : '',
+    Array.isArray(forensicPowerWords) && forensicPowerWords.length > 0 ? `- POWER WORDS OBRIGATORIAS (injete ao menos 2 por titulo): ${forensicPowerWords.join(', ')}` : '',
+    forensicTone ? `- TOM DE VOZ DOS TITULOS: ${forensicTone}` : '',
     `CAPITULOS EDITORIAIS DISPONIVEIS PARA A DESCRICAO SEO (use somente estes, em ordem crescente, com no maximo ${chapterAnchors.length} linhas):`,
     JSON.stringify(chapterAnchors, null, 2),
     '',
@@ -1336,6 +1352,7 @@ interface ExecutionSnapshot {
   _themeId?: string; // stable ID to find the theme even after a title rename
   _projectId?: string; // project ownership marker — snapshots without this are legacy/corrupted and must be discarded
   useAdvancedRetention?: boolean;
+  useDnaFactShield?: boolean;
   selectedThumbnailStyle?: string;
   writingStyleSample?: string;
   externalFactCheckReport?: string | null;
@@ -1614,6 +1631,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [selectedHookId, setSelectedHookId] = useState<string>('h_S1');
   const [selectedCtaId, setSelectedCtaId] = useState<string>('cta_default');
   const [useAdvancedRetention, setUseAdvancedRetention] = useState<boolean>(false);
+  const [useDnaFactShield, setUseDnaFactShield] = useState<boolean>(false);
   const [selectedThumbnailStyle, setSelectedThumbnailStyle] = useState<string>('Default');
   const [isMobilePreview, setIsMobilePreview] = useState<boolean>(false);
   const [isHumanizingExternal, setIsHumanizingExternal] = useState<boolean>(false);
@@ -1952,6 +1970,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     preserveBrackets,
     promptPrefix,
     useAdvancedRetention,
+    useDnaFactShield,
     pipelineVideos,
     pipelineImages,
     pipelineTexts,
@@ -2401,6 +2420,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                   if (typeof cloudSnapshot.pipelineTexts === 'boolean') setPipelineTexts(cloudSnapshot.pipelineTexts);
                   if (typeof cloudSnapshot.pipelineHyperframes === 'boolean') setPipelineHyperframes(cloudSnapshot.pipelineHyperframes);
                   if (typeof cloudSnapshot.useAdvancedRetention === 'boolean') setUseAdvancedRetention(cloudSnapshot.useAdvancedRetention);
+                  if (typeof cloudSnapshot.useDnaFactShield === 'boolean') setUseDnaFactShield(cloudSnapshot.useDnaFactShield);
                   if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
                   if (typeof cloudSnapshot.writingStyleSample === 'string') setWritingStyleSample(cloudSnapshot.writingStyleSample);
                   if (typeof cloudSnapshot.externalFactCheckReport === 'string' || cloudSnapshot.externalFactCheckReport === null) setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
@@ -2470,6 +2490,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (typeof snapshot?.pipelineTexts === 'boolean') setPipelineTexts(snapshot.pipelineTexts);
       if (typeof snapshot?.pipelineHyperframes === 'boolean') setPipelineHyperframes(snapshot.pipelineHyperframes);
       if (typeof snapshot?.useAdvancedRetention === 'boolean') setUseAdvancedRetention(snapshot.useAdvancedRetention);
+      if (typeof snapshot?.useDnaFactShield === 'boolean') setUseDnaFactShield(snapshot.useDnaFactShield);
       if (typeof snapshot?.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(snapshot.selectedThumbnailStyle);
       if (typeof snapshot?.writingStyleSample === 'string') setWritingStyleSample(snapshot.writingStyleSample);
       if (typeof snapshot?.externalFactCheckReport === 'string' || snapshot?.externalFactCheckReport === null) setExternalFactCheckReport(snapshot.externalFactCheckReport);
@@ -3265,7 +3286,77 @@ FORMATO DE SAIDA
 - ENCERRAMENTO ABSOLUTO: o roteiro termina na ultima palavra da narracao. Nao adicione perguntas ao produtor ("Quer que eu ajuste..."), sugestoes de revisao, comentarios pos-roteiro ou qualquer texto apos o fechamento narrativo. O modelo nao deve comunicar nada ao leitor apos o fim do roteiro.
 - O resultado deve ser um texto pronto para leitura de narrador, do primeiro ao ultimo caractere, sem nenhum ajuste adicional de formatacao.
 - Respeite a meta total de ${formatCharsLabel(totalChars)} e a distribuicao de caracteres por bloco com tolerancia maxima de 8%.
-- Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.`;
+- Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.
+${useDnaFactShield ? (() => {
+  // DNA Reader: find first available viral script from reference channels
+  let referenceScriptText = '';
+  let referenceScriptTitle = '';
+  if (Array.isArray(activeProject?.reference_channels)) {
+    for (const channel of activeProject.reference_channels) {
+      if (Array.isArray(channel.viral_scripts) && channel.viral_scripts.length > 0) {
+        const script = channel.viral_scripts[0];
+        referenceScriptText = script.script_text || '';
+        referenceScriptTitle = script.title || channel.name || '';
+        break;
+      }
+    }
+  }
+
+  const dnaReaderSection = referenceScriptText
+    ? `
+[MOTOR DNA READER — Roteiro de Referencia]
+Antes de escrever, analise silenciosamente o roteiro de referencia abaixo e extraia:
+1. Estrutura Narrativa: tipo de abertura, ritmo de picos de tensao, tipo de fechamento
+2. Voz e Tom: pessoa gramatical, tom dominante, nivel de formalidade, velocidade das frases
+3. Gatilhos Recorrentes: os 5 principais gatilhos mentais + padrao de perguntas retoricas
+4. Vocabulario Ancora: 10-15 expressoes de alta frequencia + transicoes caracteristicas
+5. Use este DNA como guia ADICIONAL a identidade do narrador ja definida acima.
+   Em caso de conflito, a identidade do projeto (PUC, persona, posicionamento) tem precedencia.
+
+ROTEIRO DE REFERENCIA ("${referenceScriptTitle}"):
+${referenceScriptText.substring(0, 8000)}
+
+REGRA ANTI-COPIA: zero frases copiadas do roteiro de referencia. Copie APENAS o DNA (estrutura, tom, ritmo, gatilhos) — nunca a identidade, nome do canal, ou frases reconheciveis.
+`
+    : '';
+
+  const factShieldSection = `
+[FACT SHIELD — Blindagem de Autenticidade]
+REGRAS INEGOCIAVEIS:
+- Para cada afirmacao verificavel no roteiro, insira internamente um marcador de ancora e depois substitua por dado real.
+- NUNCA invente nome de estudo, numero estatistico, versiculo ou data.
+- NUNCA deixe afirmacao absoluta sem ancora ou enquadramento seguro.
+- Se nao houver dado verificavel, reformule com enquadramento seguro ("pesquisas sugerem que...", "segundo relatos...").
+
+Tipos de Ancora por Nicho:
+| Nicho | Ancoras Padrao |
+|---|---|
+| Espiritualidade | Versiculo (Livro Cap:Vers) + contexto historico |
+| Financas | Dado com fonte (Forbes, Bloomberg, Banco Central) |
+| Saude | Estudo com instituicao + "pesquisas sugerem que..." |
+| True Crime | Data + lugar + nome real + fonte policial/jornalistica |
+| Historia | Instituicao + ano + localizacao + fonte primaria |
+| Tecnologia | Empresa real + data + dado tecnico verificavel |
+
+ENTREGA OBRIGATORIA AO FINAL DO ROTEIRO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FONTES VERIFICAVEIS
+Para cada ancora usada:
+- Afirmacao exata como aparece no roteiro
+- Instituicao / publicacao citada
+- Query de busca sugerida para verificar
+- Status: Alta confianca OU Verificar antes de publicar
+
+RELATORIO DE AUDITORIA
+- Fidelidade ao DNA: APROVADO ou REPROVAR
+- Identidade do canal de referencia: AUSENTE — APROVADO ou REPROVAR
+- Fact Shield: [N] ancoras verificaveis — ZERO invencoes
+- SCORE DE AUTENTICIDADE: [X]/10
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+
+  return dnaReaderSection + factShieldSection;
+})() : ''}`;
   };
 
   const buildInternalWritingPrompt = () => {
@@ -6687,6 +6778,27 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       }
     }
 
+    // Collect forensic data from reference channels
+    let forensicFormulas: Array<{name: string; skeleton: string; trigger: string; proof: string}> = [];
+    let forensicPowerWords: string[] = [];
+    let forensicTone = '';
+    if (Array.isArray(activeProject?.reference_channels)) {
+      for (const channel of activeProject.reference_channels) {
+        if (channel.forensic_report?.champion_formulas?.length) {
+          forensicFormulas = channel.forensic_report.champion_formulas.map((f: any) => ({
+            name: f.name,
+            skeleton: f.skeleton,
+            trigger: f.trigger,
+            proof: (f.proof_titles || []).map((t: string, i: number) => `"${t}" (${(f.proof_views || [])[i] || '?'} views)`).join(', '),
+          }));
+          forensicPowerWords = channel.forensic_report.power_words || [];
+          forensicTone = channel.forensic_report.tone_description || '';
+          break;
+        }
+      }
+    }
+    const hasForensicData = forensicFormulas.length > 0;
+
     setIsGeneratingPostScriptPackage(true);
     try {
       let data: any = {};
@@ -6740,8 +6852,11 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           timelineSource: timelineContext.source,
           projectContext,
           sfxPlan,
-          titleCountHint: 5,
+          titleCountHint: hasForensicData ? 15 : 5,
           titleStructures,
+          forensicFormulas: hasForensicData ? forensicFormulas : undefined,
+          forensicPowerWords: hasForensicData ? forensicPowerWords : undefined,
+          forensicTone: hasForensicData ? forensicTone : undefined,
         });
 
         data = engine === 'gemini'
@@ -8010,6 +8125,22 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             >
               <Zap size={14} className={useAdvancedRetention ? "fill-purple-400/20" : ""} />
               Retenção PDF: {useAdvancedRetention ? "ON" : "OFF"}
+            </button>
+            <button
+              onClick={() => {
+                const nextVal = !useDnaFactShield;
+                setUseDnaFactShield(nextVal);
+                persistExecutionSnapshotLocally({ useDnaFactShield: nextVal });
+              }}
+              className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border ${
+                useDnaFactShield
+                  ? "bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]"
+                  : "bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:text-white"
+              }`}
+              title="Ativar DNA Reader (extrai DNA de roteiro de referência) + Fact Shield (exige âncoras verificáveis e relatório de auditoria)"
+            >
+              <Shield size={14} className={useDnaFactShield ? "fill-amber-400/20" : ""} />
+              DNA + Fact Shield: {useDnaFactShield ? "ON" : "OFF"}
             </button>
             <div className="flex gap-2 w-full">
               <button

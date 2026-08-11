@@ -24,6 +24,23 @@ export interface ViralScriptRef {
   created_at?: string;
 }
 
+export interface ForensicChampionFormula {
+  name: string;           // Ex: "Pergunta de Afastamento"
+  skeleton: string;       // Ex: "Por que [pessoa] [ação] depois de [evento]"
+  trigger: string;        // Gatilho mental dominante
+  proof_titles: string[]; // Títulos originais que usam a fórmula
+  proof_views: number[];  // Views correspondentes
+  breakout_score?: number;
+}
+
+export interface ForensicReport {
+  champion_formulas: ForensicChampionFormula[];
+  power_words: string[];
+  tone_description: string;
+  hot_topics: string[];
+  analyzed_at: string;
+}
+
 export interface ReferenceChannel {
   id: string;
   name: string; // Ex: "Origin Decoder"
@@ -33,6 +50,7 @@ export interface ReferenceChannel {
   notes?: string;
   viral_scripts: ViralScriptRef[];
   thumbnail_refs: ThumbnailRef[];
+  forensic_report?: ForensicReport; // Champion title formulas from vidIQ analysis
   created_at?: string;
 }
 

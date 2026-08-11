@@ -2273,6 +2273,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
   };
 
   useEffect(() => {
+    clearExecutionState(false);
     hasHydratedRef.current = false;
     setExecutionHydrated(false);
   }, [executionStorageKey]);
@@ -5376,14 +5377,15 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     }
   };
 
-  function clearExecutionState() {
-    if (executionStorageKey) {
+  function clearExecutionState(clearLocalStorage = true) {
+    const shouldClearLocal = clearLocalStorage === true || (clearLocalStorage && typeof clearLocalStorage === 'object');
+    if (shouldClearLocal && executionStorageKey) {
       localStorage.removeItem(executionStorageKey);
       // Also clear the split-storage keys for large objects
       localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
       localStorage.removeItem(`${executionStorageKey}_post_package`);
     }
-    if (typeof window !== 'undefined' && activeProject?.id) {
+    if (typeof window !== 'undefined' && activeProject?.id && shouldClearLocal) {
       sessionStorage.removeItem(`active_script_theme_${activeProject.id}`);
     }
 

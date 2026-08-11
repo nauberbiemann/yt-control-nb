@@ -5377,7 +5377,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     }
   };
 
-  function clearExecutionState(clearLocalStorage = true) {
+  function clearExecutionState(clearLocalStorage: any = true) {
     const shouldClearLocal = clearLocalStorage === true || (clearLocalStorage && typeof clearLocalStorage === 'object');
     if (shouldClearLocal && executionStorageKey) {
       localStorage.removeItem(executionStorageKey);

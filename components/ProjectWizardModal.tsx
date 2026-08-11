@@ -311,7 +311,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   }
                   if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0 || parsedData?.positioning_angle || parsedData?.content_boundaries) {
                     updates.editorial_line = {
-                      pillars: parsedData.editorial_pillars || formData.editorial_line?.pillars || ['', '', '', '', ''],
+                      pillars: normalizePillarList(parsedData.editorial_pillars || formData.editorial_line?.pillars),
                       positioning_angle: parsedData.positioning_angle || formData.editorial_line?.positioning_angle || '',
                       content_boundaries: parsedData.content_boundaries || formData.editorial_line?.content_boundaries || '',
                     };
@@ -373,6 +373,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       return item;
                     });
                   }
+                  console.log("[ContentOS-Wizard Step1] parsedData:", parsedData);
+                  console.log("[ContentOS-Wizard Step1] updates applied:", updates);
                   updateFormData(updates);
                 }}
               />
@@ -905,7 +907,7 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 }
                 if (parsedData?.editorial_pillars && parsedData.editorial_pillars.length > 0 || parsedData?.positioning_angle || parsedData?.content_boundaries) {
                   updates.editorial_line = {
-                    pillars: parsedData.editorial_pillars || formData.editorial_line?.pillars || ['', '', '', '', ''],
+                    pillars: normalizePillarList(parsedData.editorial_pillars || formData.editorial_line?.pillars),
                     positioning_angle: parsedData.positioning_angle || formData.editorial_line?.positioning_angle || '',
                     content_boundaries: parsedData.content_boundaries || formData.editorial_line?.content_boundaries || '',
                   };
@@ -967,6 +969,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     return item;
                   });
                 }
+                console.log("[ContentOS-Wizard Step5] parsedData:", parsedData);
+                console.log("[ContentOS-Wizard Step5] updates applied:", updates);
                 updateFormData(updates);
               }}
             />

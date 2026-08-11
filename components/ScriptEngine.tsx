@@ -2002,10 +2002,17 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     if (themeIndex < 0 && snapshotThemeId) {
       themeIndex = existingThemes.findIndex((item: any) => item?.id === snapshotThemeId);
     }
-    const targetPublishDate = (executionSnapshot?.manualPublishDate ?? manualPublishDate) || '';
-    const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
-
     const existingTheme = themeIndex >= 0 ? existingThemes[themeIndex] : null;
+
+    // For NEW themes, never inherit a publish date from the React state (which may hold
+    // a residual date from the previous theme). Only use the snapshot's own date or the
+    // existing theme's persisted date. For existing themes, preserve their own date.
+    const snapshotDate = executionSnapshot?.manualPublishDate || '';
+    const existingDate = existingTheme?.target_publish_date || existingTheme?.production_assets?.target_publish_date || '';
+    const targetPublishDate = existingTheme
+      ? (snapshotDate || existingDate)  // existing theme: snapshot date takes precedence, then persisted date
+      : snapshotDate;                    // new theme: only use snapshot's own date (never React state residual)
+    const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
 
     // Resolve pipeline_level: preserva o valor existente do tema no banco;
     // lê do briefing (agora preenchido pelo Assembler V16) e randomiza da

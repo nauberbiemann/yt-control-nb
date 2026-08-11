@@ -2129,39 +2129,6 @@ export default function Home() {
         />
       )}
 
-      {/* PAINEL DE DEPURAÇÃO DO LOCALSTORAGE */}
-      <div style={{
-        position: 'fixed', bottom: '10px', right: '10px', zIndex: 99999,
-        background: '#1e293b', border: '1px solid #475569', borderRadius: '12px',
-        padding: '16px', maxWidth: '400px', maxHeight: '400px', overflowY: 'auto',
-        color: '#f8fafc', fontSize: '10px', fontFamily: 'monospace', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
-      }}>
-        <h4 style={{ fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #475569', paddingBottom: '4px' }}>
-          DEBUG LOCALSTORAGE
-        </h4>
-        <div>
-          <strong>Active Project ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('content_os_active_project') : 'N/A'}
-        </div>
-        <div style={{ marginTop: '8px' }}>
-          <strong>Projects (local):</strong>
-          <pre style={{ background: '#0f172a', padding: '6px', borderRadius: '6px', marginTop: '4px', overflowX: 'auto' }}>
-            {typeof window !== 'undefined' ? (() => {
-              try {
-                return JSON.stringify(
-                  JSON.parse(localStorage.getItem('writer_studio_projects') || '[]').map((p: any) => ({
-                    id: p.id,
-                    name: p.name,
-                    has_phd: !!p.phd_strategy?.passion,
-                    phd: p.phd_strategy
-                  })), null, 2
-                );
-              } catch (e: any) {
-                return 'Error: ' + e.message;
-              }
-            })() : 'N/A'}
-          </pre>
-        </div>
-      </div>
     </main>
   );
 

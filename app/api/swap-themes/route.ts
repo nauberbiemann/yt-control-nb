@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { action, projectA, projectB } = body;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (action === 'diagnose') {
       const { data: projects } = await supabase.from('projects').select('id, name, project_name');

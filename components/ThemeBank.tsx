@@ -29,6 +29,7 @@ import {
   Maximize2,
   X,
   Users,
+  RotateCcw,
 } from 'lucide-react';
 
 const PILLARS = ['Educação', 'Entretenimento', 'Autoridade', 'Conversão', 'Comunidade'];
@@ -155,6 +156,82 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
   const [allNarrativeComponents, setAllNarrativeComponents] = useState<any[]>([]);
   const [showDnaTable, setShowDnaTable] = useState(false);
   const [showDnaFullscreen, setShowDnaFullscreen] = useState(false);
+
+  const [isReorganizing, setIsReorganizing] = useState(false);
+
+  const isAviationTitle = (title: string) => {
+    return /aviao|avião|aviões|cenipa|embraer|tucano|praetor|phenom|e-jet|e2|c-390|amx|jato|voepass|ntsb|faa|perícia|pericia|piloto|voo|aeroporto|cabine|turbina|pistas|desastres/i.test(title);
+  };
+
+  const isNavalTitle = (title: string) => {
+    return /navio|submarino|submersas|semissubmersíveis|plataforma|marinheiro|guindaste|portuários|siderurgia|casco|quebra-gelo|offshore|desmontagem|reciclagem/i.test(title);
+  };
+
+  const reorganizeThemesByProject = async (silent = false) => {
+    if (!supabase) return;
+    setIsReorganizing(true);
+    try {
+      const { data: projects } = await supabase.from('projects').select('id, name, project_name');
+      if (!projects || projects.length === 0) return;
+
+      const radarProject = projects.find((p: any) =>
+        (p.name || p.project_name || '').toLowerCase().includes('radar')
+      );
+      const fabricaProject = projects.find((p: any) => {
+        const n = (p.name || p.project_name || '').toLowerCase();
+        return n.includes('fabric') || n.includes('fábric');
+      });
+
+      if (!radarProject || !fabricaProject) {
+        if (!silent) alert('Projetos Radar Explicado e Fábrica Y precisam existir no sistema.');
+        return;
+      }
+
+      const { data: allThemes, error } = await supabase
+        .from('themes')
+        .select('*')
+        .in('project_id', [radarProject.id, fabricaProject.id]);
+
+      if (error || !allThemes || allThemes.length === 0) return;
+
+      const updates: Array<{ id: string; project_id: string; title: string }> = [];
+
+      allThemes.forEach((t: any) => {
+        const title = t.title || '';
+        if (isAviationTitle(title) && t.project_id !== radarProject.id) {
+          updates.push({ id: t.id, project_id: radarProject.id, title });
+        } else if (isNavalTitle(title) && t.project_id !== fabricaProject.id) {
+          updates.push({ id: t.id, project_id: fabricaProject.id, title });
+        }
+      });
+
+      if (updates.length > 0) {
+        console.log(`[ThemeBank] 🔄 Reorganizando ${updates.length} temas trocados entre projetos...`);
+        for (const item of updates) {
+          await supabase
+            .from('themes')
+            .update({ project_id: item.project_id })
+            .eq('id', item.id);
+        }
+
+        localStorage.removeItem(`themes_${radarProject.id}`);
+        localStorage.removeItem(`themes_${fabricaProject.id}`);
+
+        await fetchThemes();
+
+        if (!silent) {
+          alert(`✅ Sucesso! ${updates.length} temas foram reorganizados entre os projetos:\n\n• Radar Explicado (Temas de Aviação e Perícia)\n• Fábrica Y (Temas Navais e Industriais)`);
+        }
+      } else if (!silent) {
+        alert('✅ Todos os temas já estão organizados nos projetos corretos.');
+      }
+    } catch (err: any) {
+      console.error('[ThemeBank] Erro ao reorganizar temas:', err);
+      if (!silent) alert('Erro ao reorganizar temas: ' + (err?.message || err));
+    } finally {
+      setIsReorganizing(false);
+    }
+  };
 
   const toggleStatus = (status: string) => {
     setExpandedStatuses(prev => 
@@ -327,7 +404,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
   const sanitizeThemeForCloud = (payload: any) => ({
     id: editingTheme?.id || payload.id || crypto.randomUUID(),
-    project_id: activeProject.id,
+    project_id: payload.project_id || activeProject.id,
     user_id: userId || null,
     title: payload.title || payload.refined_title || 'Tema sem título',
     description: payload.description || '',
@@ -568,6 +645,20 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          // Track which IDs are confirmed in the cloud
          const syncedIds: string[] = [...Array.from(cloudIds) as string[], ...unsyncedItems.filter((u: any) => !cloudIds.has(u.id)).map((u: any) => u.id as string)];
          setCloudSyncedIds(new Set(syncedIds));
+
+         // 🛠️ Auto-heal check for misassigned project themes
+         const isRadarProj = (activeProject.name || activeProject.project_name || '').toLowerCase().includes('radar');
+         const isFabricaProj = /fabric|fábric/i.test(activeProject.name || activeProject.project_name || '');
+         const hasMisassignedThemes = cloudThemes.some((t: Theme) => {
+           if (isRadarProj && isNavalTitle(t.title)) return true;
+           if (isFabricaProj && isAviationTitle(t.title)) return true;
+           return false;
+         });
+
+         if (hasMisassignedThemes && !isReorganizing) {
+           console.warn('[ThemeBank] Temas trocados detectados! Executando reorganização automática...');
+           setTimeout(() => reorganizeThemesByProject(true), 200);
+         }
       }
     } catch (err) {
       console.warn('[ThemeBank] Erro inesperado SWR capturado.', err);
@@ -1342,6 +1433,15 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => reorganizeThemesByProject(false)}
+            disabled={isReorganizing}
+            className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 font-black text-[10px] uppercase tracking-widest hover:bg-amber-500/20 hover:text-white transition-all disabled:opacity-50"
+            title="Reorganizar e mover temas para os projetos corretos (Radar Explicado / Fábrica Y) com base no conteúdo"
+          >
+            <RotateCcw size={12} className={isReorganizing ? "animate-spin" : ""} />
+            {isReorganizing ? 'Organizando...' : 'Organizar Temas'}
+          </button>
           <button
             onClick={() => setWorkspace('briefing')}
             className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 font-black text-[10px] uppercase tracking-widest hover:bg-blue-500/20 hover:text-white transition-all"

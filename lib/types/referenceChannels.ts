@@ -96,6 +96,8 @@ export function parseChannelMarkdown(markdown: string) {
     t1_value?: string;
     t2_value?: string;
     t3_value?: string;
+    thumbnail_layout?: string;
+    thumbnail_composition?: string;
     extracted_channels?: ReferenceChannel[];
     narrative_patterns?: Array<{ name: string; tag: string; description?: string; core_pattern: string }>;
   } = {};
@@ -152,11 +154,13 @@ export function parseChannelMarkdown(markdown: string) {
   if (negMatch) result.negative_dna = negMatch[1].trim();
 
   // Extrair Metáforas
-  const metaphorsSection = markdown.match(/Metáforas Proprietárias[\s\S]*?(?=\n##|\n###|$)/i);
+  const metaphorsSection = markdown.match(/Engenharia de Metáforas[\s\S]*?(?=\n##|\n###|$)/i)
+    || markdown.match(/Metáforas Proprietárias[\s\S]*?(?=\n##|\n###|$)/i)
+    || markdown.match(/Metáforas[\s\S]*?(?=\n##|\n###|$)/i);
   if (metaphorsSection) {
     const list = metaphorsSection[0].split('\n')
-      .map(line => line.replace(/^[\d.*-]+\s*/, '').trim())
-      .filter(line => line && !line.toLowerCase().includes('metáforas'));
+      .map(line => line.replace(/^[\d.*-]+\s*/, '').replace(/\*\*/g, '').replace(/`/g, '').trim())
+      .filter(line => line && !line.toLowerCase().includes('metáforas') && !line.toLowerCase().includes('engenharia de'));
     result.metaphors = list;
   }
 
@@ -175,6 +179,14 @@ export function parseChannelMarkdown(markdown: string) {
   if (thumbSection) {
     result.thumb_rules = thumbSection[0].trim();
   }
+
+  // Layout e Composição de Thumbnail
+  const layoutMatch = markdown.match(/Layout de Thumbnail[\s\S]*?Seleção:\*\*\s*`?([^`\r\n]+)`?/i);
+  if (layoutMatch) result.thumbnail_layout = cleanMarkdownText(layoutMatch[1]);
+
+  const compositionMatch = markdown.match(/Layout de Thumbnail[\s\S]*?Composição:\*\*\s*`?([^`\r\n]+)`?/i)
+    || markdown.match(/Composição:\s*(.*)/i);
+  if (compositionMatch) result.thumbnail_composition = cleanMarkdownText(compositionMatch[1]);
 
   // Atmosfera e Narrador
   const atmosMatch = markdown.match(/Atmosfera Narrativa[\s\S]*?Seleção:\*\*\s*`?([^`\r\n]+)`?/i);

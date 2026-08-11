@@ -335,10 +335,25 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   if (parsedData?.prohibited_terms) {
                     updates.prohibited_terms = parsedData.prohibited_terms;
                   }
-                  if (parsedData?.thumb_rules) {
+                  if (parsedData?.thumb_rules || parsedData?.thumbnail_composition || parsedData?.thumbnail_layout) {
+                    let mappedLayouts = formData.thumb_strategy?.layouts || ['Rosto+Texto'];
+                    if (parsedData?.thumbnail_layout) {
+                      const l = parsedData.thumbnail_layout.toLowerCase();
+                      if (l.includes('cena') || l.includes('objeto') || l.includes('aeronave')) {
+                        mappedLayouts = ['Objeto+Fundo'];
+                      } else if (l.includes('rosto') || l.includes('avatar')) {
+                        mappedLayouts = ['Rosto+Texto'];
+                      } else if (l.includes('contraste') || l.includes('emocional')) {
+                        mappedLayouts = ['Contraste Emocional'];
+                      }
+                    }
+
                     updates.thumb_strategy = {
                       ...formData.thumb_strategy,
-                      consistency_rules: parsedData.thumb_rules,
+                      layouts: mappedLayouts,
+                      layout: mappedLayouts[0],
+                      description: parsedData.thumbnail_composition || formData.thumb_strategy?.description || '',
+                      consistency_rules: parsedData.thumb_rules || formData.thumb_strategy?.consistency_rules || '',
                     };
                   }
                   // SOP e Limites
@@ -931,10 +946,25 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                 if (parsedData?.prohibited_terms) {
                   updates.prohibited_terms = parsedData.prohibited_terms;
                 }
-                if (parsedData?.thumb_rules) {
+                if (parsedData?.thumb_rules || parsedData?.thumbnail_composition || parsedData?.thumbnail_layout) {
+                  let mappedLayouts = formData.thumb_strategy?.layouts || ['Rosto+Texto'];
+                  if (parsedData?.thumbnail_layout) {
+                    const l = parsedData.thumbnail_layout.toLowerCase();
+                    if (l.includes('cena') || l.includes('objeto') || l.includes('aeronave')) {
+                      mappedLayouts = ['Objeto+Fundo'];
+                    } else if (l.includes('rosto') || l.includes('avatar')) {
+                      mappedLayouts = ['Rosto+Texto'];
+                    } else if (l.includes('contraste') || l.includes('emocional')) {
+                      mappedLayouts = ['Contraste Emocional'];
+                    }
+                  }
+
                   updates.thumb_strategy = {
                     ...formData.thumb_strategy,
-                    consistency_rules: parsedData.thumb_rules,
+                    layouts: mappedLayouts,
+                    layout: mappedLayouts[0],
+                    description: parsedData.thumbnail_composition || formData.thumb_strategy?.description || '',
+                    consistency_rules: parsedData.thumb_rules || formData.thumb_strategy?.consistency_rules || '',
                   };
                 }
                 // SOP e Limites

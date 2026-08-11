@@ -161,12 +161,16 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
   const isAviationTitle = (title: string, description: string = '') => {
     const text = `${title} ${description}`.toLowerCase();
-    return /aviao|avião|aviões|cenipa|embraer|tucano|praetor|phenom|e-jet|e2|c-390|amx|jato|voepass|ntsb|faa|perícia|pericia|piloto|voo|aeroporto|cabine|turbina|pistas|desastres/i.test(text);
+    if (text.includes('radar explicado')) return true;
+    if (text.includes('fábrica y') || text.includes('fabrica y')) return false;
+    return /aviao|avião|aviões|avioes|caça|caças|caca|cacas|mft-lf|cenipa|embraer|tucano|praetor|phenom|e-jet|e2|c-390|amx|jato|jatos|voepass|ntsb|faa|perícia|pericia|piloto|pilotos|voo|voos|aeroporto|cabine|turbina|pistas|desastres|aeronave|aeronaves|aeronáutica|aeronautica|aeronáuticos|gripen|f-39|f-5|mirage|esquadrilha/i.test(text);
   };
 
   const isNavalTitle = (title: string, description: string = '') => {
     const text = `${title} ${description}`.toLowerCase();
-    return /navio|submarino|submersas|semissubmersíveis|plataforma|marinheiro|guindaste|portuários|siderurgia|casco|quebra-gelo|offshore|desmontagem|reciclagem/i.test(text);
+    if (text.includes('fábrica y') || text.includes('fabrica y')) return true;
+    if (text.includes('radar explicado')) return false;
+    return /navio|navios|submarino|submarinos|submersas|semissubmersíveis|semissubmersiveis|plataforma|plataformas|marinheiro|marinheiros|guindaste|guindastes|portuários|portuarios|siderurgia|casco|quebra-gelo|offshore|desmontagem|reciclagem|embarcações|embarcacoes|embarcação|propulsão|porta-aviões|porta-avioes|estaleiro|estaleiros|fundições|fundicoes|correntes gigantes/i.test(text);
   };
 
   const filterThemesByProjectDomain = (list: Theme[], proj: any): Theme[] => {

@@ -676,6 +676,18 @@ export const useProjectStore = create<ProjectStore>()(
               'visual_style',
             ] as const;
 
+            const isEffectivelyEmpty = (val: any): boolean => {
+              if (val === null || val === undefined) return true;
+              if (typeof val === 'string') return val.trim() === '';
+              if (Array.isArray(val)) return val.length === 0 || val.every(isEffectivelyEmpty);
+              if (typeof val === 'object') {
+                const keys = Object.keys(val);
+                if (keys.length === 0) return true;
+                return keys.every(k => isEffectivelyEmpty(val[k]));
+              }
+              return false;
+            };
+
             const localById = new Map(localProjects.map((p) => [p.id, p]));
 
             const mergedCloudProjects = (data as Project[]).map((cloudProject) => {
@@ -686,16 +698,7 @@ export const useProjectStore = create<ProjectStore>()(
               for (const field of STRATEGIC_FIELDS) {
                 const cloudVal = (cloudProject as any)[field];
                 const localVal = (localProject as any)[field];
-                const cloudEmpty =
-                  cloudVal === null ||
-                  cloudVal === undefined ||
-                  (typeof cloudVal === 'object' && Object.keys(cloudVal || {}).length === 0) ||
-                  (typeof cloudVal === 'string' && cloudVal.trim() === '');
-                if (cloudEmpty && localVal && (
-                  (typeof localVal === 'object' && Object.keys(localVal || {}).length > 0) ||
-                  (typeof localVal === 'string' && localVal.trim() !== '') ||
-                  (typeof localVal === 'number')
-                )) {
+                if (isEffectivelyEmpty(cloudVal) && !isEffectivelyEmpty(localVal)) {
                   (rescued as any)[field] = localVal;
                 }
               }

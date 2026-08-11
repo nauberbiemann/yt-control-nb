@@ -210,19 +210,10 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
         const isNameTaken = existingProjects.some(p => 
           p.name?.toLowerCase() === formData.name.trim().toLowerCase() && p.id !== formData.id
         );
-        return formData.name.trim() !== '' && !isNameTaken && formData.puc.trim() !== '' && formData.phd_strategy.passion.trim() !== '';
-      case 2: return formData.editorial_line.pillars.filter((p: string) => p.trim() !== '').length >= 3;
-      case 3: return formData.metaphor_library.trim() !== '';
-      case 4: 
-        const sop = formData.editing_sop;
-        const hasSopConfig = sop.cut_rhythm && sop.zoom_style && sop.soundtrack && sop.art_direction && sop.overlays;
-        const durationMin = Number(sop.duration_min || 0);
-        const durationMax = Number(sop.duration_max || 0);
-        const blocksMin = Number(sop.blocks_min || 0);
-        const blocksMax = Number(sop.blocks_max || 0);
-        const hasValidRanges = durationMin > 0 && durationMax >= durationMin && blocksMin > 0 && blocksMax >= blocksMin;
-        const hasTacticalJourney = formData.tactical_journey.every((m: any) => m.title.trim() !== '' && m.value.trim() !== '');
-        return hasSopConfig && hasValidRanges && hasTacticalJourney;
+        return formData.name.trim() !== '' && !isNameTaken;
+      case 2:
+      case 3:
+      case 4:
       case 5:
         return true;
       default: return false;

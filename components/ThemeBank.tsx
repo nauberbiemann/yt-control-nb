@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useActiveProject } from '@/lib/store/projectStore';
+import { useActiveProject, useProjectStore } from '@/lib/store/projectStore';
 import CustomSelect from './ui/CustomSelect';
 import ContentHub from './ContentHub';
 import {
@@ -159,71 +159,122 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
   const [isReorganizing, setIsReorganizing] = useState(false);
 
-  const isAviationTitle = (title: string) => {
-    return /aviao|avião|aviões|cenipa|embraer|tucano|praetor|phenom|e-jet|e2|c-390|amx|jato|voepass|ntsb|faa|perícia|pericia|piloto|voo|aeroporto|cabine|turbina|pistas|desastres/i.test(title);
+  const isAviationTitle = (title: string, description: string = '') => {
+    const text = `${title} ${description}`.toLowerCase();
+    return /aviao|avião|aviões|cenipa|embraer|tucano|praetor|phenom|e-jet|e2|c-390|amx|jato|voepass|ntsb|faa|perícia|pericia|piloto|voo|aeroporto|cabine|turbina|pistas|desastres/i.test(text);
   };
 
-  const isNavalTitle = (title: string) => {
-    return /navio|submarino|submersas|semissubmersíveis|plataforma|marinheiro|guindaste|portuários|siderurgia|casco|quebra-gelo|offshore|desmontagem|reciclagem/i.test(title);
+  const isNavalTitle = (title: string, description: string = '') => {
+    const text = `${title} ${description}`.toLowerCase();
+    return /navio|submarino|submersas|semissubmersíveis|plataforma|marinheiro|guindaste|portuários|siderurgia|casco|quebra-gelo|offshore|desmontagem|reciclagem/i.test(text);
+  };
+
+  const filterThemesByProjectDomain = (list: Theme[], proj: any): Theme[] => {
+    if (!proj) return list;
+    const projName = (proj.name || proj.project_name || '').toLowerCase();
+    if (projName.includes('radar')) {
+      return list.filter(t => !isNavalTitle(t.title || '', t.description || ''));
+    }
+    if (/fabric|fábric/i.test(projName)) {
+      return list.filter(t => !isAviationTitle(t.title || '', t.description || ''));
+    }
+    return list;
   };
 
   const reorganizeThemesByProject = async (silent = false) => {
     if (!supabase) return;
     setIsReorganizing(true);
     try {
-      const { data: projects } = await supabase.from('projects').select('id, name, project_name');
-      if (!projects || projects.length === 0) return;
+      let projectsList = useProjectStore.getState().projects || [];
+      if (!projectsList || projectsList.length === 0) {
+        const { data } = await supabase.from('projects').select('*');
+        projectsList = data || [];
+      }
 
-      const radarProject = projects.find((p: any) =>
+      const radarProject = projectsList.find((p: any) =>
         (p.name || p.project_name || '').toLowerCase().includes('radar')
       );
-      const fabricaProject = projects.find((p: any) => {
+      const fabricaProject = projectsList.find((p: any) => {
         const n = (p.name || p.project_name || '').toLowerCase();
         return n.includes('fabric') || n.includes('fábric');
       });
 
-      if (!radarProject || !fabricaProject) {
-        if (!silent) alert('Projetos Radar Explicado e Fábrica Y precisam existir no sistema.');
-        return;
-      }
+      const radarId = radarProject?.id || 'dd5d5231-cb89-4cf6-824f-08e217b31704';
+      const fabricaId = fabricaProject?.id || '7919dbc5-e1da-4ca1-88dd-3e33c91ba5b7';
 
       const { data: allThemes, error } = await supabase
         .from('themes')
         .select('*')
-        .in('project_id', [radarProject.id, fabricaProject.id]);
+        .in('project_id', [radarId, fabricaId]);
 
-      if (error || !allThemes || allThemes.length === 0) return;
+      if (error) {
+        console.warn('[ThemeBank] Warning fetching themes for reorganization:', error.message);
+      }
 
-      const updates: Array<{ id: string; project_id: string; title: string }> = [];
+      const remoteThemes = allThemes || [];
 
-      allThemes.forEach((t: any) => {
+      let localRadarThemes: any[] = [];
+      let localFabricaThemes: any[] = [];
+      try {
+        localRadarThemes = JSON.parse(localStorage.getItem(`themes_${radarId}`) || '[]');
+        localFabricaThemes = JSON.parse(localStorage.getItem(`themes_${fabricaId}`) || '[]');
+      } catch {}
+
+      const allLocalThemes = [...localRadarThemes, ...localFabricaThemes];
+      const mergedAllMap = new Map<string, any>();
+      remoteThemes.forEach((t: any) => { if (t.id) mergedAllMap.set(t.id, t); });
+      allLocalThemes.forEach((t: any) => { if (t.id && !mergedAllMap.has(t.id)) mergedAllMap.set(t.id, t); });
+
+      const combinedThemes = Array.from(mergedAllMap.values());
+
+      const cleanRadarThemes: any[] = [];
+      const cleanFabricaThemes: any[] = [];
+      const supabaseUpdates: Array<{ id: string; project_id: string; title: string }> = [];
+
+      combinedThemes.forEach((t: any) => {
         const title = t.title || '';
-        if (isAviationTitle(title) && t.project_id !== radarProject.id) {
-          updates.push({ id: t.id, project_id: radarProject.id, title });
-        } else if (isNavalTitle(title) && t.project_id !== fabricaProject.id) {
-          updates.push({ id: t.id, project_id: fabricaProject.id, title });
+        const desc = t.description || '';
+        if (isAviationTitle(title, desc)) {
+          const item = { ...t, project_id: radarId };
+          cleanRadarThemes.push(item);
+          if (t.project_id !== radarId) {
+            supabaseUpdates.push({ id: t.id, project_id: radarId, title });
+          }
+        } else if (isNavalTitle(title, desc)) {
+          const item = { ...t, project_id: fabricaId };
+          cleanFabricaThemes.push(item);
+          if (t.project_id !== fabricaId) {
+            supabaseUpdates.push({ id: t.id, project_id: fabricaId, title });
+          }
+        } else {
+          if (t.project_id === fabricaId) cleanFabricaThemes.push(t);
+          else cleanRadarThemes.push(t);
         }
       });
 
-      if (updates.length > 0) {
-        console.log(`[ThemeBank] 🔄 Reorganizando ${updates.length} temas trocados entre projetos...`);
-        for (const item of updates) {
+      if (supabaseUpdates.length > 0) {
+        console.log(`[ThemeBank] 🔄 Updating ${supabaseUpdates.length} swapped themes in Supabase...`);
+        for (const item of supabaseUpdates) {
           await supabase
             .from('themes')
             .update({ project_id: item.project_id })
             .eq('id', item.id);
         }
+      }
 
-        localStorage.removeItem(`themes_${radarProject.id}`);
-        localStorage.removeItem(`themes_${fabricaProject.id}`);
+      localStorage.setItem(`themes_${radarId}`, JSON.stringify(cleanRadarThemes));
+      localStorage.setItem(`themes_${fabricaId}`, JSON.stringify(cleanFabricaThemes));
 
+      if (activeProject?.id === radarId) {
+        setThemes(cleanRadarThemes);
+      } else if (activeProject?.id === fabricaId) {
+        setThemes(cleanFabricaThemes);
+      } else {
         await fetchThemes();
+      }
 
-        if (!silent) {
-          alert(`✅ Sucesso! ${updates.length} temas foram reorganizados entre os projetos:\n\n• Radar Explicado (Temas de Aviação e Perícia)\n• Fábrica Y (Temas Navais e Industriais)`);
-        }
-      } else if (!silent) {
-        alert('✅ Todos os temas já estão organizados nos projetos corretos.');
+      if (!silent) {
+        alert(`✅ Sucesso! Temas reorganizados entre projetos:\n\n• Radar Explicado (Aviação): ${cleanRadarThemes.length} temas\n• Fábrica Y (Engenharia Pesada): ${cleanFabricaThemes.length} temas`);
       }
     } catch (err: any) {
       console.error('[ThemeBank] Erro ao reorganizar temas:', err);
@@ -558,7 +609,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       try {
         const parsed = JSON.parse(localData);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          localThemes = parsed.map((t: Theme) => normalizeThemeScheduleStatus(t));
+          localThemes = filterThemesByProjectDomain(parsed.map((t: Theme) => normalizeThemeScheduleStatus(t)), activeProject);
           setThemes(localThemes);
           hasLocalData = true;
           setLoading(false); // ⚡ UNBLOCK UI IMMEDIATELY
@@ -602,8 +653,9 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
       if (error) {
          console.warn('[ThemeBank] Falha ao buscar nuvem (Timeout/Network); mantendo cache local.', error.message);
       } else {
-         const cloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
-         const mergedThemes = mergeThemes(localThemes, cloudThemes);
+         const rawCloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
+         const cloudThemes = filterThemesByProjectDomain(rawCloudThemes, activeProject);
+         const mergedThemes = filterThemesByProjectDomain(mergeThemes(localThemes, cloudThemes), activeProject);
          
          // ⬆️ AUTO-PUSH UNSYNCED OR ENRICHED ITEMS TO CLOUD
          const cloudIds = new Set(cloudThemes.map((c: any) => c.id));
@@ -649,15 +701,15 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          // 🛠️ Auto-heal check for misassigned project themes
          const isRadarProj = (activeProject.name || activeProject.project_name || '').toLowerCase().includes('radar');
          const isFabricaProj = /fabric|fábric/i.test(activeProject.name || activeProject.project_name || '');
-         const hasMisassignedThemes = cloudThemes.some((t: Theme) => {
-           if (isRadarProj && isNavalTitle(t.title)) return true;
-           if (isFabricaProj && isAviationTitle(t.title)) return true;
+         const hasMisassignedThemes = rawCloudThemes.some((t: Theme) => {
+           if (isRadarProj && isNavalTitle(t.title, t.description)) return true;
+           if (isFabricaProj && isAviationTitle(t.title, t.description)) return true;
            return false;
          });
 
          if (hasMisassignedThemes && !isReorganizing) {
            console.warn('[ThemeBank] Temas trocados detectados! Executando reorganização automática...');
-           setTimeout(() => reorganizeThemesByProject(true), 200);
+           setTimeout(() => reorganizeThemesByProject(true), 100);
          }
       }
     } catch (err) {

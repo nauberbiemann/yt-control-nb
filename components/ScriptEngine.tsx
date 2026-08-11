@@ -2357,10 +2357,14 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
-                const cloudRowProjectId = data[0].project_id; // from the Supabase row itself
-                const isBelongingToProject = cloudRowProjectId === activeProject.id || cloudSnapshot?._projectId === activeProject.id;
+                // The row-level project_id is NOT trustworthy for content validation
+                // because corrupted data was synced to the cloud BEFORE the fix,
+                // with the correct row project_id but wrong snapshot content.
+                // We MUST check _projectId INSIDE the snapshot itself.
+                const snapshotOwner = cloudSnapshot?._projectId;
+                const isTrusted = snapshotOwner === activeProject.id;
 
-                if (isBelongingToProject) {
+                if (isTrusted) {
                   console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
                   
                   if (cloudSnapshot.approvedTheme) setApprovedTheme(cloudSnapshot.approvedTheme);
@@ -2417,7 +2421,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                   };
                   localStorage.setItem(executionStorageKey, JSON.stringify(compactToSave));
                 } else {
-                  console.warn(`[ScriptEngine] Descartando snapshot de nuvem poluído do projeto ${cloudSnapshot.approvedBriefing.project_id} no escopo de ${activeProject.id}`);
+                  console.warn(`[ScriptEngine] Rejeitando snapshot da nuvem: _projectId interno (${snapshotOwner || 'AUSENTE'}) não confere com projeto ativo ${activeProject.id}. Dados legados possivelmente corrompidos — tela ficará limpa.`);
                 }
               }
             } catch (err) {

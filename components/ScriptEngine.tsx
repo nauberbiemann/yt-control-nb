@@ -2297,7 +2297,18 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       } else if (!pendingData) {
         // Otherwise, if there is no pendingData (e.g. F5 reload), load from localStorage
         const raw = localStorage.getItem(executionStorageKey);
-        if (raw) snapshot = JSON.parse(raw);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const isBelongingToProject = !parsed?.approvedBriefing || !parsed.approvedBriefing.project_id || parsed.approvedBriefing.project_id === activeProject.id;
+          if (isBelongingToProject) {
+            snapshot = parsed;
+          } else {
+            console.warn(`[ScriptEngine] Descartando e limpando snapshot corrompido do projeto ${parsed.approvedBriefing.project_id} na chave de ${activeProject.id}`);
+            localStorage.removeItem(executionStorageKey);
+            localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
+            localStorage.removeItem(`${executionStorageKey}_post_package`);
+          }
+        }
       }
 
       // If there is still pendingData (but no approvedTheme), it's a new generation. 
@@ -2337,62 +2348,67 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
+                const isBelongingToProject = !cloudSnapshot?.approvedBriefing || !cloudSnapshot.approvedBriefing.project_id || cloudSnapshot.approvedBriefing.project_id === activeProject.id;
 
-                console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
-                
-                if (cloudSnapshot.approvedTheme) setApprovedTheme(cloudSnapshot.approvedTheme);
-                if (cloudSnapshot.approvedBriefing) setApprovedBriefing(cloudSnapshot.approvedBriefing);
-                const normalizedSnapshotBlocks = resolveSnapshotBlocks(cloudSnapshot);
-                if (normalizedSnapshotBlocks.length > 0) {
-                  setScriptBlocks(normalizedSnapshotBlocks);
+                if (isBelongingToProject) {
+                  console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
+                  
+                  if (cloudSnapshot.approvedTheme) setApprovedTheme(cloudSnapshot.approvedTheme);
+                  if (cloudSnapshot.approvedBriefing) setApprovedBriefing(cloudSnapshot.approvedBriefing);
+                  const normalizedSnapshotBlocks = resolveSnapshotBlocks(cloudSnapshot);
+                  if (normalizedSnapshotBlocks.length > 0) {
+                    setScriptBlocks(normalizedSnapshotBlocks);
+                  }
+                  setScriptStage(inferScriptStageFromSnapshot(cloudSnapshot));
+                  if (typeof cloudSnapshot.assemblerActive === 'boolean') setAssemblerActive(cloudSnapshot.assemblerActive);
+                  if (cloudSnapshot.thumbnailDirective) setThumbnailDirective(cloudSnapshot.thumbnailDirective);
+                  if (typeof cloudSnapshot.showThumbnailPanel === 'boolean') setShowThumbnailPanel(cloudSnapshot.showThumbnailPanel);
+                  if (typeof cloudSnapshot.thumbnailUrl === 'string') setThumbnailUrl(cloudSnapshot.thumbnailUrl);
+                  if (cloudSnapshot.executionMode === 'external' || cloudSnapshot.executionMode === 'internal') setExecutionMode(cloudSnapshot.executionMode);
+                  if (typeof cloudSnapshot.externalScriptText === 'string') setExternalScriptText(cloudSnapshot.externalScriptText);
+                  if (typeof cloudSnapshot.externalScriptFileName === 'string') setExternalScriptFileName(cloudSnapshot.externalScriptFileName);
+                  if (typeof cloudSnapshot.externalSourceLabel === 'string') setExternalSourceLabel(cloudSnapshot.externalSourceLabel);
+                  if (typeof cloudSnapshot.externalSrtText === 'string') setExternalSrtText(cloudSnapshot.externalSrtText);
+                  if (typeof cloudSnapshot.externalSrtFileName === 'string') setExternalSrtFileName(cloudSnapshot.externalSrtFileName);
+                  if (['male', 'female', 'custom'].includes(cloudSnapshot.videoCharacterMode)) setVideoCharacterMode(cloudSnapshot.videoCharacterMode);
+                  if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
+                  if (['faceless', 'avatar', 'vlog', 'avatar_flow', 'catalog'].includes(cloudSnapshot.videoFormat)) setVideoFormat(cloudSnapshot.videoFormat);
+                  if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
+                  if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
+                  if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
+                  if (typeof cloudSnapshot.forceAllAsVideo === 'boolean') setForceAllAsVideo(cloudSnapshot.forceAllAsVideo);
+                  if (typeof cloudSnapshot.useHybridAssets === 'boolean') setUseHybridAssets(cloudSnapshot.useHybridAssets);
+                  if (['hybrid_smart', 'force_all_video', 'alternating', 'all_image'].includes(cloudSnapshot.assetAllocationMode)) setAssetAllocationMode(cloudSnapshot.assetAllocationMode);
+                  if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
+                  if (typeof cloudSnapshot.preserveBrackets === 'boolean') setPreserveBrackets(cloudSnapshot.preserveBrackets);
+                  if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
+                  if (typeof cloudSnapshot.pipelineVideos === 'boolean') setPipelineVideos(cloudSnapshot.pipelineVideos);
+                  if (typeof cloudSnapshot.pipelineImages === 'boolean') setPipelineImages(cloudSnapshot.pipelineImages);
+                  if (typeof cloudSnapshot.pipelineTexts === 'boolean') setPipelineTexts(cloudSnapshot.pipelineTexts);
+                  if (typeof cloudSnapshot.pipelineHyperframes === 'boolean') setPipelineHyperframes(cloudSnapshot.pipelineHyperframes);
+                  if (typeof cloudSnapshot.useAdvancedRetention === 'boolean') setUseAdvancedRetention(cloudSnapshot.useAdvancedRetention);
+                  if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
+                  if (typeof cloudSnapshot.writingStyleSample === 'string') setWritingStyleSample(cloudSnapshot.writingStyleSample);
+                  if (typeof cloudSnapshot.externalFactCheckReport === 'string' || cloudSnapshot.externalFactCheckReport === null) setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
+                  if (typeof cloudSnapshot.externalHumanizeReport === 'string' || cloudSnapshot.externalHumanizeReport === null) setExternalHumanizeReport(cloudSnapshot.externalHumanizeReport);
+                  if (typeof cloudSnapshot.pendingHumanizedText === 'string' || cloudSnapshot.pendingHumanizedText === null) setPendingHumanizedText(cloudSnapshot.pendingHumanizedText);
+                  
+                  if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
+                  if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
+                  if (Array.isArray(cloudSnapshot.externalSrtObserver)) setExternalSrtObserver(cloudSnapshot.externalSrtObserver);
+                  if (Array.isArray(cloudSnapshot.hfBgPrompts)) setHfBgPrompts(cloudSnapshot.hfBgPrompts);
+
+                  // Split large objects from the compact snapshot before writing to localStorage
+                  const { externalSrtPipeline, postScriptPackage, ...compactCloudSnapshot } = cloudSnapshot;
+                  const compactToSave = {
+                    ...compactCloudSnapshot,
+                    _hasSrtPipeline: !!externalSrtPipeline,
+                    _hasPostPackage: !!postScriptPackage,
+                  };
+                  localStorage.setItem(executionStorageKey, JSON.stringify(compactToSave));
+                } else {
+                  console.warn(`[ScriptEngine] Descartando snapshot de nuvem poluído do projeto ${cloudSnapshot.approvedBriefing.project_id} no escopo de ${activeProject.id}`);
                 }
-                setScriptStage(inferScriptStageFromSnapshot(cloudSnapshot));
-                if (typeof cloudSnapshot.assemblerActive === 'boolean') setAssemblerActive(cloudSnapshot.assemblerActive);
-                if (cloudSnapshot.thumbnailDirective) setThumbnailDirective(cloudSnapshot.thumbnailDirective);
-                if (typeof cloudSnapshot.showThumbnailPanel === 'boolean') setShowThumbnailPanel(cloudSnapshot.showThumbnailPanel);
-                if (typeof cloudSnapshot.thumbnailUrl === 'string') setThumbnailUrl(cloudSnapshot.thumbnailUrl);
-                if (cloudSnapshot.executionMode === 'external' || cloudSnapshot.executionMode === 'internal') setExecutionMode(cloudSnapshot.executionMode);
-                if (typeof cloudSnapshot.externalScriptText === 'string') setExternalScriptText(cloudSnapshot.externalScriptText);
-                if (typeof cloudSnapshot.externalScriptFileName === 'string') setExternalScriptFileName(cloudSnapshot.externalScriptFileName);
-                if (typeof cloudSnapshot.externalSourceLabel === 'string') setExternalSourceLabel(cloudSnapshot.externalSourceLabel);
-                if (typeof cloudSnapshot.externalSrtText === 'string') setExternalSrtText(cloudSnapshot.externalSrtText);
-                if (typeof cloudSnapshot.externalSrtFileName === 'string') setExternalSrtFileName(cloudSnapshot.externalSrtFileName);
-                if (['male', 'female', 'custom'].includes(cloudSnapshot.videoCharacterMode)) setVideoCharacterMode(cloudSnapshot.videoCharacterMode);
-                if (typeof cloudSnapshot.videoCharacterCustom === 'string') setVideoCharacterCustom(cloudSnapshot.videoCharacterCustom);
-                if (['faceless', 'avatar', 'vlog', 'avatar_flow', 'catalog'].includes(cloudSnapshot.videoFormat)) setVideoFormat(cloudSnapshot.videoFormat);
-                if (typeof cloudSnapshot.manualPublishDate === 'string') setManualPublishDate(cloudSnapshot.manualPublishDate);
-                if (typeof cloudSnapshot.visualBlueprintSetting === 'string') setVisualBlueprintSetting(cloudSnapshot.visualBlueprintSetting);
-                if (Array.isArray(cloudSnapshot.visualBlueprintCast)) setVisualBlueprintCast(cloudSnapshot.visualBlueprintCast);
-                if (typeof cloudSnapshot.forceAllAsVideo === 'boolean') setForceAllAsVideo(cloudSnapshot.forceAllAsVideo);
-                if (typeof cloudSnapshot.useHybridAssets === 'boolean') setUseHybridAssets(cloudSnapshot.useHybridAssets);
-                if (['hybrid_smart', 'force_all_video', 'alternating', 'all_image'].includes(cloudSnapshot.assetAllocationMode)) setAssetAllocationMode(cloudSnapshot.assetAllocationMode);
-                if (typeof cloudSnapshot.ultraCinematic === 'boolean') setUltraCinematic(cloudSnapshot.ultraCinematic);
-                if (typeof cloudSnapshot.preserveBrackets === 'boolean') setPreserveBrackets(cloudSnapshot.preserveBrackets);
-                if (typeof cloudSnapshot.promptPrefix === 'string') setPromptPrefix(cloudSnapshot.promptPrefix);
-                if (typeof cloudSnapshot.pipelineVideos === 'boolean') setPipelineVideos(cloudSnapshot.pipelineVideos);
-                if (typeof cloudSnapshot.pipelineImages === 'boolean') setPipelineImages(cloudSnapshot.pipelineImages);
-                if (typeof cloudSnapshot.pipelineTexts === 'boolean') setPipelineTexts(cloudSnapshot.pipelineTexts);
-                if (typeof cloudSnapshot.pipelineHyperframes === 'boolean') setPipelineHyperframes(cloudSnapshot.pipelineHyperframes);
-                if (typeof cloudSnapshot.useAdvancedRetention === 'boolean') setUseAdvancedRetention(cloudSnapshot.useAdvancedRetention);
-                if (typeof cloudSnapshot.selectedThumbnailStyle === 'string') setSelectedThumbnailStyle(cloudSnapshot.selectedThumbnailStyle);
-                if (typeof cloudSnapshot.writingStyleSample === 'string') setWritingStyleSample(cloudSnapshot.writingStyleSample);
-                if (typeof cloudSnapshot.externalFactCheckReport === 'string' || cloudSnapshot.externalFactCheckReport === null) setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
-                if (typeof cloudSnapshot.externalHumanizeReport === 'string' || cloudSnapshot.externalHumanizeReport === null) setExternalHumanizeReport(cloudSnapshot.externalHumanizeReport);
-                if (typeof cloudSnapshot.pendingHumanizedText === 'string' || cloudSnapshot.pendingHumanizedText === null) setPendingHumanizedText(cloudSnapshot.pendingHumanizedText);
-                
-                if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
-                if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
-                if (Array.isArray(cloudSnapshot.externalSrtObserver)) setExternalSrtObserver(cloudSnapshot.externalSrtObserver);
-                if (Array.isArray(cloudSnapshot.hfBgPrompts)) setHfBgPrompts(cloudSnapshot.hfBgPrompts);
-
-                // Split large objects from the compact snapshot before writing to localStorage
-                const { externalSrtPipeline, postScriptPackage, ...compactCloudSnapshot } = cloudSnapshot;
-                const compactToSave = {
-                  ...compactCloudSnapshot,
-                  _hasSrtPipeline: !!externalSrtPipeline,
-                  _hasPostPackage: !!postScriptPackage,
-                };
-                localStorage.setItem(executionStorageKey, JSON.stringify(compactToSave));
               }
             } catch (err) {
               console.warn('[ScriptEngine] Falha ao tentar carregar última execução do Supabase:', err);

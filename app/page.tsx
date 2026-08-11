@@ -428,6 +428,13 @@ export default function Home() {
     }
   }, [currentView, activeProjectId]);
 
+  // Limpar pendingScript se mudar de projeto ativo para evitar vazamento
+  useEffect(() => {
+    if (pendingScript && pendingScript.project_id !== activeProjectId) {
+      setPendingScript(null);
+    }
+  }, [activeProjectId, pendingScript]);
+
   useEffect(() => {
     if (currentView === 'production') {
       setCurrentView(activeProjectId ? 'scripts' : 'projects');

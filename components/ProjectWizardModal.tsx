@@ -357,6 +357,25 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     };
                   }
                   // SOP e Limites
+                  let mappedAssets = formData.editing_sop?.asset_types || [];
+                  if (parsedData?.asset_types) {
+                    const text = parsedData.asset_types.toLowerCase();
+                    const nextAssets: string[] = [];
+                    if (text.includes('ia images') || text.includes('[i]')) nextAssets.push('IA Images');
+                    if (text.includes('stock video')) nextAssets.push('Stock Video');
+                    if (text.includes('b-roll')) nextAssets.push('B-Roll');
+                    if (text.includes('avatar')) nextAssets.push('Avatar');
+                    if (text.includes('code') || text.includes('snip')) nextAssets.push('Code Snippets');
+                    if (nextAssets.length > 0) mappedAssets = nextAssets;
+                  }
+
+                  let combinedVisualDna = '';
+                  if (parsedData?.style_dna) combinedVisualDna += `STYLE_DNA: ${parsedData.style_dna}\n`;
+                  if (parsedData?.character_dna) combinedVisualDna += `CHARACTER_DNA: ${parsedData.character_dna}\n`;
+                  if (parsedData?.extras_dna) combinedVisualDna += `EXTRAS_DNA: ${parsedData.extras_dna}\n`;
+                  if (parsedData?.negative_dna) combinedVisualDna += `NEGATIVE_DNA: ${parsedData.negative_dna}\n`;
+                  const visualIdentity = combinedVisualDna ? combinedVisualDna.trim() : (formData.editing_sop?.visual_identity || '');
+
                   if (
                     parsedData?.cut_rhythm ||
                     parsedData?.zoom_style ||
@@ -365,7 +384,10 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     parsedData?.duration_max ||
                     parsedData?.blocks_min ||
                     parsedData?.blocks_max ||
-                    parsedData?.measurement_focus
+                    parsedData?.measurement_focus ||
+                    parsedData?.asset_types ||
+                    parsedData?.text_styles ||
+                    combinedVisualDna
                   ) {
                     updates.editing_sop = {
                       ...formData.editing_sop,
@@ -377,6 +399,9 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       blocks_min: parsedData.blocks_min !== undefined ? parsedData.blocks_min : formData.editing_sop?.blocks_min,
                       blocks_max: parsedData.blocks_max !== undefined ? parsedData.blocks_max : formData.editing_sop?.blocks_max,
                       measurement_focus: parsedData.measurement_focus || formData.editing_sop?.measurement_focus || '',
+                      asset_types: mappedAssets,
+                      text_styles: parsedData.text_styles || formData.editing_sop?.text_styles || '',
+                      visual_identity: visualIdentity,
                     };
                   }
                   // Jornada Tática
@@ -704,17 +729,24 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   { label: 'Trilha Sonora', field: 'soundtrack', options: ['Epic', 'Chill', 'Dark', 'Lofi'] },
                   { label: 'Estilo Visual', field: 'art_direction', options: ['Realista', 'Cinematic', 'Minimalista', 'Cyberpunk'] },
                   { label: 'Textos (Overlays)', field: 'overlays', options: ['Apenas palavras-chave', 'Legendas completas', 'Sem texto'] },
-                ].map((item) => (
-                  <div key={item.field} className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-sage">{item.label}</label>
-                    <CustomSelect
-                      value={(formData.editing_sop as any)[item.field]}
-                      onChange={(val) => updateFormData({ editing_sop: { ...formData.editing_sop, [item.field]: val } })}
-                      options={item.options.map((opt: string) => ({ value: opt, label: opt }))}
-                      placeholder="Selecionar..."
-                    />
-                  </div>
-                ))}
+                ].map((item) => {
+                  const currentValue = (formData.editing_sop as any)[item.field] || '';
+                  const optionsList = [...item.options];
+                  if (currentValue && !optionsList.includes(currentValue)) {
+                    optionsList.push(currentValue);
+                  }
+                  return (
+                    <div key={item.field} className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-sage">{item.label}</label>
+                      <CustomSelect
+                        value={currentValue}
+                        onChange={(val) => updateFormData({ editing_sop: { ...formData.editing_sop, [item.field]: val } })}
+                        options={optionsList.map((opt: string) => ({ value: opt, label: opt }))}
+                        placeholder="Selecionar..."
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Configurações de Range (Duração e Blocos) */}
@@ -968,6 +1000,25 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   };
                 }
                 // SOP e Limites
+                let mappedAssets5 = formData.editing_sop?.asset_types || [];
+                if (parsedData?.asset_types) {
+                  const text = parsedData.asset_types.toLowerCase();
+                  const nextAssets: string[] = [];
+                  if (text.includes('ia images') || text.includes('[i]')) nextAssets.push('IA Images');
+                  if (text.includes('stock video')) nextAssets.push('Stock Video');
+                  if (text.includes('b-roll')) nextAssets.push('B-Roll');
+                  if (text.includes('avatar')) nextAssets.push('Avatar');
+                  if (text.includes('code') || text.includes('snip')) nextAssets.push('Code Snippets');
+                  if (nextAssets.length > 0) mappedAssets5 = nextAssets;
+                }
+
+                let combinedVisualDna5 = '';
+                if (parsedData?.style_dna) combinedVisualDna5 += `STYLE_DNA: ${parsedData.style_dna}\n`;
+                if (parsedData?.character_dna) combinedVisualDna5 += `CHARACTER_DNA: ${parsedData.character_dna}\n`;
+                if (parsedData?.extras_dna) combinedVisualDna5 += `EXTRAS_DNA: ${parsedData.extras_dna}\n`;
+                if (parsedData?.negative_dna) combinedVisualDna5 += `NEGATIVE_DNA: ${parsedData.negative_dna}\n`;
+                const visualIdentity5 = combinedVisualDna5 ? combinedVisualDna5.trim() : (formData.editing_sop?.visual_identity || '');
+
                 if (
                   parsedData?.cut_rhythm ||
                   parsedData?.zoom_style ||
@@ -976,7 +1027,10 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   parsedData?.duration_max ||
                   parsedData?.blocks_min ||
                   parsedData?.blocks_max ||
-                  parsedData?.measurement_focus
+                  parsedData?.measurement_focus ||
+                  parsedData?.asset_types ||
+                  parsedData?.text_styles ||
+                  combinedVisualDna5
                 ) {
                   updates.editing_sop = {
                     ...formData.editing_sop,
@@ -988,6 +1042,9 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     blocks_min: parsedData.blocks_min !== undefined ? parsedData.blocks_min : formData.editing_sop?.blocks_min,
                     blocks_max: parsedData.blocks_max !== undefined ? parsedData.blocks_max : formData.editing_sop?.blocks_max,
                     measurement_focus: parsedData.measurement_focus || formData.editing_sop?.measurement_focus || '',
+                    asset_types: mappedAssets5,
+                    text_styles: parsedData.text_styles || formData.editing_sop?.text_styles || '',
+                    visual_identity: visualIdentity5,
                   };
                 }
                 // Jornada Tática

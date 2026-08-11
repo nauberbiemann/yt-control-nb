@@ -98,6 +98,8 @@ export function parseChannelMarkdown(markdown: string) {
     t3_value?: string;
     thumbnail_layout?: string;
     thumbnail_composition?: string;
+    text_styles?: string;
+    asset_types?: string;
     extracted_channels?: ReferenceChannel[];
     narrative_patterns?: Array<{ name: string; tag: string; description?: string; core_pattern: string }>;
   } = {};
@@ -227,17 +229,36 @@ export function parseChannelMarkdown(markdown: string) {
   if (soundtrackMatch) result.soundtrack = cleanMarkdownText(soundtrackMatch[1]);
 
   // Controle de Range
-  const durMinMatch = markdown.match(/Duração Mínima:\s*(\d+)/i);
+  const durMinMatch = markdown.match(/Duração Mínima:\*\*?\s*(\d+)/i) || markdown.match(/Duração Mín:\*\*?\s*(\d+)/i);
   if (durMinMatch) result.duration_min = parseInt(durMinMatch[1], 10);
 
-  const durMaxMatch = markdown.match(/Duração Máxima:\s*(\d+)/i);
+  const durMaxMatch = markdown.match(/Duração Máxima:\*\*?\s*(\d+)/i) || markdown.match(/Duração Máx:\*\*?\s*(\d+)/i);
   if (durMaxMatch) result.duration_max = parseInt(durMaxMatch[1], 10);
 
-  const blocksMinMatch = markdown.match(/Mínimo de Blocos:\s*(\d+)/i);
+  const blocksMinMatch = markdown.match(/Mínimo de Blocos:\*\*?\s*(\d+)/i) || markdown.match(/Mín de Blocos:\*\*?\s*(\d+)/i);
   if (blocksMinMatch) result.blocks_min = parseInt(blocksMinMatch[1], 10);
 
-  const blocksMaxMatch = markdown.match(/Máximo de Blocos:\s*(\d+)/i);
+  const blocksMaxMatch = markdown.match(/Máximo de Blocos:\*\*?\s*(\d+)/i) || markdown.match(/Máx de Blocos:\*\*?\s*(\d+)/i);
   if (blocksMaxMatch) result.blocks_max = parseInt(blocksMaxMatch[1], 10);
+
+  // Tipos de Assets
+  const assetsSection = markdown.match(/Tipos de Assets[\s\S]*?(?=\n##|\n###|$)/i);
+  if (assetsSection) {
+    const text = assetsSection[0].replace(/Tipos de Assets/i, '').replace(/`/g, '').trim();
+    result.asset_types = text;
+  }
+
+  // Estilos Disponíveis de Texto
+  const renderStylesSection = markdown.match(/Estilos Disponíveis de Texto[\s\S]*?(?=\n##|\n###|$)/i);
+  if (renderStylesSection) {
+    const text = renderStylesSection[0]
+      .replace(/Estilos Disponíveis de Texto/i, '')
+      .replace(/[\(]Render[\)]/gi, '')
+      .replace(/`/g, '')
+      .replace(/[\r\n]+/g, ' ')
+      .trim();
+    result.text_styles = text;
+  }
 
   // Foco de Análise
   const focusMatch = markdown.match(/Foco de Análise e Revisão\s*[\r\n]+>\s*(.*)/i);

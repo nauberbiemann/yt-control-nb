@@ -87,12 +87,16 @@ const mergeProjectRecords = (local: any, remote: any, depth = 0): any => {
       return;
     }
 
-    if (isPlainObject(localValue) && isPlainObject(remoteValue)) {
-      if (localValue.id && local.id && localValue.id === local.id) {
-        merged[key] = remoteValue;
+    if (isPlainObject(localValue) || isPlainObject(remoteValue)) {
+      if (isPlainObject(localValue) && isPlainObject(remoteValue)) {
+        if (localValue.id && local.id && localValue.id === local.id) {
+          merged[key] = remoteValue;
+          return;
+        }
+        merged[key] = mergeProjectRecords(localValue, remoteValue, depth + 1);
         return;
       }
-      merged[key] = mergeProjectRecords(localValue, remoteValue, depth + 1);
+      merged[key] = isPlainObject(localValue) ? localValue : remoteValue;
       return;
     }
 

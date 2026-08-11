@@ -1334,6 +1334,7 @@ interface ExecutionSnapshot {
   pipelineTexts?: boolean;
   pipelineHyperframes?: boolean;
   _themeId?: string; // stable ID to find the theme even after a title rename
+  _projectId?: string; // project ownership marker — snapshots without this are legacy/corrupted and must be discarded
   useAdvancedRetention?: boolean;
   selectedThumbnailStyle?: string;
   writingStyleSample?: string;
@@ -1961,6 +1962,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     externalHumanizeReport,
     pendingHumanizedText,
     _themeId: overrides._themeId || (typeof window !== 'undefined' && activeProject?.id ? sessionStorage.getItem(`active_script_theme_${activeProject.id}`) || undefined : undefined) || (approvedBriefing as any)?.id || (approvedBriefing as any)?.themeId || undefined,
+    _projectId: activeProject?.id,
     ...overrides,
   });
 
@@ -2299,11 +2301,18 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         const raw = localStorage.getItem(executionStorageKey);
         if (raw) {
           const parsed = JSON.parse(raw);
-          const isBelongingToProject = !parsed?.approvedBriefing || !parsed.approvedBriefing.project_id || parsed.approvedBriefing.project_id === activeProject.id;
-          if (isBelongingToProject) {
+          // _projectId is the definitive ownership marker added in commit 9f3475b+.
+          // If it's present and matches → trust. If present and wrong → discard.
+          // If ABSENT → this is legacy data written before the fix. It could be
+          // corrupted (wrong project's briefing saved under this key). Discard it
+          // and let the cloud fallback (which queries by project_id) re-supply
+          // the correct data.
+          const snapshotProjectId = parsed?._projectId;
+          if (snapshotProjectId === activeProject.id) {
             snapshot = parsed;
           } else {
-            console.warn(`[ScriptEngine] Descartando e limpando snapshot corrompido do projeto ${parsed.approvedBriefing.project_id} na chave de ${activeProject.id}`);
+            // Either wrong project or legacy data without _projectId — purge
+            console.warn(`[ScriptEngine] Descartando snapshot local (owner: ${snapshotProjectId || 'LEGACY/ABSENT'}) que não pertence ao projeto ativo ${activeProject.id}. Será re-carregado da nuvem.`);
             localStorage.removeItem(executionStorageKey);
             localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
             localStorage.removeItem(`${executionStorageKey}_post_package`);
@@ -2348,7 +2357,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
-                const isBelongingToProject = !cloudSnapshot?.approvedBriefing || !cloudSnapshot.approvedBriefing.project_id || cloudSnapshot.approvedBriefing.project_id === activeProject.id;
+                const cloudRowProjectId = data[0].project_id; // from the Supabase row itself
+                const isBelongingToProject = cloudRowProjectId === activeProject.id || cloudSnapshot?._projectId === activeProject.id;
 
                 if (isBelongingToProject) {
                   console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);

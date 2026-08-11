@@ -244,7 +244,7 @@ const getProjectRecoveryScore = (projectId: string) => {
   return score;
 };
 
-const recoverProjectsFromAuxiliaryCaches = (): Project[] => {
+const recoverProjectsFromAuxiliaryCaches = (existingIds?: Set<string>): Project[] => {
   try {
     const ids = new Set<string>();
     for (let index = 0; index < localStorage.length; index += 1) {
@@ -253,7 +253,7 @@ const recoverProjectsFromAuxiliaryCaches = (): Project[] => {
       if (!prefix) continue;
 
       const projectId = key.slice(prefix.length);
-      if (!projectId) continue;
+      if (!projectId || (existingIds && existingIds.has(projectId))) continue;
 
       const payload = prefix === 'ws_script_execution_'
         ? localStorage.getItem(key)
@@ -438,7 +438,15 @@ const readLocalProjectCaches = (): Project[] => {
   const primary = parseProjectCache(localStorage.getItem(PROJECTS_STORAGE_KEY));
   const backup = parseProjectCache(localStorage.getItem(PROJECTS_BACKUP_STORAGE_KEY));
   const archived = readArchivedProjects();
-  const recovered = recoverProjectsFromAuxiliaryCaches();
+  
+  const existingIds = new Set<string>([
+    ...SYSTEM_PRESET_PROJECTS.map((p) => p.id),
+    ...primary.map((p) => p.id),
+    ...backup.map((p) => p.id),
+    ...archived.map((p) => p.id),
+  ]);
+  
+  const recovered = recoverProjectsFromAuxiliaryCaches(existingIds);
 
   const allRawProjects = [...primary, ...backup, ...archived, ...recovered];
   const mergedLocal = mergeProjectCollections(SYSTEM_PRESET_PROJECTS, allRawProjects);
@@ -571,6 +579,9 @@ const createBootstrapProject = (): Project => ({
 });
 
 const isGhostRecoveredProject = (p: Project) => {
+  const isPreset = SYSTEM_PRESET_PROJECTS.some((preset) => preset.id === p?.id);
+  if (isPreset) return false;
+
   const name = `${p?.name || ''} ${p?.project_name || ''}`.toLowerCase();
   return p?.is_recovered_project === true || name.includes('recuperado');
 };

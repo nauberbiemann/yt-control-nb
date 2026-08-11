@@ -664,6 +664,12 @@ export const useProjectStore = create<ProjectStore>()(
               'thumb_strategy',
               'reference_channels',
               'channel_dna',
+              'editing_sop',
+              'prohibited_terms',
+              'metaphor_library',
+              'playlists',
+              'default_execution_mode',
+              'visual_style',
             ] as const;
 
             const localById = new Map(localProjects.map((p) => [p.id, p]));
@@ -679,8 +685,13 @@ export const useProjectStore = create<ProjectStore>()(
                 const cloudEmpty =
                   cloudVal === null ||
                   cloudVal === undefined ||
-                  (typeof cloudVal === 'object' && Object.keys(cloudVal || {}).length === 0);
-                if (cloudEmpty && localVal && Object.keys(localVal).length > 0) {
+                  (typeof cloudVal === 'object' && Object.keys(cloudVal || {}).length === 0) ||
+                  (typeof cloudVal === 'string' && cloudVal.trim() === '');
+                if (cloudEmpty && localVal && (
+                  (typeof localVal === 'object' && Object.keys(localVal || {}).length > 0) ||
+                  (typeof localVal === 'string' && localVal.trim() !== '') ||
+                  (typeof localVal === 'number')
+                )) {
                   (rescued as any)[field] = localVal;
                 }
               }

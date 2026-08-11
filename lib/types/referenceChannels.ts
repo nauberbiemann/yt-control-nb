@@ -88,6 +88,8 @@ export function parseChannelMarkdown(markdown: string) {
     cut_rhythm?: string;
     zoom_style?: string;
     soundtrack?: string;
+    art_direction?: string;
+    overlays?: string;
     duration_min?: number;
     duration_max?: number;
     blocks_min?: number;
@@ -219,14 +221,25 @@ export function parseChannelMarkdown(markdown: string) {
   }
 
   // SOP Parâmetros Técnicos
-  const cutMatch = markdown.match(/Ritmo de Corte:\*\*?\s*`?([^`\r\n\s(]+)`?/i);
-  if (cutMatch) result.cut_rhythm = cleanMarkdownText(cutMatch[1]);
+  const cutMatch = markdown.match(/Ritmo de Corte\*\*?:\s*`?([^`\r\n(]+)`?/i)
+    || markdown.match(/Ritmo de Corte:\*\*?\s*`?([^`\r\n(]+)`?/i);
+  if (cutMatch) result.cut_rhythm = cutMatch[1].replace(/`/g, '').trim();
 
-  const zoomMatch = markdown.match(/Estilo de Zoom:\*\*?\s*`?([^`\r\n\s(]+)`?/i);
-  if (zoomMatch) result.zoom_style = cleanMarkdownText(zoomMatch[1]);
+  const zoomMatch = markdown.match(/Estilo de Zoom\*\*?:\s*`?([^`\r\n(]+)`?/i)
+    || markdown.match(/Estilo de Zoom:\*\*?\s*`?([^`\r\n(]+)`?/i);
+  if (zoomMatch) result.zoom_style = zoomMatch[1].replace(/`/g, '').trim();
 
-  const soundtrackMatch = markdown.match(/Trilha Sonora:\*\*?\s*`?([^`\r\n\s(]+)`?/i);
-  if (soundtrackMatch) result.soundtrack = cleanMarkdownText(soundtrackMatch[1]);
+  const soundtrackMatch = markdown.match(/Trilha Sonora\*\*?:\s*`?([^`\r\n(]+)`?/i)
+    || markdown.match(/Trilha Sonora:\*\*?\s*`?([^`\r\n(]+)`?/i);
+  if (soundtrackMatch) result.soundtrack = soundtrackMatch[1].replace(/`/g, '').trim();
+
+  const artMatch = markdown.match(/Estilo Visual\*\*?:\s*`?([^`\r\n(]+)`?/i)
+    || markdown.match(/Estilo Visual:\*\*?\s*`?([^`\r\n(]+)`?/i);
+  if (artMatch) result.art_direction = artMatch[1].replace(/`/g, '').trim();
+
+  const overlayMatch = markdown.match(/Textos \(Overlays\)\*\*?:\s*`?([^`\r\n(]+)`?/i)
+    || markdown.match(/Textos \(Overlays\):\*\*?\s*`?([^`\r\n(]+)`?/i);
+  if (overlayMatch) result.overlays = overlayMatch[1].replace(/`/g, '').trim();
 
   // Controle de Range
   const durMinMatch = markdown.match(/Duração Mínima:\*\*?\s*(\d+)/i) || markdown.match(/Duração Mín:\*\*?\s*(\d+)/i);

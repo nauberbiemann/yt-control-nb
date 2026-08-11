@@ -380,6 +380,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     parsedData?.cut_rhythm ||
                     parsedData?.zoom_style ||
                     parsedData?.soundtrack ||
+                    parsedData?.art_direction ||
+                    parsedData?.overlays ||
                     parsedData?.duration_min ||
                     parsedData?.duration_max ||
                     parsedData?.blocks_min ||
@@ -394,6 +396,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                       cut_rhythm: parsedData.cut_rhythm || formData.editing_sop?.cut_rhythm || '',
                       zoom_style: parsedData.zoom_style || formData.editing_sop?.zoom_style || '',
                       soundtrack: parsedData.soundtrack || formData.editing_sop?.soundtrack || '',
+                      art_direction: parsedData.art_direction || formData.editing_sop?.art_direction || '',
+                      overlays: parsedData.overlays || formData.editing_sop?.overlays || '',
                       duration_min: parsedData.duration_min !== undefined ? parsedData.duration_min : formData.editing_sop?.duration_min,
                       duration_max: parsedData.duration_max !== undefined ? parsedData.duration_max : formData.editing_sop?.duration_max,
                       blocks_min: parsedData.blocks_min !== undefined ? parsedData.blocks_min : formData.editing_sop?.blocks_min,
@@ -1023,6 +1027,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                   parsedData?.cut_rhythm ||
                   parsedData?.zoom_style ||
                   parsedData?.soundtrack ||
+                  parsedData?.art_direction ||
+                  parsedData?.overlays ||
                   parsedData?.duration_min ||
                   parsedData?.duration_max ||
                   parsedData?.blocks_min ||
@@ -1037,6 +1043,8 @@ export default function ProjectWizardModal({ onClose, onComplete, initialData, e
                     cut_rhythm: parsedData.cut_rhythm || formData.editing_sop?.cut_rhythm || '',
                     zoom_style: parsedData.zoom_style || formData.editing_sop?.zoom_style || '',
                     soundtrack: parsedData.soundtrack || formData.editing_sop?.soundtrack || '',
+                    art_direction: parsedData.art_direction || formData.editing_sop?.art_direction || '',
+                    overlays: parsedData.overlays || formData.editing_sop?.overlays || '',
                     duration_min: parsedData.duration_min !== undefined ? parsedData.duration_min : formData.editing_sop?.duration_min,
                     duration_max: parsedData.duration_max !== undefined ? parsedData.duration_max : formData.editing_sop?.duration_max,
                     blocks_min: parsedData.blocks_min !== undefined ? parsedData.blocks_min : formData.editing_sop?.blocks_min,

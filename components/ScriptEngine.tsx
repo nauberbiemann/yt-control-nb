@@ -2334,11 +2334,11 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
           // and let the cloud fallback (which queries by project_id) re-supply
           // the correct data.
           const snapshotProjectId = parsed?._projectId;
-          if (snapshotProjectId === activeProject.id) {
-            snapshot = parsed;
+          const isExplicitDifferentOwner = snapshotProjectId && snapshotProjectId !== activeProject.id;
+          if (!isExplicitDifferentOwner) {
+            snapshot = { ...parsed, _projectId: activeProject.id };
           } else {
-            // Either wrong project or legacy data without _projectId — purge
-            console.warn(`[ScriptEngine] Descartando snapshot local (owner: ${snapshotProjectId || 'LEGACY/ABSENT'}) que não pertence ao projeto ativo ${activeProject.id}. Será re-carregado da nuvem.`);
+            console.warn(`[ScriptEngine] Descartando snapshot local (owner: ${snapshotProjectId}) que pertence a outro projeto (ativo: ${activeProject.id}). Será re-carregado da nuvem.`);
             localStorage.removeItem(executionStorageKey);
             localStorage.removeItem(`${executionStorageKey}_srt_pipeline`);
             localStorage.removeItem(`${executionStorageKey}_post_package`);
@@ -2388,7 +2388,9 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 // with the correct row project_id but wrong snapshot content.
                 // We MUST check _projectId INSIDE the snapshot itself.
                 const snapshotOwner = cloudSnapshot?._projectId;
-                const isTrusted = snapshotOwner === activeProject.id;
+                const isExplicitDifferentOwner = snapshotOwner && snapshotOwner !== activeProject.id;
+                const isTrusted = !isExplicitDifferentOwner;
+                cloudSnapshot._projectId = activeProject.id;
 
                 if (isTrusted) {
                   console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);

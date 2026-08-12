@@ -1019,6 +1019,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
 
     const workspaceSnapshot = {
       ...executionSnapshot,
+      _projectId: activeProject.id,        // 🔑 STAMP DEFINITIVE PROJECT OWNERSHIP
       // Restore large text fields from the existing workspace key (stripped from themes index)
       externalScriptText:  (executionSnapshot as any).externalScriptText  || existingWorkspace?.externalScriptText  || '',
       externalSrtText:     (executionSnapshot as any).externalSrtText     || existingWorkspace?.externalSrtText     || '',

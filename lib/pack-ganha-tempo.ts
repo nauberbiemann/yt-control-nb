@@ -6097,20 +6097,20 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         <div class="flex flex-wrap items-center gap-3">
           <span class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Filtrar Tipo:</span>
           <div class="flex flex-wrap gap-1.5" id="type-filter-buttons">
-            <!-- Buttons injected by initFilters() -->
+            <!-- Buttons injected by JavaScript -->
           </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-4">
-          <button onclick="setSelectedAll(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+          <button type="button" onclick="window.setSelectedAll(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
             ✓ Selecionar Todos
           </button>
-          <button onclick="setSelectedAll(false)" class="text-xs font-semibold text-zinc-500 hover:text-zinc-400 transition-colors">
+          <button type="button" onclick="window.setSelectedAll(false)" class="text-xs font-semibold text-zinc-500 hover:text-zinc-400 transition-colors">
             ✕ Limpar Seleção
           </button>
           <div class="h-4 w-px bg-zinc-800"></div>
           <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" id="chk-only-selected" onchange="toggleOnlySelected(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
+            <input type="checkbox" id="chk-only-selected" onchange="window.toggleOnlySelected(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
             <span class="text-xs font-bold text-zinc-300">Mostrar Apenas Selecionados</span>
           </label>
         </div>
@@ -6120,7 +6120,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         <input 
           type="text" 
           id="curated-search-input" 
-          oninput="applyFilters()" 
+          oninput="window.applyFilters()" 
           placeholder="🔍 Filtrar intervenção por fala, função ou asset..." 
           class="flex-1 max-w-md bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
         />
@@ -6152,7 +6152,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
               <input 
                 type="checkbox" 
                 id="chk-${item.id}" 
-                onchange="toggleRowSelection(${item.id}, this.checked)" 
+                onchange="window.toggleRowSelection(${item.id}, this.checked)" 
                 class="w-5 h-5 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
                 checked
                 title="Desmarque para concluir e ocultar da tela"
@@ -6199,8 +6199,9 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     </div>
   </main>
 
-  <script id="interventions-data" type="application/json">
-    ${JSON.stringify(interventions.map((item) => ({
+  <script>
+    // Injeção direta dos itens em memória sem dependência de parsing de DOM
+    window.items = ${JSON.stringify(interventions.map((item) => ({
       id: item.id,
       rowNumber: item.rowNumber,
       category: item.interventionCategory,
@@ -6209,26 +6210,16 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       assetName: item.asset.name,
       timeRange: item.timeRange,
       url: item.asset.url
-    })))}
-  </script>
+    })))};
 
-  <script>
-    let items = [];
-    try {
-      items = JSON.parse(document.getElementById('interventions-data').textContent);
-    } catch (e) {
-      console.error('Falha ao carregar dados:', e);
-    }
+    window.selectedTypeFilter = 'all';
 
-    let selectedTypeFilter = 'all';
-    let onlySelected = true;
-
-    function initFilters() {
+    window.initFilters = function() {
       const filterContainer = document.getElementById('type-filter-buttons');
       if (!filterContainer) return;
 
       const counts = {};
-      items.forEach(it => {
+      (window.items || []).forEach(it => {
         const cat = it.category || 'SFX';
         counts[cat] = (counts[cat] || 0) + 1;
       });
@@ -6237,24 +6228,24 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
 
       const allBtn = document.createElement('button');
       allBtn.id = 'btn-filter-all';
-      allBtn.onclick = () => filterType('all');
+      allBtn.onclick = function() { window.filterType('all'); };
       allBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
-      allBtn.innerText = 'Todos (' + items.length + ')';
+      allBtn.innerText = 'Todos (' + (window.items || []).length + ')';
       filterContainer.appendChild(allBtn);
 
       Object.keys(counts).sort().forEach(cat => {
         const btn = document.createElement('button');
         const safeId = 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
         btn.id = safeId;
-        btn.onclick = () => filterType(cat);
+        btn.onclick = function() { window.filterType(cat); };
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all uppercase';
         btn.innerText = cat + ' (' + counts[cat] + ')';
         filterContainer.appendChild(btn);
       });
-    }
+    };
 
-    function filterType(cat) {
-      selectedTypeFilter = cat;
+    window.filterType = function(cat) {
+      window.selectedTypeFilter = cat;
 
       const buttons = document.querySelectorAll('#type-filter-buttons button');
       buttons.forEach(btn => {
@@ -6267,90 +6258,79 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         activeBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       }
 
-      applyFilters();
-    }
+      window.applyFilters();
+    };
 
-    function toggleOnlySelected(isChecked) {
-      onlySelected = isChecked;
-      applyFilters();
-    }
+    window.toggleOnlySelected = function(isChecked) {
+      window.applyFilters();
+    };
 
-    function toggleRowSelection(id, isChecked) {
-      const item = items.find(it => it.id === id);
+    window.toggleRowSelection = function(id, isChecked) {
+      const item = (window.items || []).find(it => it.id === id);
       if (item) {
         item.selected = isChecked;
       }
 
-      const tblChk = document.getElementById('chk-' + id);
-      if (tblChk) tblChk.checked = isChecked;
+      const chk = document.getElementById('chk-' + id);
+      if (chk) chk.checked = isChecked;
 
-      applyFilters();
-    }
+      window.applyFilters();
+    };
 
-    function setSelectedAll(isChecked) {
-      items.forEach(item => {
+    window.setSelectedAll = function(isChecked) {
+      (window.items || []).forEach(item => {
         item.selected = isChecked;
         const chk = document.getElementById('chk-' + item.id);
         if (chk) chk.checked = isChecked;
       });
 
-      applyFilters();
-    }
+      window.applyFilters();
+    };
 
-    function applyFilters() {
+    window.applyFilters = function() {
       const searchInput = document.getElementById('curated-search-input');
       const searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      const onlySelectedChk = document.getElementById('chk-only-selected');
+      const onlySelected = onlySelectedChk ? onlySelectedChk.checked : true;
 
-      items.forEach(item => {
-        const card = document.getElementById('card-row-' + item.id);
-        if (!card) return;
+      const cards = document.querySelectorAll('.intervention-card');
+      let visibleCount = 0;
 
+      cards.forEach(card => {
+        const id = Number(card.getAttribute('data-id'));
+        const item = (window.items || []).find(it => it.id === id);
+        const isSelected = item ? item.selected : true;
+        const category = (card.getAttribute('data-type') || '').toLowerCase();
         const cardText = (card.innerText || '').toLowerCase();
-        const matchesType = (selectedTypeFilter === 'all' || item.category.toLowerCase() === selectedTypeFilter.toLowerCase());
-        const matchesSelection = (!onlySelected || item.selected);
+
+        const matchesType = (window.selectedTypeFilter === 'all' || category === window.selectedTypeFilter.toLowerCase());
+        const matchesSelection = (!onlySelected || isSelected);
         const matchesSearch = !searchVal || cardText.includes(searchVal);
         const isVisible = matchesType && matchesSelection && matchesSearch;
 
         if (isVisible) {
+          card.style.setProperty('display', '', 'important');
           card.classList.remove('filtered-out');
-        } else {
-          card.classList.add('filtered-out');
-        }
-      });
-
-      updateCounters();
-    }
-
-    function updateCounters() {
-      const searchInput = document.getElementById('curated-search-input');
-      const searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
-
-      let visibleCount = 0;
-      items.forEach(item => {
-        const card = document.getElementById('card-row-' + item.id);
-        if (!card) return;
-        const cardText = (card.innerText || '').toLowerCase();
-        const matchesType = (selectedTypeFilter === 'all' || item.category.toLowerCase() === selectedTypeFilter.toLowerCase());
-        const matchesSelection = (!onlySelected || item.selected);
-        const matchesSearch = !searchVal || cardText.includes(searchVal);
-        if (matchesType && matchesSelection && matchesSearch) {
           visibleCount++;
+        } else {
+          card.style.setProperty('display', 'none', 'important');
+          card.classList.add('filtered-out');
         }
       });
 
       const statCounter = document.getElementById('stat-counter');
       if (statCounter) {
-        statCounter.innerText = visibleCount + ' / ' + items.length + ' visíveis';
+        statCounter.innerText = visibleCount + ' / ' + (window.items || []).length + ' visíveis';
       }
       const statTotal = document.getElementById('stat-total');
       if (statTotal) {
-        statTotal.innerText = visibleCount + ' / ' + items.length;
+        statTotal.innerText = visibleCount + ' / ' + (window.items || []).length;
       }
-    }
+    };
 
-    function downloadCuratedCsv() {
+    window.downloadCuratedCsv = function() {
       let csv = 'ID,Cena,Posicao Temporal,Tipo,Categoria,Asset Recomendado,URL Google Drive,Status\r\n';
-      items.forEach(item => {
+      (window.items || []).forEach(item => {
         const status = item.selected ? 'Pendente' : 'Concluido';
         csv += '"' + item.id + '",' +
                '"#' + item.rowNumber + '",' +
@@ -6373,9 +6353,9 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    }
+    };
 
-    function downloadSelfHTML() {
+    window.downloadSelfHTML = function() {
       const docSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
       const blob = new Blob([docSource], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -6388,11 +6368,18 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    }
+    };
 
-    // Inicialização
-    initFilters();
-    updateCounters();
+    // Inicializa imediatamente
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        window.initFilters();
+        window.applyFilters();
+      });
+    } else {
+      window.initFilters();
+      window.applyFilters();
+    }
   </script>
 </body>
 </html>`;

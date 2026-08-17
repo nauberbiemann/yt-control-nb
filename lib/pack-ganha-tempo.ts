@@ -5699,7 +5699,6 @@ export const PACK_GANHA_TEMPO_ITEMS: PackAssetItem[] = [
   }
 ];
 
-
 export interface CuratedAssetIntervention {
   id: number;
   rowNumber: number;
@@ -5727,7 +5726,8 @@ export interface CuratedAssetPlan {
 }
 
 /**
- * Cria um plano pontual e inteligente de enriquecimento de edição usando o Pack Ganha Tempo
+ * Cria um plano pontual, objetivo e de alto valor de enriquecimento de edição usando o Pack Ganha Tempo
+ * Limita estrategicamente a 8 a 14 intervenções no vídeo todo para evitar poluição visual.
  */
 export function buildCuratedAssetEnrichmentPlan(
   rows: any[] = [],
@@ -5757,24 +5757,34 @@ export function buildCuratedAssetEnrichmentPlan(
     baseOverlay: findItemByName('Particulas_Lens_Flare_Iluminacao_Esferas.mp4', 'Overlays'),
   };
 
-  // 2. Pontual Curated Interventions
+  // 2. Pontual Curated Interventions com Seleção Cirúrgica (8 a 14 itens máx)
   const interventions: CuratedAssetIntervention[] = [];
-  let lastInterventionTimeMs = -30000; // Cooldown de 15s a 25s entre intervenções do mesmo tipo
+  let lastInterventionMs = -60000;
   let counter = 1;
+
+  // Limites por categoria para manter a edição limpa e de alta qualidade
+  const categoryCounts = {
+    sfx: 0,
+    chroma: 0,
+    graficos: 0,
+    transicoes: 0,
+    icones: 0,
+    cta: 0,
+  };
 
   const parseMs = (timeStr?: string): number => {
     if (!timeStr) return 0;
-    const clean = timeStr.replace(/[[]]/g, '').trim();
+    const clean = timeStr.replace(/[\[\]]/g, '').trim();
     const parts = clean.split(':');
     if (parts.length === 3) {
       const [h, m, s] = parts;
-      const [sec, ms] = s.split(',');
+      const [sec, ms] = (s || '0').split(',');
       return (Number(h) * 3600 + Number(m) * 60 + Number(sec)) * 1000 + (Number(ms) || 0);
     }
     return 0;
   };
 
-  // Hook intervention (Cena 1 ou 2)
+  // 1. Hook intervention (Cena 1 - Primeiro Impacto)
   if (rows.length > 0) {
     const hookRow = rows[0];
     const hookSfx = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
@@ -5786,19 +5796,23 @@ export function buildCuratedAssetEnrichmentPlan(
       interventionType: 'SFX',
       editorialPurpose: 'Abertura de Alto Impacto (Hook)',
       asset: hookSfx,
-      editingGuideline: 'Iniciar no primeiro frame com volume normalizado em -12dB para prender a atenção imediata.',
+      editingGuideline: 'Iniciar no frame 0 com volume normalizado em -12dB para prender a atenção imediata.',
     });
-    lastInterventionTimeMs = 0;
+    lastInterventionMs = 0;
+    categoryCounts.sfx++;
   }
 
-  // Percorre as linhas buscando gatilhos pontuais
+  // Percorre as linhas buscando momentos-chave com cooldown rígido de 40 a 60s
   for (let i = 1; i < rows.length; i++) {
+    // Limite global máximo de 14 intervenções no vídeo todo
+    if (interventions.length >= 14) break;
+
     const row = rows[i];
     const textLower = (row.texto || '').toLowerCase();
     const currentMs = parseMs(row.startTime);
 
-    // Evita poluição visual/sonora (cooldown mínimo de 15s)
-    if (currentMs - lastInterventionTimeMs < 15000 && i < rows.length - 2) {
+    // Cooldown mínimo de 45 segundos entre intervenções (evita acúmulo e poluição)
+    if (currentMs - lastInterventionMs < 45000 && i < rows.length - 2) {
       continue;
     }
 
@@ -5807,54 +5821,82 @@ export function buildCuratedAssetEnrichmentPlan(
     let purpose = '';
     let guideline = '';
 
-    // Gatilho: Erro / Falha / Alerta / Pane / Risco
-    if (textLower.includes('erro') || textLower.includes('falha') || textLower.includes('pane') || textLower.includes('problema') || textLower.includes('perigo') || textLower.includes('cuidado')) {
+    // Gatilho: Emergência / Pane / Erro / Risco / Falha Crítica
+    if (
+      categoryCounts.graficos < 3 &&
+      /\b(pane|alarme|falha|colapso|erro|perigo|crise|risco fatal|acidente)\b/i.test(textLower)
+    ) {
       matchedItem = findItemByName('Janela_Erro_Com_Som.mov', 'Graficos');
       type = 'Gráfico / Alerta';
-      purpose = 'Alerta Visual de Tensão / Quebra';
-      guideline = 'Inserir no corte com escala 90% centralizada sobre o vídeo e corte abrupto.';
+      purpose = 'Alerta Visual de Tensão / Falha';
+      guideline = 'Inserir no corte com escala 90% centralizada sobre o vídeo e som em -14dB.';
+      categoryCounts.graficos++;
     }
-    // Gatilho: Dinheiro / Lucro / Finanças / Custo / Milhões / Venda
-    else if (textLower.includes('dinheiro') || textLower.includes('lucro') || textLower.includes('custo') || textLower.includes('milhões') || textLower.includes('faturamento') || textLower.includes('dólar') || textLower.includes('preço')) {
+    // Gatilho: Dinheiro / Milhões / Riqueza / Lucro
+    else if (
+      categoryCounts.chroma < 2 &&
+      /\b(milh[oõ]es|bilh[oõ]es|dinheiro|fortuna|faturamento|lucro|d[oó]lar|riqueza)\b/i.test(textLower)
+    ) {
       matchedItem = findItemByName('Chovendo_Dinheiro_Chroma_Key.mp4', 'Chroma_Key');
       type = 'Chroma Key';
-      purpose = 'Ênfase em Finanças e Riqueza';
-      guideline = 'Remover o fundo verde (Ultra Key / Chroma Key) e aplicar com opacidade 85% sobreposta.';
+      purpose = 'Ênfase em Cifrões e Grande Volume Financeiro';
+      guideline = 'Aplicar Ultra Key (remover verde) e posicionar com opacidade 80% em overlay suave.';
+      categoryCounts.chroma++;
     }
-    // Gatilho: Tempo / Minutos / Segundos / Relógio / Rapidez / Aceleração
-    else if (textLower.includes('segundo') || textLower.includes('minuto') || textLower.includes('tempo') || textLower.includes('pressão') || textLower.includes('hora') || textLower.includes('rápido')) {
+    // Gatilho: Urgência de Tempo / Segundos Finais / Contagem Regressiva
+    else if (
+      categoryCounts.graficos < 3 &&
+      /\b(segundos|minutos finais|contagem regressiva|tempo esgotando|contra o rel[oó]gio)\b/i.test(textLower)
+    ) {
       matchedItem = findItemByName('Timer_Barra_10_Segundos.mov', 'Graficos');
       type = 'Gráfico / Alerta';
-      purpose = 'Gatilho de Urgência & Passagem do Tempo';
-      guideline = 'Posicionar na parte inferior da tela (barra de progresso) para elevar o dinamismo.';
+      purpose = 'Gatilho de Urgência & Pressão Temporal';
+      guideline = 'Posicionar na base da tela (barra de progresso) sincronizado com a narração.';
+      categoryCounts.graficos++;
     }
-    // Gatilho: Tecnologia / IA / ChatGPT / Código / Computador
-    else if (textLower.includes('ia') || textLower.includes('inteligência') || textLower.includes('chatgpt') || textLower.includes('software') || textLower.includes('código') || textLower.includes('computador') || textLower.includes('sistema')) {
+    // Gatilho: IA & ChatGPT (Apenas correspondência exata de IA, sem falso positivo em "avião" ou verbos)
+    else if (
+      categoryCounts.icones < 2 &&
+      /\b(chatgpt|openai|gpt-4|midjourney|intelig[eê]ncia artificial)\b/i.test(textLower)
+    ) {
       matchedItem = findItemByName('Chat_GPT_Premiuim.png', 'Icones');
       type = 'Ícone 3D';
-      purpose = 'Identificação Visual Tecnológica';
-      guideline = 'Aplicar com animação de entrada Pop + sombra suave no canto superior direito.';
+      purpose = 'Identificação Visual de Inteligência Artificial';
+      guideline = 'Entrada com animação suave Pop no canto superior direito com leve sombra.';
+      categoryCounts.icones++;
     }
-    // Gatilho: CTA de Inscrição / Like (geralmente nos blocos de CTA ou finais)
-    else if (textLower.includes('inscreva') || textLower.includes('curta') || textLower.includes('like') || textLower.includes('canal') || textLower.includes('comente') || textLower.includes('compartilhe')) {
+    // Gatilho: Chamada para Ação (CTA)
+    else if (
+      categoryCounts.cta < 1 &&
+      /\b(inscreva-se|inscreva|deixe o like|se inscreva|ative o sininho)\b/i.test(textLower)
+    ) {
       matchedItem = findItemByName('Botao_Inscreva_Se_Com_Som.mov', 'Graficos');
       type = 'Gráfico / Alerta';
-      purpose = 'Chamada para Ação (CTA de Engajamento)';
-      guideline = 'Inserir no terço inferior sincronizado exatamente com a palavra-chave de inscrição.';
+      purpose = 'Chamada para Ação (Inscrição & Like)';
+      guideline = 'Posicionar no terço inferior sincronizado exatamente com o comando vocal.';
+      categoryCounts.cta++;
     }
-    // Gatilho: Revelação / Segredo / Choque / Mistério / Impacto
-    else if (textLower.includes('segredo') || textLower.includes('verdade') || textLower.includes('chocante') || textLower.includes('surpresa') || textLower.includes('revelou') || textLower.includes('descobriu')) {
+    // Gatilho: Impacto Narrativo / Suspense / Revelação
+    else if (
+      categoryCounts.sfx < 4 &&
+      /\b(segredo|mist[eé]rio|revelou|chocante|inesperado|a verdade [eé]|aterrador)\b/i.test(textLower)
+    ) {
       matchedItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
       type = 'SFX';
       purpose = 'Pico de Retenção & Revelação Narrativa';
-      guideline = 'Sincronizar com o corte da cena e aplicar leve fade-out na trilha musical.';
+      guideline = 'Sincronizar no corte de cena com fade rápido da trilha de fundo.';
+      categoryCounts.sfx++;
     }
-    // Quebra de padrão periódica a cada ~40s
-    else if (currentMs - lastInterventionTimeMs >= 35000) {
+    // Quebra de Padrão (Transição Glitch a cada ~60-80s de intervalo)
+    else if (
+      categoryCounts.transicoes < 2 &&
+      currentMs - lastInterventionMs >= 70000
+    ) {
       matchedItem = findItemByName('Glitch_Com_Som_1.mp4', 'Transicoes');
       type = 'Transição';
-      purpose = 'Quebra de Padrão Visual (Refresh de Atenção)';
-      guideline = 'Aplicar transição de 12 frames na virada de assunto para resetar o foco do espectador.';
+      purpose = 'Quebra de Padrão (Refresh de Atenção)';
+      guideline = 'Transição rápida de 10-12 frames na virada de bloco narrativo.';
+      categoryCounts.transicoes++;
     }
 
     if (matchedItem) {
@@ -5868,7 +5910,7 @@ export function buildCuratedAssetEnrichmentPlan(
         asset: matchedItem,
         editingGuideline: guideline,
       });
-      lastInterventionTimeMs = currentMs;
+      lastInterventionMs = currentMs;
     }
   }
 
@@ -5882,7 +5924,7 @@ export function buildCuratedAssetEnrichmentPlan(
 }
 
 /**
- * Gera a Planilha HTML de Assets pontual e inteligente para o editor
+ * Gera a Planilha HTML de Assets com suporte a Checklist Interativo (desmarcar oculta os itens para produção)
  */
 export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): string {
   const { themeTitle, videoFormat, totalDuration, styleKit, interventions } = plan;
@@ -5912,15 +5954,22 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       background-color: #0b0c0e;
       color: #e4e4e7;
     }
+    input[type="checkbox"] {
+      accent-color: #10b981;
+    }
     .filtered-out {
       display: none !important;
+    }
+    .completed-row {
+      opacity: 0.35;
+      text-decoration: line-through;
     }
     @media print {
       body {
         background-color: #ffffff !important;
         color: #000000 !important;
       }
-      .no-print {
+      .no-print, input[type="checkbox"] {
         display: none !important;
       }
       table {
@@ -5943,7 +5992,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       <div class="flex items-center gap-2">
         <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-lg">PLANILHA DE ASSETS</span>
         <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
-        <span class="text-xs font-mono font-bold text-zinc-400">${interventions.length} Intervenções Pontuais</span>
+        <span class="text-xs font-mono font-bold text-zinc-400" id="header-stat">${interventions.length} Intervenções</span>
       </div>
       <h1 id="header-theme-title" class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
     </div>
@@ -5951,19 +6000,19 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     <div class="flex flex-wrap items-center gap-3">
       <button 
         onclick="downloadCuratedCsv()" 
-        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2"
+        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
       >
         <span>📥 BAIXAR PLANILHA (.CSV)</span>
       </button>
       <button 
         onclick="window.print()" 
-        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95"
       >
         <span>🖨️ IMPRIMIR / PDF</span>
       </button>
       <button 
         onclick="downloadSelfHTML()" 
-        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95"
       >
         <span>💾 SALVAR HTML</span>
       </button>
@@ -6035,43 +6084,49 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       </div>
     </div>
 
-    <!-- Filter & Search Bar -->
+    <!-- Filter, Search & Production Controls Bar -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
       <div class="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
         <div class="flex-1 max-w-md relative">
           <input 
             type="text" 
             id="curated-search-input" 
-            onkeyup="filterCuratedInterventions()" 
-            placeholder="🔍 Filtrar intervenção por trecho da fala, função ou asset..." 
+            oninput="applyAllFilters()" 
+            placeholder="🔍 Filtrar intervenção por fala, função ou asset..." 
             class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
           />
         </div>
-        <div class="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400" id="curated-stat-counter">
-          <span>${interventions.length} intervenções mapeadas</span>
+        
+        <!-- Checklist / Production Mode Toggle -->
+        <div class="flex flex-wrap items-center gap-4 bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-4 py-2">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input 
+              type="checkbox" 
+              id="chk-hide-completed" 
+              onchange="toggleHideCompleted(this.checked)" 
+              class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              checked
+            />
+            <span class="text-xs font-bold text-emerald-300">Modo Produção: Ocultar ao Desmarcar</span>
+          </label>
+          <div class="h-4 w-px bg-zinc-800"></div>
+          <button onclick="setAllSelection(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300">
+            ✓ Marcar Todos
+          </button>
+          <button onclick="setAllSelection(false)" class="text-xs font-semibold text-zinc-500 hover:text-zinc-400">
+            ✕ Desmarcar Todos
+          </button>
         </div>
       </div>
 
-      <!-- Type Filter Buttons -->
-      <div class="flex flex-wrap gap-1.5" id="curated-type-pills">
-        <button onclick="filterInterventionType('all')" class="type-pill px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all active:scale-95" id="pill-type-all">
-          Todos (${interventions.length})
-        </button>
-        <button onclick="filterInterventionType('SFX')" class="type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95" id="pill-type-sfx">
-          SFX (${interventions.filter(i => i.interventionType === 'SFX').length})
-        </button>
-        <button onclick="filterInterventionType('Chroma Key')" class="type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95" id="pill-type-chroma">
-          Chroma Key (${interventions.filter(i => i.interventionType === 'Chroma Key').length})
-        </button>
-        <button onclick="filterInterventionType('Gráfico / Alerta')" class="type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95" id="pill-type-grafico">
-          Gráficos (${interventions.filter(i => i.interventionType === 'Gráfico / Alerta').length})
-        </button>
-        <button onclick="filterInterventionType('Transição')" class="type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95" id="pill-type-transicao">
-          Transições (${interventions.filter(i => i.interventionType === 'Transição').length})
-        </button>
-        <button onclick="filterInterventionType('Ícone 3D')" class="type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95" id="pill-type-icone">
-          Ícones 3D (${interventions.filter(i => i.interventionType === 'Ícone 3D').length})
-        </button>
+      <!-- Type Filter Buttons Container (Dinamically rendered by JS to avoid any escaping bug) -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-800/60">
+        <div class="flex flex-wrap gap-1.5" id="curated-type-pills">
+          <!-- Rendered by initTypeFilterPills() -->
+        </div>
+        <div class="text-xs font-mono font-bold text-emerald-400" id="curated-stat-counter">
+          ${interventions.length} intervenções mapeadas
+        </div>
       </div>
     </div>
 
@@ -6081,46 +6136,65 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         <table class="w-full text-left border-collapse" id="curated-table">
           <thead>
             <tr class="bg-zinc-950 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              <th class="px-5 py-4 w-12 text-center">#</th>
-              <th class="px-5 py-4 w-20">Cena</th>
-              <th class="px-5 py-4 w-36">Posição Temporal</th>
-              <th class="px-5 py-4 w-48">Momento & Função</th>
-              <th class="px-5 py-4 w-32">Tipo</th>
-              <th class="px-5 py-4">Trecho da Fala (Contexto)</th>
-              <th class="px-5 py-4 w-60">Asset do Pack Ganha Tempo</th>
-              <th class="px-5 py-4 w-72">Orientação de Edição</th>
-              <th class="px-5 py-4 w-32 text-right">Download</th>
+              <th class="px-4 py-4 w-12 text-center no-print">
+                <input type="checkbox" id="th-chk-master" onchange="toggleMasterCheck(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked title="Marcar/Desmarcar todos">
+              </th>
+              <th class="px-4 py-4 w-12 text-center">#</th>
+              <th class="px-4 py-4 w-16">Cena</th>
+              <th class="px-4 py-4 w-40">Posição Temporal</th>
+              <th class="px-4 py-4 w-48">Momento & Função</th>
+              <th class="px-4 py-4 w-28">Tipo</th>
+              <th class="px-4 py-4">Trecho da Fala (Contexto)</th>
+              <th class="px-4 py-4 w-60">Asset do Pack Ganha Tempo</th>
+              <th class="px-4 py-4 w-64">Orientação de Edição</th>
+              <th class="px-4 py-4 w-28 text-right">Download</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-zinc-800/60 text-xs">
+          <tbody class="divide-y divide-zinc-800/60 text-xs" id="curated-tbody">
             ${interventions.map((item) => `
-              <tr class="curated-row hover:bg-zinc-800/40 transition-colors" data-type="${item.interventionType}" data-text="${(item.sceneExcerpt + ' ' + item.editorialPurpose + ' ' + item.asset.name).toLowerCase()}">
-                <td class="px-5 py-4 text-center font-mono text-zinc-500 font-bold">${item.id}</td>
-                <td class="px-5 py-4 font-mono font-bold text-purple-300">#${item.rowNumber}</td>
-                <td class="px-5 py-4 font-mono font-bold text-emerald-400 whitespace-nowrap">${item.timeRange}</td>
-                <td class="px-5 py-4 font-bold text-zinc-200">
+              <tr 
+                id="row-item-${item.id}" 
+                class="curated-row hover:bg-zinc-800/40 transition-colors" 
+                data-id="${item.id}"
+                data-type="${item.interventionType}" 
+                data-search="${(item.sceneExcerpt + ' ' + item.editorialPurpose + ' ' + item.asset.name + ' ' + item.interventionType).toLowerCase()}"
+              >
+                <td class="px-4 py-4 text-center no-print">
+                  <input 
+                    type="checkbox" 
+                    id="chk-item-${item.id}" 
+                    onchange="handleItemCheckChange(${item.id}, this.checked)" 
+                    class="item-checkbox w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
+                    checked 
+                    title="Desmarque ao concluir para sumir da tela"
+                  />
+                </td>
+                <td class="px-4 py-4 text-center font-mono text-zinc-500 font-bold">${item.id}</td>
+                <td class="px-4 py-4 font-mono font-bold text-purple-300">#${item.rowNumber}</td>
+                <td class="px-4 py-4 font-mono font-bold text-emerald-400 whitespace-nowrap">${item.timeRange}</td>
+                <td class="px-4 py-4 font-bold text-zinc-200">
                   <span class="block text-[11px] leading-tight">${item.editorialPurpose}</span>
                 </td>
-                <td class="px-5 py-4 whitespace-nowrap">
+                <td class="px-4 py-4 whitespace-nowrap">
                   <span class="px-2 py-0.5 text-[8.5px] font-black uppercase tracking-wider rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700">
                     ${item.interventionType}
                   </span>
                 </td>
-                <td class="px-5 py-4 italic text-zinc-300 max-w-xs leading-relaxed text-[11px]">
+                <td class="px-4 py-4 italic text-zinc-300 max-w-xs leading-relaxed text-[11px]">
                   &quot;${item.sceneExcerpt}&quot;
                 </td>
-                <td class="px-5 py-4 font-mono text-[11px] text-zinc-200 font-semibold">
+                <td class="px-4 py-4 font-mono text-[11px] text-zinc-200 font-semibold">
                   <div class="flex items-center gap-1.5">
                     <span>${item.asset.mimeType.startsWith('video/') ? '🎬' : item.asset.mimeType.startsWith('image/') ? '🖼️' : item.asset.mimeType.startsWith('audio/') ? '🔊' : '📦'}</span>
                     <span class="truncate max-w-[200px]" title="${item.asset.name}">${item.asset.name}</span>
                   </div>
                   <span class="text-[8px] font-black uppercase text-zinc-500 block mt-0.5">${item.asset.category.replace(/^[0-9]+_/, '')}</span>
                 </td>
-                <td class="px-5 py-4 text-zinc-400 text-[11px] leading-relaxed max-w-xs">
+                <td class="px-4 py-4 text-zinc-400 text-[11px] leading-relaxed max-w-xs">
                   ${item.editingGuideline}
                 </td>
-                <td class="px-5 py-4 text-right whitespace-nowrap">
-                  <a href="${item.asset.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center gap-1 shadow-sm transition-all">
+                <td class="px-4 py-4 text-right whitespace-nowrap">
+                  <a href="${item.asset.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center gap-1 shadow-sm transition-all active:scale-95">
                     <span>📥 Baixar</span>
                   </a>
                 </td>
@@ -6138,61 +6212,129 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
 
   <script>
     const plan = JSON.parse(document.getElementById('plan-data').textContent);
-    let selectedTypeFilter = 'all';
+    
+    // Estado reativo de cada item
+    const itemStates = {};
+    plan.interventions.forEach(item => {
+      itemStates[item.id] = { checked: true, type: item.interventionType };
+    });
 
-    function filterInterventionType(type) {
-      selectedTypeFilter = type;
-      const pills = document.querySelectorAll('.type-pill');
-      pills.forEach(p => {
-        p.className = 'type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all';
+    let selectedTypeFilter = 'all';
+    let hideCompleted = true; // Por padrão, ao desmarcar o item some da tela
+
+    function initTypeFilterPills() {
+      const pillsContainer = document.getElementById('curated-type-pills');
+      if (!pillsContainer) return;
+
+      const counts = {};
+      plan.interventions.forEach(i => {
+        counts[i.interventionType] = (counts[i.interventionType] || 0) + 1;
       });
 
-      const activeMap = {
-        'all': 'pill-type-all',
-        'SFX': 'pill-type-sfx',
-        'Chroma Key': 'pill-type-chroma',
-        'Gráfico / Alerta': 'pill-type-grafico',
-        'Transição': 'pill-type-transicao',
-        'Ícone 3D': 'pill-type-icone',
-      };
+      pillsContainer.innerHTML = '';
 
-      const activeBtn = document.getElementById(activeMap[type] || 'pill-type-all');
-      if (activeBtn) {
-        activeBtn.className = 'type-pill px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all';
-      }
+      // Botão Todos
+      const allBtn = document.createElement('button');
+      allBtn.className = 'type-pill px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all active:scale-95';
+      allBtn.innerText = 'Todos (' + plan.interventions.length + ')';
+      allBtn.onclick = () => setTypeFilter('all', allBtn);
+      pillsContainer.appendChild(allBtn);
 
-      filterCuratedInterventions();
+      // Botões individuais por tipo
+      Object.keys(counts).sort().forEach(type => {
+        const btn = document.createElement('button');
+        btn.className = 'type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95';
+        btn.innerText = type + ' (' + counts[type] + ')';
+        btn.onclick = () => setTypeFilter(type, btn);
+        pillsContainer.appendChild(btn);
+      });
     }
 
-    function filterCuratedInterventions() {
-      const query = (document.getElementById('curated-search-input')?.value || '').toLowerCase().trim();
+    function setTypeFilter(type, clickedBtn) {
+      selectedTypeFilter = type;
+      const allPills = document.querySelectorAll('#curated-type-pills button');
+      allPills.forEach(p => {
+        p.className = 'type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95';
+      });
+      if (clickedBtn) {
+        clickedBtn.className = 'type-pill px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all active:scale-95';
+      }
+      applyAllFilters();
+    }
+
+    function toggleHideCompleted(checked) {
+      hideCompleted = checked;
+      applyAllFilters();
+    }
+
+    function handleItemCheckChange(id, isChecked) {
+      if (itemStates[id]) {
+        itemStates[id].checked = isChecked;
+      }
+      applyAllFilters();
+    }
+
+    function setAllSelection(checkAll) {
+      plan.interventions.forEach(item => {
+        itemStates[item.id].checked = checkAll;
+        const chk = document.getElementById('chk-item-' + item.id);
+        if (chk) chk.checked = checkAll;
+      });
+      const masterChk = document.getElementById('th-chk-master');
+      if (masterChk) masterChk.checked = checkAll;
+      applyAllFilters();
+    }
+
+    function toggleMasterCheck(isChecked) {
+      setAllSelection(isChecked);
+    }
+
+    function applyAllFilters() {
+      const searchVal = (document.getElementById('curated-search-input')?.value || '').toLowerCase().trim();
       const rows = document.querySelectorAll('.curated-row');
       let visibleCount = 0;
+      let completedCount = 0;
 
       rows.forEach(row => {
+        const id = Number(row.getAttribute('data-id'));
         const type = row.getAttribute('data-type') || '';
-        const text = row.getAttribute('data-text') || '';
+        const search = row.getAttribute('data-search') || '';
+        const isChecked = itemStates[id]?.checked !== false;
+
+        if (!isChecked) {
+          completedCount++;
+        }
 
         const matchesType = (selectedTypeFilter === 'all' || type === selectedTypeFilter);
-        const matchesQuery = !query || text.includes(query);
+        const matchesSearch = !searchVal || search.includes(searchVal);
+        const matchesCompletion = !hideCompleted || isChecked;
 
-        if (matchesType && matchesQuery) {
+        if (matchesType && matchesSearch && matchesCompletion) {
           row.classList.remove('filtered-out');
           visibleCount++;
         } else {
           row.classList.add('filtered-out');
         }
+
+        // Estiliza linhas concluídas caso o modo ocultar esteja desligado
+        if (!isChecked) {
+          row.classList.add('completed-row');
+        } else {
+          row.classList.remove('completed-row');
+        }
       });
 
-      const counter = document.getElementById('curated-stat-counter');
-      if (counter) {
-        counter.innerText = visibleCount + ' de ' + plan.interventions.length + ' intervenções visíveis';
+      const statEl = document.getElementById('curated-stat-counter');
+      if (statEl) {
+        const pending = plan.interventions.length - completedCount;
+        statEl.innerText = visibleCount + ' visíveis (' + pending + ' pendentes, ' + completedCount + ' concluídos)';
       }
     }
 
     function downloadCuratedCsv() {
-      let csv = 'ID,Cena,Posicao Temporal,Momento & Funcao,Tipo,Trecho da Fala,Asset Recomendado,Categoria,Tamanho (KB),Orientacao de Edicao,URL Google Drive\r\n';
+      let csv = 'ID,Cena,Posicao Temporal,Momento & Funcao,Tipo,Trecho da Fala,Asset Recomendado,Categoria,Tamanho (KB),Orientacao de Edicao,URL Google Drive,Status\r\n';
       plan.interventions.forEach(item => {
+        const status = itemStates[item.id]?.checked ? 'Pendente' : 'Concluido';
         csv += '"' + item.id + '",' +
                '"#' + item.rowNumber + '",' +
                '"' + item.timeRange + '",' +
@@ -6203,7 +6345,8 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
                '"' + item.asset.category + '",' +
                item.asset.sizeKb + ',' +
                '"' + item.editingGuideline.replace(/"/g, '""') + '",' +
-               '"' + item.asset.url + '"\r\n';
+               '"' + item.asset.url + '",' +
+               '"' + status + '"\r\n';
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -6230,6 +6373,10 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     }
+
+    // Inicialização
+    initTypeFilterPills();
+    applyAllFilters();
   </script>
 </body>
 </html>`;

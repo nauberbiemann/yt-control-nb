@@ -42,7 +42,10 @@ import {
 import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 import ProductionAssembler from './ProductionAssembler';
 import ScrollToTopButton from './ScrollToTopButton';
-import { PACK_GANHA_TEMPO_ITEMS, matchPackAssetsForScene, type PackAssetItem } from '@/lib/pack-ganha-tempo';
+import {
+  buildCuratedAssetEnrichmentPlan,
+  generateAssetsSpreadsheetHtmlString,
+} from '@/lib/pack-ganha-tempo';
 
 type TitleCriterionResult = true | 'parcial' | false;
 interface TitleValidationResult {
@@ -6331,7 +6334,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     `;
   };
 
-  const generateStoryboardHtmlString = (pipeline: any, defaultViewMode: 'spreadsheet' | 'grid' = 'spreadsheet'): string => {
+  const generateStoryboardHtmlString = (pipeline: any): string => {
     if (!pipeline || !pipeline.rows || !pipeline.rows.length) return '';
     const themeTitle = approvedBriefing?.title || approvedTheme || 'Roteiro de Vídeo';
     const rows = pipeline.rows;
@@ -6339,7 +6342,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     const gridItems = rows.map((row: any) => {
       const svgCode = generateSceneSvgPreview(row, videoFormat);
       const isFallback = !!row.isFallback;
-      const matchedItems = matchPackAssetsForScene(row.texto, row.asset, 3);
 
       let assetBadgeColor = 'bg-gray-800 text-gray-400 border-gray-700';
       let timeColorClass = 'text-zinc-400';
@@ -6388,7 +6390,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <p class="text-[12px] text-zinc-200 leading-relaxed font-medium bg-zinc-950/45 border border-zinc-800/40 rounded-xl p-3 select-all italic">&quot;${row.texto}&quot;</p>
             </div>
             
-            <div class="space-y-1.5">
+            <div class="space-y-1.5 flex-1 flex flex-col">
               <div class="flex items-center justify-between">
                 <h4 class="text-[9px] font-black uppercase tracking-widest text-zinc-500">Prompt Visual (Inglês)</h4>
                 <button 
@@ -6398,30 +6400,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                   Copiar
                 </button>
               </div>
-              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 select-all">${row.prompt || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
-            </div>
-
-            <!-- Pack Ganha Tempo Match -->
-            <div class="space-y-1.5 pt-1 border-t border-zinc-800/60">
-              <div class="flex items-center justify-between">
-                <h4 class="text-[9px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
-                  <span>⚡ Pack Ganha Tempo Sugerido</span>
-                </h4>
-                <span class="text-[8px] font-mono text-zinc-500">${matchedItems.length} asset(s)</span>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                ${matchedItems.map((item) => `
-                  <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-zinc-950/70 border border-zinc-800/80 text-[10.5px]">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                      <span class="text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">${item.category.replace(/^[0-9]+_/, '').replace('_', ' ')}</span>
-                      <span class="font-mono text-zinc-300 truncate font-semibold" title="${item.name}">${item.name}</span>
-                    </div>
-                    <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 transition-colors shadow-sm inline-flex items-center gap-1">
-                      📥 Drive
-                    </a>
-                  </div>
-                `).join('')}
-              </div>
+              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 flex-1 select-all">${row.prompt || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
             </div>
           </div>
         </div>
@@ -6448,41 +6427,24 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         timeColorClass = 'text-purple-400';
       }
 
-      const matchedItems = matchPackAssetsForScene(row.texto, row.asset, 3);
-
       return `
         <tr id="tr-row-${row.rowNumber}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
-          <td class="px-5 py-4 whitespace-nowrap text-center no-print">
+          <td class="px-6 py-4 whitespace-nowrap text-center no-print">
             <input type="checkbox" id="chk-${row.rowNumber}" onchange="toggleRowSelection(${row.rowNumber}, this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500 cursor-pointer" checked>
           </td>
-          <td class="px-5 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
+          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
             #${row.rowNumber}
           </td>
-          <td class="px-5 py-4 whitespace-nowrap">
+          <td class="px-6 py-4 whitespace-nowrap">
             <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
               ${(row.asset || 'SEM ASSET').toUpperCase()}
             </span>
           </td>
-          <td class="px-5 py-4 whitespace-nowrap font-mono font-bold ${timeColorClass} text-xs">
+          <td class="px-6 py-4 whitespace-nowrap font-mono font-bold ${timeColorClass}">
             ${row.startTime} - ${row.endTime}
           </td>
-          <td class="px-5 py-4 text-zinc-200 font-medium italic text-xs leading-relaxed max-w-md">
+          <td class="px-6 py-4 text-zinc-200 font-medium italic">
             &quot;${row.texto}&quot;
-          </td>
-          <td class="px-5 py-4 min-w-[280px]">
-            <div class="flex flex-col gap-1.5">
-              ${matchedItems.map((item) => `
-                <div class="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-[11px] hover:border-emerald-500/30 transition-colors">
-                  <div class="flex items-center gap-1.5 min-w-0">
-                    <span class="text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">${item.category.replace(/^[0-9]+_/, '').replace('_', ' ')}</span>
-                    <span class="font-mono text-zinc-300 truncate font-semibold text-[10.5px]" title="${item.name}">${item.name}</span>
-                  </div>
-                  <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-[9.5px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shrink-0 transition-all shadow-sm">
-                    📥 Baixar
-                  </a>
-                </div>
-              `).join('')}
-            </div>
           </td>
         </tr>
       `;
@@ -6494,8 +6456,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Storyboard & Planilha de Assets — ${themeTitle}</title>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+        <title>Storyboard — ${themeTitle}</title>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
           tailwind.config = {
@@ -6511,7 +6473,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         </script>
         <style>
           body {
-            background-color: #0c0d0e;
+            background-color: #0e0e10;
             color: #e4e4e7;
           }
           input[type="checkbox"] {
@@ -6519,17 +6481,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           }
           .filtered-out {
             display: none !important;
-          }
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2);
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 9999px;
           }
           @media print {
             body {
@@ -6561,6 +6512,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             .scene-card rect[fill="#f6f5f0"] {
               fill: #f8fafc !important;
             }
+            /* Spreadsheet print overrides */
             #spreadsheet-view {
               background-color: #ffffff !important;
               border-color: #d4d4d8 !important;
@@ -6585,31 +6537,24 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           }
         </style>
       </head>
-      <body class="font-sans antialiased min-h-screen pb-20">
-        <header class="no-print sticky top-0 z-50 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <body class="font-sans antialiased min-h-screen pb-16">
+        <header class="no-print sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div class="space-y-0.5">
             <div class="flex items-center gap-2">
-              <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">STORYBOARD & ASSETS</span>
-              <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">PACK GANHA TEMPO</span>
+              <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">STORYBOARD GENERATOR</span>
               <span class="bg-zinc-800 text-zinc-300 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
             </div>
             <h1 id="header-theme-title" class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
           </div>
           
-          <div class="flex flex-wrap items-center gap-2.5">
+          <div class="flex items-center gap-3">
             <button 
               id="toggle-view-btn"
               onclick="toggleViewMode()" 
               class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl flex items-center gap-2"
             >
-              <span id="toggle-view-text">${defaultViewMode === 'spreadsheet' ? '🎬 EXIBIR QUADRICULADO' : '📊 EXIBIR PLANILHA'}</span>
+              <span id="toggle-view-text">📊 EXIBIR PLANILHA</span>
             </button>
-            <a 
-              href="#pack-ganha-tempo-library"
-              class="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 active:scale-95 transition-all text-xs font-bold rounded-xl flex items-center gap-1.5"
-            >
-              <span>📦 PACK GANHA TEMPO (${PACK_GANHA_TEMPO_ITEMS.length})</span>
-            </a>
             <button 
               onclick="window.print()" 
               class="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-lg shadow-purple-600/15 flex items-center gap-2"
@@ -6625,9 +6570,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           </div>
         </header>
 
-        <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
-          <!-- Summary Cards -->
-          <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <main class="max-w-7xl mx-auto px-6 py-8">
+          <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 mb-8 grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
               <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Total de Cenas</span>
               <span class="text-2xl font-bold text-zinc-100" id="stat-total">${rows.length}</span>
@@ -6641,18 +6585,16 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <span class="text-2xl font-bold text-zinc-100">${rows[rows.length - 1]?.endTime || '00:00'}</span>
             </div>
             <div>
-              <span class="text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Pack Ganha Tempo</span>
-              <span class="text-2xl font-bold text-emerald-300">${PACK_GANHA_TEMPO_ITEMS.length} Assets</span>
+              <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Gerado em</span>
+              <span class="text-xs font-semibold text-zinc-400 mt-2 block">${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           </div>
 
-          <!-- Grid View (Cards) -->
-          <div id="grid-view" class="${defaultViewMode === 'spreadsheet' ? 'hidden' : 'grid'} grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div id="grid-view" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             ${gridItems}
           </div>
 
-          <!-- Spreadsheet View (Table) -->
-          <div id="spreadsheet-view" class="${defaultViewMode === 'spreadsheet' ? 'block' : 'hidden'} bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+          <div id="spreadsheet-view" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <!-- Filter Bar -->
             <div class="no-print p-6 border-b border-zinc-800 bg-zinc-950/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div class="flex flex-wrap items-center gap-3">
@@ -6682,14 +6624,13 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <table class="w-full text-left border-collapse">
                 <thead>
                   <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    <th class="px-5 py-4 w-14 text-center no-print">
+                    <th class="px-6 py-4 w-16 text-center no-print">
                       <input type="checkbox" id="th-chk-all" onchange="toggleSelectAllRows(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500" checked>
                     </th>
-                    <th class="px-5 py-4 w-20">Cena</th>
-                    <th class="px-5 py-4 w-28">Asset</th>
-                    <th class="px-5 py-4 w-44">Posição Temporal</th>
-                    <th class="px-5 py-4">Legenda (Locução)</th>
-                    <th class="px-5 py-4 w-80">Pack Ganha Tempo & Download (Drive)</th>
+                    <th class="px-6 py-4 w-28">Cena</th>
+                    <th class="px-6 py-4 w-40">Asset</th>
+                    <th class="px-6 py-4 w-60">Posição Temporal</th>
+                    <th class="px-6 py-4">Legenda (Locução)</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-800/60 text-sm">
@@ -6698,110 +6639,14 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               </table>
             </div>
           </div>
-
-          <!-- COMPLETE PACK GANHA TEMPO ASSETS LIBRARY SECTION (BELOW STORYBOARD) -->
-          <section id="pack-ganha-tempo-library" class="mt-12 pt-8 border-t border-zinc-800/80 space-y-6">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-zinc-900/60 border border-emerald-500/20 rounded-2xl p-6 shadow-xl">
-              <div>
-                <div class="flex items-center gap-2 mb-1">
-                  <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-lg">PACK GANHA TEMPO</span>
-                  <span class="text-xs font-bold text-zinc-400">${PACK_GANHA_TEMPO_ITEMS.length} Arquivos Catalogados</span>
-                </div>
-                <h2 class="text-lg font-black text-white uppercase tracking-wide">Planilha de Assets & Biblioteca Completa</h2>
-                <p class="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-                  Todos os arquivos estão hospedados no Google Drive e prontos para download imediato. Use a busca ou filtros de categoria abaixo.
-                </p>
-              </div>
-              <div class="flex items-center gap-3">
-                <button onclick="downloadPackCsv()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2">
-                  <span>📥 Baixar Catálogo CSV</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Library Search and Category Filters -->
-            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-              <div class="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-                <div class="flex-1 max-w-md relative">
-                  <input 
-                    type="text" 
-                    id="pack-search-input" 
-                    onkeyup="filterPackLibrary()" 
-                    placeholder="🔍 Buscar asset por nome ou palavra-chave..." 
-                    class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
-                  />
-                </div>
-                <span class="text-xs font-mono font-bold text-emerald-400" id="pack-stat-counter">
-                  Exibindo ${PACK_GANHA_TEMPO_ITEMS.length} de ${PACK_GANHA_TEMPO_ITEMS.length} assets
-                </span>
-              </div>
-
-              <!-- Category Filter Pills -->
-              <div class="flex flex-wrap gap-1.5" id="pack-category-pills">
-                <!-- Generated by JS -->
-              </div>
-            </div>
-
-            <!-- Library Table -->
-            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
-              <div class="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                <table class="w-full text-left border-collapse" id="pack-library-table">
-                  <thead class="sticky top-0 z-20 bg-zinc-950 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    <tr>
-                      <th class="px-5 py-3.5 w-14 text-center">#</th>
-                      <th class="px-5 py-3.5">Nome do Arquivo</th>
-                      <th class="px-5 py-3.5 w-48">Categoria / Pasta</th>
-                      <th class="px-5 py-3.5 w-32">Tipo</th>
-                      <th class="px-5 py-3.5 w-28">Tamanho</th>
-                      <th class="px-5 py-3.5 w-44 text-right">Ação / Download</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-zinc-800/60 text-xs">
-                    ${PACK_GANHA_TEMPO_ITEMS.map((item, idx) => `
-                      <tr class="pack-row hover:bg-zinc-800/40 transition-colors" data-name="${item.name.toLowerCase()}" data-category="${item.category.toLowerCase()}" data-keywords="${item.keywords.join(' ')}">
-                        <td class="px-5 py-3 text-center font-mono text-zinc-500 text-[10px]">${idx + 1}</td>
-                        <td class="px-5 py-3">
-                          <div class="flex items-center gap-2">
-                            <span class="text-sm">${item.mimeType.startsWith('video/') ? '🎬' : item.mimeType.startsWith('image/') ? '🖼️' : item.mimeType.startsWith('audio/') ? '🔊' : item.mimeType.includes('font') ? '🔤' : '📦'}</span>
-                            <span class="font-mono font-bold text-zinc-200">${item.name}</span>
-                          </div>
-                        </td>
-                        <td class="px-5 py-3">
-                          <span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700">
-                            ${item.category.replace(/^[0-9]+_/, '').replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td class="px-5 py-3 font-mono text-[10px] text-zinc-400">${item.mimeType}</td>
-                        <td class="px-5 py-3 font-mono text-[11px] text-zinc-300">${item.sizeKb > 1024 ? (item.sizeKb / 1024).toFixed(1) + ' MB' : item.sizeKb + ' KB'}</td>
-                        <td class="px-5 py-3 text-right">
-                          <div class="flex items-center justify-end gap-2">
-                            <button onclick="navigator.clipboard.writeText('${item.url}'); alert('Link do Google Drive copiado!');" class="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 text-[11px]" title="Copiar link do Google Drive">
-                              📋
-                            </button>
-                            <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shadow-sm transition-all">
-                              <span>📥 Baixar Drive</span>
-                            </a>
-                          </div>
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
         </main>
 
         <script id="scenes-data" type="application/json">
           ${JSON.stringify(rows.map((r: any) => ({ rowNumber: r.rowNumber, asset: r.asset || 'SEM ASSET', selected: true })))}
         </script>
 
-        <script id="pack-data" type="application/json">
-          ${JSON.stringify(PACK_GANHA_TEMPO_ITEMS)}
-        </script>
-
         <script>
-          let currentViewMode = '${defaultViewMode}';
+          let currentViewMode = 'grid';
 
           function toggleViewMode() {
             const gridView = document.getElementById('grid-view');
@@ -6838,7 +6683,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               .trim()
               .replace(/\\s/g, '_')
               .slice(0, 80) || 'storyboard';
-            link.download = 'storyboard_assets_' + sanitized + '.html';
+            link.download = 'storyboard_' + sanitized + '.html';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -6847,10 +6692,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
           // Dynamic filters and selection state
           const scenes = JSON.parse(document.getElementById('scenes-data').textContent);
-          const packItems = JSON.parse(document.getElementById('pack-data').textContent);
           let selectedAssetFilter = 'all';
           let onlySelected = false;
-          let selectedPackCategory = 'all';
 
           function initFilters() {
             const assetFilterContainer = document.getElementById('asset-filter-buttons');
@@ -6879,92 +6722,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               btn.innerText = asset + ' (' + assetCounts[asset] + ')';
               assetFilterContainer.appendChild(btn);
             });
-          }
-
-          function initPackCategoryPills() {
-            const pillsContainer = document.getElementById('pack-category-pills');
-            if (!pillsContainer) return;
-
-            const categoryCounts = {};
-            packItems.forEach(i => {
-              categoryCounts[i.category] = (categoryCounts[i.category] || 0) + 1;
-            });
-
-            pillsContainer.innerHTML = '';
-
-            const allPill = document.createElement('button');
-            allPill.id = 'pill-cat-all';
-            allPill.onclick = () => filterPackCategory('all');
-            allPill.className = 'px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all';
-            allPill.innerText = 'Todos (' + packItems.length + ')';
-            pillsContainer.appendChild(allPill);
-
-            Object.keys(categoryCounts).sort().forEach(cat => {
-              const pill = document.createElement('button');
-              pill.id = 'pill-cat-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
-              pill.onclick = () => filterPackCategory(cat);
-              pill.className = 'px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all';
-              const cleanName = cat.replace(/^[0-9]+_/, '').replace('_', ' ');
-              pill.innerText = cleanName + ' (' + categoryCounts[cat] + ')';
-              pillsContainer.appendChild(pill);
-            });
-          }
-
-          function filterPackCategory(cat) {
-            selectedPackCategory = cat;
-            const pills = document.querySelectorAll('#pack-category-pills button');
-            pills.forEach(p => {
-              p.className = 'px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all';
-            });
-            const activeId = cat === 'all' ? 'pill-cat-all' : 'pill-cat-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
-            const activePill = document.getElementById(activeId);
-            if (activePill) {
-              activePill.className = 'px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all';
-            }
-            filterPackLibrary();
-          }
-
-          function filterPackLibrary() {
-            const query = (document.getElementById('pack-search-input')?.value || '').toLowerCase().trim();
-            const rows = document.querySelectorAll('.pack-row');
-            let visibleCount = 0;
-
-            rows.forEach(row => {
-              const name = row.getAttribute('data-name') || '';
-              const cat = row.getAttribute('data-category') || '';
-              const kws = row.getAttribute('data-keywords') || '';
-
-              const matchesCat = (selectedPackCategory === 'all' || cat === selectedPackCategory.toLowerCase());
-              const matchesSearch = !query || name.includes(query) || cat.includes(query) || kws.includes(query);
-
-              if (matchesCat && matchesSearch) {
-                row.classList.remove('filtered-out');
-                visibleCount++;
-              } else {
-                row.classList.add('filtered-out');
-              }
-            });
-
-            const counter = document.getElementById('pack-stat-counter');
-            if (counter) {
-              counter.innerText = 'Exibindo ' + visibleCount + ' de ' + packItems.length + ' assets';
-            }
-          }
-
-          function downloadPackCsv() {
-            let csv = 'Nome do Arquivo,Categoria,Tipo (MIME),Tamanho (KB),URL\\r\\n';
-            packItems.forEach(item => {
-              csv += '"' + item.name + '","' + item.category + '","' + item.mimeType + '",' + item.sizeKb + ',"' + item.url + '"\\r\\n';
-            });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'pack_ganha_tempo_catalogo.csv';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
           }
 
           function filterAsset(assetType) {
@@ -7068,7 +6825,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
           // Initial load
           initFilters();
-          initPackCategoryPills();
           updateCounters();
         </script>
       </body>
@@ -7076,19 +6832,37 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     `;
   };
 
-  const openStoryboardInNewTab = (defaultView: 'spreadsheet' | 'grid' = 'spreadsheet') => {
+  const openStoryboardInNewTab = () => {
     if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
       alert('Não há dados do pipeline para visualizar no storyboard.');
       return;
     }
     try {
-      const htmlContent = generateStoryboardHtmlString(externalSrtPipeline, defaultView);
+      const htmlContent = generateStoryboardHtmlString(externalSrtPipeline);
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');
     } catch (err) {
       console.error('Erro ao abrir o storyboard:', err);
       alert('Falha ao abrir storyboard: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const openAssetsSpreadsheetInNewTab = () => {
+    if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
+      alert('Não há dados do pipeline para gerar a planilha de assets.');
+      return;
+    }
+    try {
+      const themeTitle = approvedBriefing?.title || approvedTheme || externalScriptFileName || 'Roteiro_de_Video';
+      const plan = buildCuratedAssetEnrichmentPlan(externalSrtPipeline.rows, videoFormat, themeTitle, activeProject?.puc);
+      const htmlContent = generateAssetsSpreadsheetHtmlString(plan);
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err) {
+      console.error('Erro ao abrir a planilha de assets:', err);
+      alert('Falha ao abrir planilha de assets: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -9750,35 +9524,44 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                         </div>
                       </div>
                       {externalSrtPipeline && (
-                        <div className="space-y-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.03] p-4">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-emerald-300 flex items-center gap-2">
-                              <span>📊 Planilha de Assets & Storyboard</span>
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[8px]">Pack Ganha Tempo</span>
-                            </label>
-                          </div>
-                          
-                          <div className="flex flex-col sm:flex-row gap-2.5">
+                        <div className="space-y-3">
+                          {/* Box 1: Storyboard Puro */}
+                          <div className="space-y-2 rounded-2xl border border-purple-500/20 bg-purple-500/[0.02] p-3.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black uppercase tracking-widest text-purple-300">Visualização de Storyboard</label>
+                              <span className="text-[8px] font-mono text-purple-400/80">Cards & Cenas</span>
+                            </div>
                             <button
                               type="button"
-                              onClick={() => openStoryboardInNewTab('spreadsheet')}
-                              className="flex-1 rounded-xl border border-emerald-400/40 bg-emerald-500/20 hover:bg-emerald-500/30 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40"
-                              title="Abrir diretamente em formato de Planilha com os links do Pack Ganha Tempo"
+                              onClick={openStoryboardInNewTab}
+                              className="w-full rounded-xl border border-purple-400/35 bg-purple-500/15 hover:bg-purple-500/25 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-purple-950/30"
                             >
-                              <span>📊 ABRIR PLANILHA DE ASSETS</span>
+                              <span>🎬 ABRIR STORYBOARD EM NOVA ABA</span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => openStoryboardInNewTab('grid')}
-                              className="flex-1 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/80 transition-all active:scale-95 flex items-center justify-center gap-2"
-                              title="Abrir em formato Storyboard Quadriculado"
-                            >
-                              <span>🎬 MODO STORYBOARD</span>
-                            </button>
+                            <div className="rounded-xl border border-purple-500/10 bg-black/15 px-3 py-2 text-[10px] text-purple-300/70">
+                              Visualização das ilustrações SVG dinâmicas, prompts em inglês e minutagem cena a cena.
+                            </div>
                           </div>
 
-                          <div className="rounded-xl border border-emerald-500/15 bg-black/30 px-3.5 py-2.5 text-[10px] text-emerald-300/80 leading-relaxed">
-                            💡 <strong>Novo:</strong> A planilha faz o match cena a cena dos arquivos do <strong>Pack Ganha Tempo</strong> com botões para download direto no Google Drive e traz a biblioteca completa de 406 assets logo abaixo!
+                          {/* Box 2: Planilha de Assets Pontual (Pack Ganha Tempo) */}
+                          <div className="space-y-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.03] p-3.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black uppercase tracking-widest text-emerald-300 flex items-center gap-1.5">
+                                <span>📊 Planilha de Assets & Enriquecimento</span>
+                              </label>
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[8px] font-bold">Pack Ganha Tempo</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={openAssetsSpreadsheetInNewTab}
+                              className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/20 hover:bg-emerald-500/30 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40"
+                              title="Abre a planilha de edição com intervenções pontuais do Pack Ganha Tempo e links do Google Drive"
+                            >
+                              <span>📊 ABRIR PLANILHA DE ASSETS EM NOVA ABA</span>
+                            </button>
+                            <div className="rounded-xl border border-emerald-500/15 bg-black/30 px-3 py-2 text-[10px] text-emerald-300/80 leading-relaxed">
+                              Planilha com intervenções pontuais mapeadas na timeline (SFX, Overlays, Chroma Keys, Gráficos e LUTs do Pack Ganha Tempo) com links diretos de download no Google Drive.
+                            </div>
                           </div>
                         </div>
                       )}

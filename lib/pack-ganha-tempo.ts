@@ -5990,7 +5990,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
 
     <div class="flex flex-wrap items-center gap-2.5">
       <button 
-        onclick="downloadCuratedCsv()" 
+        onclick="window.downloadCuratedCsv()" 
         class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-lg shadow-emerald-600/15 flex items-center gap-2"
       >
         <span>📥 BAIXAR PLANILHA (.CSV)</span>
@@ -6002,7 +6002,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         <span>🖨️ IMPRIMIR / PDF</span>
       </button>
       <button 
-        onclick="downloadSelfHTML()" 
+        onclick="window.downloadSelfHTML()" 
         class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl border border-zinc-700 flex items-center gap-2"
       >
         <span>💾 SALVAR HTML</span>
@@ -6200,7 +6200,6 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
   </main>
 
   <script>
-    // Injeção direta dos itens em memória sem dependência de parsing de DOM
     window.items = ${JSON.stringify(interventions.map((item) => ({
       id: item.id,
       rowNumber: item.rowNumber,
@@ -6215,27 +6214,27 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     window.selectedTypeFilter = 'all';
 
     window.initFilters = function() {
-      const filterContainer = document.getElementById('type-filter-buttons');
+      var filterContainer = document.getElementById('type-filter-buttons');
       if (!filterContainer) return;
 
-      const counts = {};
-      (window.items || []).forEach(it => {
-        const cat = it.category || 'SFX';
+      var counts = {};
+      (window.items || []).forEach(function(it) {
+        var cat = it.category || 'SFX';
         counts[cat] = (counts[cat] || 0) + 1;
       });
 
       filterContainer.innerHTML = '';
 
-      const allBtn = document.createElement('button');
+      var allBtn = document.createElement('button');
       allBtn.id = 'btn-filter-all';
       allBtn.onclick = function() { window.filterType('all'); };
       allBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       allBtn.innerText = 'Todos (' + (window.items || []).length + ')';
       filterContainer.appendChild(allBtn);
 
-      Object.keys(counts).sort().forEach(cat => {
-        const btn = document.createElement('button');
-        const safeId = 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
+      Object.keys(counts).sort().forEach(function(cat) {
+        var btn = document.createElement('button');
+        var safeId = 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
         btn.id = safeId;
         btn.onclick = function() { window.filterType(cat); };
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all uppercase';
@@ -6247,13 +6246,13 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     window.filterType = function(cat) {
       window.selectedTypeFilter = cat;
 
-      const buttons = document.querySelectorAll('#type-filter-buttons button');
-      buttons.forEach(btn => {
+      var buttons = document.querySelectorAll('#type-filter-buttons button');
+      buttons.forEach(function(btn) {
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all';
       });
 
-      const safeId = cat === 'all' ? 'btn-filter-all' : 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
-      const activeBtn = document.getElementById(safeId);
+      var safeId = cat === 'all' ? 'btn-filter-all' : 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
+      var activeBtn = document.getElementById(safeId);
       if (activeBtn) {
         activeBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       }
@@ -6266,21 +6265,21 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     };
 
     window.toggleRowSelection = function(id, isChecked) {
-      const item = (window.items || []).find(it => it.id === id);
+      var item = (window.items || []).find(function(it) { return it.id === id; });
       if (item) {
         item.selected = isChecked;
       }
 
-      const chk = document.getElementById('chk-' + id);
+      var chk = document.getElementById('chk-' + id);
       if (chk) chk.checked = isChecked;
 
       window.applyFilters();
     };
 
     window.setSelectedAll = function(isChecked) {
-      (window.items || []).forEach(item => {
+      (window.items || []).forEach(function(item) {
         item.selected = isChecked;
-        const chk = document.getElementById('chk-' + item.id);
+        var chk = document.getElementById('chk-' + item.id);
         if (chk) chk.checked = isChecked;
       });
 
@@ -6288,25 +6287,25 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     };
 
     window.applyFilters = function() {
-      const searchInput = document.getElementById('curated-search-input');
-      const searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
-      const onlySelectedChk = document.getElementById('chk-only-selected');
-      const onlySelected = onlySelectedChk ? onlySelectedChk.checked : true;
+      var searchInput = document.getElementById('curated-search-input');
+      var searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      var onlySelectedChk = document.getElementById('chk-only-selected');
+      var onlySelected = onlySelectedChk ? onlySelectedChk.checked : true;
 
-      const cards = document.querySelectorAll('.intervention-card');
-      let visibleCount = 0;
+      var cards = document.querySelectorAll('.intervention-card');
+      var visibleCount = 0;
 
-      cards.forEach(card => {
-        const id = Number(card.getAttribute('data-id'));
-        const item = (window.items || []).find(it => it.id === id);
-        const isSelected = item ? item.selected : true;
-        const category = (card.getAttribute('data-type') || '').toLowerCase();
-        const cardText = (card.innerText || '').toLowerCase();
+      cards.forEach(function(card) {
+        var id = Number(card.getAttribute('data-id'));
+        var item = (window.items || []).find(function(it) { return it.id === id; });
+        var isSelected = item ? item.selected : true;
+        var category = (card.getAttribute('data-type') || '').toLowerCase();
+        var cardText = (card.innerText || '').toLowerCase();
 
-        const matchesType = (window.selectedTypeFilter === 'all' || category === window.selectedTypeFilter.toLowerCase());
-        const matchesSelection = (!onlySelected || isSelected);
-        const matchesSearch = !searchVal || cardText.includes(searchVal);
-        const isVisible = matchesType && matchesSelection && matchesSearch;
+        var matchesType = (window.selectedTypeFilter === 'all' || category === window.selectedTypeFilter.toLowerCase());
+        var matchesSelection = (!onlySelected || isSelected);
+        var matchesSearch = !searchVal || cardText.includes(searchVal);
+        var isVisible = matchesType && matchesSelection && matchesSearch;
 
         if (isVisible) {
           card.style.setProperty('display', '', 'important');
@@ -6318,20 +6317,21 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         }
       });
 
-      const statCounter = document.getElementById('stat-counter');
+      var statCounter = document.getElementById('stat-counter');
       if (statCounter) {
         statCounter.innerText = visibleCount + ' / ' + (window.items || []).length + ' visíveis';
       }
-      const statTotal = document.getElementById('stat-total');
+      var statTotal = document.getElementById('stat-total');
       if (statTotal) {
         statTotal.innerText = visibleCount + ' / ' + (window.items || []).length;
       }
     };
 
     window.downloadCuratedCsv = function() {
-      let csv = 'ID,Cena,Posicao Temporal,Tipo,Categoria,Asset Recomendado,URL Google Drive,Status\r\n';
-      (window.items || []).forEach(item => {
-        const status = item.selected ? 'Pendente' : 'Concluido';
+      var nl = String.fromCharCode(10);
+      var csv = 'ID,Cena,Posicao Temporal,Tipo,Categoria,Asset Recomendado,URL Google Drive,Status' + nl;
+      (window.items || []).forEach(function(item) {
+        var status = item.selected ? 'Pendente' : 'Concluido';
         csv += '"' + item.id + '",' +
                '"#' + item.rowNumber + '",' +
                '"' + item.timeRange + '",' +
@@ -6339,15 +6339,16 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
                '"' + item.category + '",' +
                '"' + (item.assetName || '').replace(/"/g, '""') + '",' +
                '"' + (item.url || '') + '",' +
-               '"' + status + '"\r\n';
+               '"' + status + '"' + nl;
       });
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
       a.href = url;
-      const themeTitle = document.getElementById('header-theme-title')?.innerText || 'video';
-      const sanitized = themeTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      var headerTheme = document.getElementById('header-theme-title');
+      var themeTitle = headerTheme ? headerTheme.innerText : 'video';
+      var sanitized = themeTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       a.download = 'planilha_assets_' + sanitized + '.csv';
       document.body.appendChild(a);
       a.click();
@@ -6356,13 +6357,15 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     };
 
     window.downloadSelfHTML = function() {
-      const docSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-      const blob = new Blob([docSource], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      var nl = String.fromCharCode(10);
+      var docSource = '<!DOCTYPE html>' + nl + document.documentElement.outerHTML;
+      var blob = new Blob([docSource], { type: 'text/html;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
       link.href = url;
-      const themeTitle = document.getElementById('header-theme-title')?.innerText || 'video';
-      const sanitized = themeTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      var headerTheme = document.getElementById('header-theme-title');
+      var themeTitle = headerTheme ? headerTheme.innerText : 'video';
+      var sanitized = themeTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       link.download = 'planilha_assets_' + sanitized + '.html';
       document.body.appendChild(link);
       link.click();
@@ -6371,15 +6374,8 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     };
 
     // Inicializa imediatamente
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        window.initFilters();
-        window.applyFilters();
-      });
-    } else {
-      window.initFilters();
-      window.applyFilters();
-    }
+    window.initFilters();
+    window.applyFilters();
   </script>
 </body>
 </html>`;

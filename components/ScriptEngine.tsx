@@ -42,6 +42,7 @@ import {
 import { isReasoningModel, resolveModel } from '@/lib/ai-config';
 import ProductionAssembler from './ProductionAssembler';
 import ScrollToTopButton from './ScrollToTopButton';
+import { PACK_GANHA_TEMPO_ITEMS, matchPackAssetsForScene, type PackAssetItem } from '@/lib/pack-ganha-tempo';
 
 type TitleCriterionResult = true | 'parcial' | false;
 interface TitleValidationResult {
@@ -81,242 +82,242 @@ const resolveErrorMessage = (errPayload: any, fallback: string): string => {
   return fallback;
 };
 
-  const renderMarkdown = (mdText: string | null | undefined) => {
-    if (!mdText) return null;
+const renderMarkdown = (mdText: string | null | undefined) => {
+  if (!mdText) return null;
 
-    const lines = mdText.split('\n');
-    const elements: React.ReactNode[] = [];
+  const lines = mdText.split('\n');
+  const elements: React.ReactNode[] = [];
 
-    let inTable = false;
-    let tableHeaders: string[] = [];
-    let tableRows: string[][] = [];
+  let inTable = false;
+  let tableHeaders: string[] = [];
+  let tableRows: string[][] = [];
 
-    const parseInlineMarkdown = (text: string) => {
-      const parts = text.split(/\*\*([^*]+)\*\*/g);
-      return parts.map((part, idx) => {
-        const isBold = idx % 2 === 1;
-        const linkParts = part.split(/\[([^\]]+)\]\(([^)]+)\)/g);
-        
-        const content = linkParts.length > 1 ? (
-          linkParts.map((subPart, subIdx) => {
-            if (subIdx % 3 === 1) {
-              const linkText = subPart;
-              const linkUrl = linkParts[subIdx + 1];
-              return (
-                <a 
-                  key={`link-${subIdx}`} 
-                  href={linkUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-blue-400 hover:underline font-bold"
-                >
-                  {linkText}
-                </a>
-              );
-            }
-            if (subIdx % 3 === 2) return null;
-            return subPart;
-          })
-        ) : part;
+  const parseInlineMarkdown = (text: string) => {
+    const parts = text.split(/\*\*([^*]+)\*\*/g);
+    return parts.map((part, idx) => {
+      const isBold = idx % 2 === 1;
+      const linkParts = part.split(/\[([^\]]+)\]\(([^)]+)\)/g);
 
-        if (isBold) {
-          return <strong key={idx} className="font-bold text-white">{content}</strong>;
-        }
-        return <span key={idx}>{content}</span>;
-      });
-    };
+      const content = linkParts.length > 1 ? (
+        linkParts.map((subPart, subIdx) => {
+          if (subIdx % 3 === 1) {
+            const linkText = subPart;
+            const linkUrl = linkParts[subIdx + 1];
+            return (
+              <a
+                key={`link-${subIdx}`}
+                href={linkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline font-bold"
+              >
+                {linkText}
+              </a>
+            );
+          }
+          if (subIdx % 3 === 2) return null;
+          return subPart;
+        })
+      ) : part;
 
-    const flushTable = (key: number) => {
-      if (tableHeaders.length === 0 && tableRows.length === 0) return null;
-      const headerRow = tableHeaders.length > 0 ? (
-        <tr className="border-b border-white/10 bg-white/5">
-          {tableHeaders.map((h, i) => (
-            <th key={i} className="px-3 py-2 text-left font-black uppercase tracking-wider text-[10px] text-white/50">
-              {h}
-            </th>
-          ))}
-        </tr>
-      ) : null;
+      if (isBold) {
+        return <strong key={idx} className="font-bold text-white">{content}</strong>;
+      }
+      return <span key={idx}>{content}</span>;
+    });
+  };
 
-      const bodyRows = tableRows.map((row, rowIndex) => (
-        <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-          {row.map((cell, cellIndex) => {
-            let cellStyle = "px-3 py-2 text-[10px] text-white/80 align-top";
-            const trimmed = cell.trim();
-            if (trimmed.includes('✅ PRECISO')) {
-              return (
-                <td key={cellIndex} className={cellStyle}>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-[9px]">
-                    ✅ PRECISO
-                  </span>
-                </td>
-              );
-            } else if (trimmed.includes('⚠️ ALERTA')) {
-              return (
-                <td key={cellIndex} className={cellStyle}>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-[9px]">
-                    ⚠️ ALERTA
-                  </span>
-                </td>
-              );
-            } else if (trimmed.includes('❌ INCORRETO')) {
-              return (
-                <td key={cellIndex} className={cellStyle}>
-                  <span className="px-2 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-red-400 font-bold text-[9px]">
-                    ❌ INCORRETO
-                  </span>
-                </td>
-              );
-            }
+  const flushTable = (key: number) => {
+    if (tableHeaders.length === 0 && tableRows.length === 0) return null;
+    const headerRow = tableHeaders.length > 0 ? (
+      <tr className="border-b border-white/10 bg-white/5">
+        {tableHeaders.map((h, i) => (
+          <th key={i} className="px-3 py-2 text-left font-black uppercase tracking-wider text-[10px] text-white/50">
+            {h}
+          </th>
+        ))}
+      </tr>
+    ) : null;
+
+    const bodyRows = tableRows.map((row, rowIndex) => (
+      <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+        {row.map((cell, cellIndex) => {
+          let cellStyle = "px-3 py-2 text-[10px] text-white/80 align-top";
+          const trimmed = cell.trim();
+          if (trimmed.includes('✅ PRECISO')) {
             return (
               <td key={cellIndex} className={cellStyle}>
-                {parseInlineMarkdown(cell)}
+                <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-[9px]">
+                  ✅ PRECISO
+                </span>
               </td>
             );
-          })}
-        </tr>
-      ));
+          } else if (trimmed.includes('⚠️ ALERTA')) {
+            return (
+              <td key={cellIndex} className={cellStyle}>
+                <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-[9px]">
+                  ⚠️ ALERTA
+                </span>
+              </td>
+            );
+          } else if (trimmed.includes('❌ INCORRETO')) {
+            return (
+              <td key={cellIndex} className={cellStyle}>
+                <span className="px-2 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-red-400 font-bold text-[9px]">
+                  ❌ INCORRETO
+                </span>
+              </td>
+            );
+          }
+          return (
+            <td key={cellIndex} className={cellStyle}>
+              {parseInlineMarkdown(cell)}
+            </td>
+          );
+        })}
+      </tr>
+    ));
 
-      inTable = false;
-      tableHeaders = [];
-      tableRows = [];
+    inTable = false;
+    tableHeaders = [];
+    tableRows = [];
 
-      return (
-        <div key={`table-${key}`} className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-midnight/35">
-          <table className="w-full text-[10px] border-collapse">
-            <thead>{headerRow}</thead>
-            <tbody>{bodyRows}</tbody>
-          </table>
-        </div>
-      );
-    };
+    return (
+      <div key={`table-${key}`} className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-midnight/35">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>{headerRow}</thead>
+          <tbody>{bodyRows}</tbody>
+        </table>
+      </div>
+    );
+  };
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
 
-      const hasPipe = line.includes('|');
-      if (hasPipe) {
-        inTable = true;
-        let cols = line.split('|').map(c => c.trim());
-        if (cols.length > 0 && cols[0] === '') cols.shift();
-        if (cols.length > 0 && cols[cols.length - 1] === '') cols.pop();
+    const hasPipe = line.includes('|');
+    if (hasPipe) {
+      inTable = true;
+      let cols = line.split('|').map(c => c.trim());
+      if (cols.length > 0 && cols[0] === '') cols.shift();
+      if (cols.length > 0 && cols[cols.length - 1] === '') cols.pop();
 
-        const isSeparator = cols.every(c => c.match(/^:?-+:?$/));
+      const isSeparator = cols.every(c => c.match(/^:?-+:?$/));
 
-        if (isSeparator) {
-          continue;
-        }
-
-        if (tableHeaders.length === 0 && tableRows.length === 0) {
-          tableHeaders = cols;
-        } else {
-          tableRows.push(cols);
-        }
-        continue;
-      } else if (inTable) {
-        const tbl = flushTable(i);
-        if (tbl) elements.push(tbl);
-      }
-
-      if (trimmed.startsWith('###')) {
-        elements.push(
-          <h4 key={i} className="text-[12px] font-black uppercase tracking-wider text-blue-300 mt-4 mb-2">
-            {parseInlineMarkdown(trimmed.replace(/^###\s*/, ''))}
-          </h4>
-        );
-        continue;
-      }
-      if (trimmed.startsWith('##')) {
-        elements.push(
-          <h3 key={i} className="text-[13px] font-extrabold uppercase tracking-widest text-blue-100 mt-5 mb-3 pb-1 border-b border-white/5">
-            {parseInlineMarkdown(trimmed.replace(/^##\s*/, ''))}
-          </h3>
-        );
-        continue;
-      }
-      if (trimmed.startsWith('#')) {
-        elements.push(
-          <h2 key={i} className="text-[14px] font-black uppercase text-white mt-6 mb-4">
-            {parseInlineMarkdown(trimmed.replace(/^#\s*/, ''))}
-          </h2>
-        );
+      if (isSeparator) {
         continue;
       }
 
-      if (trimmed.startsWith('>')) {
-        const content = trimmed.replace(/^>\s*/, '');
-        const isWarning = content.includes('⚠️') || content.includes('Aviso');
-        const bgStyle = isWarning
-          ? "border-l-4 border-amber-500 bg-amber-500/10 text-amber-200/90"
-          : "border-l-4 border-blue-500 bg-blue-500/10 text-blue-200/90";
-        
-        elements.push(
-          <div key={i} className={`p-3 rounded-r-xl my-3 text-[10px] leading-relaxed ${bgStyle}`}>
-            {parseInlineMarkdown(content)}
-          </div>
-        );
-        continue;
+      if (tableHeaders.length === 0 && tableRows.length === 0) {
+        tableHeaders = cols;
+      } else {
+        tableRows.push(cols);
       }
-
-      if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
-        elements.push(
-          <div key={i} className="flex gap-2 pl-2 py-0.5 text-[10px] text-white/70">
-            <span className="text-blue-400 select-none">•</span>
-            <div className="flex-1">
-              {parseInlineMarkdown(trimmed.replace(/^[*+-]\s*/, ''))}
-            </div>
-          </div>
-        );
-        continue;
-      }
-
-      if (trimmed === '') {
-        continue;
-      }
-
-      elements.push(
-        <p key={i} className="text-[10.5px] text-white/75 leading-relaxed my-2">
-          {parseInlineMarkdown(trimmed)}
-        </p>
-      );
-    }
-
-    if (inTable) {
-      const tbl = flushTable(lines.length);
+      continue;
+    } else if (inTable) {
+      const tbl = flushTable(i);
       if (tbl) elements.push(tbl);
     }
 
-    return <div className="space-y-1.5">{elements}</div>;
-  };
+    if (trimmed.startsWith('###')) {
+      elements.push(
+        <h4 key={i} className="text-[12px] font-black uppercase tracking-wider text-blue-300 mt-4 mb-2">
+          {parseInlineMarkdown(trimmed.replace(/^###\s*/, ''))}
+        </h4>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('##')) {
+      elements.push(
+        <h3 key={i} className="text-[13px] font-extrabold uppercase tracking-widest text-blue-100 mt-5 mb-3 pb-1 border-b border-white/5">
+          {parseInlineMarkdown(trimmed.replace(/^##\s*/, ''))}
+        </h3>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('#')) {
+      elements.push(
+        <h2 key={i} className="text-[14px] font-black uppercase text-white mt-6 mb-4">
+          {parseInlineMarkdown(trimmed.replace(/^#\s*/, ''))}
+        </h2>
+      );
+      continue;
+    }
+
+    if (trimmed.startsWith('>')) {
+      const content = trimmed.replace(/^>\s*/, '');
+      const isWarning = content.includes('⚠️') || content.includes('Aviso');
+      const bgStyle = isWarning
+        ? "border-l-4 border-amber-500 bg-amber-500/10 text-amber-200/90"
+        : "border-l-4 border-blue-500 bg-blue-500/10 text-blue-200/90";
+
+      elements.push(
+        <div key={i} className={`p-3 rounded-r-xl my-3 text-[10px] leading-relaxed ${bgStyle}`}>
+          {parseInlineMarkdown(content)}
+        </div>
+      );
+      continue;
+    }
+
+    if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+      elements.push(
+        <div key={i} className="flex gap-2 pl-2 py-0.5 text-[10px] text-white/70">
+          <span className="text-blue-400 select-none">•</span>
+          <div className="flex-1">
+            {parseInlineMarkdown(trimmed.replace(/^[*+-]\s*/, ''))}
+          </div>
+        </div>
+      );
+      continue;
+    }
+
+    if (trimmed === '') {
+      continue;
+    }
+
+    elements.push(
+      <p key={i} className="text-[10.5px] text-white/75 leading-relaxed my-2">
+        {parseInlineMarkdown(trimmed)}
+      </p>
+    );
+  }
+
+  if (inTable) {
+    const tbl = flushTable(lines.length);
+    if (tbl) elements.push(tbl);
+  }
+
+  return <div className="space-y-1.5">{elements}</div>;
+};
 
 const getLanguageDirectives = (lang?: string) => {
   const l = (lang || 'Português').trim();
   if (l === 'English') {
-    return { 
-      name: 'English', 
-      code: 'English', 
-      units: 'US Imperial system (e.g. Fahrenheit °F, miles, feet, inches, pounds, ounces, gallons)' 
+    return {
+      name: 'English',
+      code: 'English',
+      units: 'US Imperial system (e.g. Fahrenheit °F, miles, feet, inches, pounds, ounces, gallons)'
     };
   }
   if (l === 'Español' || l === 'Spanish') {
-    return { 
-      name: 'Spanish', 
-      code: 'Spanish', 
-      units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+    return {
+      name: 'Spanish',
+      code: 'Spanish',
+      units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)'
     };
   }
   if (l === 'Português' || l === 'Portuguese') {
-    return { 
-      name: 'Brazilian Portuguese', 
-      code: 'PT-BR', 
-      units: 'Metric system (e.g. Celsius °C, quilômetros, metros, gramas, quilogramas, litros)' 
+    return {
+      name: 'Brazilian Portuguese',
+      code: 'PT-BR',
+      units: 'Metric system (e.g. Celsius °C, quilômetros, metros, gramas, quilogramas, litros)'
     };
   }
-  return { 
-    name: l, 
-    code: l, 
-    units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)' 
+  return {
+    name: l,
+    code: l,
+    units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)'
   };
 };
 
@@ -605,19 +606,19 @@ const validatePromptBatch = (
   localFallbackRows: Set<number>
 ) => {
   const expectedRows = new Set(items.map((item) => item.row_number));
-  const promptMap = new Map<number, { 
-    prompt: string; 
-    texto_adicional?: any; 
-    protagonista_presente?: boolean; 
-    extras_presentes?: boolean; 
+  const promptMap = new Map<number, {
+    prompt: string;
+    texto_adicional?: any;
+    protagonista_presente?: boolean;
+    extras_presentes?: boolean;
   }>();
 
   for (const promptItem of payload?.prompts || []) {
     const rowNumber = Number(promptItem?.row_number || promptItem?.rowNumber);
     const prompt = sanitizePrompt(promptItem?.prompt || '');
     if (!expectedRows.has(rowNumber) || (!prompt && promptItem.texto_adicional === undefined)) continue;
-    promptMap.set(rowNumber, { 
-      prompt, 
+    promptMap.set(rowNumber, {
+      prompt,
       texto_adicional: promptItem.texto_adicional,
       protagonista_presente: promptItem.protagonista_presente,
       extras_presentes: promptItem.extras_presentes,
@@ -640,7 +641,7 @@ const validatePromptBatch = (
         } else {
           fallback = `Cinematic technical video animation of the system concept with volumetric lighting, ambient sound only, no dialogue, no voice-over.`;
         }
-        promptMap.set(item.row_number, { 
+        promptMap.set(item.row_number, {
           prompt: fallback,
           protagonista_presente: false,
           extras_presentes: false,
@@ -691,7 +692,7 @@ const directGenerateBatchOpenAI = async ({
 }) => {
   const resolvedModel = resolveModel(model);
   const { name: langName, units: langUnits } = getLanguageDirectives(channelLanguage);
-  
+
   const dynamicSrtInstructions = `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('(usually Portuguese)', `(usually ${langName})`)
     .replaceAll('(Portuguese)', `(${langName})`)
@@ -707,10 +708,10 @@ const directGenerateBatchOpenAI = async ({
   const requestBody: Record<string, unknown> = {
     model: resolvedModel,
     messages: [
-      { 
-        role: isReasoningModel(resolvedModel) ? 'developer' : 'system', 
+      {
+        role: isReasoningModel(resolvedModel) ? 'developer' : 'system',
         content: (() => {
-          let systemPrompt = ultraCinematic 
+          let systemPrompt = ultraCinematic
             ? `${dynamicSrtInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
             : dynamicSrtInstructions;
           if (dnaInstructions) {
@@ -730,10 +731,10 @@ const directGenerateBatchOpenAI = async ({
           videoFormat === 'catalog'
             ? `Visual Style reference (APPLY this presentation design style to ALL video and image prompts in this batch): ${characterDescription}`
             : videoFormat === 'faceless'
-            ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
-            : videoFormat === 'vlog'
-            ? `Recurring presenter character reference: ${characterDescription}`
-            : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
+              ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
+              : videoFormat === 'vlog'
+                ? `Recurring presenter character reference: ${characterDescription}`
+                : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
           visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
           visualBlueprint?.cast && visualBlueprint.cast.length > 0
             ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
@@ -772,7 +773,7 @@ When constructing the prompt suffix, merge these details dynamically instead of 
 `;
                 }
               }
-            } catch (e) {}
+            } catch (e) { }
             return '';
           })(),
           dynamicFacelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
@@ -838,7 +839,7 @@ const directGenerateBatchGemini = async ({
 }) => {
   const resolvedModel = resolveModel(model);
   const { name: langName, units: langUnits } = getLanguageDirectives(channelLanguage);
-  
+
   const dynamicSrtInstructions = `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
     .replaceAll('(usually Portuguese)', `(usually ${langName})`)
     .replaceAll('(Portuguese)', `(${langName})`)
@@ -860,17 +861,17 @@ const directGenerateBatchGemini = async ({
         contents: [{
           parts: [{
             text: [
-              ultraCinematic 
+              ultraCinematic
                 ? (() => {
-                    let systemPrompt = `${dynamicSrtInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`;
-                    if (dnaInstructions) systemPrompt += `\n\n${dnaInstructions}`;
-                    return systemPrompt;
-                  })()
+                  let systemPrompt = `${dynamicSrtInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`;
+                  if (dnaInstructions) systemPrompt += `\n\n${dnaInstructions}`;
+                  return systemPrompt;
+                })()
                 : (() => {
-                    let systemPrompt = dynamicSrtInstructions;
-                    if (dnaInstructions) systemPrompt += `\n\n${dnaInstructions}`;
-                    return systemPrompt;
-                  })(),
+                  let systemPrompt = dynamicSrtInstructions;
+                  if (dnaInstructions) systemPrompt += `\n\n${dnaInstructions}`;
+                  return systemPrompt;
+                })(),
               dnaInstructions
                 ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
                 : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
@@ -879,10 +880,10 @@ const directGenerateBatchGemini = async ({
               videoFormat === 'catalog'
                 ? `Visual Style reference (APPLY this presentation design style to ALL video and image prompts in this batch): ${characterDescription}`
                 : videoFormat === 'faceless'
-                ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
-                : videoFormat === 'vlog'
-                ? `Recurring presenter character reference: ${characterDescription}`
-                : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
+                  ? `Visual Identity and Aesthetic Style reference (APPLY this visual style, atmosphere, lighting, and art direction to ALL video and image prompts in this batch): ${characterDescription}`
+                  : videoFormat === 'vlog'
+                    ? `Recurring presenter character reference: ${characterDescription}`
+                    : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
               visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
               visualBlueprint?.cast && visualBlueprint.cast.length > 0
                 ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
@@ -903,7 +904,7 @@ Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}
                   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
                     const parsed = JSON.parse(trimmed);
                     if (parsed && typeof parsed === 'object') {
-                       return `
+                      return `
 CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
 You MUST strictly apply the following style configurations to every video or image prompt:
 - Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
@@ -921,7 +922,7 @@ When constructing the prompt suffix, merge these details dynamically instead of 
 `;
                     }
                   }
-                } catch (e) {}
+                } catch (e) { }
                 return '';
               })(),
               dynamicFacelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
@@ -1068,7 +1069,7 @@ const buildUserPrompt = ({
   sfxPlan: any;
   titleCountHint?: number;
   titleStructures?: any[];
-  forensicFormulas?: Array<{name: string; skeleton: string; trigger: string; proof: string}>;
+  forensicFormulas?: Array<{ name: string; skeleton: string; trigger: string; proof: string }>;
   forensicPowerWords?: string[];
   forensicTone?: string;
 }) => {
@@ -1185,12 +1186,12 @@ const resolveCharacterProfileInFrontend = (
   const resolvedVisualIdentity = String(visualIdentity || '').trim();
 
   // 1. Detect Gender & Pronoun
-  const isFemaleVisual = resolvedVisualIdentity.toLowerCase().includes('mulher') || 
-                         resolvedVisualIdentity.toLowerCase().includes('senhora') || 
-                         resolvedVisualIdentity.toLowerCase().includes('female') ||
-                         resolvedDemographics.toLowerCase().includes('mulher') ||
-                         resolvedDemographics.toLowerCase().includes('female');
-  
+  const isFemaleVisual = resolvedVisualIdentity.toLowerCase().includes('mulher') ||
+    resolvedVisualIdentity.toLowerCase().includes('senhora') ||
+    resolvedVisualIdentity.toLowerCase().includes('female') ||
+    resolvedDemographics.toLowerCase().includes('mulher') ||
+    resolvedDemographics.toLowerCase().includes('female');
+
   const finalMode = mode === 'custom' ? (isFemaleVisual ? 'female' : 'male') : mode;
   const pronoun = finalMode === 'female' ? 'her' : 'his';
   const noun = finalMode === 'female' ? 'female' : 'male';
@@ -1503,7 +1504,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isPipelineRunning, setIsPipelineRunning] = useState(false);
   const [pipelineCurrentStep, setPipelineCurrentStep] = useState<string | null>(null);
   const _isPipelineMode = useRef(false);          // quando true, handlers lancam erro em vez de alert()
-  const _pipelineResultRef  = useRef<any>(null);  // captura pipeline SRT entre setState assíncronos
+  const _pipelineResultRef = useRef<any>(null);  // captura pipeline SRT entre setState assíncronos
   const _postScriptResultRef = useRef<any>(null); // captura pacote pós-roteiro entre setState assíncronos
   const [pipelineWarnings, setPipelineWarnings] = useState<string[]>([]); // avisos não-fatais
   const [autoDownloadBats, setAutoDownloadBats] = useState<boolean>(() => {
@@ -1607,7 +1608,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const generationAbortRef = useRef<AbortController | null>(null);
   const generationStoppedRef = useRef(false);
   const hasHydratedRef = useRef(false);
-  
+
   // BI Traceability States
   const [components, setComponents] = useState<any[]>([]);
   const [componentsHydrated, setComponentsHydrated] = useState(false);
@@ -1771,24 +1772,24 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
       if (supabase) {
         const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!THEME_CLOUD_ID_PATTERN.test(projectId)) {
-             console.warn('⚠️ O ID deste projeto não é compatível com a Nuvem (não é um UUID). O Sincronizador Backend está desativado para esta instância.', projectId);
-             return;
+          console.warn('⚠️ O ID deste projeto não é compatível com a Nuvem (não é um UUID). O Sincronizador Backend está desativado para esta instância.', projectId);
+          return;
         }
 
         const fetchPromise = supabase.from('narrative_components').select('*').eq('project_id', projectId);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 8000));
-        
+
         const response: any = await Promise.race([fetchPromise, timeoutPromise]);
-        
+
         if (response.error) throw response.error;
-        
+
         const cloudData = response.data || [];
         const merged = dedupeNarrativeComponents(mergeNarrativeComponents(localItems, cloudData));
-        
+
         // ⬆️ AUTO-PUSH UNSYNCED ITEMS TO CLOUD
         const cloudIds = new Set(cloudData.map((c: any) => c.id));
         const unsyncedItems = localItems.filter(l => l.id && !cloudIds.has(l.id));
-        
+
         if (unsyncedItems.length > 0) {
           console.log(`[ScriptEngine] ⬆️ Auto-syncing ${unsyncedItems.length} pending local items to cloud...`);
           supabase.from('narrative_components').upsert(
@@ -2166,7 +2167,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         created_at: new Date().toISOString(),
       });
     }
-    
+
     // Storage cloud-only
     try {
       // Local caching of themes disabled to avoid 10MB quota limit
@@ -2201,9 +2202,9 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
           .select('id')
           .eq('id', remoteId)
           .limit(1);
-          
+
         if (!existingRemoteById.data || !existingRemoteById.data[0]) {
-           remoteId = undefined; // ID not found in remote, fallback to title
+          remoteId = undefined; // ID not found in remote, fallback to title
         }
       }
 
@@ -2214,7 +2215,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
           .eq('project_id', activeProject.id)
           .ilike('title', themeTitle)
           .limit(1);
-          
+
         if (existingRemoteByTitle.data && existingRemoteByTitle.data[0]) {
           remoteId = existingRemoteByTitle.data[0].id;
         }
@@ -2244,13 +2245,13 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     try {
       const themesKey = `themes_${activeProject.id}`;
       const themes = JSON.parse(localStorage.getItem(themesKey) || '[]');
-      
+
       let t = null;
       if (tId) {
         t = themes.find((theme: any) => theme?.id === tId);
       }
       if (!t && title) {
-        t = themes.find((theme: any) => 
+        t = themes.find((theme: any) =>
           theme?.title?.trim().toLowerCase() === title.trim().toLowerCase()
         );
       }
@@ -2258,7 +2259,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
       const dateValue = t.target_publish_date || t.production_assets?.target_publish_date || null;
       const status = t.status || '';
-      
+
       // If status is published or scheduled, it is finished
       if (status === 'published' || status === 'scheduled') return true;
 
@@ -2300,7 +2301,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
     try {
       let snapshot: any = null;
-      
+
       // If we received pendingData that has an approvedTheme, it's a resume from ThemeBank.
       // We should hydrate directly from it instead of localStorage.
       if (pendingData && pendingData.approvedTheme) {
@@ -2350,19 +2351,19 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
             try {
               const activeSessionThemeId = sessionStorage.getItem(`active_script_theme_${activeProject.id}`);
               console.log(`[ScriptEngine] Nenhum snapshot local para o projeto ${activeProject.id}. Tentando carregar execução da nuvem... activeSessionThemeId: ${activeSessionThemeId}`);
-              
+
               let query = supabase
                 .from('script_executions')
                 .select('*');
-                
+
               if (activeSessionThemeId) {
                 query = query.eq('theme_id', activeSessionThemeId);
               } else {
                 query = query.eq('project_id', activeProject.id).order('updated_at', { ascending: false });
               }
-              
+
               const { data, error } = await query.limit(1);
-              
+
               if (error) throw error;
               if (data && data[0] && data[0].execution_snapshot) {
                 const cloudSnapshot = data[0].execution_snapshot;
@@ -2377,7 +2378,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
                 if (isTrusted) {
                   console.log(`[ScriptEngine] Encontrado snapshot de execução na nuvem para o tema: ${cloudSnapshot.approvedTheme}. Reidratando workspace...`);
-                  
+
                   if (cloudSnapshot.approvedTheme) setApprovedTheme(cloudSnapshot.approvedTheme);
                   if (cloudSnapshot.approvedBriefing) setApprovedBriefing(cloudSnapshot.approvedBriefing);
                   const normalizedSnapshotBlocks = resolveSnapshotBlocks(cloudSnapshot);
@@ -2418,7 +2419,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                   if (typeof cloudSnapshot.externalFactCheckReport === 'string' || cloudSnapshot.externalFactCheckReport === null) setExternalFactCheckReport(cloudSnapshot.externalFactCheckReport);
                   if (typeof cloudSnapshot.externalHumanizeReport === 'string' || cloudSnapshot.externalHumanizeReport === null) setExternalHumanizeReport(cloudSnapshot.externalHumanizeReport);
                   if (typeof cloudSnapshot.pendingHumanizedText === 'string' || cloudSnapshot.pendingHumanizedText === null) setPendingHumanizedText(cloudSnapshot.pendingHumanizedText);
-                  
+
                   if (cloudSnapshot.externalSrtPipeline) setExternalSrtPipeline(cloudSnapshot.externalSrtPipeline);
                   if (cloudSnapshot.postScriptPackage) setPostScriptPackage(cloudSnapshot.postScriptPackage);
                   if (Array.isArray(cloudSnapshot.externalSrtObserver)) setExternalSrtObserver(cloudSnapshot.externalSrtObserver);
@@ -2534,13 +2535,13 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
                 const parsed = JSON.parse(hfRaw);
                 if (Array.isArray(parsed) && parsed.length > 0) hasLocalHf = true;
               }
-            } catch {}
+            } catch { }
             if (!hasLocalHf && (!snapshot?.hfBgPrompts || snapshot.hfBgPrompts.length === 0) && Array.isArray(cloudSnapshot.hfBgPrompts) && cloudSnapshot.hfBgPrompts.length > 0) {
               setHfBgPrompts(cloudSnapshot.hfBgPrompts);
               console.log('[ScriptEngine] Hydrated hfBgPrompts from cloud.');
               try {
                 localStorage.setItem(localHfKey, JSON.stringify(cloudSnapshot.hfBgPrompts));
-              } catch {}
+              } catch { }
             }
             // 5. External Srt Observer
             if ((!snapshot?.externalSrtObserver || snapshot.externalSrtObserver.length === 0) && Array.isArray(cloudSnapshot.externalSrtObserver) && cloudSnapshot.externalSrtObserver.length > 0) {
@@ -2633,7 +2634,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
             });
           }
         }
-        
+
         if (loadedPost) {
           setPostScriptPackage(loadedPost);
         }
@@ -2653,7 +2654,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
           if (validHf.length > 0) setHfBgPrompts(validHf);
         }
       } catch { /* ignore */ }
-      
+
       if (pendingData && pendingData.approvedTheme) {
         onClearPending?.();
       }
@@ -2718,33 +2719,33 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     externalSrtText,
     assemblerActive,
   ]);
-  
+
   useEffect(() => {
     if (!executionHydrated) return;
     // Only initialize Assembler V4 if it's a NEW theme (no approvedTheme)
     if (pendingData && !pendingData.approvedTheme) {
       console.log('--- Assembler V4 Initializing from Content OS Kernel ---');
-      
+
       const metaphorsStr = activeProject?.metaphor_library || '';
       const metaphors = metaphorsStr.split(',').map((s: string) => s.trim()).filter(Boolean);
       const randomM = metaphors[Math.floor(Math.random() * metaphors.length)] || 'Conceito Central';
-      
+
       const sop = activeProject?.editing_sop || { cut_rhythm: '3s', zoom_style: 'Dynamic', soundtrack: 'Reflexive' };
       const persona = activeProject?.persona_matrix || { demographics: 'Publico', pain_alignment: 'Problema' };
       const tactical_journey = activeProject?.playlists?.tactical_journey || [];
 
       const v4Blocks: ScriptBlock[] = [
-        { 
-          id: 'h1', 
-          type: 'Hook', 
-          title: `Hook Estrategico [${pendingData.title_structure || pendingData.selected_structure || 'S1'}]`, 
+        {
+          id: 'h1',
+          type: 'Hook',
+          title: `Hook Estrategico [${pendingData.title_structure || pendingData.selected_structure || 'S1'}]`,
           content: pendingData.refined_title || pendingData.title || '',
-          sop: `Estilo: ${sop.zoom_style}. Ritmo: ${sop.cut_rhythm}. Impacto visual imediato no gancho.` 
+          sop: `Estilo: ${sop.zoom_style}. Ritmo: ${sop.cut_rhythm}. Impacto visual imediato no gancho.`
         },
-        { 
-          id: 'c1', 
-          type: 'Context', 
-          title: 'Conexao com a Persona', 
+        {
+          id: 'c1',
+          type: 'Context',
+          title: 'Conexao com a Persona',
           content: `Vincular o tema [${pendingData.title || pendingData.raw_theme || ''}] com o perfil [${persona.demographics}] e a dor central: ${persona.pain_alignment}.`,
           sop: `Trilha: ${sop.soundtrack}. Tom empatico. Camera focada para gerar conexao.`
         }
@@ -2761,10 +2762,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         });
       });
 
-      v4Blocks.push({ 
-        id: 'cta1', 
-        type: 'CTA', 
-        title: 'Conversao PUC', 
+      v4Blocks.push({
+        id: 'cta1',
+        type: 'CTA',
+        title: 'Conversao PUC',
         content: `CTA Estrategico: transicao para a Promessa Unica (PUC) - ${activeProject?.puc}. Chamar para a acao especifica do projeto.`,
         sop: 'Split screen ou CTA visual. Encerramento com a trilha em crescendo.'
       });
@@ -2774,7 +2775,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       setScriptBlocks(v4Blocks);
       setScriptStage('blueprint');
       setPostScriptPackage(null);
-      
+
       const themeDate = pendingData.target_publish_date || pendingData.production_assets?.target_publish_date || '';
       setManualPublishDate(themeDate);
       const dateParts = getManualPublishDateParts(themeDate);
@@ -2853,8 +2854,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       dominantVoiceLabel === 'Vulnerabilidade'
         ? 'Estilo de fala ativo: Primeira pessoa, a partir da propria experiencia. Nao como especialista externo, mas como alguem que passou pelo mesmo problema e tem cicatriz para mostrar.'
         : dominantVoiceLabel === 'Desafio Direto'
-        ? 'Estilo de fala ativo: Par senior que confronta sem agredir. Nao suaviza, nao enrola. Da o diagnostico e vai embora.'
-        : 'Estilo de fala ativo: Distancia tecnica analitica. Mostra o mecanismo, nao a emocao. A autoridade vem da clareza, nao da intensidade.',
+          ? 'Estilo de fala ativo: Par senior que confronta sem agredir. Nao suaviza, nao enrola. Da o diagnostico e vai embora.'
+          : 'Estilo de fala ativo: Distancia tecnica analitica. Mostra o mecanismo, nao a emocao. A autoridade vem da clareza, nao da intensidade.',
       atmosphereList ? `Atmosfera/Tom de voz predominante: ${atmosphereList}.` : '',
       activeProject?.puc ? `Posicionamento Unico do Canal (PUC): ${activeProject.puc}.` : '',
       passion ? `Paixao do criador (diretriz energetica): ${passion}` : '',
@@ -2863,19 +2864,19 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
     const languageSection = languageStyle || desiredOutcome || proofPoints
       ? [
-          '\nESTILO LINGUISTICO E TONE OF VOICE',
-          languageStyle ? `- Diretriz de linguagem: ${languageStyle}` : '',
-          desiredOutcome ? `- Desfecho desejado a prometer no roteiro: ${desiredOutcome}` : '',
-          proofPoints ? `- Fatos/Pontos de prova a incorporar: ${proofPoints}` : '',
-        ].filter(Boolean).join('\n')
+        '\nESTILO LINGUISTICO E TONE OF VOICE',
+        languageStyle ? `- Diretriz de linguagem: ${languageStyle}` : '',
+        desiredOutcome ? `- Desfecho desejado a prometer no roteiro: ${desiredOutcome}` : '',
+        proofPoints ? `- Fatos/Pontos de prova a incorporar: ${proofPoints}` : '',
+      ].filter(Boolean).join('\n')
       : '';
 
     const boundariesSection = positioningAngle || contentBoundaries
       ? [
-          '\nDIRETRIZES DE CONTEUDO E LIMITES (BOUNDARIES)',
-          positioningAngle ? `- Angulo de posicionamento editorial: ${positioningAngle}` : '',
-          contentBoundaries ? `- Limites de conteudo (O que entra e o que NAO entra):\n${contentBoundaries}` : '',
-        ].filter(Boolean).join('\n')
+        '\nDIRETRIZES DE CONTEUDO E LIMITES (BOUNDARIES)',
+        positioningAngle ? `- Angulo de posicionamento editorial: ${positioningAngle}` : '',
+        contentBoundaries ? `- Limites de conteudo (O que entra e o que NAO entra):\n${contentBoundaries}` : '',
+      ].filter(Boolean).join('\n')
       : '';
 
     const customSystemSection = baseSystemInstruction
@@ -2986,18 +2987,18 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         : [];
       const curveStageForBlock = curveStages.length > 0
         ? (() => {
-            const totalBlocks = promptBlocks.length;
-            const stageIndex = totalBlocks <= 1
-              ? 0
-              : Math.round((index / (totalBlocks - 1)) * (curveStages.length - 1));
-            return curveStages[Math.min(stageIndex, curveStages.length - 1)];
-          })()
+          const totalBlocks = promptBlocks.length;
+          const stageIndex = totalBlocks <= 1
+            ? 0
+            : Math.round((index / (totalBlocks - 1)) * (curveStages.length - 1));
+          return curveStages[Math.min(stageIndex, curveStages.length - 1)];
+        })()
         : null;
 
       // Calculate progress relative to the entire script (from 0 to 1)
       const relativeProgress = index / (promptBlocks.length - 1 || 1);
       const isUnder30Percent = relativeProgress <= 0.3;
-      
+
       const ctaType = isUnder30Percent ? 'Nativa/Engajamento' : 'Conversao/Externa';
       const ctaGuidance = isUnder30Percent
         ? `- CAMADA CTA (${ctaType} - ate 30% do video): Insira uma chamada sutil de engajamento nativo (ex: curtir, comentar usando piada ou apelido do canal, ou se inscrever) de forma extremamente integrada e sem parecer comercial.`
@@ -3009,23 +3010,23 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
       const cadenciaRhythmSpec = index === 0
         ? [
-            `[ESTRUTURA DE CADENCIA - PORTAL DE ENTRADA]`,
-            `- Abertura: Inicie com impacto usando a Voz Dominante. PROIBIDO jargoes como 'Voce ja se perguntou...', 'Imagine que...'.`,
-            `- CTA: Insira uma chamada de engajamento nativo (baixo atrito) no fluxo de contextualizacao.`,
-            communityReference ? `- Elemento de Comunidade Ativo: "${communityReference}". Reinterprete de forma natural.` : '',
-            `- Informacao/Conteudo: Entregue a tese central inicial.`
-          ].filter(Boolean).join('\n')
+          `[ESTRUTURA DE CADENCIA - PORTAL DE ENTRADA]`,
+          `- Abertura: Inicie com impacto usando a Voz Dominante. PROIBIDO jargoes como 'Voce ja se perguntou...', 'Imagine que...'.`,
+          `- CTA: Insira uma chamada de engajamento nativo (baixo atrito) no fluxo de contextualizacao.`,
+          communityReference ? `- Elemento de Comunidade Ativo: "${communityReference}". Reinterprete de forma natural.` : '',
+          `- Informacao/Conteudo: Entregue a tese central inicial.`
+        ].filter(Boolean).join('\n')
         : [
-            `[ESTRUTURA DE CADENCIA NARRATIVA EM 3 TEMPOS]`,
-            `Voce DEVE tecer este bloco intercalando estritamente estas 3 camadas de forma natural:`,
-            `1. CAMADA CTA:`,
-            `   ${ctaGuidance}`,
-            `2. CAMADA DE COMUNIDADE:`,
-            `   - Use e reinterprete ativos da comunidade.`,
-            communityReference ? `   - Ativo especifico selecionado para este bloco: "${communityReference}". Use-o como gatilho de pertencimento.` : '   - Integre referencias de identidade ou jargoes de forma leve.',
-            `3. CAMADA DE INFORMAÇÃO/CONTEÚDO:`,
-            `   - Entregue o nucleo tecnico e a tese de "${block.title}".`
-          ].join('\n');
+          `[ESTRUTURA DE CADENCIA NARRATIVA EM 3 TEMPOS]`,
+          `Voce DEVE tecer este bloco intercalando estritamente estas 3 camadas de forma natural:`,
+          `1. CAMADA CTA:`,
+          `   ${ctaGuidance}`,
+          `2. CAMADA DE COMUNIDADE:`,
+          `   - Use e reinterprete ativos da comunidade.`,
+          communityReference ? `   - Ativo especifico selecionado para este bloco: "${communityReference}". Use-o como gatilho de pertencimento.` : '   - Integre referencias de identidade ou jargoes de forma leve.',
+          `3. CAMADA DE INFORMAÇÃO/CONTEÚDO:`,
+          `   - Entregue o nucleo tecnico e a tese de "${block.title}".`
+        ].join('\n');
 
       const blockLines = [
         `BLOCO ${index + 1} - DESENVOLVIMENTO`,
@@ -3045,16 +3046,16 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
         // For block 0: translate the hook into a writing directive — orientation, not text to copy
         ...(index === 0 && videoFormat !== 'catalog' && (approvedBriefing?.openingHook?.name || approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description)
           ? (() => {
-              const hookName = approvedBriefing.openingHook?.name || '';
-              const hookRef = approvedBriefing.openingHook?.pattern || approvedBriefing.openingHook?.description || '';
-              const lines = [
-                `DIRETRIZ DE ENTRADA DO ROTEIRO — orienta apenas o primeiro paragrafo, sobrepoe a voz dominante nesse ponto:`,
-                `Ativo de abertura selecionado: "${hookName}"`,
-                hookRef ? `Orientacao funcional do ativo (bussola de escrita, nao texto a copiar): ${hookRef}` : '',
-                `Como aplicar: identifique a pessoa gramatical, o angulo de tensao e a sensacao concreta que o ativo evoca. Abra o roteiro com linguagem propria que capture essa mesma energia e esse ponto de entrada. O primeiro paragrafo deve soar como se esse ativo tivesse sido escrito especificamente para este tema — com palavras completamente diferentes.`,
-              ].filter(Boolean).join('\n');
-              return [lines];
-            })()
+            const hookName = approvedBriefing.openingHook?.name || '';
+            const hookRef = approvedBriefing.openingHook?.pattern || approvedBriefing.openingHook?.description || '';
+            const lines = [
+              `DIRETRIZ DE ENTRADA DO ROTEIRO — orienta apenas o primeiro paragrafo, sobrepoe a voz dominante nesse ponto:`,
+              `Ativo de abertura selecionado: "${hookName}"`,
+              hookRef ? `Orientacao funcional do ativo (bussola de escrita, nao texto a copiar): ${hookRef}` : '',
+              `Como aplicar: identifique a pessoa gramatical, o angulo de tensao e a sensacao concreta que o ativo evoca. Abra o roteiro com linguagem propria que capture essa mesma energia e esse ponto de entrada. O primeiro paragrafo deve soar como se esse ativo tivesse sido escrito especificamente para este tema — com palavras completamente diferentes.`,
+            ].filter(Boolean).join('\n');
+            return [lines];
+          })()
           : []),
         ...connectionLines,
         buildAlignedBridgeInstruction(nextBlock, nextNarrativeBlock),
@@ -3066,26 +3067,26 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     const midCtaBlockNum = Number(approvedBriefing?.midCta?.position || 0) + 1;
     const midCtaSection = hasMidCta
       ? [
-          'INTERVENCAO INTERMEDIARIA OBRIGATORIA',
-          `Insercao: esta microchamada DEVE aparecer imediatamente apos a ultima frase do bloco de desenvolvimento ${midCtaBlockNum}. Nao crie um bloco separado. Nao omita esta instrucao. Nao mova para outro ponto do roteiro. O texto deve fluir como continuacao natural do bloco ${midCtaBlockNum} e transicao organica para o bloco ${midCtaBlockNum + 1}.`,
-          `Meta de caracteres: ${formatCharsLabel(midCtaChars)}`,
-          'Mapa de tensao: Media | Papel: Aplicacao | Transicao: Alivio',
-          `Funcao narrativa: inserir uma microchamada baseada no ativo "${approvedBriefing?.midCta?.name || 'CTA intermediario'}", curta, organica e sem soar comercial demais.`,
-          `Referencia funcional: ${approvedBriefing?.midCta?.pattern || 'Nao definida'}`,
-          'Regra operacional: esta intervencao e obrigatoria e nao pode ser omitida, resumida ou deslocada. Nao conta como bloco adicional na numeracao final.',
-        ].join('\n')
+        'INTERVENCAO INTERMEDIARIA OBRIGATORIA',
+        `Insercao: esta microchamada DEVE aparecer imediatamente apos a ultima frase do bloco de desenvolvimento ${midCtaBlockNum}. Nao crie um bloco separado. Nao omita esta instrucao. Nao mova para outro ponto do roteiro. O texto deve fluir como continuacao natural do bloco ${midCtaBlockNum} e transicao organica para o bloco ${midCtaBlockNum + 1}.`,
+        `Meta de caracteres: ${formatCharsLabel(midCtaChars)}`,
+        'Mapa de tensao: Media | Papel: Aplicacao | Transicao: Alivio',
+        `Funcao narrativa: inserir uma microchamada baseada no ativo "${approvedBriefing?.midCta?.name || 'CTA intermediario'}", curta, organica e sem soar comercial demais.`,
+        `Referencia funcional: ${approvedBriefing?.midCta?.pattern || 'Nao definida'}`,
+        'Regra operacional: esta intervencao e obrigatoria e nao pode ser omitida, resumida ou deslocada. Nao conta como bloco adicional na numeracao final.',
+      ].join('\n')
       : '';
 
     const lockedCompositionSection = approvedBriefing?.diagnostics ? [
       ...(videoFormat === 'catalog'
         ? [`Camada de abertura selecionada: Nenhuma (Formato Catálogo começa diretamente no primeiro item)`]
         : [
-            `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
-            // Translate opening hook into a functional writing directive — orientation, not text to copy
-            ...(approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description
-              ? [`Diretriz de abertura (orientacao funcional — nao copie, use como bussola de escrita): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
-              : [])
-          ]
+          `Camada de abertura selecionada: ${approvedBriefing?.openingHook?.name || 'Nao definida'}`,
+          // Translate opening hook into a functional writing directive — orientation, not text to copy
+          ...(approvedBriefing?.openingHook?.pattern || approvedBriefing?.openingHook?.description
+            ? [`Diretriz de abertura (orientacao funcional — nao copie, use como bussola de escrita): ${approvedBriefing.openingHook.pattern || approvedBriefing.openingHook.description}`]
+            : [])
+        ]
       ),
       `Camada final de conversao selecionada: ${approvedBriefing?.selectedCta?.name || 'Nao definida'}`,
       `Estrutura selecionada: ${approvedBriefing?.selectedTitleStructure?.name || 'Nao definida'}`,
@@ -3107,8 +3108,8 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
     const repetitionRulesSection = selectedRepetitionRules.length > 0
       ? selectedRepetitionRules
-          .map((rule) => `- ${rule.name}: ${rule.pattern || 'Sem detalhe operacional.'}`)
-          .join('\n')
+        .map((rule) => `- ${rule.name}: ${rule.pattern || 'Sem detalhe operacional.'}`)
+        .join('\n')
       : '- Nenhuma regra adicional cadastrada.';
 
     const catalogOverride = videoFormat === 'catalog'
@@ -3292,22 +3293,22 @@ FORMATO DE SAIDA
 - Respeite a meta total de ${formatCharsLabel(totalChars)} e a distribuicao de caracteres por bloco com tolerancia maxima de 8%.
 - Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.
 ${useDnaFactShield ? (() => {
-  // DNA Reader: find first available viral script from reference channels
-  let referenceScriptText = '';
-  let referenceScriptTitle = '';
-  if (Array.isArray(activeProject?.reference_channels)) {
-    for (const channel of activeProject.reference_channels) {
-      if (Array.isArray(channel.viral_scripts) && channel.viral_scripts.length > 0) {
-        const script = channel.viral_scripts[0];
-        referenceScriptText = script.script_text || '';
-        referenceScriptTitle = script.title || channel.name || '';
-        break;
-      }
-    }
-  }
+        // DNA Reader: find first available viral script from reference channels
+        let referenceScriptText = '';
+        let referenceScriptTitle = '';
+        if (Array.isArray(activeProject?.reference_channels)) {
+          for (const channel of activeProject.reference_channels) {
+            if (Array.isArray(channel.viral_scripts) && channel.viral_scripts.length > 0) {
+              const script = channel.viral_scripts[0];
+              referenceScriptText = script.script_text || '';
+              referenceScriptTitle = script.title || channel.name || '';
+              break;
+            }
+          }
+        }
 
-  const dnaReaderSection = referenceScriptText
-    ? `
+        const dnaReaderSection = referenceScriptText
+          ? `
 [MOTOR DNA READER — Roteiro de Referencia]
 Antes de escrever, analise silenciosamente o roteiro de referencia abaixo e extraia:
 1. Estrutura Narrativa: tipo de abertura, ritmo de picos de tensao, tipo de fechamento
@@ -3322,9 +3323,9 @@ ${referenceScriptText.substring(0, 8000)}
 
 REGRA ANTI-COPIA: zero frases copiadas do roteiro de referencia. Copie APENAS o DNA (estrutura, tom, ritmo, gatilhos) — nunca a identidade, nome do canal, ou frases reconheciveis.
 `
-    : '';
+          : '';
 
-  const factShieldSection = `
+        const factShieldSection = `
 [FACT SHIELD — Blindagem de Autenticidade]
 REGRAS INEGOCIAVEIS:
 - Para cada afirmacao verificavel no roteiro, insira internamente um marcador de ancora e depois substitua por dado real.
@@ -3359,8 +3360,8 @@ RELATORIO DE AUDITORIA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
-  return dnaReaderSection + factShieldSection;
-})() : ''}`;
+        return dnaReaderSection + factShieldSection;
+      })() : ''}`;
   };
 
   const buildInternalWritingPrompt = () => {
@@ -3523,16 +3524,16 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
             externalSrtPipeline: srtPipeline || undefined,
             postScriptPackage: postPkg || undefined,
           })
-          .then(({ error }) => {
-            if (!error) {
-              // Successfully saved to cloud! We can safely remove the local heavy keys to save space
-              try {
-                localStorage.removeItem(srtPipelineKey);
-                localStorage.removeItem(postPackageKey);
-              } catch {}
-            }
-          })
-          .catch(err => console.warn('[ScriptEngine] Failed to save heavy assets to Supabase', err));
+            .then(({ error }) => {
+              if (!error) {
+                // Successfully saved to cloud! We can safely remove the local heavy keys to save space
+                try {
+                  localStorage.removeItem(srtPipelineKey);
+                  localStorage.removeItem(postPackageKey);
+                } catch { }
+              }
+            })
+            .catch(err => console.warn('[ScriptEngine] Failed to save heavy assets to Supabase', err));
         } else {
           // OFFLINE FALLBACK: Save to localStorage (may throw QuotaExceededError)
           if (srtPipeline) {
@@ -3568,7 +3569,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       ? sessionStorage.getItem(`active_script_theme_${activeProject.id}`)
       : null;
     const currentThemeId = overrides._themeId || activeSessionThemeId || (approvedBriefing as any)?.id || (approvedBriefing as any)?.themeId || undefined;
-    
+
     if (supabase && currentThemeId) {
       const fullSnap = buildExecutionSnapshot(overrides);
       const { externalSrtPipeline, postScriptPackage, ...compactSnap } = fullSnap as any;
@@ -3775,7 +3776,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   const compileUnifiedImagePrompts = (): string => {
     if (!externalSrtPipeline) return '';
     const baseText = compilePromptText(externalSrtPipeline.imagePromptsTxt);
-    
+
     // In faceless and catalog modes, we don't append HyperFrame background image prompts.
     if (videoFormat === 'faceless' || videoFormat === 'catalog') {
       return baseText;
@@ -3795,10 +3796,10 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const getCharacterSheetPrompt = (char: { name: string; description: string }) => {
-    const styleBlock = char.description.toLowerCase().includes('anime') || 
-                       char.description.toLowerCase().includes('cartoon') || 
-                       char.description.toLowerCase().includes('illustrated') ||
-                       char.description.toLowerCase().includes('stylized')
+    const styleBlock = char.description.toLowerCase().includes('anime') ||
+      char.description.toLowerCase().includes('cartoon') ||
+      char.description.toLowerCase().includes('illustrated') ||
+      char.description.toLowerCase().includes('stylized')
       ? "Stylized digital art style rendering. Clean, consistent line work with uniform weight. Professional animation/game studio production quality."
       : "Ultra-photorealistic rendering. Hyper-detailed as if captured by a high-end full-frame DSLR camera (Canon EOS R5, 85mm portrait lens, f/2.8, ISO 100). Skin with natural pores, subtle micro-imperfections, fine peach fuzz, and realistic subsurface scattering. Hair with individual strand-level detail, natural sheen, and volume. Eyes with realistic moisture, light reflection, and iris detail. Fabric textures clearly distinguishable — cotton weave, denim texture, leather grain, knit patterns. RAW photo quality, 8K resolution detail.";
 
@@ -3816,7 +3817,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
   const copyAllCharacterPrompts = () => {
     if (visualBlueprintCast.length === 0) return;
-    
+
     const combinedPrompts = visualBlueprintCast.map((char) => {
       const prompt = getCharacterSheetPrompt(char);
       return `==================================================\nFICHA DE PERSONAGEM: ${char.name.toUpperCase()}\n==================================================\n\n${prompt}`;
@@ -4079,14 +4080,14 @@ ${textToAnalyze}`;
       });
 
       let data = await response.json();
-      
+
       // Normaliza o erro para string independente se vier como objeto ou string
       const rawError = data?.error;
       const errorMessage = typeof rawError === 'string'
         ? rawError.toLowerCase()
         : (typeof rawError === 'object' && rawError !== null
-            ? (rawError.message || rawError.status || JSON.stringify(rawError)).toLowerCase()
-            : '');
+          ? (rawError.message || rawError.status || JSON.stringify(rawError)).toLowerCase()
+          : '');
 
       // Fallback sem Search Grounding para: quota, billing, grounding não disponível,
       // modelo não encontrado, sem permissão ou serviço indisponível
@@ -4132,8 +4133,8 @@ ${textToAnalyze}`;
       if (!resultText) throw new Error('Nenhum relatório foi retornado pelo verificador.');
 
       if (isQuotaOrGroundingError) {
-        const errorDetail = rawError && typeof rawError === 'object' && rawError.message 
-          ? rawError.message 
+        const errorDetail = rawError && typeof rawError === 'object' && rawError.message
+          ? rawError.message
           : (typeof rawError === 'string' ? rawError : errorMessage || 'desconhecido');
         resultText = `> ⚠️ **Aviso (Fallback Automático):** A primeira tentativa com busca em tempo real falhou (Motivo: *${errorDetail}*). A verificação foi realizada com **Gemini 2.5 Flash** usando apenas o conhecimento nativo do modelo, sem busca em tempo real.\n\n${resultText}`;
       }
@@ -4329,7 +4330,7 @@ ${textToAnalyze}`;
 
     <div class="card">
       <div class="card-title">🎯 B4: Títulos Virais Sugeridos (${postScriptPackage.titles.length})</div>
-      ${postScriptPackage.titles.map((t, i) => `<div class="title-item"><span style="color: var(--muted); margin-right: 8px;">#${i+1}</span> ${t}</div>`).join('')}
+      ${postScriptPackage.titles.map((t, i) => `<div class="title-item"><span style="color: var(--muted); margin-right: 8px;">#${i + 1}</span> ${t}</div>`).join('')}
     </div>
 
     <div class="card">
@@ -4459,9 +4460,9 @@ ${textToAnalyze}`;
           if (match) {
             const rowNum = parseInt(match[1], 10);
             const file = await entry.getFile();
-            const isVideo = file.type.startsWith('video/') || 
-                            /\.(mp4|mov|m4v|mkv|avi|webm)$/i.test(name);
-            
+            const isVideo = file.type.startsWith('video/') ||
+              /\.(mp4|mov|m4v|mkv|avi|webm)$/i.test(name);
+
             let duration = 0;
             if (isVideo) {
               duration = await getVideoDuration(file);
@@ -4531,7 +4532,7 @@ ${textToAnalyze}`;
         folder.file('draft_content.json', result.draftContent);
         folder.file('draft_meta_info.json', result.draftMetaInfo);
         folder.file('draft_settings', '{"is_work_space_changed":false,"ver_num":"1.0"}');
-        
+
         const readmeContent = `PROJETO NATIVO CAPCUT PC (WINDOWS)
 Este arquivo ZIP contem a estrutura nativa do rascunho do CapCut.
 
@@ -4686,16 +4687,16 @@ COMO USAR NO WINDOWS:
     return parts.filter(Boolean).join('\n');
   };
 
-    const characterDescription = resolveCharacterProfileInFrontend(
-      videoCharacterMode,
-      videoFormat,
-      activeProject?.name,
-      videoCharacterCustom,
-      activeProject?.persona_matrix?.demographics,
-      activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
-    );
+  const characterDescription = resolveCharacterProfileInFrontend(
+    videoCharacterMode,
+    videoFormat,
+    activeProject?.name,
+    videoCharacterCustom,
+    activeProject?.persona_matrix?.demographics,
+    activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
+  );
 
-    const generatePromptBatchDirectOrAPI = async (batch: any[], isDirect: boolean, apiKey: string, engine: 'openai' | 'gemini', model: string) => {
+  const generatePromptBatchDirectOrAPI = async (batch: any[], isDirect: boolean, apiKey: string, engine: 'openai' | 'gemini', model: string) => {
     const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
     const projectStyles = activeProject?.ai_engine_rules?.editing_sop?.text_styles || activeProject?.ai_engine_rules?.text_styles || '';
     const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
@@ -4747,10 +4748,10 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.
 7. EXPLICIT TEXT LANGUAGE (NO IMPLICIT TEXT): Any text, titles, labels, or words that should appear written or rendered inside the image or video (such as card titles, labels on diagrams, list points, or slide headers) MUST be explicitly described in the prompt and MUST be written in the language of the script (Portuguese) inside double quotes. Do NOT leave text implicit (e.g. do NOT say "a card showing claims" as this results in English gibberish like "LADDED CLAIMS"; instead say "a card with text reading 'ALEGAÇÕES'"). Keep the prompt description in English, but define all on-screen written words in Portuguese using: text/label/title reading "...".`
         : videoFormat === 'faceless'
-        ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
-        : videoFormat === 'vlog'
-        ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
-        : '';
+          ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
+          : videoFormat === 'vlog'
+            ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
+            : '';
 
       const facelessHint = rawFacelessHint
         .replaceAll('(Portuguese)', `(${langName})`)
@@ -4760,35 +4761,35 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
       const payload = engine === 'gemini'
         ? await directGenerateBatchGemini({
-            apiKey,
-            model,
-            batchItems: batch,
-            characterDescription,
-            textStyles,
-            visualIdentity,
-            videoContext: buildVideoContext(),
-            facelessHint,
-            videoFormat,
-            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
-            ultraCinematic,
-            channelLanguage,
-            dnaInstructions,
-          })
+          apiKey,
+          model,
+          batchItems: batch,
+          characterDescription,
+          textStyles,
+          visualIdentity,
+          videoContext: buildVideoContext(),
+          facelessHint,
+          videoFormat,
+          visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
+          ultraCinematic,
+          channelLanguage,
+          dnaInstructions,
+        })
         : await directGenerateBatchOpenAI({
-            apiKey,
-            model,
-            batchItems: batch,
-            characterDescription,
-            textStyles,
-            visualIdentity,
-            videoContext: buildVideoContext(),
-            facelessHint,
-            videoFormat,
-            visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
-            ultraCinematic,
-            channelLanguage,
-            dnaInstructions,
-          });
+          apiKey,
+          model,
+          batchItems: batch,
+          characterDescription,
+          textStyles,
+          visualIdentity,
+          videoContext: buildVideoContext(),
+          facelessHint,
+          videoFormat,
+          visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
+          ultraCinematic,
+          channelLanguage,
+          dnaInstructions,
+        });
 
       const localFallbackRowsObj = new Set<number>();
       const validatedBatch = validatePromptBatch(batch, payload, localFallbackRowsObj);
@@ -4811,7 +4812,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
             const protPresente = !!val.protagonista_presente;
             const extPresentes = !!val.extras_presentes;
-            
+
             const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
             const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
             const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
@@ -4931,17 +4932,17 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       };
 
       const effectiveAllocationMode: AssetAllocationMode = forceAllAsVideo ? 'force_all_video' : assetAllocationMode;
-      const assetRows      = applyAssetRules(parsedRows, videoFormat, externalSrtText, enabledAssetsObj, effectiveAllocationMode);
-      const cooledRows     = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
-      const hfRows         = applyHyperframeRules(cooledRows, videoFormat, enabledAssetsObj); // injeta até 6 hyperframes narrativos (adaptado ao formato)
-      const excludedRows   = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
-      const finalRows      = finalizeFacelessRows(excludedRows, videoFormat, enabledAssetsObj, effectiveAllocationMode);
-      const assetStats     = buildAssetStats(finalRows);
-      const assetDesc      = videoFormat === 'faceless'
+      const assetRows = applyAssetRules(parsedRows, videoFormat, externalSrtText, enabledAssetsObj, effectiveAllocationMode);
+      const cooledRows = enforceTextoCooldown(assetRows);             // cooldown 20s entre textos
+      const hfRows = applyHyperframeRules(cooledRows, videoFormat, enabledAssetsObj); // injeta até 6 hyperframes narrativos (adaptado ao formato)
+      const excludedRows = applyHyperframeExclusionZone(hfRows);        // remove textos dentro de 30s de um HF
+      const finalRows = finalizeFacelessRows(excludedRows, videoFormat, enabledAssetsObj, effectiveAllocationMode);
+      const assetStats = buildAssetStats(finalRows);
+      const assetDesc = videoFormat === 'faceless'
         ? `${assetStats.texto} texto, ${assetStats.video} video e ${assetStats.image} imagem (modo Faceless).`
         : videoFormat === 'vlog'
-        ? `${assetStats.texto} texto, ${assetStats.avatar} avatar (VLOG), ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`
-        : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`;
+          ? `${assetStats.texto} texto, ${assetStats.avatar} avatar (VLOG), ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`
+          : `${assetStats.texto} texto, ${assetStats.avatar} avatar, ${assetStats.video} video, ${assetStats.image} imagem e ${assetStats.hyperframe} hyperframe.`;
       updateSrtObserverStep('assets', 'done', assetDesc);
       setSrtPipelineStatus('Assets marcados. Enviando as linhas elegiveis para gerar prompts visuais...');
 
@@ -4959,7 +4960,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         const startMs = parseSrtTimeToMs(row.startTime);
         const endMs = parseSrtTimeToMs(row.endTime);
         const durationSeconds = Number(((endMs - startMs) / 1000).toFixed(3));
-  
+
         return [{
           row_number: row.rowNumber,
           asset: forceAllAsVideo ? 'video' : (type === 'texto' ? 'text' : (type === 'hyperframe' ? 'hyperframe' : (type === 'vídeo' ? 'video' : 'image'))),
@@ -5021,7 +5022,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             break;
           } catch (err: any) {
             console.warn(`[Lote ${currentIdx + 1}] Tentativa ${attempt + 1} falhou:`, err.message || err);
-            
+
             if (err.message === '429') {
               if (currentConcurrency > 1) {
                 currentConcurrency = 1;
@@ -5048,7 +5049,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
             if (attempt === maxRetries) {
               console.error(`[Lote ${currentIdx + 1}] Falha persistente após ${maxRetries + 1} tentativas. Aplicando fallback local.`);
-              
+
               const localFallbackRowsObj = new Set<number>();
               const fallbackMap = validatePromptBatch(batch, { prompts: [] }, localFallbackRowsObj);
               const fallbackPrompts: any[] = [];
@@ -5297,9 +5298,9 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     const fallbackRows = pipeline.rows.filter((r: any) => r.isFallback);
     if (!fallbackRows.length) return 0;
 
-    const engine  = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
-    const model   = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
-    const apiKey  = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+    const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+    const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+    const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
 
     const batchItems = fallbackRows.flatMap((row: any) => {
       const type = normalizeAssetType(row.asset);
@@ -5307,7 +5308,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       const allRows = pipeline.rows;
       const idx = allRows.findIndex((r: any) => r.rowNumber === row.rowNumber);
       const startMs = parseSrtTimeToMs(row.startTime);
-      const endMs   = parseSrtTimeToMs(row.endTime);
+      const endMs = parseSrtTimeToMs(row.endTime);
       return [{
         row_number: row.rowNumber,
         asset: forceAllAsVideo ? ('video' as const) : (type === 'texto' ? ('text' as const) : (type === 'hyperframe' ? ('hyperframe' as const) : (type === 'vídeo' ? ('video' as const) : ('image' as const)))),
@@ -5424,10 +5425,10 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         'pause',
       ];
       const batContent = batLines.join('\r\n');
-      
+
       if (autoDownloadBats) {
         downloadTextArtifact(srtArtifactStem, 'pipeline_assets', buildSfxEnrichedCsvContent(activePipeline.csvContent, activePackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' });
-        
+
         setTimeout(() => {
           downloadTextArtifact(srtArtifactStem, '1_renderizar_textos', batContent, { extension: 'bat', mimeType: 'text/plain;charset=utf-8' });
         }, 500);
@@ -5477,7 +5478,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       };
       setExternalSrtPipeline(pipelineResult);
       setSrtPipelineStatus('Etapa 5 (Nuvem) concluída. Os arquivos .bat e .csv foram baixados para execução manual.');
-      
+
       const finalizedObserver = externalSrtObserver.map((step) => {
         if (step.key === 'render') {
           return { ...step, status: 'done' as const, detail: 'Download do script .bat e do CSV realizado para execução offline.' };
@@ -5489,7 +5490,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       });
 
       setExternalSrtObserver(finalizedObserver);
-      
+
       persistExecutionSnapshotLocally({
         executionMode: 'external',
         externalScriptText,
@@ -5695,9 +5696,9 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     setGenerationProgress((current) =>
       current
         ? {
-            ...current,
-            status: 'Interrompendo a geracao e preservando os blocos concluidos...',
-          }
+          ...current,
+          status: 'Interrompendo a geracao e preservando os blocos concluidos...',
+        }
         : null
     );
   };
@@ -6330,15 +6331,16 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     `;
   };
 
-  const generateStoryboardHtmlString = (pipeline: any): string => {
+  const generateStoryboardHtmlString = (pipeline: any, defaultViewMode: 'spreadsheet' | 'grid' = 'spreadsheet'): string => {
     if (!pipeline || !pipeline.rows || !pipeline.rows.length) return '';
     const themeTitle = approvedBriefing?.title || approvedTheme || 'Roteiro de Vídeo';
     const rows = pipeline.rows;
-    
+
     const gridItems = rows.map((row: any) => {
       const svgCode = generateSceneSvgPreview(row, videoFormat);
       const isFallback = !!row.isFallback;
-      
+      const matchedItems = matchPackAssetsForScene(row.texto, row.asset, 3);
+
       let assetBadgeColor = 'bg-gray-800 text-gray-400 border-gray-700';
       let timeColorClass = 'text-zinc-400';
       if (row.asset === 'vídeo') {
@@ -6386,7 +6388,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <p class="text-[12px] text-zinc-200 leading-relaxed font-medium bg-zinc-950/45 border border-zinc-800/40 rounded-xl p-3 select-all italic">&quot;${row.texto}&quot;</p>
             </div>
             
-            <div class="space-y-1.5 flex-1 flex flex-col">
+            <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <h4 class="text-[9px] font-black uppercase tracking-widest text-zinc-500">Prompt Visual (Inglês)</h4>
                 <button 
@@ -6396,7 +6398,30 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                   Copiar
                 </button>
               </div>
-              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 flex-1 select-all">${row.prompt || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
+              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 select-all">${row.prompt || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
+            </div>
+
+            <!-- Pack Ganha Tempo Match -->
+            <div class="space-y-1.5 pt-1 border-t border-zinc-800/60">
+              <div class="flex items-center justify-between">
+                <h4 class="text-[9px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+                  <span>⚡ Pack Ganha Tempo Sugerido</span>
+                </h4>
+                <span class="text-[8px] font-mono text-zinc-500">${matchedItems.length} asset(s)</span>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                ${matchedItems.map((item) => `
+                  <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-zinc-950/70 border border-zinc-800/80 text-[10.5px]">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span class="text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">${item.category.replace(/^[0-9]+_/, '').replace('_', ' ')}</span>
+                      <span class="font-mono text-zinc-300 truncate font-semibold" title="${item.name}">${item.name}</span>
+                    </div>
+                    <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 transition-colors shadow-sm inline-flex items-center gap-1">
+                      📥 Drive
+                    </a>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
         </div>
@@ -6423,24 +6448,41 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         timeColorClass = 'text-purple-400';
       }
 
+      const matchedItems = matchPackAssetsForScene(row.texto, row.asset, 3);
+
       return `
         <tr id="tr-row-${row.rowNumber}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
-          <td class="px-6 py-4 whitespace-nowrap text-center no-print">
+          <td class="px-5 py-4 whitespace-nowrap text-center no-print">
             <input type="checkbox" id="chk-${row.rowNumber}" onchange="toggleRowSelection(${row.rowNumber}, this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500 cursor-pointer" checked>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
+          <td class="px-5 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
             #${row.rowNumber}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-5 py-4 whitespace-nowrap">
             <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${assetBadgeColor}">
               ${(row.asset || 'SEM ASSET').toUpperCase()}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap font-mono font-bold ${timeColorClass}">
+          <td class="px-5 py-4 whitespace-nowrap font-mono font-bold ${timeColorClass} text-xs">
             ${row.startTime} - ${row.endTime}
           </td>
-          <td class="px-6 py-4 text-zinc-200 font-medium italic">
+          <td class="px-5 py-4 text-zinc-200 font-medium italic text-xs leading-relaxed max-w-md">
             &quot;${row.texto}&quot;
+          </td>
+          <td class="px-5 py-4 min-w-[280px]">
+            <div class="flex flex-col gap-1.5">
+              ${matchedItems.map((item) => `
+                <div class="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-[11px] hover:border-emerald-500/30 transition-colors">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">${item.category.replace(/^[0-9]+_/, '').replace('_', ' ')}</span>
+                    <span class="font-mono text-zinc-300 truncate font-semibold text-[10.5px]" title="${item.name}">${item.name}</span>
+                  </div>
+                  <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-[9.5px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shrink-0 transition-all shadow-sm">
+                    📥 Baixar
+                  </a>
+                </div>
+              `).join('')}
+            </div>
           </td>
         </tr>
       `;
@@ -6452,8 +6494,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Storyboard — ${themeTitle}</title>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+        <title>Storyboard & Planilha de Assets — ${themeTitle}</title>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
           tailwind.config = {
@@ -6469,7 +6511,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         </script>
         <style>
           body {
-            background-color: #0e0e10;
+            background-color: #0c0d0e;
             color: #e4e4e7;
           }
           input[type="checkbox"] {
@@ -6477,6 +6519,17 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           }
           .filtered-out {
             display: none !important;
+          }
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 9999px;
           }
           @media print {
             body {
@@ -6508,7 +6561,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             .scene-card rect[fill="#f6f5f0"] {
               fill: #f8fafc !important;
             }
-            /* Spreadsheet print overrides */
             #spreadsheet-view {
               background-color: #ffffff !important;
               border-color: #d4d4d8 !important;
@@ -6533,24 +6585,31 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           }
         </style>
       </head>
-      <body class="font-sans antialiased min-h-screen pb-16">
-        <header class="no-print sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <body class="font-sans antialiased min-h-screen pb-20">
+        <header class="no-print sticky top-0 z-50 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div class="space-y-0.5">
             <div class="flex items-center gap-2">
-              <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">STORYBOARD GENERATOR</span>
+              <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">STORYBOARD & ASSETS</span>
+              <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded">PACK GANHA TEMPO</span>
               <span class="bg-zinc-800 text-zinc-300 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
             </div>
             <h1 id="header-theme-title" class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
           </div>
           
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
             <button 
               id="toggle-view-btn"
               onclick="toggleViewMode()" 
               class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl flex items-center gap-2"
             >
-              <span id="toggle-view-text">📊 EXIBIR PLANILHA</span>
+              <span id="toggle-view-text">${defaultViewMode === 'spreadsheet' ? '🎬 EXIBIR QUADRICULADO' : '📊 EXIBIR PLANILHA'}</span>
             </button>
+            <a 
+              href="#pack-ganha-tempo-library"
+              class="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 active:scale-95 transition-all text-xs font-bold rounded-xl flex items-center gap-1.5"
+            >
+              <span>📦 PACK GANHA TEMPO (${PACK_GANHA_TEMPO_ITEMS.length})</span>
+            </a>
             <button 
               onclick="window.print()" 
               class="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-lg shadow-purple-600/15 flex items-center gap-2"
@@ -6566,8 +6625,9 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           </div>
         </header>
 
-        <main class="max-w-7xl mx-auto px-6 py-8">
-          <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 mb-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+          <!-- Summary Cards -->
+          <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
               <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Total de Cenas</span>
               <span class="text-2xl font-bold text-zinc-100" id="stat-total">${rows.length}</span>
@@ -6581,16 +6641,18 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <span class="text-2xl font-bold text-zinc-100">${rows[rows.length - 1]?.endTime || '00:00'}</span>
             </div>
             <div>
-              <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Gerado em</span>
-              <span class="text-xs font-semibold text-zinc-400 mt-2 block">${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span class="text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Pack Ganha Tempo</span>
+              <span class="text-2xl font-bold text-emerald-300">${PACK_GANHA_TEMPO_ITEMS.length} Assets</span>
             </div>
           </div>
 
-          <div id="grid-view" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <!-- Grid View (Cards) -->
+          <div id="grid-view" class="${defaultViewMode === 'spreadsheet' ? 'hidden' : 'grid'} grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             ${gridItems}
           </div>
 
-          <div id="spreadsheet-view" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+          <!-- Spreadsheet View (Table) -->
+          <div id="spreadsheet-view" class="${defaultViewMode === 'spreadsheet' ? 'block' : 'hidden'} bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <!-- Filter Bar -->
             <div class="no-print p-6 border-b border-zinc-800 bg-zinc-950/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div class="flex flex-wrap items-center gap-3">
@@ -6620,13 +6682,14 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               <table class="w-full text-left border-collapse">
                 <thead>
                   <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    <th class="px-6 py-4 w-16 text-center no-print">
+                    <th class="px-5 py-4 w-14 text-center no-print">
                       <input type="checkbox" id="th-chk-all" onchange="toggleSelectAllRows(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-purple-600 focus:ring-purple-500" checked>
                     </th>
-                    <th class="px-6 py-4 w-28">Cena</th>
-                    <th class="px-6 py-4 w-40">Asset</th>
-                    <th class="px-6 py-4 w-60">Posição Temporal</th>
-                    <th class="px-6 py-4">Legenda (Locução)</th>
+                    <th class="px-5 py-4 w-20">Cena</th>
+                    <th class="px-5 py-4 w-28">Asset</th>
+                    <th class="px-5 py-4 w-44">Posição Temporal</th>
+                    <th class="px-5 py-4">Legenda (Locução)</th>
+                    <th class="px-5 py-4 w-80">Pack Ganha Tempo & Download (Drive)</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-800/60 text-sm">
@@ -6635,14 +6698,110 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               </table>
             </div>
           </div>
+
+          <!-- COMPLETE PACK GANHA TEMPO ASSETS LIBRARY SECTION (BELOW STORYBOARD) -->
+          <section id="pack-ganha-tempo-library" class="mt-12 pt-8 border-t border-zinc-800/80 space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-zinc-900/60 border border-emerald-500/20 rounded-2xl p-6 shadow-xl">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-lg">PACK GANHA TEMPO</span>
+                  <span class="text-xs font-bold text-zinc-400">${PACK_GANHA_TEMPO_ITEMS.length} Arquivos Catalogados</span>
+                </div>
+                <h2 class="text-lg font-black text-white uppercase tracking-wide">Planilha de Assets & Biblioteca Completa</h2>
+                <p class="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                  Todos os arquivos estão hospedados no Google Drive e prontos para download imediato. Use a busca ou filtros de categoria abaixo.
+                </p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button onclick="downloadPackCsv()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2">
+                  <span>📥 Baixar Catálogo CSV</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Library Search and Category Filters -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+              <div class="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+                <div class="flex-1 max-w-md relative">
+                  <input 
+                    type="text" 
+                    id="pack-search-input" 
+                    onkeyup="filterPackLibrary()" 
+                    placeholder="🔍 Buscar asset por nome ou palavra-chave..." 
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+                <span class="text-xs font-mono font-bold text-emerald-400" id="pack-stat-counter">
+                  Exibindo ${PACK_GANHA_TEMPO_ITEMS.length} de ${PACK_GANHA_TEMPO_ITEMS.length} assets
+                </span>
+              </div>
+
+              <!-- Category Filter Pills -->
+              <div class="flex flex-wrap gap-1.5" id="pack-category-pills">
+                <!-- Generated by JS -->
+              </div>
+            </div>
+
+            <!-- Library Table -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+              <div class="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse" id="pack-library-table">
+                  <thead class="sticky top-0 z-20 bg-zinc-950 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                    <tr>
+                      <th class="px-5 py-3.5 w-14 text-center">#</th>
+                      <th class="px-5 py-3.5">Nome do Arquivo</th>
+                      <th class="px-5 py-3.5 w-48">Categoria / Pasta</th>
+                      <th class="px-5 py-3.5 w-32">Tipo</th>
+                      <th class="px-5 py-3.5 w-28">Tamanho</th>
+                      <th class="px-5 py-3.5 w-44 text-right">Ação / Download</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-800/60 text-xs">
+                    ${PACK_GANHA_TEMPO_ITEMS.map((item, idx) => `
+                      <tr class="pack-row hover:bg-zinc-800/40 transition-colors" data-name="${item.name.toLowerCase()}" data-category="${item.category.toLowerCase()}" data-keywords="${item.keywords.join(' ')}">
+                        <td class="px-5 py-3 text-center font-mono text-zinc-500 text-[10px]">${idx + 1}</td>
+                        <td class="px-5 py-3">
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm">${item.mimeType.startsWith('video/') ? '🎬' : item.mimeType.startsWith('image/') ? '🖼️' : item.mimeType.startsWith('audio/') ? '🔊' : item.mimeType.includes('font') ? '🔤' : '📦'}</span>
+                            <span class="font-mono font-bold text-zinc-200">${item.name}</span>
+                          </div>
+                        </td>
+                        <td class="px-5 py-3">
+                          <span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700">
+                            ${item.category.replace(/^[0-9]+_/, '').replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td class="px-5 py-3 font-mono text-[10px] text-zinc-400">${item.mimeType}</td>
+                        <td class="px-5 py-3 font-mono text-[11px] text-zinc-300">${item.sizeKb > 1024 ? (item.sizeKb / 1024).toFixed(1) + ' MB' : item.sizeKb + ' KB'}</td>
+                        <td class="px-5 py-3 text-right">
+                          <div class="flex items-center justify-end gap-2">
+                            <button onclick="navigator.clipboard.writeText('${item.url}'); alert('Link do Google Drive copiado!');" class="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 text-[11px]" title="Copiar link do Google Drive">
+                              📋
+                            </button>
+                            <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shadow-sm transition-all">
+                              <span>📥 Baixar Drive</span>
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         </main>
 
         <script id="scenes-data" type="application/json">
           ${JSON.stringify(rows.map((r: any) => ({ rowNumber: r.rowNumber, asset: r.asset || 'SEM ASSET', selected: true })))}
         </script>
 
+        <script id="pack-data" type="application/json">
+          ${JSON.stringify(PACK_GANHA_TEMPO_ITEMS)}
+        </script>
+
         <script>
-          let currentViewMode = 'grid';
+          let currentViewMode = '${defaultViewMode}';
 
           function toggleViewMode() {
             const gridView = document.getElementById('grid-view');
@@ -6679,7 +6838,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               .trim()
               .replace(/\\s/g, '_')
               .slice(0, 80) || 'storyboard';
-            link.download = 'storyboard_' + sanitized + '.html';
+            link.download = 'storyboard_assets_' + sanitized + '.html';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -6688,8 +6847,10 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
           // Dynamic filters and selection state
           const scenes = JSON.parse(document.getElementById('scenes-data').textContent);
+          const packItems = JSON.parse(document.getElementById('pack-data').textContent);
           let selectedAssetFilter = 'all';
           let onlySelected = false;
+          let selectedPackCategory = 'all';
 
           function initFilters() {
             const assetFilterContainer = document.getElementById('asset-filter-buttons');
@@ -6718,6 +6879,92 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               btn.innerText = asset + ' (' + assetCounts[asset] + ')';
               assetFilterContainer.appendChild(btn);
             });
+          }
+
+          function initPackCategoryPills() {
+            const pillsContainer = document.getElementById('pack-category-pills');
+            if (!pillsContainer) return;
+
+            const categoryCounts = {};
+            packItems.forEach(i => {
+              categoryCounts[i.category] = (categoryCounts[i.category] || 0) + 1;
+            });
+
+            pillsContainer.innerHTML = '';
+
+            const allPill = document.createElement('button');
+            allPill.id = 'pill-cat-all';
+            allPill.onclick = () => filterPackCategory('all');
+            allPill.className = 'px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all';
+            allPill.innerText = 'Todos (' + packItems.length + ')';
+            pillsContainer.appendChild(allPill);
+
+            Object.keys(categoryCounts).sort().forEach(cat => {
+              const pill = document.createElement('button');
+              pill.id = 'pill-cat-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
+              pill.onclick = () => filterPackCategory(cat);
+              pill.className = 'px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all';
+              const cleanName = cat.replace(/^[0-9]+_/, '').replace('_', ' ');
+              pill.innerText = cleanName + ' (' + categoryCounts[cat] + ')';
+              pillsContainer.appendChild(pill);
+            });
+          }
+
+          function filterPackCategory(cat) {
+            selectedPackCategory = cat;
+            const pills = document.querySelectorAll('#pack-category-pills button');
+            pills.forEach(p => {
+              p.className = 'px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all';
+            });
+            const activeId = cat === 'all' ? 'pill-cat-all' : 'pill-cat-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
+            const activePill = document.getElementById(activeId);
+            if (activePill) {
+              activePill.className = 'px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all';
+            }
+            filterPackLibrary();
+          }
+
+          function filterPackLibrary() {
+            const query = (document.getElementById('pack-search-input')?.value || '').toLowerCase().trim();
+            const rows = document.querySelectorAll('.pack-row');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+              const name = row.getAttribute('data-name') || '';
+              const cat = row.getAttribute('data-category') || '';
+              const kws = row.getAttribute('data-keywords') || '';
+
+              const matchesCat = (selectedPackCategory === 'all' || cat === selectedPackCategory.toLowerCase());
+              const matchesSearch = !query || name.includes(query) || cat.includes(query) || kws.includes(query);
+
+              if (matchesCat && matchesSearch) {
+                row.classList.remove('filtered-out');
+                visibleCount++;
+              } else {
+                row.classList.add('filtered-out');
+              }
+            });
+
+            const counter = document.getElementById('pack-stat-counter');
+            if (counter) {
+              counter.innerText = 'Exibindo ' + visibleCount + ' de ' + packItems.length + ' assets';
+            }
+          }
+
+          function downloadPackCsv() {
+            let csv = 'Nome do Arquivo,Categoria,Tipo (MIME),Tamanho (KB),URL\\r\\n';
+            packItems.forEach(item => {
+              csv += '"' + item.name + '","' + item.category + '","' + item.mimeType + '",' + item.sizeKb + ',"' + item.url + '"\\r\\n';
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pack_ganha_tempo_catalogo.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
           }
 
           function filterAsset(assetType) {
@@ -6821,6 +7068,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
           // Initial load
           initFilters();
+          initPackCategoryPills();
           updateCounters();
         </script>
       </body>
@@ -6828,13 +7076,13 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     `;
   };
 
-  const openStoryboardInNewTab = () => {
+  const openStoryboardInNewTab = (defaultView: 'spreadsheet' | 'grid' = 'spreadsheet') => {
     if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
       alert('Não há dados do pipeline para visualizar no storyboard.');
       return;
     }
     try {
-      const htmlContent = generateStoryboardHtmlString(externalSrtPipeline);
+      const htmlContent = generateStoryboardHtmlString(externalSrtPipeline, defaultView);
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');
@@ -6886,7 +7134,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       ? _pipelineResultRef.current.rows
       : (externalSrtPipeline?.rows || (externalSrtText.trim() ? parseSrtToRows(externalSrtText, forceAllAsVideo) : []));
     const hfCount = (srtRows as any[]).filter((r: any) => r.asset === 'hyperframe').length;
-      console.log(`[HF] Enviando para API: ${hfCount} HF rows de ${(srtRows as any[]).length} total (fonte: ${_isPipelineMode.current ? 'pipeline' : 'externo'})`);
+    console.log(`[HF] Enviando para API: ${hfCount} HF rows de ${(srtRows as any[]).length} total (fonte: ${_isPipelineMode.current ? 'pipeline' : 'externo'})`);
     if (_isPipelineMode.current) setSrtPipelineStatus(`Etapa 3: Pacote pós-roteiro — ${hfCount} anchors HF enviados à IA...`);
     const timelineContext = buildPostScriptTimelineContext({
       scriptBlocks: sourceBlocks,
@@ -6920,7 +7168,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     }
 
     // Collect forensic data from reference channels
-    let forensicFormulas: Array<{name: string; skeleton: string; trigger: string; proof: string}> = [];
+    let forensicFormulas: Array<{ name: string; skeleton: string; trigger: string; proof: string }> = [];
     let forensicPowerWords: string[] = [];
     let forensicTone = '';
     if (Array.isArray(activeProject?.reference_channels)) {
@@ -7070,12 +7318,12 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       const guaranteed = hfSrtRows.map((row: any, i: number) => {
         const ai = aiCtx[i] ?? {};
         return {
-          timestamp:   ai.timestamp || row.startTime || '',
+          timestamp: ai.timestamp || row.startTime || '',
           visualState: hfTemplateOrder[i % hfTemplateOrder.length],
-          headline:    ai.headline  || 'Destaque',  // placeholder neutro se IA não retornar
-          subtitle:    ai.subtitle  || '',
-          metrics:     ai.metrics   || '—',
-          bgPrompt:    ai.bgPrompt  || '',
+          headline: ai.headline || 'Destaque',  // placeholder neutro se IA não retornar
+          subtitle: ai.subtitle || '',
+          metrics: ai.metrics || '—',
+          bgPrompt: ai.bgPrompt || '',
         };
       });
       const enrichedPackage = guaranteed.length > 0
@@ -7108,7 +7356,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
   };
 
   // ─── HF Background Prompts (extraído do inline onClick para uso no pipeline) ─
-  const generateHfBgPromptsInternal = async (pipelineOverride?: any): Promise<Array<{rowNumber: number; prompt: string}> | null> => {
+  const generateHfBgPromptsInternal = async (pipelineOverride?: any): Promise<Array<{ rowNumber: number; prompt: string }> | null> => {
     const pipeline = pipelineOverride ?? externalSrtPipeline;
     if (!pipeline) return null;
     const hfRows = (pipeline.rows ?? []).filter((r: any) => normalizeAssetType(r.asset) === 'hyperframe');
@@ -7117,7 +7365,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     setHfBgPrompts(null);
     try {
       const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
-      const model  = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-4.1';
+      const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-4.1';
       const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
       const res = await fetch('/api/hf-bg-prompts', {
         method: 'POST',
@@ -7133,9 +7381,9 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               if (!c?.timestamp) return false;
               const clean = String(c.timestamp).replace(/[\[\]]/g, '');
               const parts = clean.split(':').map(Number);
-              const cSec = parts.length === 2 ? parts[0]*60+parts[1] : parts[0]*3600+parts[1]*60+(parts[2]||0);
+              const cSec = parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
               const [rh, rm, rs] = r.startTime.split(':');
-              const rSec = Number(rh)*3600 + Number(rm)*60 + Number((rs||'0').split(',')[0]);
+              const rSec = Number(rh) * 3600 + Number(rm) * 60 + Number((rs || '0').split(',')[0]);
               return Math.abs(cSec - rSec) <= 12;
             })?.visualState || 'hf_focus',
           })),
@@ -7159,11 +7407,11 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
   // ─── Pipeline Orquestrado (botão único) ─────────────────────────────────────
   const PIPELINE_STEP_LABELS: Record<string, string> = {
-    srt:        'Etapa 1 — SRT → Assets',
-    hf:         'Etapa 2 — Fundos HF',
+    srt: 'Etapa 1 — SRT → Assets',
+    hf: 'Etapa 2 — Fundos HF',
     postscript: 'Etapa 3 — Pacote Pós-Roteiro',
-    bats:       'Etapa 4 — Render + BATs',
-    done:       'Concluído!',
+    bats: 'Etapa 4 — Render + BATs',
+    done: 'Concluído!',
   };
 
   // ─── Reset de Resultados (mantém .srt e roteiro, limpa outputs) ──────────────
@@ -7174,7 +7422,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     setExternalSrtObserver(buildInitialSrtObserver());
     setSrtPipelineStatus('');
     setPipelineCurrentStep(null);
-    _pipelineResultRef.current   = null;
+    _pipelineResultRef.current = null;
     _postScriptResultRef.current = null;
     // Remove dados processados do snapshot local (mantém .srt e roteiro)
     try {
@@ -7184,10 +7432,10 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           const snap = JSON.parse(raw);
           const cleaned = {
             ...snap,
-            externalSrtPipeline:  null,
-            postScriptPackage:    null,
-            externalSrtObserver:  buildInitialSrtObserver(),
-            hfBgPrompts:          null,
+            externalSrtPipeline: null,
+            postScriptPackage: null,
+            externalSrtObserver: buildInitialSrtObserver(),
+            hfBgPrompts: null,
           };
           localStorage.setItem(executionStorageKey, JSON.stringify(cleaned));
         }
@@ -7211,8 +7459,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       return;
     }
     setIsPipelineRunning(true);
-    _isPipelineMode.current   = true;
-    _pipelineResultRef.current   = null;
+    _isPipelineMode.current = true;
+    _pipelineResultRef.current = null;
     _postScriptResultRef.current = null;
     _pipelineStepRef.current = 'srt';
     setPipelineWarnings([]);
@@ -7240,7 +7488,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         if (fallbackCount > 0) {
           const remaining = (_pipelineResultRef.current.rows ?? [])
             .filter((r: any) => r.isFallback)
-            .map((r: any) => `Linha ${r.rowNumber} (${r.startTime.slice(0,8)}): ${r.texto.slice(0, 40)}...`);
+            .map((r: any) => `Linha ${r.rowNumber} (${r.startTime.slice(0, 8)}): ${r.texto.slice(0, 40)}...`);
           setPipelineWarnings(remaining);
           setSrtPipelineStatus(`⚠️ ${fallbackCount} prompt(s) permaneceram incompletos após 2 tentativas. Pipeline continua.`);
         }
@@ -7364,8 +7612,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     // (null = unscored/new, we don't auto-regenerate those)
     const weakIndices: number[] = titleValidations
       ? titleValidations
-          .map((v, i) => (v !== null && v.verdict !== 'Aprovado' ? i : -1))
-          .filter((i) => i >= 0)
+        .map((v, i) => (v !== null && v.verdict !== 'Aprovado' ? i : -1))
+        .filter((i) => i >= 0)
       : postScriptPackage.titles.map((_, i) => i); // no validation → replace all
 
     if (weakIndices.length === 0) {
@@ -7552,7 +7800,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       const timestamp = tsMatch ? tsMatch[1] : '';
 
       const lines = entry.split('\n').map((line) => line.trim()).filter(Boolean);
-      
+
       const effectMatch = entry.match(/EFEITO:\s*([^\n]+)/i);
       const purposeMatch = entry.match(/FUNC(?:A|Ã)O:\s*([^\n]+)/i);
       const excerptMatch = entry.match(/TRECHO:\s*([^\n]+)/i);
@@ -7837,7 +8085,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     const customStylePrompts = getStylePrompts(styleToUse, theme, thumbnailTextPtBr, accent, layoutHint, environmentCue, heroExpression, symbolicLine, puc);
 
     const directive = {
-      visualConcept: customStylePrompts 
+      visualConcept: customStylePrompts
         ? `Estilo Visual: ${styleToUse}. Traduzir o tema em uma cena simbolica de tensao contra controle. Layout ${layoutHint}. Fundo escuro premium com acento ${accent}. Persona visual: ${persona}. Elementos-chave: ${symbolicLine}. Estrutura narrativa: ${variation}.`
         : `Traduzir o tema em uma cena simbolica de tensao contra controle. Layout ${layoutHint}. Fundo escuro premium com acento ${accent}. Persona visual: ${persona}. Elementos-chave: ${symbolicLine}. Estrutura narrativa: ${variation}.`,
       viralTitle,
@@ -7981,8 +8229,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     setPostScriptPackage(null);
   };
 
-  const hookTemplates      = components.filter(c => c.type === 'Hook');
-  const ctaTemplates       = components.filter(c => c.type === 'CTA');
+  const hookTemplates = components.filter(c => c.type === 'Hook');
+  const ctaTemplates = components.filter(c => c.type === 'CTA');
   const communityTemplates = components.filter(c => c.type === 'Community');
   const titleStructureTemplates = components.filter(c => c.type === 'Title Structure');
   const uniqueHookTemplates = dedupeNarrativeComponents(hookTemplates);
@@ -8095,16 +8343,15 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
           <button
             onClick={() => setIsMobilePreview(!isMobilePreview)}
-            className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
-              isMobilePreview 
-                ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]' 
+            className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${isMobilePreview
+                ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
                 : 'bg-white/5 border-white/10 text-white/55 hover:border-white/20'
-            }`}
+              }`}
             title="Simular tamanho de polegar no feed mobile (160px)"
           >
             Feed Mobile (160px)
           </button>
-          
+
           <button onClick={() => setShowThumbnailPanel(false)} className="text-white/20 hover:text-white text-sm pl-2">x</button>
         </div>
       </div>
@@ -8147,17 +8394,17 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
             <div className="rounded-xl bg-midnight/40 border border-white/5 p-4 flex flex-col items-center">
               <span className="block text-[9px] font-black uppercase tracking-[3px] text-white/30 mb-2 self-start">SIMULAÇÃO DE FEED</span>
-              
-              <div 
+
+              <div
                 className="relative bg-gradient-to-br from-purple-950/20 to-midnight rounded-xl border flex flex-col justify-between p-4 aspect-video transition-all duration-300 shadow-lg overflow-hidden group w-full"
-                style={{ 
+                style={{
                   maxWidth: isMobilePreview ? '160px' : '360px',
                   borderColor: activeProject?.accent_color || '#9BB0A5',
                 }}
               >
                 {/* Visual Accent Cue */}
                 <div className="absolute top-0 right-0 w-20 h-20 rounded-full filter blur-xl opacity-20 pointer-events-none" style={{ backgroundColor: activeProject?.accent_color || '#9BB0A5' }} />
-                
+
                 {/* Style Badge */}
                 <span className="text-[7px] font-black uppercase bg-black/40 border border-white/10 px-1.5 py-0.5 rounded text-white/60 w-max leading-none">
                   {selectedThumbnailStyle === 'Default' ? 'Padrão' : selectedThumbnailStyle}
@@ -8167,15 +8414,15 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                 <div className="flex-1 flex items-center justify-center py-1">
                   <div className="text-center space-y-1">
                     <p className="text-[8px] font-bold text-white/40 group-hover:text-white/60 transition-colors capitalize">
-                      {selectedThumbnailStyle === 'Whiteboard' ? '✏️ Desenho Técnico' : 
-                       selectedThumbnailStyle === 'Neo-Minimalism' ? '🔍 Foco Único' : 
-                       selectedThumbnailStyle === 'Interface Hijacking' ? '📱 Mock Interface' : '🎬 Still de Vídeo'}
+                      {selectedThumbnailStyle === 'Whiteboard' ? '✏️ Desenho Técnico' :
+                        selectedThumbnailStyle === 'Neo-Minimalism' ? '🔍 Foco Único' :
+                          selectedThumbnailStyle === 'Interface Hijacking' ? '📱 Mock Interface' : '🎬 Still de Vídeo'}
                     </p>
                   </div>
                 </div>
 
                 {/* Text overlay simulation */}
-                <p 
+                <p
                   className="font-black text-center text-white break-words drop-shadow-md uppercase tracking-wider leading-none"
                   style={{
                     fontSize: isMobilePreview ? '7px' : '13px',
@@ -8227,9 +8474,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         <button
           key={tab.id}
           onClick={() => setMobileTab(tab.id as any)}
-          className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
-            mobileTab === tab.id ? 'bg-blue-500 text-white' : 'text-white/40 hover:text-white'
-          }`}
+          className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${mobileTab === tab.id ? 'bg-blue-500 text-white' : 'text-white/40 hover:text-white'
+            }`}
         >
           {tab.label}
         </button>
@@ -8243,1999 +8489,2562 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
         {/* Full-width Script Workspace */}
         <section className="flex-1 min-w-0 min-h-0 glass-card flex-col shadow-2xl border-white/10 ring-1 ring-white/5 flex">
-        {assemblerActive ? (
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 xl:p-6">
-            <div className="mb-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowRoterizadorModal(true)}
-                className="px-5 py-2.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-100 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-amber-500/40 shadow-lg shadow-amber-900/20"
-                title="Abrir intake rápido do Roterizador 2077"
-              >
-                <Zap size={14} className="text-amber-400 fill-amber-400/30 animate-pulse" />
-                ⚡ ROTERIZADOR 2077
-              </button>
-            </div>
-            <ProductionAssembler
-              components={components}
-              componentsHydrated={componentsHydrated}
-              onApprove={handleAssemblerApprove}
-            />
-          </div>
-        ) : (
-          <>
-        <div className="p-6 xl:p-8 border-b border-white/5 flex flex-col gap-6 xl:flex-row xl:justify-between xl:items-start bg-midnight/40 backdrop-blur-md">
-          <div className="max-w-3xl">
-            <h3 className="font-bold flex items-center gap-3 text-lg text-white">
-              <Database className="text-blue-500" size={20} /> Production Assembler
-            </h3>
-            <p className="text-[11px] text-white/60 mt-1 font-bold leading-relaxed max-w-2xl break-words uppercase tracking-widest">
-              Validado pela PUC: <span className="font-black text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">"{activeProject?.puc || 'DNA nao definido'}"</span>
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 w-full xl:w-[640px]">
-            <button
-              type="button"
-              onClick={() => setShowRoterizadorModal(true)}
-              className="px-4 py-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-100 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-amber-500/40 shadow-lg shadow-amber-900/20"
-              title="Abrir intake rápido do Roterizador 2077"
-            >
-              <Zap size={14} className="text-amber-400 fill-amber-400/30 animate-pulse" />
-              ⚡ ROTERIZADOR 2077
-            </button>
-            <button
-              onClick={restoreExecutionState}
-              className="px-4 py-3 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-white/10"
-              title="Recarregar a ultima execucao salva desta instancia"
-            >
-              <RotateCcw size={14} /> RETOMAR EXECUCAO
-            </button>
-            <button
-              onClick={returnToAssembler}
-              className="px-4 py-3 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-white/10"
-              title="Voltar para o assembler sem perder o estado salvo"
-            >
-              <ArrowLeft size={14} /> VOLTAR AO ASSEMBLER
-            </button>
-            <button
-              onClick={clearExecutionState}
-              className="px-4 py-3 bg-red-500/10 text-red-300 hover:bg-red-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-red-500/20"
-              title="Limpar a execucao atual desta instancia e recomecar"
-            >
-              <Trash2 size={14} /> LIMPAR EXECUCAO
-            </button>
-            <button 
-              onClick={() => generateThumbnailDirective()}
-              className="px-6 py-3 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-purple-500/20"
-              title="Gerar Diretriz de Thumbnail para ferramenta externa"
-            >
-              <Layout size={14} /> DIRETRIZ DE THUMB
-            </button>
-            <button 
-              onClick={handleDeploy}
-              className="px-6 py-3 bg-blue-500/10 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20 shadow-lg shadow-blue-900/10"
-              title="Registrar log de composicao e deploy na BI"
-            >
-              <Save size={14} /> REGISTRAR DNA
-            </button>
-            <button
-              onClick={async () => {
-                if (!approvedBriefing) { showToast('Aprove um assembly antes de copiar o prompt externo.'); return; }
-                const externalPrompt = buildExternalWritingPrompt();
-                await navigator.clipboard.writeText(externalPrompt);
-                showToast('Prompt externo copiado com blueprint detalhado do roteiro.');
-              }}
-              className="px-6 py-3 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20"
-              title="Copiar prompt completo para usar em plataforma externa"
-            >
-              <MessageSquare size={14} /> COPIAR PROMPT EXTERNO
-            </button>
-            <button
-              onClick={() => {
-                const nextVal = !useAdvancedRetention;
-                setUseAdvancedRetention(nextVal);
-                persistExecutionSnapshotLocally({ useAdvancedRetention: nextVal });
-              }}
-              className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border ${
-                useAdvancedRetention
-                  ? "bg-purple-500/20 text-purple-400 border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]"
-                  : "bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:text-white"
-              }`}
-              title="Aplicar diretrizes de retenção avançada (Outcome-First, timing gates, incompletude estratégica e Stop Stack)"
-            >
-              <Zap size={14} className={useAdvancedRetention ? "fill-purple-400/20" : ""} />
-              Retenção PDF: {useAdvancedRetention ? "ON" : "OFF"}
-            </button>
-            <button
-              onClick={() => {
-                const nextVal = !useDnaFactShield;
-                setUseDnaFactShield(nextVal);
-                persistExecutionSnapshotLocally({ useDnaFactShield: nextVal });
-              }}
-              className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border ${
-                useDnaFactShield
-                  ? "bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]"
-                  : "bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:text-white"
-              }`}
-              title="Ativar DNA Reader (extrai DNA de roteiro de referência) + Fact Shield (exige âncoras verificáveis e relatório de auditoria)"
-            >
-              <Shield size={14} className={useDnaFactShield ? "fill-amber-400/20" : ""} />
-              DNA + Fact Shield: {useDnaFactShield ? "ON" : "OFF"}
-            </button>
-            <div className="flex gap-2 w-full">
-              <button
-                onClick={async () => {
-                  if (!approvedBriefing) return alert('Aprove um assembly antes de copiar ou gerar versao.');
-                  const snapshot = {
-                    project_id: activeProject?.id,
-                    theme: approvedBriefing.title || approvedTheme,
-                    briefing: approvedBriefing,
-                    blocks: scriptBlocks,
-                    created_at: new Date().toISOString(),
-                  };
-                  const key = `ws_assemblies_${activeProject?.id}`;
-                  const existing = JSON.parse(localStorage.getItem(key) || '[]');
-                  localStorage.setItem(key, JSON.stringify([snapshot, ...existing]));
-
-                  const text = JSON.stringify(snapshot, null, 2);
-                  await navigator.clipboard.writeText(text);
-                  showToast('Briefing copiado e versao salva localmente.');
-                }}
-                className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10 flex items-center justify-center aspect-square"
-                title="Copiar briefing (JSON) e salvar versao local"
-              >
-                <Copy size={18} />
-              </button>
-              {videoFormat === 'avatar_flow' ? (
+          {assemblerActive ? (
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 xl:p-6">
+              <div className="mb-4 flex justify-end">
                 <button
-                  onClick={downloadAvatarFlowPackage}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-3 bg-violet-600/25 text-violet-200 rounded-xl hover:bg-violet-600/45 hover:text-white transition-all border border-violet-500/30 font-bold uppercase tracking-wider text-[9px]"
-                  title="Exportar Pacote Avatar Flow (Prompts de Vídeo + Falas Limpas para Produção Sem SRT)"
+                  type="button"
+                  onClick={() => setShowRoterizadorModal(true)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-100 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-amber-500/40 shadow-lg shadow-amber-900/20"
+                  title="Abrir intake rápido do Roterizador 2077"
                 >
-                  🎬 Exportar Flow
+                  <Zap size={14} className="text-amber-400 fill-amber-400/30 animate-pulse" />
+                  ⚡ ROTERIZADOR 2077
                 </button>
-              ) : (
-                <button
-                  onClick={downloadScriptAsTxt}
-                  className="flex-1 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10 flex items-center justify-center"
-                  title="Baixar todos os blocos atuais em um unico arquivo .txt"
-                >
-                  <FileText size={18} />
-                </button>
-              )}
-            </div>
-            <button 
-              onClick={async () => {
-                if (!approvedBriefing) return alert('Aprove um assembly antes de gerar o roteiro.');
-                setIsGeneratingScript(true);
-                generationStoppedRef.current = false;
-                setGenerationProgress({
-                  currentIndex: 0,
-                  completedCount: 0,
-                  total: scriptBlocks.length,
-                  currentTitle: 'Preparando blueprint para geracao',
-                  status: 'Inicializando a geracao dos blocos no aplicativo...',
-                });
-                try {
-                  const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
-                  const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
-                  const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
-                  if (!apiKey) {
-                    setIsGeneratingScript(false);
-                    setGenerationProgress(null);
-                    return alert('Configure sua chave de API em Ajustes Globais para gerar o roteiro.');
-                  }
-
-                  const promptForGeneration = buildInternalWritingPrompt();
-                  if (!promptForGeneration) {
-                    setIsGeneratingScript(false);
-                    setGenerationProgress(null);
-                    return alert('Aprove um assembly completo antes de gerar o roteiro.');
-                  }
-
-                  const totalBlocks = scriptBlocks.length;
-                  setGenerationProgress({
-                    currentIndex: -1,
-                    completedCount: 0,
-                    total: totalBlocks,
-                    currentTitle: approvedBriefing.title,
-                    status: 'Enviando o blueprint completo para a IA do aplicativo...',
-                  });
-
-                  const controller = new AbortController();
-                  generationAbortRef.current = controller;
-                  const res = await fetch('/api/ai/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    signal: controller.signal,
-                    body: JSON.stringify({
-                      engine,
-                      model,
-                      prompt: promptForGeneration,
-                      apiKeyOverwrite: apiKey,
-                      projectConfig: activeProject?.ai_engine_rules,
-                      responseType: 'text'
-                    })
-                  });
-
-                  if (!res.ok) {
-                    const errBody = await res.text();
-                    throw new Error(`Falha IA (${res.status}): ${errBody}`);
-                  }
-
-                  const data = await res.json();
-                  let text = '';
-                  if (engine === 'gemini') {
-                    text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                  } else {
-                    text = data.choices?.[0]?.message?.content || '';
-                  }
-
-                  const sections = parseExternalScriptSections(text);
-                  if (sections.length === 0) {
-                    throw new Error('A IA respondeu, mas nao retornou blocos parseaveis.');
-                  }
-                  if (sections.length < totalBlocks) {
-                    throw new Error(`A IA retornou ${sections.length} blocos, mas o blueprint exige ${totalBlocks}.`);
-                  }
-
-                  let workingBlocks = [...scriptBlocks];
-                  setGenerationProgress({
-                    currentIndex: 0,
-                    completedCount: 0,
-                    total: totalBlocks,
-                    currentTitle: 'Distribuindo roteiro nos blocos',
-                    status: 'Resposta recebida. Aplicando o roteiro aos cards STG...',
-                  });
-
-                  for (let i = 0; i < workingBlocks.length; i++) {
-                    if (generationStoppedRef.current) {
-                      throw new Error('__GENERATION_ABORTED__');
-                    }
-
-                    const block = workingBlocks[i];
-                    const nextBlocks = [...workingBlocks];
-                    nextBlocks[i] = { ...nextBlocks[i], content: (sections[i] || nextBlocks[i].content).trim() };
-                    workingBlocks = nextBlocks;
-                    setScriptBlocks(workingBlocks);
-                    setGenerationProgress({
-                      currentIndex: i,
-                      completedCount: i + 1,
-                      total: workingBlocks.length,
-                      currentTitle: block.title,
-                      status: `Bloco ${i + 1} concluido. Preenchendo os cards STG abaixo em tempo real.`,
-                    });
-                    await new Promise((resolve) => setTimeout(resolve, 20));
-                  }
-
-                  setGenerationProgress({
-                    currentIndex: -1,
-                    completedCount: workingBlocks.length,
-                    total: workingBlocks.length,
-                    currentTitle: approvedBriefing.title,
-                    status: 'Roteiro completo. Finalizando e salvando o snapshot desta execucao...',
-                  });
-
-                  setIsGeneratingScript(false);
-                  generationAbortRef.current = null;
-                  generationStoppedRef.current = false;
-
-                  void syncApprovedThemeSnapshot({
-                    scriptBlocks: workingBlocks,
-                    scriptStage: 'final',
-                    executionMode: 'internal',
-                    postScriptPackage: null,
-                  }).catch((error) => {
-                    console.warn('[ScriptEngine] Falha ao salvar snapshot final apos geracao.', error);
-                  });
-                  setScriptStage('final');
-                  setPostScriptPackage(null);
-                  persistExecutionSnapshotLocally({
-                    scriptBlocks: workingBlocks,
-                    scriptStage: 'final',
-                    executionMode: 'internal',
-                    postScriptPackage: null,
-                  });
-
-                  alert('Roteiro IA gerado nos blocos.');
-                  setGenerationProgress(null);
-                } catch (e: any) {
-                  if (e?.name === 'AbortError' || e?.message === '__GENERATION_ABORTED__') {
-                    alert('Geracao interrompida. Os blocos ja concluidos foram mantidos.');
-                  } else {
-                  alert(`Erro ao gerar roteiro: ${e.message || e}`);
-                  }
-                } finally {
-                  if (generationAbortRef.current) {
-                    generationAbortRef.current = null;
-                    generationStoppedRef.current = false;
-                    setIsGeneratingScript(false);
-                    setGenerationProgress(null);
-                  }
-                }
-              }}
-              disabled={isGeneratingScript || executionMode === 'external'}
-              className="px-8 py-3 bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] shadow-lg shadow-blue-500/25 hover:bg-blue-400 hover:shadow-blue-400/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
-              title={executionMode === 'external' ? 'Mude para producao no aplicativo se quiser gerar os blocos por IA aqui.' : 'Gerar texto final para cada bloco via IA'}
-            >
-              {isGeneratingScript ? 'GERANDO...' : executionMode === 'external' ? 'MODO EXTERNO ATIVO' : 'GERAR ROTEIRO IA'} <Play size={14} fill="currentColor" />
-            </button>
-            {isGeneratingScript && (
-              <button
-                onClick={stopScriptGeneration}
-                className="px-6 py-3 bg-red-500/10 text-red-300 hover:bg-red-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-red-500/20"
-                title="Interromper a geracao e manter o que ja foi concluido"
-              >
-                <Octagon size={14} /> PARAR GERACAO
-              </button>
-            )}
-          </div>
-        </div>
-
-        {generationProgress && (
-          <div className="mx-6 xl:mx-8 mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/[0.05] px-5 py-4 shadow-[0_0_30px_rgba(59,130,246,0.08)]">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-300">Geracao em andamento</p>
-                <p className="text-sm font-black text-white">{generationProgress.status}</p>
-                <p className="text-[11px] text-white/55 leading-relaxed">
-                  Bloco atual: <span className="text-white/80">{generationProgress.currentTitle}</span>. O texto gerado vai sendo inserido logo abaixo, dentro dos cards <span className="text-white/80">STG</span>, e permanece salvo no snapshot desta execucao.
-                </p>
               </div>
-              <div className="xl:w-[280px] space-y-2">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-white/45">
-                  <span>Progresso</span>
-                  <span>{generationProgress.completedCount}/{generationProgress.total} blocos</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/8 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-300 transition-all duration-300"
-                    style={{
-                      width: `${generationProgress.total > 0 ? (generationProgress.completedCount / generationProgress.total) * 100 : 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
+              <ProductionAssembler
+                components={components}
+                componentsHydrated={componentsHydrated}
+                onApprove={handleAssemblerApprove}
+              />
             </div>
-          </div>
-        )}
-
-        {thumbnailDirectivePanel}
-
-        {approvedBriefing && (
-          <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-blue-500/[0.035] border border-blue-500/18 rounded-[28px] shadow-[0_0_40px_rgba(59,130,246,0.08)] space-y-5">
-            {/* ⚡ Title-changed banner */}
-            {pendingTitleUpdate && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-0.5">⚡ Título alterado</p>
-                  <p className="text-[11px] text-white/60 leading-relaxed">
-                    O tema foi renomeado para <span className="text-amber-300 font-bold">&ldquo;{pendingTitleUpdate.newTitle}&rdquo;</span>. Os blocos abaixo ainda usam o tema anterior.
+          ) : (
+            <>
+              <div className="p-6 xl:p-8 border-b border-white/5 flex flex-col gap-6 xl:flex-row xl:justify-between xl:items-start bg-midnight/40 backdrop-blur-md">
+                <div className="max-w-3xl">
+                  <h3 className="font-bold flex items-center gap-3 text-lg text-white">
+                    <Database className="text-blue-500" size={20} /> Production Assembler
+                  </h3>
+                  <p className="text-[11px] text-white/60 mt-1 font-bold leading-relaxed max-w-2xl break-words uppercase tracking-widest">
+                    Validado pela PUC: <span className="font-black text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">"{activeProject?.puc || 'DNA nao definido'}"</span>
                   </p>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => {
-                      setApprovedTheme(pendingTitleUpdate.newTitle);
-                      setPendingTitleUpdate(null);
-                      persistExecutionSnapshotLocally();
-                      showToast('Título atualizado. Blocos mantidos.');
-                    }}
-                    className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all"
-                  >
-                    Manter blocos
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!approvedBriefing) return;
-                      const newTitle = pendingTitleUpdate.newTitle;
-                      setApprovedTheme(newTitle);
-                      const updatedBriefing = { ...approvedBriefing, title: newTitle };
-                      setApprovedBriefing(updatedBriefing);
-                      const newBlocks = buildScriptBlocksFromBriefing(updatedBriefing, newTitle);
-                      setScriptBlocks(newBlocks);
-                      setScriptStage('blueprint');
-                      setPendingTitleUpdate(null);
-                      persistExecutionSnapshotLocally();
-                      showToast('Blocos regenerados com o novo tema!');
-                    }}
-                    className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-amber-500 hover:bg-amber-400 text-black transition-all"
-                  >
-                    Regenerar blocos
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="min-w-0 space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-300">Briefing aprovado</p>
-              <p className="max-w-3xl text-[11px] text-white/45 leading-relaxed">
-                O roteiro abaixo esta sendo montado com o briefing travado no assembler. O resumo principal fica visivel aqui para voce acompanhar o que esta sendo produzido sem perder o contexto editorial.
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border border-white/10 bg-midnight/30 px-5 py-5 xl:px-6 xl:py-6">
-              <h4 className="max-w-5xl text-[2rem] xl:text-[2.65rem] font-black text-white italic leading-[0.98] break-words">
-                {approvedBriefing.title}
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
-                { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
-                { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
-                {
-                  label: 'Chars',
-                  value: (executionMode === 'external' && externalScriptText)
-                    ? externalScriptText.length.toLocaleString('pt-BR')
-                    : approvedBriefing.estimatedChars
-                      ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}`
-                      : 'N/D'
-                },
-              ].map((item) => (
-                <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
-                  <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
-                  <span className="block text-sm font-black leading-tight text-white break-words">
-                    {item.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-              <div className="p-4 rounded-2xl bg-midnight/40 border border-white/5">
-                <span className="text-[9px] font-black uppercase tracking-[3px] text-white/25 block mb-1">Camada de abertura</span>
-                <p className="text-[11px] text-white/70 leading-relaxed break-words">{approvedBriefing.openingHook?.name || 'Nao definida'}</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-midnight/40 border border-white/5">
-                <span className="text-[9px] font-black uppercase tracking-[3px] text-white/25 block mb-1">Camada final de conversao</span>
-                <p className="text-[11px] text-white/70 leading-relaxed break-words">{approvedBriefing.selectedCta?.name || 'Nao definida'}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-            <div className="flex-1 flex flex-col gap-4">
-              <div>
-                <span className="block mb-2 text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
-                <div className="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/8 w-fit">
-                {([
-                  { value: "internal" as ExecutionMode, title: "No Aplicativo" },
-                  { value: "external" as ExecutionMode, title: "Externamente" },
-                ]).map((option) => {
-                  const isActive = executionMode === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setExecutionMode(option.value)}
-                      className={`rounded-lg px-5 py-2 text-[10px] font-black uppercase tracking-[1.5px] transition-all ${
-                        isActive
-                          ? "bg-blue-500/20 border border-blue-400/40 text-blue-200 shadow-sm"
-                          : "text-white/40 hover:text-white/70 border border-transparent"
-                      }`}
-                    >
-                      {option.title}
-                    </button>
-                  );
-                })}
-                </div>
-              </div>
-              
-              <div className="flex flex-col gap-2">
-                <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Personalidade & Tom de Voz</span>
-                <textarea
-                  value={writingStyleSample}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setWritingStyleSample(val);
-                    persistExecutionSnapshotLocally({ writingStyleSample: val });
-                  }}
-                  placeholder="Cole aqui um paragrafo ou roteiro de exemplo do apresentador para calibrar a voz da IA (Opcional)..."
-                  className="w-full min-h-[80px] max-h-[160px] bg-midnight/40 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white/70 leading-normal outline-none focus:border-purple-500/40 resize-y placeholder:text-white/20"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 w-full xl:w-[380px] shrink-0">
-                <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
-                  Data e hora de postagem
-                </label>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Data</span>
-                    <input
-                      type="date"
-                      value={manualPublishDraftDate}
-                      onChange={(e) => {
-                        const nextDate = e.target.value;
-                        setManualPublishDraftDate(nextDate);
-                        if (!nextDate) {
-                          setManualPublishDraftTime('');
-                          return;
-                        }
-
-                        if (!manualPublishDraftTime) {
-                          setManualPublishDraftTime('09:00');
-                        }
-                      }}
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Horario</span>
-                    <input
-                      type="time"
-                      value={manualPublishDraftTime}
-                      onChange={(e) => setManualPublishDraftTime(e.target.value)}
-                      disabled={!manualPublishDraftDate}
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40 disabled:cursor-not-allowed disabled:opacity-40"
-                    />
-                  </div>
-                </div>
-                <p className="mt-3 text-[10px] leading-5 text-white/35">
-                  Com horario, passado publica e futuro programa. Sem horario, vale a regra por dia.
-                </p>
-                <div className="mt-3 rounded-xl border border-white/8 bg-black/15 px-3 py-2">
-                  <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-white/35">Rastreabilidade</span>
-                  <p className="mt-1 text-[10px] leading-5 text-white/60">
-                    Snapshot atual: {formatManualPublishTrace(manualPublishDate)}. Esse valor segue junto na execução salva e no tema quando houver registro no banco.
-                  </p>
-                </div>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 w-full xl:w-[640px]">
                   <button
                     type="button"
-                    onClick={() => {
-                      void applyManualPublishRegistration();
-                    }}
-                    disabled={!manualPublishDraftDate || !hasPendingManualPublishChange}
-                    className="rounded-xl border border-blue-400/30 bg-blue-500/15 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100 transition-all hover:border-blue-300/50 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => setShowRoterizadorModal(true)}
+                    className="px-4 py-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-100 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-amber-500/40 shadow-lg shadow-amber-900/20"
+                    title="Abrir intake rápido do Roterizador 2077"
                   >
-                    {manualPublishDate ? 'Atualizar data registrada' : 'Registrar data de postagem'}
+                    <Zap size={14} className="text-amber-400 fill-amber-400/30 animate-pulse" />
+                    ⚡ ROTERIZADOR 2077
                   </button>
-                  {hasPendingManualPublishChange && manualPublishDate && (
+                  <button
+                    onClick={restoreExecutionState}
+                    className="px-4 py-3 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-white/10"
+                    title="Recarregar a ultima execucao salva desta instancia"
+                  >
+                    <RotateCcw size={14} /> RETOMAR EXECUCAO
+                  </button>
+                  <button
+                    onClick={returnToAssembler}
+                    className="px-4 py-3 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-white/10"
+                    title="Voltar para o assembler sem perder o estado salvo"
+                  >
+                    <ArrowLeft size={14} /> VOLTAR AO ASSEMBLER
+                  </button>
+                  <button
+                    onClick={clearExecutionState}
+                    className="px-4 py-3 bg-red-500/10 text-red-300 hover:bg-red-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-red-500/20"
+                    title="Limpar a execucao atual desta instancia e recomecar"
+                  >
+                    <Trash2 size={14} /> LIMPAR EXECUCAO
+                  </button>
+                  <button
+                    onClick={() => generateThumbnailDirective()}
+                    className="px-6 py-3 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-purple-500/20"
+                    title="Gerar Diretriz de Thumbnail para ferramenta externa"
+                  >
+                    <Layout size={14} /> DIRETRIZ DE THUMB
+                  </button>
+                  <button
+                    onClick={handleDeploy}
+                    className="px-6 py-3 bg-blue-500/10 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20 shadow-lg shadow-blue-900/10"
+                    title="Registrar log de composicao e deploy na BI"
+                  >
+                    <Save size={14} /> REGISTRAR DNA
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!approvedBriefing) { showToast('Aprove um assembly antes de copiar o prompt externo.'); return; }
+                      const externalPrompt = buildExternalWritingPrompt();
+                      await navigator.clipboard.writeText(externalPrompt);
+                      showToast('Prompt externo copiado com blueprint detalhado do roteiro.');
+                    }}
+                    className="px-6 py-3 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-blue-500/20"
+                    title="Copiar prompt completo para usar em plataforma externa"
+                  >
+                    <MessageSquare size={14} /> COPIAR PROMPT EXTERNO
+                  </button>
+                  <button
+                    onClick={() => {
+                      const nextVal = !useAdvancedRetention;
+                      setUseAdvancedRetention(nextVal);
+                      persistExecutionSnapshotLocally({ useAdvancedRetention: nextVal });
+                    }}
+                    className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border ${useAdvancedRetention
+                        ? "bg-purple-500/20 text-purple-400 border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]"
+                        : "bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:text-white"
+                      }`}
+                    title="Aplicar diretrizes de retenção avançada (Outcome-First, timing gates, incompletude estratégica e Stop Stack)"
+                  >
+                    <Zap size={14} className={useAdvancedRetention ? "fill-purple-400/20" : ""} />
+                    Retenção PDF: {useAdvancedRetention ? "ON" : "OFF"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const nextVal = !useDnaFactShield;
+                      setUseDnaFactShield(nextVal);
+                      persistExecutionSnapshotLocally({ useDnaFactShield: nextVal });
+                    }}
+                    className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border ${useDnaFactShield
+                        ? "bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]"
+                        : "bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:text-white"
+                      }`}
+                    title="Ativar DNA Reader (extrai DNA de roteiro de referência) + Fact Shield (exige âncoras verificáveis e relatório de auditoria)"
+                  >
+                    <Shield size={14} className={useDnaFactShield ? "fill-amber-400/20" : ""} />
+                    DNA + Fact Shield: {useDnaFactShield ? "ON" : "OFF"}
+                  </button>
+                  <div className="flex gap-2 w-full">
                     <button
-                      type="button"
-                      onClick={() => {
-                        setManualPublishDraftDate(manualPublishParts.date);
-                        setManualPublishDraftTime(manualPublishParts.time);
-                      }}
-                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/65 transition-all hover:border-white/20 hover:text-white"
-                    >
-                      Descartar alteracao
-                    </button>
-                  )}
-                  {manualPublishDate && (
-                    <button
-                      type="button"
-                      onClick={() => { void clearPublishDate(); }}
-                      className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-red-300 transition-all hover:border-red-400/50 hover:bg-red-500/20"
-                    >
-                      Limpar data
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+                      onClick={async () => {
+                        if (!approvedBriefing) return alert('Aprove um assembly antes de copiar ou gerar versao.');
+                        const snapshot = {
+                          project_id: activeProject?.id,
+                          theme: approvedBriefing.title || approvedTheme,
+                          briefing: approvedBriefing,
+                          blocks: scriptBlocks,
+                          created_at: new Date().toISOString(),
+                        };
+                        const key = `ws_assemblies_${activeProject?.id}`;
+                        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                        localStorage.setItem(key, JSON.stringify([snapshot, ...existing]));
 
-          {executionMode === 'external' && (
-            <div className="space-y-4">
-              {/* ROW 1: Textarea + Plataforma/TXT side by side */}
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
-                    <input
-                      value={externalSourceLabel}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setExternalSourceLabel(value);
-                        persistExecutionSnapshotLocally({
-                          executionMode: 'external',
-                          externalSourceLabel: value,
-                        });
+                        const text = JSON.stringify(snapshot, null, 2);
+                        await navigator.clipboard.writeText(text);
+                        showToast('Briefing copiado e versao salva localmente.');
                       }}
-                      placeholder="Ex: ChatGPT, Claude, Gemini..."
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
-                    />
-                  </div>
-                  <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
-                    <input
-                      type="file"
-                      accept=".txt,text/plain"
-                      onChange={handleExternalScriptUpload}
-                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
-                    />
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                      {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
-                    </div>
-                    {externalScriptText && (
+                      className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10 flex items-center justify-center aspect-square"
+                      title="Copiar briefing (JSON) e salvar versao local"
+                    >
+                      <Copy size={18} />
+                    </button>
+                    {videoFormat === 'avatar_flow' ? (
                       <button
-                        type="button"
-                        onClick={extractVisualBlueprintAndCast}
-                        disabled={isExtractingVisuals}
-                        className={`w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.15em] text-blue-200 transition-all hover:bg-blue-500/20 active:scale-95 flex items-center justify-center gap-2`}
+                        onClick={downloadAvatarFlowPackage}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-3 bg-violet-600/25 text-violet-200 rounded-xl hover:bg-violet-600/45 hover:text-white transition-all border border-violet-500/30 font-bold uppercase tracking-wider text-[9px]"
+                        title="Exportar Pacote Avatar Flow (Prompts de Vídeo + Falas Limpas para Produção Sem SRT)"
                       >
-                        {isExtractingVisuals ? '⏳ Analisando...' : '✨ Analisar Direcao de Arte & Elenco'}
+                        🎬 Exportar Flow
+                      </button>
+                    ) : (
+                      <button
+                        onClick={downloadScriptAsTxt}
+                        className="flex-1 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white border border-white/10 flex items-center justify-center"
+                        title="Baixar todos os blocos atuais em um unico arquivo .txt"
+                      >
+                        <FileText size={18} />
                       </button>
                     )}
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
-                  <textarea
-                    value={externalScriptText}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setExternalScriptText(val);
-                      
-                      const exactChars = val.length;
-                      let updatedBriefing = null;
-                      if (approvedBriefing) {
-                        updatedBriefing = {
-                          ...approvedBriefing,
-                          estimatedChars: exactChars
-                        };
-                        setApprovedBriefing(updatedBriefing);
-                      }
-                      
-                      persistExecutionSnapshotLocally({ 
-                        externalScriptText: val,
-                        approvedBriefing: updatedBriefing
+                  <button
+                    onClick={async () => {
+                      if (!approvedBriefing) return alert('Aprove um assembly antes de gerar o roteiro.');
+                      setIsGeneratingScript(true);
+                      generationStoppedRef.current = false;
+                      setGenerationProgress({
+                        currentIndex: 0,
+                        completedCount: 0,
+                        total: scriptBlocks.length,
+                        currentTitle: 'Preparando blueprint para geracao',
+                        status: 'Inicializando a geracao dos blocos no aplicativo...',
                       });
+                      try {
+                        const engine = (typeof window !== 'undefined' && localStorage.getItem('yt_active_engine')) || 'openai';
+                        const model = (typeof window !== 'undefined' && localStorage.getItem('yt_selected_model')) || 'gpt-5.1';
+                        const apiKey = (typeof window !== 'undefined' && localStorage.getItem(engine === 'openai' ? 'yt_openai_key' : 'yt_gemini_key')) || '';
+                        if (!apiKey) {
+                          setIsGeneratingScript(false);
+                          setGenerationProgress(null);
+                          return alert('Configure sua chave de API em Ajustes Globais para gerar o roteiro.');
+                        }
+
+                        const promptForGeneration = buildInternalWritingPrompt();
+                        if (!promptForGeneration) {
+                          setIsGeneratingScript(false);
+                          setGenerationProgress(null);
+                          return alert('Aprove um assembly completo antes de gerar o roteiro.');
+                        }
+
+                        const totalBlocks = scriptBlocks.length;
+                        setGenerationProgress({
+                          currentIndex: -1,
+                          completedCount: 0,
+                          total: totalBlocks,
+                          currentTitle: approvedBriefing.title,
+                          status: 'Enviando o blueprint completo para a IA do aplicativo...',
+                        });
+
+                        const controller = new AbortController();
+                        generationAbortRef.current = controller;
+                        const res = await fetch('/api/ai/generate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          signal: controller.signal,
+                          body: JSON.stringify({
+                            engine,
+                            model,
+                            prompt: promptForGeneration,
+                            apiKeyOverwrite: apiKey,
+                            projectConfig: activeProject?.ai_engine_rules,
+                            responseType: 'text'
+                          })
+                        });
+
+                        if (!res.ok) {
+                          const errBody = await res.text();
+                          throw new Error(`Falha IA (${res.status}): ${errBody}`);
+                        }
+
+                        const data = await res.json();
+                        let text = '';
+                        if (engine === 'gemini') {
+                          text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        } else {
+                          text = data.choices?.[0]?.message?.content || '';
+                        }
+
+                        const sections = parseExternalScriptSections(text);
+                        if (sections.length === 0) {
+                          throw new Error('A IA respondeu, mas nao retornou blocos parseaveis.');
+                        }
+                        if (sections.length < totalBlocks) {
+                          throw new Error(`A IA retornou ${sections.length} blocos, mas o blueprint exige ${totalBlocks}.`);
+                        }
+
+                        let workingBlocks = [...scriptBlocks];
+                        setGenerationProgress({
+                          currentIndex: 0,
+                          completedCount: 0,
+                          total: totalBlocks,
+                          currentTitle: 'Distribuindo roteiro nos blocos',
+                          status: 'Resposta recebida. Aplicando o roteiro aos cards STG...',
+                        });
+
+                        for (let i = 0; i < workingBlocks.length; i++) {
+                          if (generationStoppedRef.current) {
+                            throw new Error('__GENERATION_ABORTED__');
+                          }
+
+                          const block = workingBlocks[i];
+                          const nextBlocks = [...workingBlocks];
+                          nextBlocks[i] = { ...nextBlocks[i], content: (sections[i] || nextBlocks[i].content).trim() };
+                          workingBlocks = nextBlocks;
+                          setScriptBlocks(workingBlocks);
+                          setGenerationProgress({
+                            currentIndex: i,
+                            completedCount: i + 1,
+                            total: workingBlocks.length,
+                            currentTitle: block.title,
+                            status: `Bloco ${i + 1} concluido. Preenchendo os cards STG abaixo em tempo real.`,
+                          });
+                          await new Promise((resolve) => setTimeout(resolve, 20));
+                        }
+
+                        setGenerationProgress({
+                          currentIndex: -1,
+                          completedCount: workingBlocks.length,
+                          total: workingBlocks.length,
+                          currentTitle: approvedBriefing.title,
+                          status: 'Roteiro completo. Finalizando e salvando o snapshot desta execucao...',
+                        });
+
+                        setIsGeneratingScript(false);
+                        generationAbortRef.current = null;
+                        generationStoppedRef.current = false;
+
+                        void syncApprovedThemeSnapshot({
+                          scriptBlocks: workingBlocks,
+                          scriptStage: 'final',
+                          executionMode: 'internal',
+                          postScriptPackage: null,
+                        }).catch((error) => {
+                          console.warn('[ScriptEngine] Falha ao salvar snapshot final apos geracao.', error);
+                        });
+                        setScriptStage('final');
+                        setPostScriptPackage(null);
+                        persistExecutionSnapshotLocally({
+                          scriptBlocks: workingBlocks,
+                          scriptStage: 'final',
+                          executionMode: 'internal',
+                          postScriptPackage: null,
+                        });
+
+                        alert('Roteiro IA gerado nos blocos.');
+                        setGenerationProgress(null);
+                      } catch (e: any) {
+                        if (e?.name === 'AbortError' || e?.message === '__GENERATION_ABORTED__') {
+                          alert('Geracao interrompida. Os blocos ja concluidos foram mantidos.');
+                        } else {
+                          alert(`Erro ao gerar roteiro: ${e.message || e}`);
+                        }
+                      } finally {
+                        if (generationAbortRef.current) {
+                          generationAbortRef.current = null;
+                          generationStoppedRef.current = false;
+                          setIsGeneratingScript(false);
+                          setGenerationProgress(null);
+                        }
+                      }
                     }}
-                    placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
-                    className="w-full min-h-[100px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
-                  />
-                  {externalScriptText && (
-                    <div className="space-y-3 mt-2">
-                      <div className="flex flex-wrap gap-2.5">
+                    disabled={isGeneratingScript || executionMode === 'external'}
+                    className="px-8 py-3 bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] shadow-lg shadow-blue-500/25 hover:bg-blue-400 hover:shadow-blue-400/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={executionMode === 'external' ? 'Mude para producao no aplicativo se quiser gerar os blocos por IA aqui.' : 'Gerar texto final para cada bloco via IA'}
+                  >
+                    {isGeneratingScript ? 'GERANDO...' : executionMode === 'external' ? 'MODO EXTERNO ATIVO' : 'GERAR ROTEIRO IA'} <Play size={14} fill="currentColor" />
+                  </button>
+                  {isGeneratingScript && (
+                    <button
+                      onClick={stopScriptGeneration}
+                      className="px-6 py-3 bg-red-500/10 text-red-300 hover:bg-red-500/20 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-red-500/20"
+                      title="Interromper a geracao e manter o que ja foi concluido"
+                    >
+                      <Octagon size={14} /> PARAR GERACAO
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {generationProgress && (
+                <div className="mx-6 xl:mx-8 mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/[0.05] px-5 py-4 shadow-[0_0_30px_rgba(59,130,246,0.08)]">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-300">Geracao em andamento</p>
+                      <p className="text-sm font-black text-white">{generationProgress.status}</p>
+                      <p className="text-[11px] text-white/55 leading-relaxed">
+                        Bloco atual: <span className="text-white/80">{generationProgress.currentTitle}</span>. O texto gerado vai sendo inserido logo abaixo, dentro dos cards <span className="text-white/80">STG</span>, e permanece salvo no snapshot desta execucao.
+                      </p>
+                    </div>
+                    <div className="xl:w-[280px] space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-white/45">
+                        <span>Progresso</span>
+                        <span>{generationProgress.completedCount}/{generationProgress.total} blocos</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-300 transition-all duration-300"
+                          style={{
+                            width: `${generationProgress.total > 0 ? (generationProgress.completedCount / generationProgress.total) * 100 : 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {thumbnailDirectivePanel}
+
+              {approvedBriefing && (
+                <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-blue-500/[0.035] border border-blue-500/18 rounded-[28px] shadow-[0_0_40px_rgba(59,130,246,0.08)] space-y-5">
+                  {/* ⚡ Title-changed banner */}
+                  {pendingTitleUpdate && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-0.5">⚡ Título alterado</p>
+                        <p className="text-[11px] text-white/60 leading-relaxed">
+                          O tema foi renomeado para <span className="text-amber-300 font-bold">&ldquo;{pendingTitleUpdate.newTitle}&rdquo;</span>. Os blocos abaixo ainda usam o tema anterior.
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
                         <button
-                          type="button"
-                          onClick={handleExternalHumanize}
-                          disabled={isHumanizingExternal}
-                          className="px-4 py-2 rounded-xl border border-purple-500/30 bg-purple-500/10 text-[9px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Remover vícios de escrita de IA e adaptar ao tom de voz de referência"
+                          onClick={() => {
+                            setApprovedTheme(pendingTitleUpdate.newTitle);
+                            setPendingTitleUpdate(null);
+                            persistExecutionSnapshotLocally();
+                            showToast('Título atualizado. Blocos mantidos.');
+                          }}
+                          className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all"
                         >
-                          {isHumanizingExternal ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              Polindo escrita...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles size={12} />
-                              Humanizar Roteiro
-                            </>
-                          )}
+                          Manter blocos
                         </button>
                         <button
-                          type="button"
-                          onClick={handleExternalFactCheck}
-                          disabled={isFactCheckingExternal}
-                          className="px-4 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10 text-[9px] font-black uppercase tracking-wider text-blue-300 hover:bg-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Executar verificação factual utilizando Gemini com busca em tempo real do Google"
+                          onClick={() => {
+                            if (!approvedBriefing) return;
+                            const newTitle = pendingTitleUpdate.newTitle;
+                            setApprovedTheme(newTitle);
+                            const updatedBriefing = { ...approvedBriefing, title: newTitle };
+                            setApprovedBriefing(updatedBriefing);
+                            const newBlocks = buildScriptBlocksFromBriefing(updatedBriefing, newTitle);
+                            setScriptBlocks(newBlocks);
+                            setScriptStage('blueprint');
+                            setPendingTitleUpdate(null);
+                            persistExecutionSnapshotLocally();
+                            showToast('Blocos regenerados com o novo tema!');
+                          }}
+                          className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-amber-500 hover:bg-amber-400 text-black transition-all"
                         >
-                          {isFactCheckingExternal ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              Verificando fatos...
-                            </>
-                          ) : (
-                            <>
-                              <Database size={12} />
-                              Fact-Check Roteiro
-                            </>
-                          )}
+                          Regenerar blocos
                         </button>
-                        {externalFactCheckReport && (
+                      </div>
+                    </div>
+                  )}
+                  <div className="min-w-0 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-300">Briefing aprovado</p>
+                    <p className="max-w-3xl text-[11px] text-white/45 leading-relaxed">
+                      O roteiro abaixo esta sendo montado com o briefing travado no assembler. O resumo principal fica visivel aqui para voce acompanhar o que esta sendo produzido sem perder o contexto editorial.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-midnight/30 px-5 py-5 xl:px-6 xl:py-6">
+                    <h4 className="max-w-5xl text-[2rem] xl:text-[2.65rem] font-black text-white italic leading-[0.98] break-words">
+                      {approvedBriefing.title}
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {[
+                      { label: 'Duracao', value: approvedBriefing.estimatedDuration || 'N/D' },
+                      { label: 'Blocos', value: `${approvedBriefing.blockCount || approvedBriefing.blocks?.length || 0}` },
+                      { label: 'Voz', value: approvedBriefing.dominantVoice?.split(' ')[0] || 'N/D' },
+                      {
+                        label: 'Chars',
+                        value: (executionMode === 'external' && externalScriptText)
+                          ? externalScriptText.length.toLocaleString('pt-BR')
+                          : approvedBriefing.estimatedChars
+                            ? `~${approvedBriefing.estimatedChars.toLocaleString('pt-BR')}`
+                            : 'N/D'
+                      },
+                    ].map((item) => (
+                      <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3.5">
+                        <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
+                        <span className="block text-sm font-black leading-tight text-white break-words">
+                          {item.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                    <div className="p-4 rounded-2xl bg-midnight/40 border border-white/5">
+                      <span className="text-[9px] font-black uppercase tracking-[3px] text-white/25 block mb-1">Camada de abertura</span>
+                      <p className="text-[11px] text-white/70 leading-relaxed break-words">{approvedBriefing.openingHook?.name || 'Nao definida'}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-midnight/40 border border-white/5">
+                      <span className="text-[9px] font-black uppercase tracking-[3px] text-white/25 block mb-1">Camada final de conversao</span>
+                      <p className="text-[11px] text-white/70 leading-relaxed break-words">{approvedBriefing.selectedCta?.name || 'Nao definida'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mx-6 xl:mx-8 mt-4 p-5 xl:p-6 bg-white/[0.02] border border-white/10 rounded-2xl space-y-4">
+                <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+                  <div className="flex-1 flex flex-col gap-4">
+                    <div>
+                      <span className="block mb-2 text-[10px] font-black uppercase tracking-widest text-blue-300">Modo de Producao</span>
+                      <div className="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/8 w-fit">
+                        {([
+                          { value: "internal" as ExecutionMode, title: "No Aplicativo" },
+                          { value: "external" as ExecutionMode, title: "Externamente" },
+                        ]).map((option) => {
+                          const isActive = executionMode === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setExecutionMode(option.value)}
+                              className={`rounded-lg px-5 py-2 text-[10px] font-black uppercase tracking-[1.5px] transition-all ${isActive
+                                  ? "bg-blue-500/20 border border-blue-400/40 text-blue-200 shadow-sm"
+                                  : "text-white/40 hover:text-white/70 border border-transparent"
+                                }`}
+                            >
+                              {option.title}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="block text-[10px] font-black uppercase tracking-widest text-purple-300">Personalidade & Tom de Voz</span>
+                      <textarea
+                        value={writingStyleSample}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setWritingStyleSample(val);
+                          persistExecutionSnapshotLocally({ writingStyleSample: val });
+                        }}
+                        placeholder="Cole aqui um paragrafo ou roteiro de exemplo do apresentador para calibrar a voz da IA (Opcional)..."
+                        className="w-full min-h-[80px] max-h-[160px] bg-midnight/40 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white/70 leading-normal outline-none focus:border-purple-500/40 resize-y placeholder:text-white/20"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 w-full xl:w-[380px] shrink-0">
+                    <label className="block text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
+                      Data e hora de postagem
+                    </label>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                      <div>
+                        <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Data</span>
+                        <input
+                          type="date"
+                          value={manualPublishDraftDate}
+                          onChange={(e) => {
+                            const nextDate = e.target.value;
+                            setManualPublishDraftDate(nextDate);
+                            if (!nextDate) {
+                              setManualPublishDraftTime('');
+                              return;
+                            }
+
+                            if (!manualPublishDraftTime) {
+                              setManualPublishDraftTime('09:00');
+                            }
+                          }}
+                          className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40"
+                        />
+                      </div>
+                      <div>
+                        <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/35">Horario</span>
+                        <input
+                          type="time"
+                          value={manualPublishDraftTime}
+                          onChange={(e) => setManualPublishDraftTime(e.target.value)}
+                          disabled={!manualPublishDraftDate}
+                          className="mt-2 w-full rounded-xl border border-white/10 bg-midnight/50 px-3 py-2 text-[11px] font-bold text-white outline-none focus:border-blue-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[10px] leading-5 text-white/35">
+                      Com horario, passado publica e futuro programa. Sem horario, vale a regra por dia.
+                    </p>
+                    <div className="mt-3 rounded-xl border border-white/8 bg-black/15 px-3 py-2">
+                      <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-white/35">Rastreabilidade</span>
+                      <p className="mt-1 text-[10px] leading-5 text-white/60">
+                        Snapshot atual: {formatManualPublishTrace(manualPublishDate)}. Esse valor segue junto na execução salva e no tema quando houver registro no banco.
+                      </p>
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void applyManualPublishRegistration();
+                        }}
+                        disabled={!manualPublishDraftDate || !hasPendingManualPublishChange}
+                        className="rounded-xl border border-blue-400/30 bg-blue-500/15 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100 transition-all hover:border-blue-300/50 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {manualPublishDate ? 'Atualizar data registrada' : 'Registrar data de postagem'}
+                      </button>
+                      {hasPendingManualPublishChange && manualPublishDate && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManualPublishDraftDate(manualPublishParts.date);
+                            setManualPublishDraftTime(manualPublishParts.time);
+                          }}
+                          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/65 transition-all hover:border-white/20 hover:text-white"
+                        >
+                          Descartar alteracao
+                        </button>
+                      )}
+                      {manualPublishDate && (
+                        <button
+                          type="button"
+                          onClick={() => { void clearPublishDate(); }}
+                          className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-red-300 transition-all hover:border-red-400/50 hover:bg-red-500/20"
+                        >
+                          Limpar data
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {executionMode === 'external' && (
+                <div className="space-y-4">
+                  {/* ROW 1: Textarea + Plataforma/TXT side by side */}
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Plataforma externa</label>
+                        <input
+                          value={externalSourceLabel}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setExternalSourceLabel(value);
+                            persistExecutionSnapshotLocally({
+                              executionMode: 'external',
+                              externalSourceLabel: value,
+                            });
+                          }}
+                          placeholder="Ex: ChatGPT, Claude, Gemini..."
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white outline-none focus:border-blue-400/40 placeholder:text-white/20"
+                        />
+                      </div>
+                      <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo do roteiro (.txt)</label>
+                        <input
+                          type="file"
+                          accept=".txt,text/plain"
+                          onChange={handleExternalScriptUpload}
+                          className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-blue-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-blue-300 hover:file:bg-blue-500/20"
+                        />
+                        <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                          {externalScriptFileName ? `Persistido: ${externalScriptFileName}` : 'Nenhum .txt anexado.'}
+                        </div>
+                        {externalScriptText && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setExternalFactCheckReport(null);
-                              persistExecutionSnapshotLocally({ externalFactCheckReport: null });
-                            }}
-                            className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-wider text-white/50 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
+                            onClick={extractVisualBlueprintAndCast}
+                            disabled={isExtractingVisuals}
+                            className={`w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.15em] text-blue-200 transition-all hover:bg-blue-500/20 active:scale-95 flex items-center justify-center gap-2`}
                           >
-                            Limpar Relatorio
+                            {isExtractingVisuals ? '⏳ Analisando...' : '✨ Analisar Direcao de Arte & Elenco'}
                           </button>
                         )}
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Roteiro externo recebido</label>
+                      <textarea
+                        value={externalScriptText}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setExternalScriptText(val);
 
-                      {externalHumanizeReport && (
-                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
-                          <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isHumanizeReportExpanded ? 'pb-3 border-b border-white/5' : ''}`}>
+                          const exactChars = val.length;
+                          let updatedBriefing = null;
+                          if (approvedBriefing) {
+                            updatedBriefing = {
+                              ...approvedBriefing,
+                              estimatedChars: exactChars
+                            };
+                            setApprovedBriefing(updatedBriefing);
+                          }
+
+                          persistExecutionSnapshotLocally({
+                            externalScriptText: val,
+                            approvedBriefing: updatedBriefing
+                          });
+                        }}
+                        placeholder="Cole aqui o roteiro final gerado fora do aplicativo. Se ele vier separado em BLOCO 1, BLOCO 2, etc., o app aplica automaticamente nos blocos atuais."
+                        className="w-full min-h-[100px] bg-midnight/40 border border-white/10 rounded-2xl px-4 py-4 text-[12px] text-white/85 leading-relaxed outline-none focus:border-blue-400/40 resize-y placeholder:text-white/15"
+                      />
+                      {externalScriptText && (
+                        <div className="space-y-3 mt-2">
+                          <div className="flex flex-wrap gap-2.5">
                             <button
                               type="button"
-                              onClick={() => setIsHumanizeReportExpanded(!isHumanizeReportExpanded)}
-                              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[2px] text-purple-300 hover:text-purple-200 transition-all text-left outline-none"
+                              onClick={handleExternalHumanize}
+                              disabled={isHumanizingExternal}
+                              className="px-4 py-2 rounded-xl border border-purple-500/30 bg-purple-500/10 text-[9px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="Remover vícios de escrita de IA e adaptar ao tom de voz de referência"
                             >
-                              <span className="text-[11px] font-bold text-purple-400">{isHumanizeReportExpanded ? '▼' : '▶'}</span>
-                              <span>✨ Relatório de Humanização & Ajustes</span>
+                              {isHumanizingExternal ? (
+                                <>
+                                  <Loader2 size={12} className="animate-spin" />
+                                  Polindo escrita...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles size={12} />
+                                  Humanizar Roteiro
+                                </>
+                              )}
                             </button>
-                            <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={handleExternalFactCheck}
+                              disabled={isFactCheckingExternal}
+                              className="px-4 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10 text-[9px] font-black uppercase tracking-wider text-blue-300 hover:bg-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="Executar verificação factual utilizando Gemini com busca em tempo real do Google"
+                            >
+                              {isFactCheckingExternal ? (
+                                <>
+                                  <Loader2 size={12} className="animate-spin" />
+                                  Verificando fatos...
+                                </>
+                              ) : (
+                                <>
+                                  <Database size={12} />
+                                  Fact-Check Roteiro
+                                </>
+                              )}
+                            </button>
+                            {externalFactCheckReport && (
                               <button
                                 type="button"
-                                onClick={handleApplyHumanizedText}
-                                className="px-3.5 py-1.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/35 border border-purple-400/40 text-[9px] font-black uppercase tracking-wider text-purple-100 transition-all active:scale-95 shadow-sm"
+                                onClick={() => {
+                                  setExternalFactCheckReport(null);
+                                  persistExecutionSnapshotLocally({ externalFactCheckReport: null });
+                                }}
+                                className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-wider text-white/50 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
                               >
-                                Aplicar Texto Humanizado
+                                Limpar Relatorio
                               </button>
-                              {pendingHumanizedText && (
+                            )}
+                          </div>
+
+                          {externalHumanizeReport && (
+                            <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+                              <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isHumanizeReportExpanded ? 'pb-3 border-b border-white/5' : ''}`}>
                                 <button
                                   type="button"
-                                  onClick={() => copyTextToClipboard(pendingHumanizedText, '📋 Roteiro humanizado copiado!')}
-                                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
-                                  title="Copiar text proposto"
+                                  onClick={() => setIsHumanizeReportExpanded(!isHumanizeReportExpanded)}
+                                  className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[2px] text-purple-300 hover:text-purple-200 transition-all text-left outline-none"
                                 >
-                                  Copiar Roteiro
+                                  <span className="text-[11px] font-bold text-purple-400">{isHumanizeReportExpanded ? '▼' : '▶'}</span>
+                                  <span>✨ Relatório de Humanização & Ajustes</span>
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => copyTextToClipboard(externalHumanizeReport, '📋 Relatório de auditoria copiado!')}
-                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
-                                title="Copiar relatório de modificações"
-                              >
-                                Copiar Auditoria
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleDiscardHumanizedText}
-                                className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-[9px] font-black uppercase tracking-wider text-red-300 transition-all active:scale-95"
-                              >
-                                Descartar
-                              </button>
-                            </div>
-                          </div>
-                          
-                          {isHumanizeReportExpanded && (
-                            <>
-                              <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2">
-                                {renderMarkdown(externalHumanizeReport)}
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleApplyHumanizedText}
+                                    className="px-3.5 py-1.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/35 border border-purple-400/40 text-[9px] font-black uppercase tracking-wider text-purple-100 transition-all active:scale-95 shadow-sm"
+                                  >
+                                    Aplicar Texto Humanizado
+                                  </button>
+                                  {pendingHumanizedText && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyTextToClipboard(pendingHumanizedText, '📋 Roteiro humanizado copiado!')}
+                                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
+                                      title="Copiar text proposto"
+                                    >
+                                      Copiar Roteiro
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => copyTextToClipboard(externalHumanizeReport, '📋 Relatório de auditoria copiado!')}
+                                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
+                                    title="Copiar relatório de modificações"
+                                  >
+                                    Copiar Auditoria
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleDiscardHumanizedText}
+                                    className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-[9px] font-black uppercase tracking-wider text-red-300 transition-all active:scale-95"
+                                  >
+                                    Descartar
+                                  </button>
+                                </div>
                               </div>
 
-                              {pendingHumanizedText && (
-                                <div className="mt-3 space-y-2 pt-3 border-t border-white/5">
-                                  <span className="block text-[9px] font-black uppercase tracking-widest text-purple-400">Texto Humanizado Proposto:</span>
-                                  <div className="p-3.5 bg-black/45 rounded-xl border border-white/5 text-[11px] text-white/80 max-h-[220px] overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
-                                    {pendingHumanizedText}
+                              {isHumanizeReportExpanded && (
+                                <>
+                                  <div className="text-[11px] text-white/70 leading-relaxed font-medium overflow-x-auto max-w-full space-y-2">
+                                    {renderMarkdown(externalHumanizeReport)}
+                                  </div>
+
+                                  {pendingHumanizedText && (
+                                    <div className="mt-3 space-y-2 pt-3 border-t border-white/5">
+                                      <span className="block text-[9px] font-black uppercase tracking-widest text-purple-400">Texto Humanizado Proposto:</span>
+                                      <div className="p-3.5 bg-black/45 rounded-xl border border-white/5 text-[11px] text-white/80 max-h-[220px] overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
+                                        {pendingHumanizedText}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {externalFactCheckReport && (
+                            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+                              {/* Header colapsável */}
+                              <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isFactCheckReportExpanded ? 'pb-3 border-b border-white/5' : ''}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFactCheckReportExpanded(!isFactCheckReportExpanded)}
+                                  className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[2px] text-blue-300 hover:text-blue-200 transition-all text-left outline-none"
+                                >
+                                  <span className="text-[11px] font-bold text-blue-400">{isFactCheckReportExpanded ? '▼' : '▶'}</span>
+                                  <span>🔍 Relatório de Verificação Factual</span>
+                                </button>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => copyTextToClipboard(externalFactCheckReport, '📋 Relatório de fact-check copiado!')}
+                                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
+                                    title="Copiar relatório de fact-check"
+                                  >
+                                    Copiar Relatório
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Conteúdo expandido com scroll interno */}
+                              {isFactCheckReportExpanded && (
+                                <div className="max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
+                                  <div className="text-[11px] text-white/70 leading-relaxed font-medium space-y-2 break-words">
+                                    {renderMarkdown(externalFactCheckReport)}
                                   </div>
                                 </div>
                               )}
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {externalFactCheckReport && (
-                        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.03] p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-2 duration-200">
-                          {/* Header colapsável */}
-                          <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isFactCheckReportExpanded ? 'pb-3 border-b border-white/5' : ''}`}>
-                            <button
-                              type="button"
-                              onClick={() => setIsFactCheckReportExpanded(!isFactCheckReportExpanded)}
-                              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[2px] text-blue-300 hover:text-blue-200 transition-all text-left outline-none"
-                            >
-                              <span className="text-[11px] font-bold text-blue-400">{isFactCheckReportExpanded ? '▼' : '▶'}</span>
-                              <span>🔍 Relatório de Verificação Factual</span>
-                            </button>
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => copyTextToClipboard(externalFactCheckReport, '📋 Relatório de fact-check copiado!')}
-                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-white/70 transition-all active:scale-95 flex items-center gap-1"
-                                title="Copiar relatório de fact-check"
-                              >
-                                Copiar Relatório
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Conteúdo expandido com scroll interno */}
-                          {isFactCheckReportExpanded && (
-                            <div className="max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
-                              <div className="text-[11px] text-white/70 leading-relaxed font-medium space-y-2 break-words">
-                                {renderMarkdown(externalFactCheckReport)}
-                              </div>
                             </div>
                           )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ROW 2: SRT + Formato/Personagem + Estilo + Botoes — 3 cols */}
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                {/* Col 1: SRT Upload & Estilo Visual */}
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
-                    <input
-                      type="file"
-                      accept=".srt,text/plain"
-                      onChange={handleExternalSrtUpload}
-                      className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
-                    />
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                      {externalSrtFileName ? `Persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado.'}
-                    </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
-                    <select
-                      value={textStyleMode}
-                      onChange={(e) => setTextStyleMode(e.target.value)}
-                      className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
-                    >
-                      <option value="auto">Automatico (IA, Variavel cena a cena)</option>
-                      {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                      <option value="custom">Personalizado...</option>
-                    </select>
-                    {textStyleMode === 'custom' && (
-                      <input
-                        value={customTextStyle}
-                        onChange={(e) => setCustomTextStyle(e.target.value)}
-                        placeholder="Ex: Neon, Vintage VHS, Clean White..."
-                        className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Col 2: Formato + Personagem */}
-                <div className="space-y-3">
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([
-                        { value: 'avatar', label: 'Apresentador' },
-                        { value: 'vlog', label: 'VLOG' },
-                        { value: 'faceless', label: 'Faceless' },
-                        { value: 'avatar_flow', label: 'Avatar Flow' },
-                        { value: 'catalog', label: 'Catálogo' },
-                      ] as { value: VideoFormat; label: string }[]).map((option) => {
-                        const selected = videoFormat === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setVideoFormat(option.value)}
-                            className={`rounded-xl border px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all text-center ${
-                              selected
-                                ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
-                                : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {videoFormat === 'faceless' && (
-                      <p className="text-[9px] text-amber-400/70 leading-relaxed">
-                        Modo Faceless: imagens e videos a cada ~6s. As lacunas no CSV ficam em branco — estique a midia anterior no editor.
-                      </p>
-                    )}
-                    {videoFormat === 'vlog' && (
-                      <p className="text-[9px] text-cyan-400/70 leading-relaxed">
-                        Modo VLOG Imersivo: personagem consistente em selfie trêmula 1ª pessoa e ritmo de B-roll descontraído.
-                      </p>
-                    )}
-                    {videoFormat === 'avatar' && (
-                      <p className="text-[9px] text-purple-400/70 leading-relaxed">
-                        Modo Apresentador: personagem no home office/cenário fixo com inserções de B-roll frequentes.
-                      </p>
-                    )}
-                    {videoFormat === 'avatar_flow' && (
-                      <p className="text-[9px] text-violet-400/80 leading-relaxed">
-                        Modo Avatar Flow: Roteiro em blocos de ~25 palavras. Prompts com alternância de ângulos cinematográficos para Personagem001 gerados de forma rápida, sem depender de SRT para começar.
-                      </p>
-                    )}
-                    {videoFormat === 'catalog' && (
-                      <p className="text-[9px] text-emerald-400/80 leading-relaxed">
-                        Modo Catálogo: Estilo apresentação de slides e colagens com design premium minimalista, sem apresentadores reais e com foco em fatos e produtos reais.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Ativos e Assets a Gerar */}
-                  <div className={`rounded-2xl border p-3 space-y-2 transition-all duration-300 ${
-                    (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)
-                      ? 'border-red-500/50 bg-red-500/[0.03] shadow-[0_0_15px_rgba(239,68,68,0.15)] animate-pulse'
-                      : 'border-white/10 bg-black/10'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Ativos a gerar no pipeline</p>
-                      {(!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes) && (
-                        <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1 animate-bounce">
-                          ⚠️ Selecione pelo menos um
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'video', state: pipelineVideos, setState: setPipelineVideos, label: '📹 Vídeos', color: 'blue' },
-                        { id: 'image', state: pipelineImages, setState: setPipelineImages, label: '🖼️ Imagens', color: 'cyan' },
-                        { id: 'text', state: pipelineTexts, setState: setPipelineTexts, label: '✍️ Textos', color: 'amber' },
-                        { id: 'hyperframe', state: pipelineHyperframes, setState: setPipelineHyperframes, label: '⚡ Hyperframes', color: 'purple' },
-                      ].map((assetOpt) => {
-                        const active = assetOpt.state;
-                        const colorClass = 
-                          assetOpt.color === 'blue' ? 'border-blue-400/40 bg-blue-500/15 text-blue-100' :
-                          assetOpt.color === 'cyan' ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100' :
-                          assetOpt.color === 'amber' ? 'border-amber-400/40 bg-amber-500/15 text-amber-100' :
-                          'border-purple-400/40 bg-purple-500/15 text-purple-100';
-                        return (
-                          <button
-                            key={assetOpt.id}
-                            type="button"
-                            onClick={() => {
-                              const nextVal = !active;
-                              assetOpt.setState(nextVal);
-                              persistExecutionSnapshotLocally({
-                                [`pipeline${assetOpt.id.charAt(0).toUpperCase() + assetOpt.id.slice(1)}s` as any]: nextVal
-                              });
-                            }}
-                            className={`rounded-xl border px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all text-center ${
-                              active
-                                ? colorClass
-                                : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
-                            }`}
-                          >
-                            {assetOpt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { value: 'male', label: 'Masculino' },
-                        { value: 'female', label: 'Feminino' },
-                        { value: 'custom', label: 'Custom' },
-                      ].map((option) => {
-                        const selected = videoCharacterMode === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setVideoCharacterMode(option.value as VideoCharacterMode)}
-                            className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${
-                              selected
-                                ? 'border-purple-300/40 bg-purple-500/15 text-purple-100'
-                                : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Checkbox Forçar Todos os Assets como Vídeo */}
-                    <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
-                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                  {/* ROW 2: SRT + Formato/Personagem + Estilo + Botoes — 3 cols */}
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    {/* Col 1: SRT Upload & Estilo Visual */}
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Arquivo de legendas (.srt)</label>
                         <input
-                          type="checkbox"
-                          checked={forceAllAsVideo}
-                          onChange={(e) => {
-                            setForceAllAsVideo(e.target.checked);
-                            persistExecutionSnapshotLocally({ forceAllAsVideo: e.target.checked });
-                          }}
-                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
+                          type="file"
+                          accept=".srt,text/plain"
+                          onChange={handleExternalSrtUpload}
+                          className="block w-full text-[11px] text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-purple-500/15 file:px-4 file:py-2.5 file:text-[10px] file:font-black file:uppercase file:tracking-[0.2em] file:text-purple-200 hover:file:bg-purple-500/20"
                         />
-                        <div>
-                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
-                            Forçar todos os assets como vídeo
-                          </span>
-                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                            Substitui imagens, HFs e textos por prompts de vídeo completos na geração de IA. Útil para ferramentas/testes que aceitam apenas vídeos.
-                          </span>
+                        <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                          {externalSrtFileName ? `Persistido: ${externalSrtFileName}` : 'Nenhum .srt anexado.'}
                         </div>
-                      </label>
-                    </div>
-
-                    {/* Checkbox Modo Híbrido (Vídeo + Imagem) */}
-                    <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
-                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={useHybridAssets}
-                          onChange={(e) => {
-                            setUseHybridAssets(e.target.checked);
-                            persistExecutionSnapshotLocally({ useHybridAssets: e.target.checked });
-                          }}
-                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-cyan-500 mt-0.5"
-                        />
-                        <div>
-                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300 hover:text-cyan-200 transition-colors">
-                            Gerar assets como Vídeo + Imagem (Modo Híbrido)
-                          </span>
-                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                            A partir do SRT, gera prompts de vídeos e imagens baseados na semântica da IA, forçando VÍDEO para cenas com 4s ou mais para evitar mídias estáticas.
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-
-                    {/* Checkbox Direção de Arte Ultra-Cinematográfica */}
-                    <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
-                      <label className="relative flex items-start gap-3 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={ultraCinematic}
-                          onChange={(e) => {
-                            setUltraCinematic(e.target.checked);
-                            persistExecutionSnapshotLocally({ ultraCinematic: e.target.checked });
-                          }}
-                          className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-purple-500 mt-0.5"
-                        />
-                        <div>
-                          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
-                            Direção de Arte Ultra-Cinematográfica
-                          </span>
-                          <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                            Gera prompts densos (80-150 palavras) com enquadramento de lente, detalhes de época e narrativa visual sob a estrutura cinematográfica.
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                    
-                    {/* Visual Preview / Customizer Interface */}
-                    {videoFormat !== 'faceless' && videoFormat !== 'catalog' && (videoCharacterMode === 'male' || videoCharacterMode === 'female') && (() => {
-                      const resolvedPrompt = resolveCharacterProfileInFrontend(
-                        videoCharacterMode,
-                        videoFormat,
-                        activeProject?.name || activeProject?.project_name,
-                        undefined,
-                        activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
-                        activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
-                      );
-                      return (
-                        <div className="space-y-1.5 mt-2">
-                          <p className="text-[8px] font-bold uppercase tracking-wider text-white/40">Visual Resolvido (Automático):</p>
-                          <div className="rounded-xl border border-white/5 bg-black/35 p-3 text-[10px] leading-relaxed text-white/70 italic relative overflow-hidden group">
-                            {resolvedPrompt}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setVideoCharacterCustom(resolvedPrompt);
-                              setVideoCharacterMode('custom');
-                            }}
-                            className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 active:scale-95"
-                          >
-                            ✏️ Customizar este visual
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {videoCharacterMode === 'custom' && (
-                      <div className="space-y-2 mt-2">
-                        <textarea
-                          value={videoCharacterCustom}
-                          onChange={(e) => setVideoCharacterCustom(e.target.value)}
-                          placeholder="Descreva o personagem ou cole o template da Skill Mestre contendo: STYLE_DNA: ... | CHARACTER_DNA: ... | EXTRAS_DNA: ... | NEGATIVE_DNA: ..."
-                          className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
-                        />
-                        <button
-                          type="button"
-                          disabled={isSuggestingStyle}
-                          onClick={() => suggestVisualStyleWithAI()}
-                          className="flex items-center justify-center gap-1 w-full rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/60 transition-all hover:bg-white/10 hover:text-white/80 disabled:opacity-50"
-                        >
-                          {isSuggestingStyle ? '⏳ Gerando com IA...' : '✨ Sugerir com base no Canal'}
-                        </button>
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Col 3: Botoes de Acao */}
-                <div className="space-y-3">
-                  {/* ── BOTÃO PRINCIPAL: PIPELINE COMPLETO ────────────────── */}
-                  <div className="flex gap-2 items-stretch">
-                    <button
-                      type="button"
-                      onClick={runFullPipeline}
-                      disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim() || (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)}
-                      className="flex-1 rounded-xl border border-emerald-400/30 bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 px-4 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:from-emerald-600/25 hover:to-cyan-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {isPipelineRunning
-                        ? `⏳ ${PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? 'AGUARDANDO...'}`
-                        : pipelineCurrentStep === 'done'
-                          ? '✅ PIPELINE CONCLUÍDO'
-                          : '▶ INICIAR PIPELINE COMPLETO'}
-                    </button>
-                    {(externalSrtPipeline || postScriptPackage || hfBgPrompts) && (
-                      <button
-                        type="button"
-                        title="Limpar resultados processados (mantém .srt e roteiro)"
-                        onClick={() => {
-                          if (confirm('Limpar todos os resultados processados?\n\nO arquivo .srt e o roteiro serão mantidos. Apenas assets, pacote pós-roteiro e fundos HF serão removidos.')) {
-                            resetPipelineResults();
-                          }
-                        }}
-                        disabled={isPipelineRunning}
-                        className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-300 transition-all hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        🗑
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[9px] text-white/25 text-center">
-                    {isPipelineRunning
-                      ? 'Pipeline em execução — aguarde a conclusão de cada etapa...'
-                      : 'Executa automaticamente: SRT → Fundos HF → Pacote Pós-Roteiro → BATs'}
-                  </p>
-                  
-                  <div className="flex items-center justify-center gap-2 py-0.5 mt-0.5">
-                    <input
-                      type="checkbox"
-                      id="autoDownloadBats"
-                      checked={autoDownloadBats}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setAutoDownloadBats(checked);
-                        localStorage.setItem('yt_auto_download_bats', String(checked));
-                      }}
-                      className="w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <label htmlFor="autoDownloadBats" className="text-[9px] font-black uppercase tracking-wider text-white/50 select-none cursor-pointer hover:text-white/80 transition-colors">
-                      Baixar arquivos (.bat / .csv) ao concluir
-                    </label>
-                  </div>
-                  {/* ── Warnings: prompts que não foram resolvidos mesmo após retry ── */}
-                  {pipelineWarnings.length > 0 && (
-                    <details className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 space-y-1">
-                      <summary className="cursor-pointer text-[9px] font-black uppercase tracking-widest text-amber-300 list-none flex items-center gap-2">
-                        <span>⚠️</span>
-                        <span>{pipelineWarnings.length} prompt{pipelineWarnings.length > 1 ? 's' : ''} incompleto{pipelineWarnings.length > 1 ? 's' : ''} após 2 tentativas</span>
-                        <span className="text-amber-500/50 ml-auto">▼ ver detalhes</span>
-                      </summary>
-                      <ul className="mt-2 space-y-1 pl-1">
-                        {pipelineWarnings.map((w, i) => (
-                          <li key={i} className="text-[8px] text-amber-200/70 font-mono leading-relaxed">{w}</li>
-                        ))}
-                      </ul>
-                      <p className="text-[8px] text-amber-400/50 mt-1">
-                        Use o botão &quot;REGENERAR ITEMS&quot; abaixo para tentar novamente manualmente.
-                      </p>
-                    </details>
-                  )}
-                  {/* ── Divisor ───────────────────────────────────────────── */}
-                  <div className="flex items-center gap-2 my-1">
-                    <div className="flex-1 h-px bg-white/10" />
-                    <span className="text-[9px] text-white/25 uppercase tracking-widest">ou etapas individuais</span>
-                    <div className="flex-1 h-px bg-white/10" />
-                  </div>
-                  {/* ── Botão individual: só SRT ──────────────────────────── */}
-                  <button
-                    type="button"
-                    onClick={processAttachedSrtAssets}
-                    disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim() || (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)}
-                    className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
-                  </button>
-                  {externalSrtPipeline && (() => {
-                    const fallbackRowsList = externalSrtPipeline.rows.filter((r) => r.isFallback);
-                    const fallbackCount = fallbackRowsList.length;
-                    if (fallbackCount === 0) return null;
-                    return (
-                      <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-3">
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
-                            ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
-                          </p>
-                          <p className="text-[8px] text-orange-200/60 leading-normal">
-                            Os seguintes trechos falharam e usaram prompts de fallback. Clique abaixo para regenerar.
-                          </p>
-                        </div>
-
-                        <div className="max-h-[140px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-orange-500/20 scrollbar-track-transparent">
-                          {fallbackRowsList.map((row) => (
-                            <div
-                              key={row.rowNumber}
-                              className="flex flex-col gap-0.5 rounded border border-orange-500/10 bg-black/30 p-2 text-[9px] text-orange-200/80 font-mono"
-                            >
-                              <div className="flex justify-between items-center gap-1">
-                                <span className="text-orange-400 font-bold">Linha #{row.rowNumber}</span>
-                                <span className="rounded bg-orange-500/20 px-1 py-0.5 text-[8px] text-orange-300 font-bold uppercase shrink-0">
-                                  {row.asset}
-                                </span>
-                              </div>
-                              <div className="text-[8px] opacity-60 font-semibold">{row.startTime} - {row.endTime}</div>
-                              <div className="text-white/80 italic mt-0.5 line-clamp-2">&quot;{row.texto}&quot;</div>
-                            </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80">Estilo Visual do Texto (Render)</p>
+                        <select
+                          value={textStyleMode}
+                          onChange={(e) => setTextStyleMode(e.target.value)}
+                          className="w-full bg-midnight/60 border border-white/10 rounded-xl px-3 py-2 text-[10px] uppercase font-black tracking-widest text-white outline-none focus:border-amber-500/40"
+                        >
+                          <option value="auto">Automatico (IA, Variavel cena a cena)</option>
+                          {activeProject?.editing_sop?.text_styles?.split(',').map((s: string) => s.trim()).filter(Boolean).map((opt: string) => (
+                            <option key={opt} value={opt}>{opt}</option>
                           ))}
+                          <option value="custom">Personalizado...</option>
+                        </select>
+                        {textStyleMode === 'custom' && (
+                          <input
+                            value={customTextStyle}
+                            onChange={(e) => setCustomTextStyle(e.target.value)}
+                            placeholder="Ex: Neon, Vintage VHS, Clean White..."
+                            className="w-full rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] text-white/80 outline-none placeholder:text-white/20 focus:border-amber-500/40"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Col 2: Formato + Personagem */}
+                    <div className="space-y-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Formato do Video</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            { value: 'avatar', label: 'Apresentador' },
+                            { value: 'vlog', label: 'VLOG' },
+                            { value: 'faceless', label: 'Faceless' },
+                            { value: 'avatar_flow', label: 'Avatar Flow' },
+                            { value: 'catalog', label: 'Catálogo' },
+                          ] as { value: VideoFormat; label: string }[]).map((option) => {
+                            const selected = videoFormat === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setVideoFormat(option.value)}
+                                className={`rounded-xl border px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all text-center ${selected
+                                    ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
+                                    : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                                  }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={regenerateFallbackPrompts}
-                          disabled={isRegeneratingFallbacks || isProcessingSrtPipeline}
-                          className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-200 transition-all hover:bg-orange-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {isRegeneratingFallbacks ? 'REGENERANDO...' : `REGENERAR ${fallbackCount} ITEM${fallbackCount > 1 ? 'S' : ''}`}
-                        </button>
-                      </div>
-                    );
-                  })()}
-                  {externalSrtPipeline && (
-                    <button
-                      type="button"
-                      onClick={renderTextAssetsFromPipeline}
-                      disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !postScriptPackage}
-                      className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {isRenderingTextAssets ? 'GERANDO BATs...' : 'ETAPA 5 · GERAR BATs'}
-                    </button>
-                  )}
-                  <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                    {externalSrtPipeline?.generatedAt
-                      ? `Pipeline persistido em ${new Date(externalSrtPipeline.generatedAt).toLocaleString('pt-BR')}.`
-                      : 'Nenhum pipeline processado ainda.'}
-                  </div>
-                  <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Pacote pos-roteiro</label>
-                    <button
-                      type="button"
-                      onClick={generatePostScriptPackage}
-                      disabled={isPipelineRunning || isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
-                      className="w-full rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {isGeneratingPostScriptPackage ? 'PROCESSANDO PACOTE...' : postScriptPackage ? 'REPROCESSAR PACOTE POS-ROTEIRO' : 'PROCESSAR PACOTE POS-ROTEIRO'}
-                    </button>
-                    <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
-                      {!canProcessPostScriptPackage
-                        ? 'Finalize o roteiro interno ou anexe um .txt externo para habilitar esta etapa.'
-                        : postScriptPackage
-                          ? `Pacote persistido em ${new Date(postScriptPackage.generatedAt).toLocaleString('pt-BR')}.`
-                          : 'Nenhum pacote pos-roteiro processado ainda.'}
-                    </div>
-                  </div>
-                  {externalSrtPipeline && (
-                    <div className="space-y-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02] p-3">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Visualização de Storyboard</label>
-                      <button
-                        type="button"
-                        onClick={openStoryboardInNewTab}
-                        className="w-full rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:bg-emerald-500/25 active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <span>🎬 ABRIR STORYBOARD EM NOVA ABA</span>
-                      </button>
-                      <div className="rounded-xl border border-emerald-500/10 bg-black/15 px-3 py-2 text-[10px] text-emerald-300/70">
-                        Gere a visualização instantânea do roteiro com ilustrações SVG dinâmicas.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* DIREÇÃO DE ARTE & ELENCO CONSISTENTE (FULL WIDTH & GRADE) */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4">
-                  <div>
-                    <span className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">🎨 Direção de Arte & Elenco Consistente</span>
-                    <p className="text-[10px] text-white/40 mt-1">Defina a ambientação visual e gerencie o elenco para consistência via colchetes [Nome].</p>
-                  </div>
-                  {visualBlueprintCast.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={copyAllCharacterPrompts}
-                      className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-2.5 text-[9px] font-bold text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2 uppercase tracking-wider"
-                    >
-                      <span>📋 Copiar Todos os Prompts (Elenco)</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                  {/* Cenário / Estilo Geral */}
-                  <div className="rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Cenário / Estilo Geral (PT-BR)</label>
-                    <textarea
-                      value={visualBlueprintSetting}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setVisualBlueprintSetting(val);
-                        persistExecutionSnapshotLocally({ visualBlueprintSetting: val });
-                      }}
-                      placeholder="Ex: Fantasia sombria Warhammer 40k, catedral espacial gotica gelida..."
-                      className="w-full min-h-[140px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] leading-relaxed text-white/80 outline-none focus:border-cyan-300/40"
-                    />
-                    <p className="text-[9px] text-white/35 leading-relaxed">
-                      Descreva a atmosfera, iluminação e visual de fundo geral. O pipeline combina este estilo com as cenas geradas.
-                    </p>
-                  </div>
-
-                  {/* Elenco de Personagens */}
-                  <div className="lg:col-span-2 rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Elenco Narrativo ({visualBlueprintCast.length})</label>
-                    {visualBlueprintCast.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/10">
-                        <p className="text-[11px] text-white/35 italic">Nenhum personagem extraído ainda.</p>
-                        <p className="text-[9px] text-white/20 mt-1 max-w-xs">
-                          Anexe o arquivo do roteiro (.txt) no painel superior e clique em &quot;Analisar Direção de Arte & Elenco&quot; para gerar.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                        {visualBlueprintCast.map((char, index) => (
-                          <div key={index} className="rounded-xl border border-white/5 bg-midnight/40 p-3.5 space-y-2 flex flex-col justify-between">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                <span className="font-bold text-[11px] text-cyan-200 tracking-wide">{char.name}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Prompt de ${char.name} copiado!`)}
-                                  className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[9px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1.5"
-                                >
-                                  <span>📋 Copiar Prompt</span>
-                                </button>
-                              </div>
-                              <textarea
-                                value={char.description}
-                                onChange={(e) => {
-                                  const updatedCast = [...visualBlueprintCast];
-                                  updatedCast[index] = { ...char, description: e.target.value };
-                                  setVisualBlueprintCast(updatedCast);
-                                  persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
-                                }}
-                                className="w-full min-h-[70px] bg-transparent border-0 text-[10px] leading-relaxed text-white/70 italic resize-y p-0 outline-none focus:text-white"
-                              />
-                            </div>
-                            <div className="text-[8px] text-cyan-400/35 text-right font-mono tracking-wider">
-                              Use [{char.name}] no roteiro para vincular
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-
-              {(isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline) && (
-                <div className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.04] p-5 space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
-                      <div className="space-y-2 max-w-3xl">
-                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-200">Pipeline SRT adaptado ao app</p>
-                      <p className="text-sm font-black text-white">
-                        {(isProcessingSrtPipeline || isRenderingTextAssets)
-                          ? srtPipelineStatus || (isRenderingTextAssets ? 'Executando a etapa 5 sobre o CSV persistido...' : 'Executando as etapas 2, 3 e 4 sobre o .srt anexado...')
-                          : srtPipelineStatus || 'CSV base, assets e prompts persistidos nesta execucao.'}
-                      </p>
-                      <p className="text-[11px] text-white/50 leading-relaxed">
-                        Etapa 1 fica coberta pelo upload do arquivo. A partir daqui o app replica a conversao para CSV, a marcacao heuristica de assets, a geracao dos prompts visuais e o render dos assets marcados como texto.
-                      </p>
-                    </div>
-                      <div className="rounded-xl border border-purple-300/15 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-purple-100">
-                        {isProcessingSrtPipeline ? 'Processando' : isRenderingTextAssets ? 'Renderizando' : externalSrtPipeline ? 'Persistido' : 'Aguardando'}
-                      </div>
-                    </div>
-
-                    {externalSrtPipeline && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
-                        {[
-                          { label: 'Linhas', value: externalSrtPipeline.stats.total },
-                          { label: 'Texto', value: externalSrtPipeline.stats.texto },
-                          { label: 'Avatar', value: externalSrtPipeline.stats.avatar },
-                          { label: 'Video', value: externalSrtPipeline.stats.video },
-                          { label: 'Imagem', value: externalSrtPipeline.stats.image },
-                          { label: 'Hyperframe', value: externalSrtPipeline.stats.hyperframe },
-                          { label: 'Render', value: externalSrtPipeline.rows.filter((row) => row.caminho).length },
-                        ].map((item) => (
-                          <div key={item.label} className="rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3">
-                            <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
-                            <span className="block text-sm font-black text-white">{item.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
-                    <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Observador de status</p>
-                        <p className="text-[10px] text-white/40 mt-1">Mostra em qual ponto da adaptacao o app esta e o que ja foi concluido.</p>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] text-white/55">
-                        {isProcessingSrtPipeline ? 'Processando agora' : isRenderingTextAssets ? 'Renderizando textos' : externalSrtPipeline ? 'Pipeline pronto' : 'Aguardando processamento'}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-6">
-                      {externalSrtObserver.map((step) => (
-                        <div key={step.key} className="rounded-2xl border border-white/8 bg-black/15 px-4 py-4 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                                step.status === 'done'
-                                  ? 'bg-emerald-400'
-                                  : step.status === 'running'
-                                    ? 'bg-blue-400 animate-pulse'
-                                    : step.status === 'error'
-                                      ? 'bg-red-400'
-                                      : 'bg-white/20'
-                              }`}
-                            />
-                            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">{step.label}</span>
-                          </div>
-                          <p
-                            className={`text-[10px] font-black uppercase tracking-[0.16em] ${
-                              step.status === 'done'
-                                ? 'text-emerald-300'
-                                : step.status === 'running'
-                                  ? 'text-blue-300'
-                                  : step.status === 'error'
-                                    ? 'text-red-300'
-                                    : 'text-white/30'
-                            }`}
-                          >
-                            {step.status === 'done' ? 'Concluido' : step.status === 'running' ? 'Em execucao' : step.status === 'error' ? 'Erro' : 'Pendente'}
+                        {videoFormat === 'faceless' && (
+                          <p className="text-[9px] text-amber-400/70 leading-relaxed">
+                            Modo Faceless: imagens e videos a cada ~6s. As lacunas no CSV ficam em branco — estique a midia anterior no editor.
                           </p>
-                          <p className="text-[10px] leading-5 text-white/45">{step.detail}</p>
+                        )}
+                        {videoFormat === 'vlog' && (
+                          <p className="text-[9px] text-cyan-400/70 leading-relaxed">
+                            Modo VLOG Imersivo: personagem consistente em selfie trêmula 1ª pessoa e ritmo de B-roll descontraído.
+                          </p>
+                        )}
+                        {videoFormat === 'avatar' && (
+                          <p className="text-[9px] text-purple-400/70 leading-relaxed">
+                            Modo Apresentador: personagem no home office/cenário fixo com inserções de B-roll frequentes.
+                          </p>
+                        )}
+                        {videoFormat === 'avatar_flow' && (
+                          <p className="text-[9px] text-violet-400/80 leading-relaxed">
+                            Modo Avatar Flow: Roteiro em blocos de ~25 palavras. Prompts com alternância de ângulos cinematográficos para Personagem001 gerados de forma rápida, sem depender de SRT para começar.
+                          </p>
+                        )}
+                        {videoFormat === 'catalog' && (
+                          <p className="text-[9px] text-emerald-400/80 leading-relaxed">
+                            Modo Catálogo: Estilo apresentação de slides e colagens com design premium minimalista, sem apresentadores reais e com foco em fatos e produtos reais.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Ativos e Assets a Gerar */}
+                      <div className={`rounded-2xl border p-3 space-y-2 transition-all duration-300 ${(!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)
+                          ? 'border-red-500/50 bg-red-500/[0.03] shadow-[0_0_15px_rgba(239,68,68,0.15)] animate-pulse'
+                          : 'border-white/10 bg-black/10'
+                        }`}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Ativos a gerar no pipeline</p>
+                          {(!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes) && (
+                            <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1 animate-bounce">
+                              ⚠️ Selecione pelo menos um
+                            </span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Onde os arquivos ficam</p>
-                    <p className="text-[10px] leading-6 text-white/55">
-                      O CSV base e os arquivos de prompts ficam persistidos dentro do snapshot local desta execucao e no snapshot do tema aprovado. Quando voce usa os botoes de exportacao, eles vao para a pasta de downloads padrao do navegador como `.csv` e `.txt`. Ja a etapa 5 escreve um CSV espelho e os videos de texto diretamente no pipeline externo, preservando os caminhos em `caminho`.
-                    </p>
-                  </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'video', state: pipelineVideos, setState: setPipelineVideos, label: '📹 Vídeos', color: 'blue' },
+                            { id: 'image', state: pipelineImages, setState: setPipelineImages, label: '🖼️ Imagens', color: 'cyan' },
+                            { id: 'text', state: pipelineTexts, setState: setPipelineTexts, label: '✍️ Textos', color: 'amber' },
+                            { id: 'hyperframe', state: pipelineHyperframes, setState: setPipelineHyperframes, label: '⚡ Hyperframes', color: 'purple' },
+                          ].map((assetOpt) => {
+                            const active = assetOpt.state;
+                            const colorClass =
+                              assetOpt.color === 'blue' ? 'border-blue-400/40 bg-blue-500/15 text-blue-100' :
+                                assetOpt.color === 'cyan' ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-100' :
+                                  assetOpt.color === 'amber' ? 'border-amber-400/40 bg-amber-500/15 text-amber-100' :
+                                    'border-purple-400/40 bg-purple-500/15 text-purple-100';
+                            return (
+                              <button
+                                key={assetOpt.id}
+                                type="button"
+                                onClick={() => {
+                                  const nextVal = !active;
+                                  assetOpt.setState(nextVal);
+                                  persistExecutionSnapshotLocally({
+                                    [`pipeline${assetOpt.id.charAt(0).toUpperCase() + assetOpt.id.slice(1)}s` as any]: nextVal
+                                  });
+                                }}
+                                className={`rounded-xl border px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all text-center ${active
+                                    ? colorClass
+                                    : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                                  }`}
+                              >
+                                {assetOpt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                  {externalSrtPipeline && (
-                    <div className="space-y-4">
-                      {/* Opções de Formatação de Prompts (Colchetes e Prefixo) */}
-                      <div className="flex flex-col md:flex-row gap-4 bg-midnight/25 border border-white/10 rounded-2xl p-4 mb-4">
-                        {/* Checkbox global de colchetes */}
-                        <div className="flex-1">
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3 space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-purple-200">Personagem dos prompts de video</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { value: 'male', label: 'Masculino' },
+                            { value: 'female', label: 'Feminino' },
+                            { value: 'custom', label: 'Custom' },
+                          ].map((option) => {
+                            const selected = videoCharacterMode === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setVideoCharacterMode(option.value as VideoCharacterMode)}
+                                className={`rounded-xl border px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] transition-all ${selected
+                                    ? 'border-purple-300/40 bg-purple-500/15 text-purple-100'
+                                    : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                                  }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Checkbox Forçar Todos os Assets como Vídeo */}
+                        <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
                           <label className="relative flex items-start gap-3 cursor-pointer select-none">
                             <input
                               type="checkbox"
-                              checked={preserveBrackets}
+                              checked={forceAllAsVideo}
                               onChange={(e) => {
-                                setPreserveBrackets(e.target.checked);
-                                persistExecutionSnapshotLocally({ preserveBrackets: e.target.checked });
+                                setForceAllAsVideo(e.target.checked);
+                                persistExecutionSnapshotLocally({ forceAllAsVideo: e.target.checked });
                               }}
                               className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
                             />
                             <div>
                               <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
-                                Preservar [Colchetes] de Personagens Consistentes
+                                Forçar todos os assets como vídeo
                               </span>
                               <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                                Marque para manter a tag original do personagem (ex: <strong>[Grey Knight]</strong>) nos prompts copiado/exportados. Desmarque para expandir a descrição física.
+                                Substitui imagens, HFs e textos por prompts de vídeo completos na geração de IA. Útil para ferramentas/testes que aceitam apenas vídeos.
                               </span>
                             </div>
                           </label>
                         </div>
 
-                        {/* Divisor vertical para telas maiores */}
-                        <div className="hidden md:block w-px bg-white/10 self-stretch" />
+                        {/* Checkbox Modo Híbrido (Vídeo + Imagem) */}
+                        <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
+                          <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={useHybridAssets}
+                              onChange={(e) => {
+                                setUseHybridAssets(e.target.checked);
+                                persistExecutionSnapshotLocally({ useHybridAssets: e.target.checked });
+                              }}
+                              className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-cyan-500 mt-0.5"
+                            />
+                            <div>
+                              <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300 hover:text-cyan-200 transition-colors">
+                                Gerar assets como Vídeo + Imagem (Modo Híbrido)
+                              </span>
+                              <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                                A partir do SRT, gera prompts de vídeos e imagens baseados na semântica da IA, forçando VÍDEO para cenas com 4s ou mais para evitar mídias estáticas.
+                              </span>
+                            </div>
+                          </label>
+                        </div>
 
-                        {/* Seletor de Prefixo */}
-                        <div className="flex flex-col gap-2 shrink-0 md:w-80">
-                          <div>
-                            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
-                              Prefixo do Prompt
-                            </span>
-                            <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
-                              Prependido no início absoluto de cada linha de prompt.
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 bg-black/40 p-1 border border-white/10 rounded-xl">
-                            {[
-                              { value: 'none', label: 'Nenhum' },
-                              { value: '[IV]', label: '[IV]' },
-                              { value: '[I]', label: '[I]' },
-                              { value: '[V]', label: '[V]' }
-                            ].map((opt) => (
+                        {/* Checkbox Direção de Arte Ultra-Cinematográfica */}
+                        <div className="rounded-xl border border-white/5 bg-black/25 p-3.5 space-y-2 mt-2">
+                          <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={ultraCinematic}
+                              onChange={(e) => {
+                                setUltraCinematic(e.target.checked);
+                                persistExecutionSnapshotLocally({ ultraCinematic: e.target.checked });
+                              }}
+                              className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-purple-500 mt-0.5"
+                            />
+                            <div>
+                              <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                                Direção de Arte Ultra-Cinematográfica
+                              </span>
+                              <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                                Gera prompts densos (80-150 palavras) com enquadramento de lente, detalhes de época e narrativa visual sob a estrutura cinematográfica.
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Visual Preview / Customizer Interface */}
+                        {videoFormat !== 'faceless' && videoFormat !== 'catalog' && (videoCharacterMode === 'male' || videoCharacterMode === 'female') && (() => {
+                          const resolvedPrompt = resolveCharacterProfileInFrontend(
+                            videoCharacterMode,
+                            videoFormat,
+                            activeProject?.name || activeProject?.project_name,
+                            undefined,
+                            activeProject?.persona_matrix?.demographics || activeProject?.target_persona?.audience,
+                            activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
+                          );
+                          return (
+                            <div className="space-y-1.5 mt-2">
+                              <p className="text-[8px] font-bold uppercase tracking-wider text-white/40">Visual Resolvido (Automático):</p>
+                              <div className="rounded-xl border border-white/5 bg-black/35 p-3 text-[10px] leading-relaxed text-white/70 italic relative overflow-hidden group">
+                                {resolvedPrompt}
+                              </div>
                               <button
-                                key={opt.value}
                                 type="button"
                                 onClick={() => {
-                                  setPromptPrefix(opt.value);
-                                  persistExecutionSnapshotLocally({ promptPrefix: opt.value });
+                                  setVideoCharacterCustom(resolvedPrompt);
+                                  setVideoCharacterMode('custom');
                                 }}
-                                className={`flex-1 text-center py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                                  promptPrefix === opt.value
-                                    ? 'bg-blue-500 text-white shadow'
-                                    : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-                                }`}
+                                className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 active:scale-95"
                               >
-                                {opt.label}
+                                ✏️ Customizar este visual
                               </button>
-                            ))}
+                            </div>
+                          );
+                        })()}
+
+                        {videoCharacterMode === 'custom' && (
+                          <div className="space-y-2 mt-2">
+                            <textarea
+                              value={videoCharacterCustom}
+                              onChange={(e) => setVideoCharacterCustom(e.target.value)}
+                              placeholder="Descreva o personagem ou cole o template da Skill Mestre contendo: STYLE_DNA: ... | CHARACTER_DNA: ... | EXTRAS_DNA: ... | NEGATIVE_DNA: ..."
+                              className="w-full min-h-[90px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-3 text-[11px] leading-5 text-white/80 outline-none placeholder:text-white/20 focus:border-purple-300/40"
+                            />
+                            <button
+                              type="button"
+                              disabled={isSuggestingStyle}
+                              onClick={() => suggestVisualStyleWithAI()}
+                              className="flex items-center justify-center gap-1 w-full rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/60 transition-all hover:bg-white/10 hover:text-white/80 disabled:opacity-50"
+                            >
+                              {isSuggestingStyle ? '⏳ Gerando com IA...' : '✨ Sugerir com base no Canal'}
+                            </button>
                           </div>
-                        </div>
+                        )}
                       </div>
+                    </div>
 
-                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de video</p>
-                              <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_video.txt`.</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => copyTextToClipboard(compilePromptText(externalSrtPipeline.videoPromptsTxt), 'Prompts de video copiados.')}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                              >
-                                <Copy size={12} className="inline mr-2" /> Copiar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_video', compilePromptText(externalSrtPipeline.videoPromptsTxt))}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                              >
-                                <FileText size={12} className="inline mr-2" /> TXT
-                              </button>
-                            </div>
-                          </div>
-                          <textarea
-                            readOnly
-                            value={compilePromptText(externalSrtPipeline.videoPromptsTxt) || 'Nenhum prompt de video foi gerado para este SRT.'}
-                            className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
-                          />
-                        </div>
+                    {/* Col 3: Botoes de Acao */}
+                    <div className="space-y-3">
+                      {/* ── BOTÃO PRINCIPAL: PIPELINE COMPLETO ────────────────── */}
+                      <div className="flex gap-2 items-stretch">
+                        <button
+                          type="button"
+                          onClick={runFullPipeline}
+                          disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || isGeneratingPostScriptPackage || !externalSrtText.trim() || (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)}
+                          className="flex-1 rounded-xl border border-emerald-400/30 bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 px-4 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200 transition-all hover:from-emerald-600/25 hover:to-cyan-600/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isPipelineRunning
+                            ? `⏳ ${PIPELINE_STEP_LABELS[pipelineCurrentStep ?? ''] ?? 'AGUARDANDO...'}`
+                            : pipelineCurrentStep === 'done'
+                              ? '✅ PIPELINE CONCLUÍDO'
+                              : '▶ INICIAR PIPELINE COMPLETO'}
+                        </button>
+                        {(externalSrtPipeline || postScriptPackage || hfBgPrompts) && (
+                          <button
+                            type="button"
+                            title="Limpar resultados processados (mantém .srt e roteiro)"
+                            onClick={() => {
+                              if (confirm('Limpar todos os resultados processados?\n\nO arquivo .srt e o roteiro serão mantidos. Apenas assets, pacote pós-roteiro e fundos HF serão removidos.')) {
+                                resetPipelineResults();
+                              }
+                            }}
+                            disabled={isPipelineRunning}
+                            className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-300 transition-all hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            🗑
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-white/25 text-center">
+                        {isPipelineRunning
+                          ? 'Pipeline em execução — aguarde a conclusão de cada etapa...'
+                          : 'Executa automaticamente: SRT → Fundos HF → Pacote Pós-Roteiro → BATs'}
+                      </p>
 
-                        <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem</p>
-                              <p className="text-[10px] text-white/40 mt-1">
-                                Saida equivalente ao arquivo `_prompts_imagem.txt`.{' '}
-                                {(() => { const n = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe').length; return n > 0 ? <span className="text-violet-400">{n} HF detectado{n > 1 ? 's' : ''}</span> : <span className="text-white/20">0 HF</span>; })()}
+                      <div className="flex items-center justify-center gap-2 py-0.5 mt-0.5">
+                        <input
+                          type="checkbox"
+                          id="autoDownloadBats"
+                          checked={autoDownloadBats}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setAutoDownloadBats(checked);
+                            localStorage.setItem('yt_auto_download_bats', String(checked));
+                          }}
+                          className="w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <label htmlFor="autoDownloadBats" className="text-[9px] font-black uppercase tracking-wider text-white/50 select-none cursor-pointer hover:text-white/80 transition-colors">
+                          Baixar arquivos (.bat / .csv) ao concluir
+                        </label>
+                      </div>
+                      {/* ── Warnings: prompts que não foram resolvidos mesmo após retry ── */}
+                      {pipelineWarnings.length > 0 && (
+                        <details className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 space-y-1">
+                          <summary className="cursor-pointer text-[9px] font-black uppercase tracking-widest text-amber-300 list-none flex items-center gap-2">
+                            <span>⚠️</span>
+                            <span>{pipelineWarnings.length} prompt{pipelineWarnings.length > 1 ? 's' : ''} incompleto{pipelineWarnings.length > 1 ? 's' : ''} após 2 tentativas</span>
+                            <span className="text-amber-500/50 ml-auto">▼ ver detalhes</span>
+                          </summary>
+                          <ul className="mt-2 space-y-1 pl-1">
+                            {pipelineWarnings.map((w, i) => (
+                              <li key={i} className="text-[8px] text-amber-200/70 font-mono leading-relaxed">{w}</li>
+                            ))}
+                          </ul>
+                          <p className="text-[8px] text-amber-400/50 mt-1">
+                            Use o botão &quot;REGENERAR ITEMS&quot; abaixo para tentar novamente manualmente.
+                          </p>
+                        </details>
+                      )}
+                      {/* ── Divisor ───────────────────────────────────────────── */}
+                      <div className="flex items-center gap-2 my-1">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-[9px] text-white/25 uppercase tracking-widest">ou etapas individuais</span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
+                      {/* ── Botão individual: só SRT ──────────────────────────── */}
+                      <button
+                        type="button"
+                        onClick={processAttachedSrtAssets}
+                        disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !externalSrtText.trim() || (!pipelineVideos && !pipelineImages && !pipelineTexts && !pipelineHyperframes)}
+                        className="w-full rounded-xl border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-purple-200 transition-all hover:bg-purple-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isProcessingSrtPipeline ? 'PROCESSANDO SRT...' : 'PROCESSAR SRT EM ASSETS'}
+                      </button>
+                      {externalSrtPipeline && (() => {
+                        const fallbackRowsList = externalSrtPipeline.rows.filter((r) => r.isFallback);
+                        const fallbackCount = fallbackRowsList.length;
+                        if (fallbackCount === 0) return null;
+                        return (
+                          <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 space-y-3">
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-orange-300 font-black uppercase tracking-widest">
+                                ⚠️ {fallbackCount} prompt{fallbackCount > 1 ? 's' : ''} incompleto{fallbackCount > 1 ? 's' : ''}
+                              </p>
+                              <p className="text-[8px] text-orange-200/60 leading-normal">
+                                Os seguintes trechos falharam e usaram prompts de fallback. Clique abaixo para regenerar.
                               </p>
                             </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (videoFormat === 'faceless' || videoFormat === 'catalog') {
-                                    alert('Nos formatos Faceless e Catálogo, os HyperFrames já são gerados como prompts de vídeo completos na seção de vídeos acima. Não é necessário gerar fundos de imagem.');
-                                    return;
-                                  }
-                                  await generateHfBgPromptsInternal();
-                                }}
-                                disabled={isGeneratingHfBg}
-                                className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
-                                  (videoFormat === 'faceless' || videoFormat === 'catalog')
-                                    ? 'border-white/10 text-white/35 hover:bg-transparent cursor-pointer'
-                                    : 'border-violet-500/30 text-violet-300 hover:border-violet-400/60 hover:text-violet-200'
-                                }`}
-                              >
-                                {(videoFormat === 'faceless' || videoFormat === 'catalog') ? '🚫 Sem Fundos' : (isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF')}
-                              </button>
-                              <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  copyTextToClipboard(compileUnifiedImagePrompts(), 'Prompts copiados.');
-                                }}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                              >
-                                <Copy size={12} className="inline mr-2" /> Copiar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  downloadTextArtifact(srtArtifactStem, 'prompts_imagem', compileUnifiedImagePrompts());
-                                }}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                              >
-                                <FileText size={12} className="inline mr-2" /> TXT
-                              </button>
-                              </div>
-                            </div>
-                          </div>
-                          {/* Inline error banner */}
-                          {hfBgPrompts?.[0]?.rowNumber === -1 && (
-                            <div className="rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-[11px] text-red-300">
-                              ❌ {hfBgPrompts[0].prompt}
-                            </div>
-                          )}
-                          {/* Success banner */}
-                          {hfBgPrompts && hfBgPrompts[0]?.rowNumber !== -1 && (
-                            <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-2 text-[11px] text-violet-300">
-                              ✅ {hfBgPrompts.length} fundo(s) gerado(s) — veja abaixo no textarea
-                            </div>
-                          )}
-                          <textarea
-                            readOnly
-                            value={compileUnifiedImagePrompts() || 'Nenhum prompt de imagem foi gerado para este SRT.'}
-                            className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
-                          />
-                        </div>
-                      </div>
 
-                      {/* Painel de Prompts Mesclados Híbridos (Vídeo + Imagem) - ABAIXO */}
-                      {externalSrtPipeline && (() => {
-                        const hybridContent = compileHybridPromptsText();
-                        if (!hybridContent && !useHybridAssets) return null;
-
-                        return (
-                          <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.04] p-4 space-y-3 mt-4 mb-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300 flex items-center gap-1.5">
-                                  <span>🔀 Prompts Mesclados Híbridos (Vídeo + Imagem)</span>
-                                </p>
-                                <p className="text-[10px] text-white/50 mt-0.5 leading-relaxed">
-                                  Lista sequencial contínua da timeline do SRT. Imagens marcadas com <strong className="text-cyan-300">[I]</strong> e vídeos com <strong className="text-cyan-300">[IV]</strong>.
-                                </p>
-                              </div>
-                              <div className="flex gap-2 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => copyTextToClipboard(hybridContent, 'Prompts híbridos (Vídeo + Imagem) copiados.')}
-                                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
+                            <div className="max-h-[140px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-orange-500/20 scrollbar-track-transparent">
+                              {fallbackRowsList.map((row) => (
+                                <div
+                                  key={row.rowNumber}
+                                  className="flex flex-col gap-0.5 rounded border border-orange-500/10 bg-black/30 p-2 text-[9px] text-orange-200/80 font-mono"
                                 >
-                                  <Copy size={12} className="inline mr-1" /> Copiar Híbrido
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_hibridos', hybridContent)}
-                                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
-                                >
-                                  <FileText size={12} className="inline mr-1" /> TXT Híbrido
-                                </button>
-                              </div>
+                                  <div className="flex justify-between items-center gap-1">
+                                    <span className="text-orange-400 font-bold">Linha #{row.rowNumber}</span>
+                                    <span className="rounded bg-orange-500/20 px-1 py-0.5 text-[8px] text-orange-300 font-bold uppercase shrink-0">
+                                      {row.asset}
+                                    </span>
+                                  </div>
+                                  <div className="text-[8px] opacity-60 font-semibold">{row.startTime} - {row.endTime}</div>
+                                  <div className="text-white/80 italic mt-0.5 line-clamp-2">&quot;{row.texto}&quot;</div>
+                                </div>
+                              ))}
                             </div>
-                            <textarea
-                              readOnly
-                              value={hybridContent || 'Nenhum prompt híbrido gerado.'}
-                              className="w-full min-h-[140px] resize-y rounded-2xl border border-cyan-500/20 bg-black/40 px-4 py-4 text-[11px] leading-6 text-cyan-100/90 font-mono outline-none focus:border-cyan-400/40"
-                            />
+
+                            <button
+                              type="button"
+                              onClick={regenerateFallbackPrompts}
+                              disabled={isRegeneratingFallbacks || isProcessingSrtPipeline}
+                              className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-200 transition-all hover:bg-orange-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {isRegeneratingFallbacks ? 'REGENERANDO...' : `REGENERAR ${fallbackCount} ITEM${fallbackCount > 1 ? 'S' : ''}`}
+                            </button>
                           </div>
                         );
                       })()}
-
-                      {/* FCPXML CapCut Timeline Synchronizer */}
-                      {!externalSrtPipeline ? (
-                        <div className="rounded-2xl border border-white/5 bg-midnight/20 opacity-60 p-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-white/40">
-                              <span className="text-xs">🔒</span>
-                              <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (Exportar FCPXML)</p>
-                            </div>
-                            <span className="text-[9px] bg-white/5 px-2 py-0.5 rounded text-white/50 uppercase tracking-widest font-black">Pendente</span>
-                          </div>
-                          <p className="text-[10px] text-white/30 leading-relaxed">
-                            Gere um arquivo de linha de tempo XML (.fcpxml). <strong>Este recurso será liberado após o processamento do pipeline SRT</strong> para que todos os brolls (vídeos, imagens e textos renderizados) sejam sincronizados na timeline automaticamente.
-                          </p>
+                      {externalSrtPipeline && (
+                        <button
+                          type="button"
+                          onClick={renderTextAssetsFromPipeline}
+                          disabled={isPipelineRunning || isProcessingSrtPipeline || isRenderingTextAssets || !postScriptPackage}
+                          className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200 transition-all hover:bg-amber-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isRenderingTextAssets ? 'GERANDO BATs...' : 'ETAPA 5 · GERAR BATs'}
+                        </button>
+                      )}
+                      <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                        {externalSrtPipeline?.generatedAt
+                          ? `Pipeline persistido em ${new Date(externalSrtPipeline.generatedAt).toLocaleString('pt-BR')}.`
+                          : 'Nenhum pipeline processado ainda.'}
+                      </div>
+                      <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-300">Pacote pos-roteiro</label>
+                        <button
+                          type="button"
+                          onClick={generatePostScriptPackage}
+                          disabled={isPipelineRunning || isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
+                          className="w-full rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isGeneratingPostScriptPackage ? 'PROCESSANDO PACOTE...' : postScriptPackage ? 'REPROCESSAR PACOTE POS-ROTEIRO' : 'PROCESSAR PACOTE POS-ROTEIRO'}
+                        </button>
+                        <div className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-[10px] text-white/65">
+                          {!canProcessPostScriptPackage
+                            ? 'Finalize o roteiro interno ou anexe um .txt externo para habilitar esta etapa.'
+                            : postScriptPackage
+                              ? `Pacote persistido em ${new Date(postScriptPackage.generatedAt).toLocaleString('pt-BR')}.`
+                              : 'Nenhum pacote pos-roteiro processado ainda.'}
                         </div>
-                      ) : (
-                        <div className="rounded-2xl border border-cyan-500/20 bg-midnight/40 overflow-hidden">
-                          <div 
-                            onClick={() => setIsCapcutExpanded(!isCapcutExpanded)}
-                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors select-none group"
-                          >
-                            <div className="flex items-center gap-2 text-cyan-400">
-                              <span className="text-xs">🎬</span>
-                              <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (PC / Windows / Mac)</p>
+                      </div>
+                      {externalSrtPipeline && (
+                        <div className="space-y-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.03] p-4">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-emerald-300 flex items-center gap-2">
+                              <span>📊 Planilha de Assets & Storyboard</span>
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[8px]">Pack Ganha Tempo</span>
+                            </label>
+                          </div>
+                          
+                          <div className="flex flex-col sm:flex-row gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => openStoryboardInNewTab('spreadsheet')}
+                              className="flex-1 rounded-xl border border-emerald-400/40 bg-emerald-500/20 hover:bg-emerald-500/30 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40"
+                              title="Abrir diretamente em formato de Planilha com os links do Pack Ganha Tempo"
+                            >
+                              <span>📊 ABRIR PLANILHA DE ASSETS</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openStoryboardInNewTab('grid')}
+                              className="flex-1 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/80 transition-all active:scale-95 flex items-center justify-center gap-2"
+                              title="Abrir em formato Storyboard Quadriculado"
+                            >
+                              <span>🎬 MODO STORYBOARD</span>
+                            </button>
+                          </div>
+
+                          <div className="rounded-xl border border-emerald-500/15 bg-black/30 px-3.5 py-2.5 text-[10px] text-emerald-300/80 leading-relaxed">
+                            💡 <strong>Novo:</strong> A planilha faz o match cena a cena dos arquivos do <strong>Pack Ganha Tempo</strong> com botões para download direto no Google Drive e traz a biblioteca completa de 406 assets logo abaixo!
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* DIREÇÃO DE ARTE & ELENCO CONSISTENTE (FULL WIDTH & GRADE) */}
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4">
+                      <div>
+                        <span className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">🎨 Direção de Arte & Elenco Consistente</span>
+                        <p className="text-[10px] text-white/40 mt-1">Defina a ambientação visual e gerencie o elenco para consistência via colchetes [Nome].</p>
+                      </div>
+                      {visualBlueprintCast.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={copyAllCharacterPrompts}
+                          className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-2.5 text-[9px] font-bold text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2 uppercase tracking-wider"
+                        >
+                          <span>📋 Copiar Todos os Prompts (Elenco)</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                      {/* Cenário / Estilo Geral */}
+                      <div className="rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
+                        <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Cenário / Estilo Geral (PT-BR)</label>
+                        <textarea
+                          value={visualBlueprintSetting}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setVisualBlueprintSetting(val);
+                            persistExecutionSnapshotLocally({ visualBlueprintSetting: val });
+                          }}
+                          placeholder="Ex: Fantasia sombria Warhammer 40k, catedral espacial gotica gelida..."
+                          className="w-full min-h-[140px] resize-y rounded-xl border border-white/10 bg-midnight/45 px-3 py-2 text-[11px] leading-relaxed text-white/80 outline-none focus:border-cyan-300/40"
+                        />
+                        <p className="text-[9px] text-white/35 leading-relaxed">
+                          Descreva a atmosfera, iluminação e visual de fundo geral. O pipeline combina este estilo com as cenas geradas.
+                        </p>
+                      </div>
+
+                      {/* Elenco de Personagens */}
+                      <div className="lg:col-span-2 rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
+                        <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Elenco Narrativo ({visualBlueprintCast.length})</label>
+                        {visualBlueprintCast.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/10">
+                            <p className="text-[11px] text-white/35 italic">Nenhum personagem extraído ainda.</p>
+                            <p className="text-[9px] text-white/20 mt-1 max-w-xs">
+                              Anexe o arquivo do roteiro (.txt) no painel superior e clique em &quot;Analisar Direção de Arte & Elenco&quot; para gerar.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                            {visualBlueprintCast.map((char, index) => (
+                              <div key={index} className="rounded-xl border border-white/5 bg-midnight/40 p-3.5 space-y-2 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                    <span className="font-bold text-[11px] text-cyan-200 tracking-wide">{char.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Prompt de ${char.name} copiado!`)}
+                                      className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[9px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1.5"
+                                    >
+                                      <span>📋 Copiar Prompt</span>
+                                    </button>
+                                  </div>
+                                  <textarea
+                                    value={char.description}
+                                    onChange={(e) => {
+                                      const updatedCast = [...visualBlueprintCast];
+                                      updatedCast[index] = { ...char, description: e.target.value };
+                                      setVisualBlueprintCast(updatedCast);
+                                      persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                    }}
+                                    className="w-full min-h-[70px] bg-transparent border-0 text-[10px] leading-relaxed text-white/70 italic resize-y p-0 outline-none focus:text-white"
+                                  />
+                                </div>
+                                <div className="text-[8px] text-cyan-400/35 text-right font-mono tracking-wider">
+                                  Use [{char.name}] no roteiro para vincular
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+
+                  {(isProcessingSrtPipeline || isRenderingTextAssets || externalSrtPipeline) && (
+                    <div className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.04] p-5 space-y-4">
+                      <div className="space-y-4">
+                        <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
+                          <div className="space-y-2 max-w-3xl">
+                            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-200">Pipeline SRT adaptado ao app</p>
+                            <p className="text-sm font-black text-white">
+                              {(isProcessingSrtPipeline || isRenderingTextAssets)
+                                ? srtPipelineStatus || (isRenderingTextAssets ? 'Executando a etapa 5 sobre o CSV persistido...' : 'Executando as etapas 2, 3 e 4 sobre o .srt anexado...')
+                                : srtPipelineStatus || 'CSV base, assets e prompts persistidos nesta execucao.'}
+                            </p>
+                            <p className="text-[11px] text-white/50 leading-relaxed">
+                              Etapa 1 fica coberta pelo upload do arquivo. A partir daqui o app replica a conversao para CSV, a marcacao heuristica de assets, a geracao dos prompts visuais e o render dos assets marcados como texto.
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-purple-300/15 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-purple-100">
+                            {isProcessingSrtPipeline ? 'Processando' : isRenderingTextAssets ? 'Renderizando' : externalSrtPipeline ? 'Persistido' : 'Aguardando'}
+                          </div>
+                        </div>
+
+                        {externalSrtPipeline && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+                            {[
+                              { label: 'Linhas', value: externalSrtPipeline.stats.total },
+                              { label: 'Texto', value: externalSrtPipeline.stats.texto },
+                              { label: 'Avatar', value: externalSrtPipeline.stats.avatar },
+                              { label: 'Video', value: externalSrtPipeline.stats.video },
+                              { label: 'Imagem', value: externalSrtPipeline.stats.image },
+                              { label: 'Hyperframe', value: externalSrtPipeline.stats.hyperframe },
+                              { label: 'Render', value: externalSrtPipeline.rows.filter((row) => row.caminho).length },
+                            ].map((item) => (
+                              <div key={item.label} className="rounded-2xl border border-white/10 bg-midnight/40 px-4 py-3">
+                                <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">{item.label}</span>
+                                <span className="block text-sm font-black text-white">{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Observador de status</p>
+                            <p className="text-[10px] text-white/40 mt-1">Mostra em qual ponto da adaptacao o app esta e o que ja foi concluido.</p>
+                          </div>
+                          <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] text-white/55">
+                            {isProcessingSrtPipeline ? 'Processando agora' : isRenderingTextAssets ? 'Renderizando textos' : externalSrtPipeline ? 'Pipeline pronto' : 'Aguardando processamento'}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-6">
+                          {externalSrtObserver.map((step) => (
+                            <div key={step.key} className="rounded-2xl border border-white/8 bg-black/15 px-4 py-4 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`inline-flex h-2.5 w-2.5 rounded-full ${step.status === 'done'
+                                      ? 'bg-emerald-400'
+                                      : step.status === 'running'
+                                        ? 'bg-blue-400 animate-pulse'
+                                        : step.status === 'error'
+                                          ? 'bg-red-400'
+                                          : 'bg-white/20'
+                                    }`}
+                                />
+                                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">{step.label}</span>
+                              </div>
+                              <p
+                                className={`text-[10px] font-black uppercase tracking-[0.16em] ${step.status === 'done'
+                                    ? 'text-emerald-300'
+                                    : step.status === 'running'
+                                      ? 'text-blue-300'
+                                      : step.status === 'error'
+                                        ? 'text-red-300'
+                                        : 'text-white/30'
+                                  }`}
+                              >
+                                {step.status === 'done' ? 'Concluido' : step.status === 'running' ? 'Em execucao' : step.status === 'error' ? 'Erro' : 'Pendente'}
+                              </p>
+                              <p className="text-[10px] leading-5 text-white/45">{step.detail}</p>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-[9px] bg-cyan-500/20 px-2 py-0.5 rounded text-cyan-300 uppercase tracking-widest font-black animate-pulse">Disponível</span>
-                              <div className={`p-1.5 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isCapcutExpanded ? 'rotate-180' : ''}`}>
-                                <ChevronDown size={14} />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Onde os arquivos ficam</p>
+                        <p className="text-[10px] leading-6 text-white/55">
+                          O CSV base e os arquivos de prompts ficam persistidos dentro do snapshot local desta execucao e no snapshot do tema aprovado. Quando voce usa os botoes de exportacao, eles vao para a pasta de downloads padrao do navegador como `.csv` e `.txt`. Ja a etapa 5 escreve um CSV espelho e os videos de texto diretamente no pipeline externo, preservando os caminhos em `caminho`.
+                        </p>
+                      </div>
+
+                      {externalSrtPipeline && (
+                        <div className="space-y-4">
+                          {/* Opções de Formatação de Prompts (Colchetes e Prefixo) */}
+                          <div className="flex flex-col md:flex-row gap-4 bg-midnight/25 border border-white/10 rounded-2xl p-4 mb-4">
+                            {/* Checkbox global de colchetes */}
+                            <div className="flex-1">
+                              <label className="relative flex items-start gap-3 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={preserveBrackets}
+                                  onChange={(e) => {
+                                    setPreserveBrackets(e.target.checked);
+                                    persistExecutionSnapshotLocally({ preserveBrackets: e.target.checked });
+                                  }}
+                                  className="w-4.5 h-4.5 rounded border border-white/10 bg-black/40 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-blue-500 mt-0.5"
+                                />
+                                <div>
+                                  <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:text-white transition-colors">
+                                    Preservar [Colchetes] de Personagens Consistentes
+                                  </span>
+                                  <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                                    Marque para manter a tag original do personagem (ex: <strong>[Grey Knight]</strong>) nos prompts copiado/exportados. Desmarque para expandir a descrição física.
+                                  </span>
+                                </div>
+                              </label>
+                            </div>
+
+                            {/* Divisor vertical para telas maiores */}
+                            <div className="hidden md:block w-px bg-white/10 self-stretch" />
+
+                            {/* Seletor de Prefixo */}
+                            <div className="flex flex-col gap-2 shrink-0 md:w-80">
+                              <div>
+                                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
+                                  Prefixo do Prompt
+                                </span>
+                                <span className="block text-[9px] text-white/40 mt-1 leading-relaxed">
+                                  Prependido no início absoluto de cada linha de prompt.
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 bg-black/40 p-1 border border-white/10 rounded-xl">
+                                {[
+                                  { value: 'none', label: 'Nenhum' },
+                                  { value: '[IV]', label: '[IV]' },
+                                  { value: '[I]', label: '[I]' },
+                                  { value: '[V]', label: '[V]' }
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => {
+                                      setPromptPrefix(opt.value);
+                                      persistExecutionSnapshotLocally({ promptPrefix: opt.value });
+                                    }}
+                                    className={`flex-1 text-center py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${promptPrefix === opt.value
+                                        ? 'bg-blue-500 text-white shadow'
+                                        : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                                      }`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
                               </div>
                             </div>
                           </div>
 
-                          <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isCapcutExpanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
-                            <div className="min-h-0 space-y-3 pt-3">
-                              <p className="text-[10px] text-white/45 leading-relaxed">
-                                Exporte a sua linha de tempo diretamente para o CapCut de três formas:
-                              </p>
-                              <ul className="list-disc pl-4 text-[10px] text-white/40 space-y-1">
-                                <li><strong>Opção 1 (Substituir Rascunho - RECOMENDADO & MAIS SIMPLES):</strong> Baixe apenas o arquivo <code>draft_content.json</code>. No CapCut, crie um projeto novo (ou use um existente) e feche o programa. Vá na pasta desse projeto em <code>CapCut Drafts</code> (ex: <code>0608</code>) e substitua o <code>draft_content.json</code> existente pelo arquivo baixado. É o método mais rápido e direto!</li>
-                                <li><strong>Opção 2 (Projeto Completo .zip):</strong> Exporta um arquivo ZIP contendo toda a pasta do projeto configurada. Basta extrair a pasta inteira dentro de <code>CapCut Drafts</code>.</li>
-                                <li><strong>Opção 3 (FCPXML):</strong> Exporta uma timeline XML compatível. Importe no CapCut através do menu <em>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</em> (disponível em algumas versões).</li>
-                              </ul>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
-                                <div className="space-y-1.5">
-                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Pasta Local dos Vídeos/Imagens</label>
-                                  <input
-                                    type="text"
-                                    value={fcpxmlBaseDir}
-                                    onChange={(e) => setFcpxmlBaseDir(e.target.value)}
-                                    placeholder="Ex: D:/ContentFlow/assets/"
-                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all placeholder:text-white/20"
-                                  />
-                                  <span className="text-[8px] text-white/30 block">Caminho da pasta local onde estão as mídias.</span>
+                          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                            <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de video</p>
+                                  <p className="text-[10px] text-white/40 mt-1">Saida equivalente ao arquivo `_prompts_video.txt`.</p>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Padrão de Nome dos Arquivos</label>
-                                  <select
-                                    value={fcpxmlNaming}
-                                    onChange={(e) => setFcpxmlNaming(e.target.value as any)}
-                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => copyTextToClipboard(compilePromptText(externalSrtPipeline.videoPromptsTxt), 'Prompts de video copiados.')}
+                                    className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                                   >
-                                    <option value="index_prompt56">[Index]_[Prompt 56 Chars] (Ex: 1_Create_a_...)</option>
-                                    <option value="index_only">Apenas Número (Ex: 1.mp4, 2.png)</option>
-                                  </select>
-                                  <span className="text-[8px] text-white/30 block">Selecione o formato dos nomes das suas mídias locais.</span>
+                                    <Copy size={12} className="inline mr-2" /> Copiar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_video', compilePromptText(externalSrtPipeline.videoPromptsTxt))}
+                                    className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                  >
+                                    <FileText size={12} className="inline mr-2" /> TXT
+                                  </button>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Duração Bruta das Mídias</label>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div className="space-y-1">
-                                      <input
-                                        type="number"
-                                        step="0.5"
-                                        min="1"
-                                        value={fcpxmlVidDuration}
-                                        onChange={(e) => setFcpxmlVidDuration(Number(e.target.value))}
-                                        placeholder="Vídeo (s)"
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
-                                        title="Duração padrão do vídeo bruto gerado (ex: Kling/Runway - 8s)"
-                                      />
-                                      <span className="text-[8px] text-white/30 text-center block">Vídeo (s)</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                      <input
-                                        type="number"
-                                        step="0.5"
-                                        min="1"
-                                        value={fcpxmlImgDuration}
-                                        onChange={(e) => setFcpxmlImgDuration(Number(e.target.value))}
-                                        placeholder="Imagem (s)"
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
-                                        title="Duração padrão de exibição da imagem estática (ex: 5s)"
-                                      />
-                                      <span className="text-[8px] text-white/30 text-center block">Imagem (s)</span>
-                                    </div>
+                              </div>
+                              <textarea
+                                readOnly
+                                value={compilePromptText(externalSrtPipeline.videoPromptsTxt) || 'Nenhum prompt de video foi gerado para este SRT.'}
+                                className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                              />
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-midnight/40 p-4 space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompts de imagem</p>
+                                  <p className="text-[10px] text-white/40 mt-1">
+                                    Saida equivalente ao arquivo `_prompts_imagem.txt`.{' '}
+                                    {(() => { const n = externalSrtPipeline.rows.filter(r => normalizeAssetType(r.asset) === 'hyperframe').length; return n > 0 ? <span className="text-violet-400">{n} HF detectado{n > 1 ? 's' : ''}</span> : <span className="text-white/20">0 HF</span>; })()}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (videoFormat === 'faceless' || videoFormat === 'catalog') {
+                                        alert('Nos formatos Faceless e Catálogo, os HyperFrames já são gerados como prompts de vídeo completos na seção de vídeos acima. Não é necessário gerar fundos de imagem.');
+                                        return;
+                                      }
+                                      await generateHfBgPromptsInternal();
+                                    }}
+                                    disabled={isGeneratingHfBg}
+                                    className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${(videoFormat === 'faceless' || videoFormat === 'catalog')
+                                        ? 'border-white/10 text-white/35 hover:bg-transparent cursor-pointer'
+                                        : 'border-violet-500/30 text-violet-300 hover:border-violet-400/60 hover:text-violet-200'
+                                      }`}
+                                  >
+                                    {(videoFormat === 'faceless' || videoFormat === 'catalog') ? '🚫 Sem Fundos' : (isGeneratingHfBg ? '⏳ Gerando...' : '⚡ Fundos HF')}
+                                  </button>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        copyTextToClipboard(compileUnifiedImagePrompts(), 'Prompts copiados.');
+                                      }}
+                                      className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                    >
+                                      <Copy size={12} className="inline mr-2" /> Copiar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        downloadTextArtifact(srtArtifactStem, 'prompts_imagem', compileUnifiedImagePrompts());
+                                      }}
+                                      className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                    >
+                                      <FileText size={12} className="inline mr-2" /> TXT
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Inline error banner */}
+                              {hfBgPrompts?.[0]?.rowNumber === -1 && (
+                                <div className="rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-[11px] text-red-300">
+                                  ❌ {hfBgPrompts[0].prompt}
+                                </div>
+                              )}
+                              {/* Success banner */}
+                              {hfBgPrompts && hfBgPrompts[0]?.rowNumber !== -1 && (
+                                <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-2 text-[11px] text-violet-300">
+                                  ✅ {hfBgPrompts.length} fundo(s) gerado(s) — veja abaixo no textarea
+                                </div>
+                              )}
+                              <textarea
+                                readOnly
+                                value={compileUnifiedImagePrompts() || 'Nenhum prompt de imagem foi gerado para este SRT.'}
+                                className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Painel de Prompts Mesclados Híbridos (Vídeo + Imagem) - ABAIXO */}
+                          {externalSrtPipeline && (() => {
+                            const hybridContent = compileHybridPromptsText();
+                            if (!hybridContent && !useHybridAssets) return null;
+
+                            return (
+                              <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.04] p-4 space-y-3 mt-4 mb-4">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300 flex items-center gap-1.5">
+                                      <span>🔀 Prompts Mesclados Híbridos (Vídeo + Imagem)</span>
+                                    </p>
+                                    <p className="text-[10px] text-white/50 mt-0.5 leading-relaxed">
+                                      Lista sequencial contínua da timeline do SRT. Imagens marcadas com <strong className="text-cyan-300">[I]</strong> e vídeos com <strong className="text-cyan-300">[IV]</strong>.
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => copyTextToClipboard(hybridContent, 'Prompts híbridos (Vídeo + Imagem) copiados.')}
+                                      className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
+                                    >
+                                      <Copy size={12} className="inline mr-1" /> Copiar Híbrido
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => downloadTextArtifact(srtArtifactStem, 'prompts_hibridos', hybridContent)}
+                                      className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
+                                    >
+                                      <FileText size={12} className="inline mr-1" /> TXT Híbrido
+                                    </button>
+                                  </div>
+                                </div>
+                                <textarea
+                                  readOnly
+                                  value={hybridContent || 'Nenhum prompt híbrido gerado.'}
+                                  className="w-full min-h-[140px] resize-y rounded-2xl border border-cyan-500/20 bg-black/40 px-4 py-4 text-[11px] leading-6 text-cyan-100/90 font-mono outline-none focus:border-cyan-400/40"
+                                />
+                              </div>
+                            );
+                          })()}
+
+                          {/* FCPXML CapCut Timeline Synchronizer */}
+                          {!externalSrtPipeline ? (
+                            <div className="rounded-2xl border border-white/5 bg-midnight/20 opacity-60 p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-white/40">
+                                  <span className="text-xs">🔒</span>
+                                  <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (Exportar FCPXML)</p>
+                                </div>
+                                <span className="text-[9px] bg-white/5 px-2 py-0.5 rounded text-white/50 uppercase tracking-widest font-black">Pendente</span>
+                              </div>
+                              <p className="text-[10px] text-white/30 leading-relaxed">
+                                Gere um arquivo de linha de tempo XML (.fcpxml). <strong>Este recurso será liberado após o processamento do pipeline SRT</strong> para que todos os brolls (vídeos, imagens e textos renderizados) sejam sincronizados na timeline automaticamente.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-cyan-500/20 bg-midnight/40 overflow-hidden">
+                              <div
+                                onClick={() => setIsCapcutExpanded(!isCapcutExpanded)}
+                                className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors select-none group"
+                              >
+                                <div className="flex items-center gap-2 text-cyan-400">
+                                  <span className="text-xs">🎬</span>
+                                  <p className="text-[11px] font-black uppercase tracking-[2px]">Sincronizador CapCut (PC / Windows / Mac)</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[9px] bg-cyan-500/20 px-2 py-0.5 rounded text-cyan-300 uppercase tracking-widest font-black animate-pulse">Disponível</span>
+                                  <div className={`p-1.5 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isCapcutExpanded ? 'rotate-180' : ''}`}>
+                                    <ChevronDown size={14} />
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Configurações Avançadas do Sincronizador SRT */}
-                              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
-                                <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">Configurações Avançadas & Sincronia SRT</p>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  {/* Aspect Ratio */}
-                                  <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Proporção (Aspect Ratio)</label>
-                                    <select
-                                      value={fcpxmlAspectRatio}
-                                      onChange={(e) => setFcpxmlAspectRatio(e.target.value as any)}
-                                      className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
-                                    >
-                                      <option value="horizontal">Horizontal (16:9 - YouTube)</option>
-                                      <option value="vertical">Vertical (9:16 - TikTok/Shorts)</option>
-                                    </select>
-                                    <span className="text-[8px] text-white/30 block">Resolução de saída da timeline do CapCut.</span>
+                              <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isCapcutExpanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                                <div className="min-h-0 space-y-3 pt-3">
+                                  <p className="text-[10px] text-white/45 leading-relaxed">
+                                    Exporte a sua linha de tempo diretamente para o CapCut de três formas:
+                                  </p>
+                                  <ul className="list-disc pl-4 text-[10px] text-white/40 space-y-1">
+                                    <li><strong>Opção 1 (Substituir Rascunho - RECOMENDADO & MAIS SIMPLES):</strong> Baixe apenas o arquivo <code>draft_content.json</code>. No CapCut, crie um projeto novo (ou use um existente) e feche o programa. Vá na pasta desse projeto em <code>CapCut Drafts</code> (ex: <code>0608</code>) e substitua o <code>draft_content.json</code> existente pelo arquivo baixado. É o método mais rápido e direto!</li>
+                                    <li><strong>Opção 2 (Projeto Completo .zip):</strong> Exporta um arquivo ZIP contendo toda a pasta do projeto configurada. Basta extrair a pasta inteira dentro de <code>CapCut Drafts</code>.</li>
+                                    <li><strong>Opção 3 (FCPXML):</strong> Exporta uma timeline XML compatível. Importe no CapCut através do menu <em>Menu &gt; Arquivo &gt; Importar &gt; FCPXML</em> (disponível em algumas versões).</li>
+                                  </ul>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Pasta Local dos Vídeos/Imagens</label>
+                                      <input
+                                        type="text"
+                                        value={fcpxmlBaseDir}
+                                        onChange={(e) => setFcpxmlBaseDir(e.target.value)}
+                                        placeholder="Ex: D:/ContentFlow/assets/"
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all placeholder:text-white/20"
+                                      />
+                                      <span className="text-[8px] text-white/30 block">Caminho da pasta local onde estão as mídias.</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Padrão de Nome dos Arquivos</label>
+                                      <select
+                                        value={fcpxmlNaming}
+                                        onChange={(e) => setFcpxmlNaming(e.target.value as any)}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                      >
+                                        <option value="index_prompt56">[Index]_[Prompt 56 Chars] (Ex: 1_Create_a_...)</option>
+                                        <option value="index_only">Apenas Número (Ex: 1.mp4, 2.png)</option>
+                                      </select>
+                                      <span className="text-[8px] text-white/30 block">Selecione o formato dos nomes das suas mídias locais.</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Duração Bruta das Mídias</label>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                          <input
+                                            type="number"
+                                            step="0.5"
+                                            min="1"
+                                            value={fcpxmlVidDuration}
+                                            onChange={(e) => setFcpxmlVidDuration(Number(e.target.value))}
+                                            placeholder="Vídeo (s)"
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
+                                            title="Duração padrão do vídeo bruto gerado (ex: Kling/Runway - 8s)"
+                                          />
+                                          <span className="text-[8px] text-white/30 text-center block">Vídeo (s)</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <input
+                                            type="number"
+                                            step="0.5"
+                                            min="1"
+                                            value={fcpxmlImgDuration}
+                                            onChange={(e) => setFcpxmlImgDuration(Number(e.target.value))}
+                                            placeholder="Imagem (s)"
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all text-center"
+                                            title="Duração padrão de exibição da imagem estática (ex: 5s)"
+                                          />
+                                          <span className="text-[8px] text-white/30 text-center block">Imagem (s)</span>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
 
-                                  {/* Cut Mode */}
-                                  <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Modo de Corte (Trim Mode)</label>
-                                    <select
-                                      value={cutMode}
-                                      onChange={(e) => setCutMode(e.target.value as any)}
-                                      className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
-                                    >
-                                      <option value="middle">Centralizado (Middle)</option>
-                                      <option value="start">Início (Start)</option>
-                                      <option value="end">Fim (End)</option>
-                                    </select>
-                                    <span className="text-[8px] text-white/30 block">Qual região do video cortar se ele for mais longo que a fala.</span>
-                                  </div>
+                                  {/* Configurações Avançadas do Sincronizador SRT */}
+                                  <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">Configurações Avançadas & Sincronia SRT</p>
 
-                                  {/* Video Scan Info */}
-                                  <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Arquivos Escaneados</label>
-                                    <div className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white/80 h-9 flex items-center justify-between">
-                                      <span>{Object.keys(scannedFilesMap).length} arquivo(s) mapeado(s)</span>
-                                      {Object.keys(scannedFilesMap).length > 0 && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                      {/* Aspect Ratio */}
+                                      <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Proporção (Aspect Ratio)</label>
+                                        <select
+                                          value={fcpxmlAspectRatio}
+                                          onChange={(e) => setFcpxmlAspectRatio(e.target.value as any)}
+                                          className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                        >
+                                          <option value="horizontal">Horizontal (16:9 - YouTube)</option>
+                                          <option value="vertical">Vertical (9:16 - TikTok/Shorts)</option>
+                                        </select>
+                                        <span className="text-[8px] text-white/30 block">Resolução de saída da timeline do CapCut.</span>
+                                      </div>
+
+                                      {/* Cut Mode */}
+                                      <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Modo de Corte (Trim Mode)</label>
+                                        <select
+                                          value={cutMode}
+                                          onChange={(e) => setCutMode(e.target.value as any)}
+                                          className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-[11px] outline-none focus:border-cyan-400/40 transition-all"
+                                        >
+                                          <option value="middle">Centralizado (Middle)</option>
+                                          <option value="start">Início (Start)</option>
+                                          <option value="end">Fim (End)</option>
+                                        </select>
+                                        <span className="text-[8px] text-white/30 block">Qual região do video cortar se ele for mais longo que a fala.</span>
+                                      </div>
+
+                                      {/* Video Scan Info */}
+                                      <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Arquivos Escaneados</label>
+                                        <div className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white/80 h-9 flex items-center justify-between">
+                                          <span>{Object.keys(scannedFilesMap).length} arquivo(s) mapeado(s)</span>
+                                          {Object.keys(scannedFilesMap).length > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setScannedFilesMap({})}
+                                              className="text-[9px] text-red-400 hover:text-red-300 font-bold uppercase transition-colors"
+                                            >
+                                              Limpar
+                                            </button>
+                                          )}
+                                        </div>
+                                        <span className="text-[8px] text-white/30 block">Durações reais detectadas nas pastas locais.</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-white/5 pt-3">
+                                      {/* Smart Speedup */}
+                                      <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+                                        <div className="flex items-center justify-between">
+                                          <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Aceleração Inteligente</label>
+                                          <input
+                                            type="checkbox"
+                                            checked={smartSpeedUp}
+                                            onChange={(e) => setSmartSpeedUp(e.target.checked)}
+                                            className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <span className="text-[8px] text-white/30">Mínimo para acelerar:</span>
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            value={targetMinDuration}
+                                            onChange={(e) => setTargetMinDuration(parseFloat(e.target.value))}
+                                            disabled={!smartSpeedUp}
+                                            className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
+                                          />
+                                          <span className="text-[8px] text-white/30">segundos</span>
+                                        </div>
+                                        <p className="text-[8px] text-white/30 block mt-1 leading-normal">
+                                          Acelera suavemente vídeos ligeiramente maiores que o tempo da fala, evitando cortes secos.
+                                        </p>
+                                      </div>
+
+                                      {/* Smart Slowdown */}
+                                      <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+                                        <div className="flex items-center justify-between">
+                                          <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Desaceleração Inteligente</label>
+                                          <input
+                                            type="checkbox"
+                                            checked={smartSlowDown}
+                                            onChange={(e) => setSmartSlowDown(e.target.checked)}
+                                            className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <span className="text-[8px] text-white/30">Máximo para desacelerar:</span>
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            value={targetMaxDuration}
+                                            onChange={(e) => setTargetMaxDuration(parseFloat(e.target.value))}
+                                            disabled={!smartSlowDown}
+                                            className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
+                                          />
+                                          <span className="text-[8px] text-white/30">segundos</span>
+                                        </div>
+                                        <p className="text-[8px] text-white/30 block mt-1 leading-normal">
+                                          Desacelera suavemente (até 0.8x) vídeos um pouco menores que o tempo da fala para preencher o tempo.
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Folder Scanner API */}
+                                    <div className="border-t border-white/5 pt-3 space-y-2">
+                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45 block">Escaneamento Dinâmico de Durações (Local Host)</label>
+                                      <p className="text-[9px] text-white/30 leading-normal">
+                                        Conecte-se às pastas locais do projeto no seu PC para obter a duração real dos vídeos brutos. Isso garante uma sincronia perfeita na linha de tempo do CapCut sem precisar digitar durações manualmente.
+                                      </p>
+
+                                      <div className="flex flex-col sm:flex-row gap-2">
                                         <button
                                           type="button"
-                                          onClick={() => setScannedFilesMap({})}
-                                          className="text-[9px] text-red-400 hover:text-red-300 font-bold uppercase transition-colors"
+                                          disabled={isScanning}
+                                          onClick={() => handleScanFolder(false)}
+                                          className="flex-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
                                         >
-                                          Limpar
+                                          {isScanning ? (
+                                            <Loader2 size={12} className="animate-spin text-cyan-400" />
+                                          ) : (
+                                            <FolderOpen size={12} className="text-cyan-400" />
+                                          )}
+                                          {mainFolderHandle ? `✅ Pasta Vídeos Conectada` : `Selecionar Pasta de Vídeos`}
                                         </button>
-                                      )}
-                                    </div>
-                                    <span className="text-[8px] text-white/30 block">Durações reais detectadas nas pastas locais.</span>
-                                  </div>
-                                </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-white/5 pt-3">
-                                  {/* Smart Speedup */}
-                                  <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
-                                    <div className="flex items-center justify-between">
-                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Aceleração Inteligente</label>
-                                      <input
-                                        type="checkbox"
-                                        checked={smartSpeedUp}
-                                        onChange={(e) => setSmartSpeedUp(e.target.checked)}
-                                        className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
-                                      />
+                                        <button
+                                          type="button"
+                                          disabled={isScanning}
+                                          onClick={() => handleScanFolder(true)}
+                                          className="flex-1 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                        >
+                                          {isScanning ? (
+                                            <Loader2 size={12} className="animate-spin text-purple-400" />
+                                          ) : (
+                                            <FolderOpen size={12} className="text-purple-400" />
+                                          )}
+                                          {extraFolderHandle ? `✅ Pasta Imagens Conectada` : `Selecionar Pasta de Imagens`}
+                                        </button>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[8px] text-white/30">Mínimo para acelerar:</span>
-                                      <input
-                                        type="number"
-                                        step="0.1"
-                                        value={targetMinDuration}
-                                        onChange={(e) => setTargetMinDuration(parseFloat(e.target.value))}
-                                        disabled={!smartSpeedUp}
-                                        className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
-                                      />
-                                      <span className="text-[8px] text-white/30">segundos</span>
-                                    </div>
-                                    <p className="text-[8px] text-white/30 block mt-1 leading-normal">
-                                      Acelera suavemente vídeos ligeiramente maiores que o tempo da fala, evitando cortes secos.
-                                    </p>
                                   </div>
 
-                                  {/* Smart Slowdown */}
-                                  <div className="space-y-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
-                                    <div className="flex items-center justify-between">
-                                      <label className="text-[9px] font-black uppercase tracking-wider text-white/45">Desaceleração Inteligente</label>
-                                      <input
-                                        type="checkbox"
-                                        checked={smartSlowDown}
-                                        onChange={(e) => setSmartSlowDown(e.target.checked)}
-                                        className="rounded border-white/15 bg-black/30 text-cyan-500 focus:ring-0 cursor-pointer"
-                                      />
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[8px] text-white/30">Máximo para desacelerar:</span>
-                                      <input
-                                        type="number"
-                                        step="0.1"
-                                        value={targetMaxDuration}
-                                        onChange={(e) => setTargetMaxDuration(parseFloat(e.target.value))}
-                                        disabled={!smartSlowDown}
-                                        className="w-16 bg-black/30 border border-white/10 rounded-lg px-2 py-0.5 text-white text-[10px] outline-none disabled:opacity-40 text-center"
-                                      />
-                                      <span className="text-[8px] text-white/30">segundos</span>
-                                    </div>
-                                    <p className="text-[8px] text-white/30 block mt-1 leading-normal">
-                                      Desacelera suavemente (até 0.8x) vídeos um pouco menores que o tempo da fala para preencher o tempo.
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* Folder Scanner API */}
-                                <div className="border-t border-white/5 pt-3 space-y-2">
-                                  <label className="text-[9px] font-black uppercase tracking-wider text-white/45 block">Escaneamento Dinâmico de Durações (Local Host)</label>
-                                  <p className="text-[9px] text-white/30 leading-normal">
-                                    Conecte-se às pastas locais do projeto no seu PC para obter a duração real dos vídeos brutos. Isso garante uma sincronia perfeita na linha de tempo do CapCut sem precisar digitar durações manualmente.
-                                  </p>
-                                  
-                                  <div className="flex flex-col sm:flex-row gap-2">
+                                  <div className="flex flex-wrap justify-end gap-2 pt-1">
                                     <button
                                       type="button"
-                                      disabled={isScanning}
-                                      onClick={() => handleScanFolder(false)}
-                                      className="flex-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-200 transition-all hover:bg-cyan-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                      onClick={handleExportCapcutJson}
+                                      className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition-all hover:bg-emerald-500/20 active:scale-95 flex items-center gap-2"
                                     >
-                                      {isScanning ? (
-                                        <Loader2 size={12} className="animate-spin text-cyan-400" />
-                                      ) : (
-                                        <FolderOpen size={12} className="text-cyan-400" />
-                                      )}
-                                      {mainFolderHandle ? `✅ Pasta Vídeos Conectada` : `Selecionar Pasta de Vídeos`}
+                                      📄 Baixar JSONs do Rascunho (draft_content & draft_meta_info)
                                     </button>
-                                    
                                     <button
                                       type="button"
-                                      disabled={isScanning}
-                                      onClick={() => handleScanFolder(true)}
-                                      className="flex-1 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-purple-200 transition-all hover:bg-purple-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                                      onClick={handleExportCapcutZip}
+                                      className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/20 active:scale-95 flex items-center gap-2"
                                     >
-                                      {isScanning ? (
-                                        <Loader2 size={12} className="animate-spin text-purple-400" />
-                                      ) : (
-                                        <FolderOpen size={12} className="text-purple-400" />
-                                      )}
-                                      {extraFolderHandle ? `✅ Pasta Imagens Conectada` : `Selecionar Pasta de Imagens`}
+                                      📦 Exportar Projeto Completo (.zip)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleExportFcpxml}
+                                      className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2"
+                                    >
+                                      🎬 Exportar Timeline para CapCut (.fcpxml)
                                     </button>
                                   </div>
                                 </div>
                               </div>
+                            </div>
+                          )}
 
-                              <div className="flex flex-wrap justify-end gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={handleExportCapcutJson}
-                                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition-all hover:bg-emerald-500/20 active:scale-95 flex items-center gap-2"
-                                >
-                                  📄 Baixar JSONs do Rascunho (draft_content & draft_meta_info)
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleExportCapcutZip}
-                                  className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200 transition-all hover:bg-violet-500/20 active:scale-95 flex items-center gap-2"
-                                >
-                                  📦 Exportar Projeto Completo (.zip)
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleExportFcpxml}
-                                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-500/20 active:scale-95 flex items-center gap-2"
-                                >
-                                  🎬 Exportar Timeline para CapCut (.fcpxml)
-                                </button>
+                          <div className="rounded-2xl border border-white/10 bg-midnight/40 overflow-hidden">
+                            <div
+                              onClick={() => setIsTimelineExpanded(!isTimelineExpanded)}
+                              className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-colors select-none group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                                  <Database size={16} className="text-blue-400" />
+                                </div>
+                                <div>
+                                  <p className="text-[11px] font-black uppercase tracking-[2px] text-white/60 group-hover:text-white transition-colors block">Preview da timeline CSV</p>
+                                  <p className="text-[9px] text-white/30 tracking-widest">{externalSrtPipeline.rows.length} assets rastreados</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isTimelineExpanded ? 'rotate-180' : ''}`}>
+                                  <ChevronDown size={14} />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isTimelineExpanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                              <div className="min-h-0 space-y-3 pt-3">
+                                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                                  <div>
+                                    <p className="text-[10px] text-white/40 mt-1">A estrutura abaixo replica o CSV base das etapas 2 e 3, ja com a coluna `prompt` preenchida na etapa 4.</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => copyTextToClipboard(buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), 'CSV base copiado.')}
+                                      className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                    >
+                                      <Copy size={12} className="inline mr-2" /> Copiar CSV
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
+                                      className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                    >
+                                      <FileText size={12} className="inline mr-2" /> Exportar CSV
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/15">
+                                  <table className="min-w-full text-left text-[11px] text-white/75">
+                                    <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
+                                      <tr>
+                                        <th className="px-4 py-3">#</th>
+                                        <th className="px-4 py-3">Inicio</th>
+                                        <th className="px-4 py-3">Fim</th>
+                                        <th className="px-4 py-3">Asset</th>
+                                        <th className="px-4 py-3">Texto</th>
+                                        <th className="px-4 py-3">Prompt</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {externalSrtPipeline.rows.slice(0, 8).map((row) => (
+                                        <tr key={row.rowNumber} className="border-t border-white/5 align-top">
+                                          <td className="px-4 py-3 font-black text-white/60">{row.rowNumber}</td>
+                                          <td className="px-4 py-3">{row.startTime}</td>
+                                          <td className="px-4 py-3">{row.endTime}</td>
+                                          <td className="px-4 py-3 font-black text-blue-200">{row.asset || '-'}</td>
+                                          <td className="px-4 py-3 max-w-[260px] leading-5 text-white/70">{row.texto}</td>
+                                          <td className="px-4 py-3 max-w-[320px] leading-5 text-white/55">{row.prompt || '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                {externalSrtPipeline.rows.length > 8 && (
+                                  <p className="text-[10px] text-white/35">
+                                    Preview mostrando as primeiras 8 linhas. O CSV completo fica persistido nesta execucao e pode ser exportado.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-midnight/40 overflow-hidden">
+                            <div
+                              onClick={() => setIsStep5Expanded(!isStep5Expanded)}
+                              className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors select-none group"
+                            >
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Etapa 5 · Scripts BAT (Offline)</p>
+                                <p className="text-[10px] text-white/40 mt-1">
+                                  Gera e baixa automaticamente os scripts `.bat` para renderizar Textos, Hyperframes e SFX localmente na sua máquina.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {externalSrtPipeline.textRender?.csvPath && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); copyTextToClipboard(externalSrtPipeline.textRender?.csvPath || '', 'Caminho do CSV espelho copiado.'); }}
+                                    className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
+                                  >
+                                    <Copy size={12} className="inline mr-2" /> Copiar CSV espelho
+                                  </button>
+                                )}
+                                {externalSrtPipeline.textRender?.outputDir && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); copyTextToClipboard(externalSrtPipeline.textRender?.outputDir || '', 'Pasta de renders copiada.'); }}
+                                    className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
+                                  >
+                                    <Copy size={12} className="inline mr-2" /> Copiar pasta de render
+                                  </button>
+                                )}
+                                <div className={`p-1.5 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isStep5Expanded ? 'rotate-180' : ''}`}>
+                                  <ChevronDown size={14} />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isStep5Expanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                              <div className="min-h-0 space-y-3 pt-3">
+                                {externalSrtPipeline.textRender ? (
+                                  <>
+                                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                                      <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                                        <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Novos renders</span>
+                                        <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.renderedCount}</span>
+                                      </div>
+                                      <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                                        <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Reutilizados</span>
+                                        <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.reusedCount}</span>
+                                      </div>
+                                      <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 xl:col-span-2">
+                                        <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Ultima renderizacao</span>
+                                        <span className="block text-sm font-black text-white">{new Date(externalSrtPipeline.textRender.lastRenderedAt).toLocaleString('pt-BR')}</span>
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                      <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">CSV espelho no pipeline externo</p>
+                                        <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.csvPath}</p>
+                                      </div>
+                                      <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">Pasta de saida dos MP4s</p>
+                                        <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.outputDir}</p>
+                                      </div>
+                                    </div>
+                                    <textarea
+                                      readOnly
+                                      value={externalSrtPipeline.textRender.log || 'Sem log de render disponivel.'}
+                                      className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
+                                    />
+                                  </>
+                                ) : (
+                                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                                    A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · GERAR BATS</span>, o app vai processar e baixar automaticamente todos os scripts necessários para a produção offline dos recursos do projeto. Certifique-se de ter gerado o Pacote Pós-Roteiro primeiro.
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
 
-                      <div className="rounded-2xl border border-white/10 bg-midnight/40 overflow-hidden">
-                        <div 
-                          onClick={() => setIsTimelineExpanded(!isTimelineExpanded)}
-                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-colors select-none group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
-                              <Database size={16} className="text-blue-400" />
-                            </div>
-                            <div>
-                              <p className="text-[11px] font-black uppercase tracking-[2px] text-white/60 group-hover:text-white transition-colors block">Preview da timeline CSV</p>
-                              <p className="text-[9px] text-white/30 tracking-widest">{externalSrtPipeline.rows.length} assets rastreados</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isTimelineExpanded ? 'rotate-180' : ''}`}>
-                              <ChevronDown size={14} />
-                            </div>
-                          </div>
+
+              {(canProcessPostScriptPackage || !!postScriptPackage) && (
+                <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-blue-500/15 bg-blue-500/[0.03] overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.06)]">
+                  <div
+                    onClick={() => setIsPostPackageExpanded(!isPostPackageExpanded)}
+                    className="flex items-center justify-between p-6 xl:p-8 cursor-pointer hover:bg-blue-500/5 transition-colors select-none group"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors mt-1">
+                        <Sparkles size={24} className="text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.38em] text-blue-300">Pacote pos-roteiro</p>
+                        <h4 className="text-xl font-black text-white mt-1 group-hover:text-blue-100 transition-colors">Saidas prontas para publicacao</h4>
+                        <p className="text-[11px] leading-6 text-white/50 mt-1 max-w-2xl">
+                          Esta etapa deriva o roteiro final em titulos virais, descricao SEO com timestamps, prompt musical para Suno e uma timeline de SFX pronta para o editor.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="hidden xl:flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); generatePostScriptPackage(); }}
+                        disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
+                        className="rounded-2xl border border-blue-400/25 bg-blue-500/15 px-5 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-blue-200 transition-all hover:border-blue-300/35 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isGeneratingPostScriptPackage ? 'GERANDO...' : postScriptPackage ? 'REGERAR PACOTE' : 'GERAR PACOTE'}
+                      </button>
+                      <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isPostPackageExpanded ? 'rotate-180' : ''}`}>
+                        <ChevronDown size={20} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isPostPackageExpanded ? 'grid-rows-[1fr] opacity-100 px-6 pb-6 xl:px-8 xl:pb-8 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                    <div className="min-h-0 space-y-6 pt-6">
+                      {!canProcessPostScriptPackage && !postScriptPackage ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                          Finalize o roteiro interno ou anexe um <span className="font-black text-blue-200">.txt externo</span> para liberar esta etapa.
                         </div>
+                      ) : postScriptPackage ? (
+                        <>
+                          {/* THUMBNAIL PACK (FASE B2 & B3) */}
+                          {((postScriptPackage.thumbnailCopies && postScriptPackage.thumbnailCopies.length > 0) || (postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0)) && (
+                            <div className="rounded-3xl border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-4 shadow-[0_0_30px_rgba(168,85,247,0.06)]">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-300">
+                                    🖼️ Pacote de Thumbnails · Direção de Arte & Copies
+                                  </p>
+                                  <p className="mt-1 text-[10px] text-white/40">
+                                    Copies de alto impacto (2 a 4 palavras) e 3 JSONs completos de direção de arte para Photoshop / Canva / Midjourney.
+                                  </p>
+                                </div>
+                              </div>
 
-                        <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isTimelineExpanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
-                          <div className="min-h-0 space-y-3 pt-3">
+                              {/* Thumbnail Copies */}
+                              {postScriptPackage.thumbnailCopies && postScriptPackage.thumbnailCopies.length > 0 && (
+                                <div className="space-y-2">
+                                  <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-purple-200">
+                                    Copies Recomendadas para a Thumbnail (ALL CAPS)
+                                  </span>
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {postScriptPackage.thumbnailCopies.map((copyText, idx) => (
+                                      <div
+                                        key={idx}
+                                        onClick={() => copyTextToClipboard(copyText, `Copy "${copyText}" copiada!`)}
+                                        className="group cursor-pointer rounded-2xl border border-white/10 bg-black/30 p-3 flex items-center justify-between hover:border-purple-400/40 hover:bg-purple-500/10 transition-all"
+                                      >
+                                        <div className="min-w-0">
+                                          <span className="block text-[8px] font-black uppercase text-white/30">Opção {idx + 1}</span>
+                                          <span className="font-black text-[13px] text-amber-300 font-mono tracking-wide truncate block">{copyText}</span>
+                                        </div>
+                                        <Copy size={13} className="text-white/30 group-hover:text-purple-300 shrink-0 ml-2" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Thumbnail JSONs Tabs */}
+                              {postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0 && (
+                                <div className="space-y-3 pt-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex gap-2">
+                                      {postScriptPackage.thumbnailJsons.map((_, idx) => (
+                                        <button
+                                          key={idx}
+                                          type="button"
+                                          onClick={() => setSelectedThumbJsonTab(idx)}
+                                          className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${selectedThumbJsonTab === idx
+                                              ? 'bg-purple-500/25 border border-purple-400/50 text-purple-200 shadow-sm'
+                                              : 'bg-black/20 border border-white/5 text-white/40 hover:text-white/70'
+                                            }`}
+                                        >
+                                          Layout {String.fromCharCode(65 + idx)}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const activeJson = postScriptPackage.thumbnailJsons?.[selectedThumbJsonTab] || postScriptPackage.thumbnailJsons?.[0];
+                                          if (activeJson) {
+                                            copyTextToClipboard(JSON.stringify(activeJson, null, 2), 'JSON de Thumbnail copiado.');
+                                          }
+                                        }}
+                                        className="rounded-xl border border-white/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/75 hover:border-purple-400/30 hover:text-purple-200"
+                                      >
+                                        <Copy size={11} className="inline mr-1.5" /> Copiar JSON
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const activeJson = postScriptPackage.thumbnailJsons?.[selectedThumbJsonTab] || postScriptPackage.thumbnailJsons?.[0];
+                                          if (activeJson) {
+                                            downloadTextArtifact(packageArtifactStem, `thumb_layout_${String.fromCharCode(65 + selectedThumbJsonTab).toLowerCase()}`, JSON.stringify(activeJson, null, 2), { extension: 'json', mimeType: 'application/json' });
+                                          }
+                                        }}
+                                        className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-purple-200 hover:bg-purple-500/20"
+                                      >
+                                        <FileText size={11} className="inline mr-1.5" /> Baixar .json
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* JSON details summary */}
+                                  {postScriptPackage.thumbnailJsons[selectedThumbJsonTab] && (
+                                    <div className="rounded-2xl border border-white/5 bg-black/40 p-4 space-y-3">
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                                        <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                          <span className="text-[8px] font-black uppercase text-white/30 block">Canvas</span>
+                                          <span className="font-bold text-white/80">1280x720 (16:9)</span>
+                                        </div>
+                                        <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                          <span className="text-[8px] font-black uppercase text-white/30 block">Fonte & Estilo</span>
+                                          <span className="font-bold text-amber-300">Anton (ALL CAPS)</span>
+                                        </div>
+                                        <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                          <span className="text-[8px] font-black uppercase text-white/30 block">Personagem / Mascote</span>
+                                          <span className="font-bold text-cyan-300">2D Comic Illustration</span>
+                                        </div>
+                                        <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                          <span className="text-[8px] font-black uppercase text-white/30 block">Fundo</span>
+                                          <span className="font-bold text-purple-300">Cena Fotorrealista</span>
+                                        </div>
+                                      </div>
+                                      <pre className="text-[10px] font-mono text-white/70 max-h-[160px] overflow-y-auto custom-scrollbar p-3 bg-black/50 rounded-xl whitespace-pre-wrap">
+                                        {JSON.stringify(postScriptPackage.thumbnailJsons[selectedThumbJsonTab], null, 2)}
+                                      </pre>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.95fr)]">
+                            <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                              {/* Header row */}
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">
+                                    {postScriptPackage.titles.length} título{postScriptPackage.titles.length !== 1 ? 's' : ''} virais
+                                  </p>
+                                  <p className="mt-1 text-[10px] text-white/40">
+                                    {titleValidations ? 'Validação concluída. Revise os vereditos abaixo.' : 'Opções persistidas para teste rápido.'}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextToClipboard(postScriptPackage.titles.map((title, index) => `${index + 1}. ${title}`).join('\n'), 'Titulos virais copiados.')}
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                >
+                                  <Copy size={12} className="inline mr-2" /> Copiar
+                                </button>
+                              </div>
+
+                              {/* Titles list */}
+                              <div className="space-y-2">
+                                {postScriptPackage.titles.map((title, index) => {
+                                  const validation = titleValidations?.[index];
+                                  const verdictEmoji = validation
+                                    ? validation.score >= 4.5 ? '🟩' : validation.score >= 3.0 ? '🟨' : '🟥'
+                                    : null;
+                                  const verdictColor = validation
+                                    ? validation.score >= 4.5
+                                      ? 'text-emerald-300'
+                                      : validation.score >= 3.0
+                                        ? 'text-amber-300'
+                                        : 'text-red-300'
+                                    : '';
+                                  return (
+                                    <div key={`${index}-${title}`} className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-white/35 mb-1 mt-0.5 shrink-0">
+                                          Opção {index + 1}
+                                        </span>
+                                        {validation && (
+                                          <span className={`text-[10px] font-black tabular-nums shrink-0 ${verdictColor}`}>
+                                            {verdictEmoji} {validation.score}/6 · {validation.verdict}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[13px] font-bold leading-6 text-white/90">{title}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex flex-col gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={validateViralTitles}
+                                  disabled={isValidatingTitles || isRegeneratingTitles}
+                                  className="w-full rounded-xl border border-blue-400/20 bg-blue-500/8 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  {isValidatingTitles
+                                    ? 'VALIDANDO...'
+                                    : !titleValidations
+                                      ? 'VALIDAR TÍTULOS'
+                                      : titleValidations.some(v => v === null)
+                                        ? `VALIDAR NOVOS (${titleValidations.filter(v => v === null).length})`
+                                        : 'REVALIDAR TÍTULOS'}
+                                </button>
+                                {titleValidations && (
+                                  <button
+                                    type="button"
+                                    onClick={regenerateViralTitles}
+                                    disabled={isRegeneratingTitles || isValidatingTitles}
+                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 transition-all hover:border-blue-400/20 hover:text-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    <RotateCcw size={11} className="inline mr-2" />
+                                    {isRegeneratingTitles
+                                      ? 'REGERANDO...'
+                                      : titleValidations
+                                        ? `REGERAR FRACOS (${titleValidations.filter(v => v !== null && v.verdict !== 'Aprovado').length})`
+                                        : 'REGERAR TÍTULOS'}
+                                  </button>
+                                )}
+                                {(isValidatingTitles || isRegeneratingTitles) && (
+                                  <div className="flex items-center gap-3 rounded-xl border border-blue-400/15 bg-blue-500/5 px-4 py-3">
+                                    <span className="relative flex h-2 w-2 shrink-0">
+                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                                      <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
+                                    </span>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">
+                                      {isValidatingTitles
+                                        ? 'IA avaliando os títulos com checklist estrutural...'
+                                        : 'IA gerando títulos substitutos...'}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Pacote SEO & YouTube</p>
+                                  <p className="mt-1 text-[10px] text-white/40">Descrição completa, capítulos, fontes, comentário fixado e tags.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => copyTextToClipboard(postScriptPackage.seoDescription, 'Descricao SEO copiada.')}
+                                    className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                  >
+                                    <Copy size={12} className="inline mr-1.5" /> Copiar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleExportSeoTxt}
+                                    className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 hover:bg-emerald-500/20"
+                                    title="Baixar arquivo TXT completo com Títulos, Descrição, Fontes, Pinned Comment e Tags"
+                                  >
+                                    <FileText size={12} className="inline mr-1.5" /> TXT SEO
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleExportPhaseBHtml}
+                                    className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-200 hover:bg-blue-500/20"
+                                    title="Baixar relatório HTML completo da Fase B com layout dark-mode"
+                                  >
+                                    🌐 HTML
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
+                                <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Abertura</p>
+                                  <div className="mt-3 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
+                                    {seoDescriptionSections.intro || postScriptPackage.seoDescription}
+                                  </div>
+                                </div>
+
+                                {seoDescriptionSections.chapters.length > 0 && (
+                                  <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Capitulos</p>
+                                    <div className="mt-3 space-y-1.5">
+                                      {seoDescriptionSections.chapters.map((chapter, index) => (
+                                        <div key={`${chapter.timestamp}-${index}`} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 px-3 py-2.5">
+                                          <span className="shrink-0 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 font-mono text-[10px] font-black text-blue-200">
+                                            {chapter.timestamp}
+                                          </span>
+                                          <span className="text-[11px] leading-6 text-white/80">{chapter.label}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Fontes de Autoridade */}
+                                {postScriptPackage.sourcesSection && postScriptPackage.sourcesSection.length > 0 && (
+                                  <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-300">📚 Fontes & Referências Oficiais</p>
+                                    <ul className="mt-2 space-y-1 text-[10px] text-white/70">
+                                      {postScriptPackage.sourcesSection.map((src, i) => (
+                                        <li key={i} className="flex items-center gap-2">
+                                          <span className="text-emerald-400">•</span> {src}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* Pinned Comment */}
+                                {postScriptPackage.pinnedComment && (
+                                  <div className="rounded-2xl border border-amber-400/20 bg-amber-500/[0.03] px-4 py-4 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-300">📌 Comentário Fixado (Primeiras 2 Horas)</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => copyTextToClipboard(postScriptPackage.pinnedComment || '', 'Comentário fixado copiado!')}
+                                        className="text-[8px] font-bold text-amber-200 uppercase tracking-wider hover:underline"
+                                      >
+                                        Copiar
+                                      </button>
+                                    </div>
+                                    <p className="text-[11px] text-white/85 leading-relaxed italic">
+                                      "{postScriptPackage.pinnedComment}"
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* SEO Tags */}
+                                {postScriptPackage.seoTags && postScriptPackage.seoTags.length > 0 && (
+                                  <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">🏷️ Tags do Vídeo ({postScriptPackage.seoTags.length})</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => copyTextToClipboard((postScriptPackage.seoTags || []).join(', '), 'Tags copiadas como CSV!')}
+                                        className="text-[8px] font-bold text-blue-300 uppercase tracking-wider hover:underline"
+                                      >
+                                        Copiar Lista
+                                      </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                      {postScriptPackage.seoTags.map((tag, i) => (
+                                        <span key={i} className="px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 text-[9px] font-bold text-white/75">
+                                          #{tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {seoDescriptionSections.notice && (
+                                  <div className="rounded-2xl border border-amber-400/10 bg-amber-500/[0.04] px-4 py-4">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-200">Aviso final</p>
+                                    <div className="mt-3 text-[11px] leading-7 text-white/75 whitespace-pre-wrap">
+                                      {seoDescriptionSections.notice}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompt Suno</p>
+                                  <p className="mt-1 text-[10px] text-white/40">Prompt musical persistido para gerar a trilha.</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    copyTextToClipboard(
+                                      [postScriptPackage.sunoSuggestedTitle, postScriptPackage.sunoPrompt].filter(Boolean).join('\n'),
+                                      'Titulo e prompt Suno copiados.'
+                                    )
+                                  }
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                                >
+                                  <Copy size={12} className="inline mr-2" /> Copiar
+                                </button>
+                              </div>
+                              {!!postScriptPackage.sunoSuggestedTitle && (
+                                <div className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
+                                  <span className="block text-[9px] font-black uppercase tracking-[0.24em] text-white/35 mb-1">Suggested title</span>
+                                  <span className="block text-[12px] font-bold text-white/85">{postScriptPackage.sunoSuggestedTitle}</span>
+                                </div>
+                              )}
+                              <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
+                                {postScriptPackage.sunoPrompt}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
                             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                               <div>
-                                <p className="text-[10px] text-white/40 mt-1">A estrutura abaixo replica o CSV base das etapas 2 e 3, ja com a coluna `prompt` preenchida na etapa 4.</p>
+                                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Preview da timeline SFX</p>
+                                <p className="mt-1 text-[10px] text-white/40">Arquivo TXT persistido no snapshot e organizado como guia visual para a edicao.</p>
                               </div>
                               <div className="flex gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => copyTextToClipboard(buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), 'CSV base copiado.')}
+                                  onClick={() => copyTextToClipboard(postScriptPackage.sfxTimelineTxt, 'Timeline de SFX copiada.')}
                                   className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                                 >
-                                  <Copy size={12} className="inline mr-2" /> Copiar CSV
+                                  <Copy size={12} className="inline mr-2" /> Copiar
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => downloadTextArtifact(srtArtifactStem, 'timeline_assets', buildSfxEnrichedCsvContent(externalSrtPipeline.csvContent, postScriptPackage?.sfxTimelineTxt), { extension: 'csv', mimeType: 'text/csv;charset=utf-8' })}
+                                  onClick={() => downloadTextArtifact(packageArtifactStem, 'sfx_timeline', postScriptPackage.sfxTimelineTxt)}
                                   className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                                 >
-                                  <FileText size={12} className="inline mr-2" /> Exportar CSV
+                                  <FileText size={12} className="inline mr-2" /> TXT
                                 </button>
                               </div>
                             </div>
@@ -10245,1194 +11054,633 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                                 <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
                                   <tr>
                                     <th className="px-4 py-3">#</th>
-                                    <th className="px-4 py-3">Inicio</th>
-                                    <th className="px-4 py-3">Fim</th>
-                                    <th className="px-4 py-3">Asset</th>
-                                    <th className="px-4 py-3">Texto</th>
-                                    <th className="px-4 py-3">Prompt</th>
+                                    <th className="px-4 py-3">Tempo</th>
+                                    <th className="px-4 py-3">Efeito</th>
+                                    <th className="px-4 py-3">Funcao</th>
+                                    <th className="px-4 py-3">Trecho</th>
+                                    <th className="px-4 py-3">Obs</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {externalSrtPipeline.rows.slice(0, 8).map((row) => (
-                                    <tr key={row.rowNumber} className="border-t border-white/5 align-top">
-                                      <td className="px-4 py-3 font-black text-white/60">{row.rowNumber}</td>
-                                      <td className="px-4 py-3">{row.startTime}</td>
-                                      <td className="px-4 py-3">{row.endTime}</td>
-                                      <td className="px-4 py-3 font-black text-blue-200">{row.asset || '-'}</td>
-                                      <td className="px-4 py-3 max-w-[260px] leading-5 text-white/70">{row.texto}</td>
-                                      <td className="px-4 py-3 max-w-[320px] leading-5 text-white/55">{row.prompt || '—'}</td>
+                                  {sfxTimelinePreview.length > 0 ? (
+                                    sfxTimelinePreview.map((item, index) => (
+                                      <tr key={item.id} className="border-t border-white/5 align-top">
+                                        <td className="px-4 py-4 font-black text-white/55">{index + 1}</td>
+                                        <td className="px-4 py-4 font-mono text-white/80">{item.timestamp}</td>
+                                        <td className="px-4 py-4 text-blue-200 font-semibold">{item.effect}</td>
+                                        <td className="px-4 py-4 leading-6">{item.purpose}</td>
+                                        <td className="px-4 py-4 leading-6 text-white/85">{item.excerpt}</td>
+                                        <td className="px-4 py-4 leading-6 text-white/60">{item.notes}</td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr className="border-t border-white/5">
+                                      <td colSpan={6} className="px-4 py-6 text-[11px] text-white/45">
+                                        Nenhum item de SFX disponivel ainda. Gere o pacote pos-roteiro para preencher este preview.
+                                      </td>
                                     </tr>
-                                  ))}
+                                  )}
                                 </tbody>
                               </table>
                             </div>
-                            {externalSrtPipeline.rows.length > 8 && (
-                              <p className="text-[10px] text-white/35">
-                                Preview mostrando as primeiras 8 linhas. O CSV completo fica persistido nesta execucao e pode ser exportado.
-                              </p>
-                            )}
                           </div>
+                        </>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
+                          O pacote ainda nao foi processado. Clique em <span className="font-black text-blue-200">GERAR PACOTE POS-ROTEIRO</span> para derivar titulos, descricao SEO, Suno e a timeline de SFX.
                         </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-white/10 bg-midnight/40 overflow-hidden">
-                        <div 
-                          onClick={() => setIsStep5Expanded(!isStep5Expanded)}
-                          className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors select-none group"
-                        >
-                          <div>
-                            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-amber-300">Etapa 5 · Scripts BAT (Offline)</p>
-                            <p className="text-[10px] text-white/40 mt-1">
-                              Gera e baixa automaticamente os scripts `.bat` para renderizar Textos, Hyperframes e SFX localmente na sua máquina.
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {externalSrtPipeline.textRender?.csvPath && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); copyTextToClipboard(externalSrtPipeline.textRender?.csvPath || '', 'Caminho do CSV espelho copiado.'); }}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
-                              >
-                                <Copy size={12} className="inline mr-2" /> Copiar CSV espelho
-                              </button>
-                            )}
-                            {externalSrtPipeline.textRender?.outputDir && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); copyTextToClipboard(externalSrtPipeline.textRender?.outputDir || '', 'Pasta de renders copiada.'); }}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-amber-400/30 hover:text-amber-200"
-                              >
-                                <Copy size={12} className="inline mr-2" /> Copiar pasta de render
-                              </button>
-                            )}
-                            <div className={`p-1.5 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isStep5Expanded ? 'rotate-180' : ''}`}>
-                              <ChevronDown size={14} />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isStep5Expanded ? 'grid-rows-[1fr] opacity-100 p-4 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
-                          <div className="min-h-0 space-y-3 pt-3">
-                            {externalSrtPipeline.textRender ? (
-                              <>
-                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
-                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Novos renders</span>
-                                    <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.renderedCount}</span>
-                                  </div>
-                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Reutilizados</span>
-                                    <span className="block text-sm font-black text-white">{externalSrtPipeline.textRender.reusedCount}</span>
-                                  </div>
-                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 xl:col-span-2">
-                                    <span className="block text-[9px] uppercase font-black tracking-[3px] text-white/25 mb-1">Ultima renderizacao</span>
-                                    <span className="block text-sm font-black text-white">{new Date(externalSrtPipeline.textRender.lastRenderedAt).toLocaleString('pt-BR')}</span>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">CSV espelho no pipeline externo</p>
-                                    <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.csvPath}</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35 mb-2">Pasta de saida dos MP4s</p>
-                                    <p className="text-[11px] leading-6 text-white/75 break-all">{externalSrtPipeline.textRender.outputDir}</p>
-                                  </div>
-                                </div>
-                                <textarea
-                                  readOnly
-                                  value={externalSrtPipeline.textRender.log || 'Sem log de render disponivel.'}
-                                  className="w-full min-h-[80px] resize-y rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-6 text-white/80 outline-none"
-                                />
-                              </>
-                            ) : (
-                              <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
-                                A etapa 5 ainda nao foi disparada. Quando voce clicar em <span className="font-black text-amber-200">ETAPA 5 · GERAR BATS</span>, o app vai processar e baixar automaticamente todos os scripts necessários para a produção offline dos recursos do projeto. Certifique-se de ter gerado o Pacote Pós-Roteiro primeiro.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
-
-        {(canProcessPostScriptPackage || !!postScriptPackage) && (
-          <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-blue-500/15 bg-blue-500/[0.03] overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.06)]">
-            <div 
-              onClick={() => setIsPostPackageExpanded(!isPostPackageExpanded)}
-              className="flex items-center justify-between p-6 xl:p-8 cursor-pointer hover:bg-blue-500/5 transition-colors select-none group"
-            >
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors mt-1">
-                  <Sparkles size={24} className="text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.38em] text-blue-300">Pacote pos-roteiro</p>
-                  <h4 className="text-xl font-black text-white mt-1 group-hover:text-blue-100 transition-colors">Saidas prontas para publicacao</h4>
-                  <p className="text-[11px] leading-6 text-white/50 mt-1 max-w-2xl">
-                    Esta etapa deriva o roteiro final em titulos virais, descricao SEO com timestamps, prompt musical para Suno e uma timeline de SFX pronta para o editor.
-                  </p>
-                </div>
-              </div>
-              <div className="hidden xl:flex items-center gap-4">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); generatePostScriptPackage(); }}
-                  disabled={isGeneratingPostScriptPackage || !canProcessPostScriptPackage}
-                  className="rounded-2xl border border-blue-400/25 bg-blue-500/15 px-5 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-blue-200 transition-all hover:border-blue-300/35 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              {/* ═══════════════════════════════════════════════════════ TEMPLATE STUDIO ═══ */}
+              <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-purple-500/15 bg-purple-500/[0.025] overflow-hidden shadow-[0_0_40px_rgba(168,85,247,0.05)]">
+                <div
+                  onClick={() => setIsTemplateStudioExpanded(!isTemplateStudioExpanded)}
+                  className="flex items-center justify-between p-6 xl:p-8 cursor-pointer hover:bg-purple-500/5 transition-colors select-none group"
                 >
-                  {isGeneratingPostScriptPackage ? 'GERANDO...' : postScriptPackage ? 'REGERAR PACOTE' : 'GERAR PACOTE'}
-                </button>
-                <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isPostPackageExpanded ? 'rotate-180' : ''}`}>
-                  <ChevronDown size={20} />
-                </div>
-              </div>
-            </div>
-
-            <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isPostPackageExpanded ? 'grid-rows-[1fr] opacity-100 px-6 pb-6 xl:px-8 xl:pb-8 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
-              <div className="min-h-0 space-y-6 pt-6">
-                {!canProcessPostScriptPackage && !postScriptPackage ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
-                Finalize o roteiro interno ou anexe um <span className="font-black text-blue-200">.txt externo</span> para liberar esta etapa.
-              </div>
-            ) : postScriptPackage ? (
-              <>
-                {/* THUMBNAIL PACK (FASE B2 & B3) */}
-                {((postScriptPackage.thumbnailCopies && postScriptPackage.thumbnailCopies.length > 0) || (postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0)) && (
-                  <div className="rounded-3xl border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-4 shadow-[0_0_30px_rgba(168,85,247,0.06)]">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-300">
-                          🖼️ Pacote de Thumbnails · Direção de Arte & Copies
-                        </p>
-                        <p className="mt-1 text-[10px] text-white/40">
-                          Copies de alto impacto (2 a 4 palavras) e 3 JSONs completos de direção de arte para Photoshop / Canva / Midjourney.
-                        </p>
-                      </div>
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors mt-1">
+                      <Layout size={24} className="text-purple-400" />
                     </div>
-
-                    {/* Thumbnail Copies */}
-                    {postScriptPackage.thumbnailCopies && postScriptPackage.thumbnailCopies.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-purple-200">
-                          Copies Recomendadas para a Thumbnail (ALL CAPS)
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {postScriptPackage.thumbnailCopies.map((copyText, idx) => (
-                            <div
-                              key={idx}
-                              onClick={() => copyTextToClipboard(copyText, `Copy "${copyText}" copiada!`)}
-                              className="group cursor-pointer rounded-2xl border border-white/10 bg-black/30 p-3 flex items-center justify-between hover:border-purple-400/40 hover:bg-purple-500/10 transition-all"
-                            >
-                              <div className="min-w-0">
-                                <span className="block text-[8px] font-black uppercase text-white/30">Opção {idx + 1}</span>
-                                <span className="font-black text-[13px] text-amber-300 font-mono tracking-wide truncate block">{copyText}</span>
-                              </div>
-                              <Copy size={13} className="text-white/30 group-hover:text-purple-300 shrink-0 ml-2" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Thumbnail JSONs Tabs */}
-                    {postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0 && (
-                      <div className="space-y-3 pt-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex gap-2">
-                            {postScriptPackage.thumbnailJsons.map((_, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => setSelectedThumbJsonTab(idx)}
-                                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                  selectedThumbJsonTab === idx
-                                    ? 'bg-purple-500/25 border border-purple-400/50 text-purple-200 shadow-sm'
-                                    : 'bg-black/20 border border-white/5 text-white/40 hover:text-white/70'
-                                }`}
-                              >
-                                Layout {String.fromCharCode(65 + idx)}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const activeJson = postScriptPackage.thumbnailJsons?.[selectedThumbJsonTab] || postScriptPackage.thumbnailJsons?.[0];
-                                if (activeJson) {
-                                  copyTextToClipboard(JSON.stringify(activeJson, null, 2), 'JSON de Thumbnail copiado.');
-                                }
-                              }}
-                              className="rounded-xl border border-white/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/75 hover:border-purple-400/30 hover:text-purple-200"
-                            >
-                              <Copy size={11} className="inline mr-1.5" /> Copiar JSON
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const activeJson = postScriptPackage.thumbnailJsons?.[selectedThumbJsonTab] || postScriptPackage.thumbnailJsons?.[0];
-                                if (activeJson) {
-                                  downloadTextArtifact(packageArtifactStem, `thumb_layout_${String.fromCharCode(65 + selectedThumbJsonTab).toLowerCase()}`, JSON.stringify(activeJson, null, 2), { extension: 'json', mimeType: 'application/json' });
-                                }
-                              }}
-                              className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-purple-200 hover:bg-purple-500/20"
-                            >
-                              <FileText size={11} className="inline mr-1.5" /> Baixar .json
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* JSON details summary */}
-                        {postScriptPackage.thumbnailJsons[selectedThumbJsonTab] && (
-                          <div className="rounded-2xl border border-white/5 bg-black/40 p-4 space-y-3">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                                <span className="text-[8px] font-black uppercase text-white/30 block">Canvas</span>
-                                <span className="font-bold text-white/80">1280x720 (16:9)</span>
-                              </div>
-                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                                <span className="text-[8px] font-black uppercase text-white/30 block">Fonte & Estilo</span>
-                                <span className="font-bold text-amber-300">Anton (ALL CAPS)</span>
-                              </div>
-                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                                <span className="text-[8px] font-black uppercase text-white/30 block">Personagem / Mascote</span>
-                                <span className="font-bold text-cyan-300">2D Comic Illustration</span>
-                              </div>
-                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                                <span className="text-[8px] font-black uppercase text-white/30 block">Fundo</span>
-                                <span className="font-bold text-purple-300">Cena Fotorrealista</span>
-                              </div>
-                            </div>
-                            <pre className="text-[10px] font-mono text-white/70 max-h-[160px] overflow-y-auto custom-scrollbar p-3 bg-black/50 rounded-xl whitespace-pre-wrap">
-                              {JSON.stringify(postScriptPackage.thumbnailJsons[selectedThumbJsonTab], null, 2)}
-                            </pre>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.95fr)]">
-                  <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
-                    {/* Header row */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">
-                          {postScriptPackage.titles.length} título{postScriptPackage.titles.length !== 1 ? 's' : ''} virais
-                        </p>
-                        <p className="mt-1 text-[10px] text-white/40">
-                          {titleValidations ? 'Validação concluída. Revise os vereditos abaixo.' : 'Opções persistidas para teste rápido.'}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyTextToClipboard(postScriptPackage.titles.map((title, index) => `${index + 1}. ${title}`).join('\n'), 'Titulos virais copiados.')}
-                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                      >
-                        <Copy size={12} className="inline mr-2" /> Copiar
-                      </button>
-                    </div>
-
-                    {/* Titles list */}
-                    <div className="space-y-2">
-                      {postScriptPackage.titles.map((title, index) => {
-                        const validation = titleValidations?.[index];
-                        const verdictEmoji = validation
-                          ? validation.score >= 4.5 ? '🟩' : validation.score >= 3.0 ? '🟨' : '🟥'
-                          : null;
-                        const verdictColor = validation
-                          ? validation.score >= 4.5
-                            ? 'text-emerald-300'
-                            : validation.score >= 3.0
-                              ? 'text-amber-300'
-                              : 'text-red-300'
-                          : '';
-                        return (
-                          <div key={`${index}-${title}`} className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-white/35 mb-1 mt-0.5 shrink-0">
-                                Opção {index + 1}
-                              </span>
-                              {validation && (
-                                <span className={`text-[10px] font-black tabular-nums shrink-0 ${verdictColor}`}>
-                                  {verdictEmoji} {validation.score}/6 · {validation.verdict}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[13px] font-bold leading-6 text-white/90">{title}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex flex-col gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={validateViralTitles}
-                        disabled={isValidatingTitles || isRegeneratingTitles}
-                        className="w-full rounded-xl border border-blue-400/20 bg-blue-500/8 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {isValidatingTitles
-                          ? 'VALIDANDO...'
-                          : !titleValidations
-                            ? 'VALIDAR TÍTULOS'
-                            : titleValidations.some(v => v === null)
-                              ? `VALIDAR NOVOS (${titleValidations.filter(v => v === null).length})`
-                              : 'REVALIDAR TÍTULOS'}
-                      </button>
-                      {titleValidations && (
-                        <button
-                          type="button"
-                          onClick={regenerateViralTitles}
-                          disabled={isRegeneratingTitles || isValidatingTitles}
-                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 transition-all hover:border-blue-400/20 hover:text-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <RotateCcw size={11} className="inline mr-2" />
-                          {isRegeneratingTitles
-                            ? 'REGERANDO...'
-                            : titleValidations
-                              ? `REGERAR FRACOS (${titleValidations.filter(v => v !== null && v.verdict !== 'Aprovado').length})`
-                              : 'REGERAR TÍTULOS'}
-                        </button>
-                      )}
-                      {(isValidatingTitles || isRegeneratingTitles) && (
-                        <div className="flex items-center gap-3 rounded-xl border border-blue-400/15 bg-blue-500/5 px-4 py-3">
-                          <span className="relative flex h-2 w-2 shrink-0">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
-                          </span>
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">
-                            {isValidatingTitles
-                              ? 'IA avaliando os títulos com checklist estrutural...'
-                              : 'IA gerando títulos substitutos...'}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Pacote SEO & YouTube</p>
-                        <p className="mt-1 text-[10px] text-white/40">Descrição completa, capítulos, fontes, comentário fixado e tags.</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => copyTextToClipboard(postScriptPackage.seoDescription, 'Descricao SEO copiada.')}
-                          className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                        >
-                          <Copy size={12} className="inline mr-1.5" /> Copiar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleExportSeoTxt}
-                          className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 hover:bg-emerald-500/20"
-                          title="Baixar arquivo TXT completo com Títulos, Descrição, Fontes, Pinned Comment e Tags"
-                        >
-                          <FileText size={12} className="inline mr-1.5" /> TXT SEO
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleExportPhaseBHtml}
-                          className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-200 hover:bg-blue-500/20"
-                          title="Baixar relatório HTML completo da Fase B com layout dark-mode"
-                        >
-                          🌐 HTML
-                        </button>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
-                      <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
-                        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Abertura</p>
-                        <div className="mt-3 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
-                          {seoDescriptionSections.intro || postScriptPackage.seoDescription}
-                        </div>
-                      </div>
-
-                      {seoDescriptionSections.chapters.length > 0 && (
-                        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
-                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Capitulos</p>
-                          <div className="mt-3 space-y-1.5">
-                            {seoDescriptionSections.chapters.map((chapter, index) => (
-                              <div key={`${chapter.timestamp}-${index}`} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 px-3 py-2.5">
-                                <span className="shrink-0 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 font-mono text-[10px] font-black text-blue-200">
-                                  {chapter.timestamp}
-                                </span>
-                                <span className="text-[11px] leading-6 text-white/80">{chapter.label}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Fontes de Autoridade */}
-                      {postScriptPackage.sourcesSection && postScriptPackage.sourcesSection.length > 0 && (
-                        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
-                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-300">📚 Fontes & Referências Oficiais</p>
-                          <ul className="mt-2 space-y-1 text-[10px] text-white/70">
-                            {postScriptPackage.sourcesSection.map((src, i) => (
-                              <li key={i} className="flex items-center gap-2">
-                                <span className="text-emerald-400">•</span> {src}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Pinned Comment */}
-                      {postScriptPackage.pinnedComment && (
-                        <div className="rounded-2xl border border-amber-400/20 bg-amber-500/[0.03] px-4 py-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-300">📌 Comentário Fixado (Primeiras 2 Horas)</p>
-                            <button
-                              type="button"
-                              onClick={() => copyTextToClipboard(postScriptPackage.pinnedComment || '', 'Comentário fixado copiado!')}
-                              className="text-[8px] font-bold text-amber-200 uppercase tracking-wider hover:underline"
-                            >
-                              Copiar
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-white/85 leading-relaxed italic">
-                            "{postScriptPackage.pinnedComment}"
-                          </p>
-                        </div>
-                      )}
-
-                      {/* SEO Tags */}
-                      {postScriptPackage.seoTags && postScriptPackage.seoTags.length > 0 && (
-                        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">🏷️ Tags do Vídeo ({postScriptPackage.seoTags.length})</p>
-                            <button
-                              type="button"
-                              onClick={() => copyTextToClipboard((postScriptPackage.seoTags || []).join(', '), 'Tags copiadas como CSV!')}
-                              className="text-[8px] font-bold text-blue-300 uppercase tracking-wider hover:underline"
-                            >
-                              Copiar Lista
-                            </button>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {postScriptPackage.seoTags.map((tag, i) => (
-                              <span key={i} className="px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 text-[9px] font-bold text-white/75">
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {seoDescriptionSections.notice && (
-                        <div className="rounded-2xl border border-amber-400/10 bg-amber-500/[0.04] px-4 py-4">
-                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-200">Aviso final</p>
-                          <div className="mt-3 text-[11px] leading-7 text-white/75 whitespace-pre-wrap">
-                            {seoDescriptionSections.notice}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Prompt Suno</p>
-                        <p className="mt-1 text-[10px] text-white/40">Prompt musical persistido para gerar a trilha.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          copyTextToClipboard(
-                            [postScriptPackage.sunoSuggestedTitle, postScriptPackage.sunoPrompt].filter(Boolean).join('\n'),
-                            'Titulo e prompt Suno copiados.'
-                          )
-                        }
-                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                      >
-                        <Copy size={12} className="inline mr-2" /> Copiar
-                      </button>
-                    </div>
-                    {!!postScriptPackage.sunoSuggestedTitle && (
-                      <div className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3">
-                        <span className="block text-[9px] font-black uppercase tracking-[0.24em] text-white/35 mb-1">Suggested title</span>
-                        <span className="block text-[12px] font-bold text-white/85">{postScriptPackage.sunoSuggestedTitle}</span>
-                      </div>
-                    )}
-                    <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 text-[11px] leading-7 text-white/80 whitespace-pre-wrap">
-                      {postScriptPackage.sunoPrompt}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
-                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                     <div>
-                      <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Preview da timeline SFX</p>
-                      <p className="mt-1 text-[10px] text-white/40">Arquivo TXT persistido no snapshot e organizado como guia visual para a edicao.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copyTextToClipboard(postScriptPackage.sfxTimelineTxt, 'Timeline de SFX copiada.')}
-                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                      >
-                        <Copy size={12} className="inline mr-2" /> Copiar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadTextArtifact(packageArtifactStem, 'sfx_timeline', postScriptPackage.sfxTimelineTxt)}
-                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                      >
-                        <FileText size={12} className="inline mr-2" /> TXT
-                      </button>
+                      <p className="text-[10px] font-black uppercase tracking-[0.38em] text-purple-300">Template Studio</p>
+                      <h4 className="text-xl font-black text-white mt-1 group-hover:text-purple-100 transition-colors">Gerar templates com identidade do canal</h4>
+                      <p className="text-[11px] leading-6 text-white/50 mt-1 max-w-2xl">
+                        Configure as cores, fonte e estilo do canal. O app gera e baixa os 10 templates HTML prontos para salvar na pasta <span className="font-black text-purple-200">Canal/Template HTML/</span>.
+                      </p>
                     </div>
                   </div>
-
-                  <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/15">
-                    <table className="min-w-full text-left text-[11px] text-white/75">
-                      <thead className="bg-white/[0.03] text-[9px] uppercase tracking-[0.2em] text-white/35">
-                        <tr>
-                          <th className="px-4 py-3">#</th>
-                          <th className="px-4 py-3">Tempo</th>
-                          <th className="px-4 py-3">Efeito</th>
-                          <th className="px-4 py-3">Funcao</th>
-                          <th className="px-4 py-3">Trecho</th>
-                          <th className="px-4 py-3">Obs</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sfxTimelinePreview.length > 0 ? (
-                          sfxTimelinePreview.map((item, index) => (
-                            <tr key={item.id} className="border-t border-white/5 align-top">
-                              <td className="px-4 py-4 font-black text-white/55">{index + 1}</td>
-                              <td className="px-4 py-4 font-mono text-white/80">{item.timestamp}</td>
-                              <td className="px-4 py-4 text-blue-200 font-semibold">{item.effect}</td>
-                              <td className="px-4 py-4 leading-6">{item.purpose}</td>
-                              <td className="px-4 py-4 leading-6 text-white/85">{item.excerpt}</td>
-                              <td className="px-4 py-4 leading-6 text-white/60">{item.notes}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr className="border-t border-white/5">
-                            <td colSpan={6} className="px-4 py-6 text-[11px] text-white/45">
-                              Nenhum item de SFX disponivel ainda. Gere o pacote pos-roteiro para preencher este preview.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-[11px] leading-6 text-white/45">
-                O pacote ainda nao foi processado. Clique em <span className="font-black text-blue-200">GERAR PACOTE POS-ROTEIRO</span> para derivar titulos, descricao SEO, Suno e a timeline de SFX.
-              </div>
-            )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════ TEMPLATE STUDIO ═══ */}
-        <div className="mx-6 xl:mx-8 mt-6 rounded-[32px] border border-purple-500/15 bg-purple-500/[0.025] overflow-hidden shadow-[0_0_40px_rgba(168,85,247,0.05)]">
-          <div
-            onClick={() => setIsTemplateStudioExpanded(!isTemplateStudioExpanded)}
-            className="flex items-center justify-between p-6 xl:p-8 cursor-pointer hover:bg-purple-500/5 transition-colors select-none group"
-          >
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors mt-1">
-                <Layout size={24} className="text-purple-400" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.38em] text-purple-300">Template Studio</p>
-                <h4 className="text-xl font-black text-white mt-1 group-hover:text-purple-100 transition-colors">Gerar templates com identidade do canal</h4>
-                <p className="text-[11px] leading-6 text-white/50 mt-1 max-w-2xl">
-                  Configure as cores, fonte e estilo do canal. O app gera e baixa os 10 templates HTML prontos para salvar na pasta <span className="font-black text-purple-200">Canal/Template HTML/</span>.
-                </p>
-              </div>
-            </div>
-            <div className="hidden xl:flex items-center gap-4">
-              <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isTemplateStudioExpanded ? 'rotate-180' : ''}`}>
-                <ChevronDown size={20} />
-              </div>
-            </div>
-          </div>
-
-          <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isTemplateStudioExpanded ? 'grid-rows-[1fr] opacity-100 px-6 pb-6 xl:px-8 xl:pb-8 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
-            <div className="min-h-0 space-y-6 pt-6">
-
-              {/* Color + Font config */}
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
-                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Identidade Visual</p>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Cor Primária</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={templatePrimaryColor}
-                          onChange={(e) => setTemplatePrimaryColor(e.target.value)}
-                          className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={templatePrimaryColor}
-                          onChange={(e) => setTemplatePrimaryColor(e.target.value)}
-                          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] font-mono text-white/80 outline-none focus:border-purple-400/40"
-                          maxLength={7}
-                          placeholder="#RRGGBB"
-                        />
-                      </div>
-                      <p className="text-[9px] text-white/30">Títulos e acentos principais</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Cor Secundária</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={templateSecondaryColor}
-                          onChange={(e) => setTemplateSecondaryColor(e.target.value)}
-                          className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={templateSecondaryColor}
-                          onChange={(e) => setTemplateSecondaryColor(e.target.value)}
-                          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] font-mono text-white/80 outline-none focus:border-purple-400/40"
-                          maxLength={7}
-                          placeholder="#RRGGBB"
-                        />
-                      </div>
-                      <p className="text-[9px] text-white/30">Métricas, glow e destaques</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Fonte</label>
-                      <div className="relative">
-                        <select
-                          value={templateFontFamily}
-                          onChange={(e) => setTemplateFontFamily(e.target.value)}
-                          className="w-full appearance-none rounded-xl border border-white/10 bg-[#12121a] px-3 py-2.5 text-[12px] text-white/90 outline-none focus:border-purple-400/40 hover:border-white/20 transition-colors cursor-pointer"
-                        >
-                          <option value="Inter" className="bg-[#12121a] text-white">Inter (padrão)</option>
-                          <option value="Outfit" className="bg-[#12121a] text-white">Outfit (moderno)</option>
-                          <option value="Space Grotesk" className="bg-[#12121a] text-white">Space Grotesk (tech)</option>
-                          <option value="Sora" className="bg-[#12121a] text-white">Sora (suave)</option>
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Perfil de Estilo</label>
-                      <div className="relative">
-                        <select
-                          value={templateStyleProfile}
-                          onChange={(e) => setTemplateStyleProfile(e.target.value)}
-                          className="w-full appearance-none rounded-xl border border-white/10 bg-[#12121a] px-3 py-2.5 text-[12px] text-white/90 outline-none focus:border-purple-400/40 hover:border-white/20 transition-colors cursor-pointer"
-                        >
-                          <option value="Tech" className="bg-[#12121a] text-white">Tech / IA</option>
-                          <option value="Business" className="bg-[#12121a] text-white">Business / Negócios</option>
-                          <option value="Education" className="bg-[#12121a] text-white">Educação / Cursos</option>
-                          <option value="Lifestyle" className="bg-[#12121a] text-white">Lifestyle / Motivação</option>
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-                      </div>
+                  <div className="hidden xl:flex items-center gap-4">
+                    <div className={`p-2 rounded-full bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all duration-300 ${isTemplateStudioExpanded ? 'rotate-180' : ''}`}>
+                      <ChevronDown size={20} />
                     </div>
                   </div>
                 </div>
 
-                {/* Preview swatch */}
-                <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
-                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Preview de Cores</p>
-                  
-                  {/* Dynamic font injection for preview */}
-                  <style dangerouslySetInnerHTML={{__html: `
+                <div className={`transition-all duration-500 origin-top overflow-hidden grid ${isTemplateStudioExpanded ? 'grid-rows-[1fr] opacity-100 px-6 pb-6 xl:px-8 xl:pb-8 pt-0 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                  <div className="min-h-0 space-y-6 pt-6">
+
+                    {/* Color + Font config */}
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                      <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Identidade Visual</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Cor Primária</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={templatePrimaryColor}
+                                onChange={(e) => setTemplatePrimaryColor(e.target.value)}
+                                className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={templatePrimaryColor}
+                                onChange={(e) => setTemplatePrimaryColor(e.target.value)}
+                                className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] font-mono text-white/80 outline-none focus:border-purple-400/40"
+                                maxLength={7}
+                                placeholder="#RRGGBB"
+                              />
+                            </div>
+                            <p className="text-[9px] text-white/30">Títulos e acentos principais</p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Cor Secundária</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={templateSecondaryColor}
+                                onChange={(e) => setTemplateSecondaryColor(e.target.value)}
+                                className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={templateSecondaryColor}
+                                onChange={(e) => setTemplateSecondaryColor(e.target.value)}
+                                className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] font-mono text-white/80 outline-none focus:border-purple-400/40"
+                                maxLength={7}
+                                placeholder="#RRGGBB"
+                              />
+                            </div>
+                            <p className="text-[9px] text-white/30">Métricas, glow e destaques</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Fonte</label>
+                            <div className="relative">
+                              <select
+                                value={templateFontFamily}
+                                onChange={(e) => setTemplateFontFamily(e.target.value)}
+                                className="w-full appearance-none rounded-xl border border-white/10 bg-[#12121a] px-3 py-2.5 text-[12px] text-white/90 outline-none focus:border-purple-400/40 hover:border-white/20 transition-colors cursor-pointer"
+                              >
+                                <option value="Inter" className="bg-[#12121a] text-white">Inter (padrão)</option>
+                                <option value="Outfit" className="bg-[#12121a] text-white">Outfit (moderno)</option>
+                                <option value="Space Grotesk" className="bg-[#12121a] text-white">Space Grotesk (tech)</option>
+                                <option value="Sora" className="bg-[#12121a] text-white">Sora (suave)</option>
+                              </select>
+                              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Perfil de Estilo</label>
+                            <div className="relative">
+                              <select
+                                value={templateStyleProfile}
+                                onChange={(e) => setTemplateStyleProfile(e.target.value)}
+                                className="w-full appearance-none rounded-xl border border-white/10 bg-[#12121a] px-3 py-2.5 text-[12px] text-white/90 outline-none focus:border-purple-400/40 hover:border-white/20 transition-colors cursor-pointer"
+                              >
+                                <option value="Tech" className="bg-[#12121a] text-white">Tech / IA</option>
+                                <option value="Business" className="bg-[#12121a] text-white">Business / Negócios</option>
+                                <option value="Education" className="bg-[#12121a] text-white">Educação / Cursos</option>
+                                <option value="Lifestyle" className="bg-[#12121a] text-white">Lifestyle / Motivação</option>
+                              </select>
+                              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Preview swatch */}
+                      <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-purple-300">Preview de Cores</p>
+
+                        {/* Dynamic font injection for preview */}
+                        <style dangerouslySetInnerHTML={{
+                          __html: `
                     @import url('https://fonts.googleapis.com/css2?family=${String(templateFontFamily || '').replace(/ /g, '+')}:wght@400;700;800;900&display=swap');
                   `}} />
 
-                  <div className="rounded-2xl overflow-hidden border border-white/10 relative" style={{ background: '#0a0a14' }}>
-                    <div className="p-6 space-y-3">
-                      <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: templatePrimaryColor }}>CANAL · INSIGHT PRINCIPAL</div>
-                      <div className="text-2xl font-black text-white" style={{ fontFamily: `'${templateFontFamily}', Arial, sans-serif` }}>Título do Vídeo</div>
-                      <div className="text-sm text-white/60">Subtítulo de contexto e informação</div>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black" style={{ background: `${templatePrimaryColor}18`, border: `1px solid ${templatePrimaryColor}44`, color: templatePrimaryColor }}>
-                        ◆ <span style={{ color: templateSecondaryColor }}>+340%</span>
+                        <div className="rounded-2xl overflow-hidden border border-white/10 relative" style={{ background: '#0a0a14' }}>
+                          <div className="p-6 space-y-3">
+                            <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: templatePrimaryColor }}>CANAL · INSIGHT PRINCIPAL</div>
+                            <div className="text-2xl font-black text-white" style={{ fontFamily: `'${templateFontFamily}', Arial, sans-serif` }}>Título do Vídeo</div>
+                            <div className="text-sm text-white/60">Subtítulo de contexto e informação</div>
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black" style={{ background: `${templatePrimaryColor}18`, border: `1px solid ${templatePrimaryColor}44`, color: templatePrimaryColor }}>
+                              ◆ <span style={{ color: templateSecondaryColor }}>+340%</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-white/30">Prévia aproximada. O resultado final é renderizado pelo Playwright.</p>
                       </div>
                     </div>
+
+                    {/* Generate button */}
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        disabled={isGeneratingTemplates}
+                        onClick={async () => {
+                          setIsGeneratingTemplates(true);
+                          setTemplateGenResult(null);
+                          try {
+                            const res = await fetch('/api/template-studio', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                primaryColor: templatePrimaryColor,
+                                secondaryColor: templateSecondaryColor,
+                                fontFamily: templateFontFamily,
+                                styleProfile: templateStyleProfile,
+                                channelName: activeProject?.name || activeProject?.project_name || 'Canal',
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.error) throw new Error(data.error);
+                            await downloadTemplateZip(data.templates, data.meta);
+                            setTemplateGenResult({ total: data.meta.total, missing: data.missing || [] });
+                            showToast(`${data.meta.total} templates gerados e baixados!`);
+                          } catch (err: any) {
+                            showToast(`Erro: ${err.message || 'Falha ao gerar templates.'}`);
+                          } finally {
+                            setIsGeneratingTemplates(false);
+                          }
+                        }}
+                        className="w-full rounded-2xl border border-purple-400/30 bg-purple-500/15 px-6 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-purple-200 transition-all hover:border-purple-300/40 hover:bg-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isGeneratingTemplates ? (
+                          <span className="flex items-center justify-center gap-3">
+                            <span className="relative flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-400" />
+                            </span>
+                            GERANDO TEMPLATES...
+                          </span>
+                        ) : '⬇ GERAR E BAIXAR TEMPLATES DO CANAL'}
+                      </button>
+
+                      {templateGenResult && (
+                        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 px-5 py-4 space-y-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
+                            ✓ {templateGenResult.total} template{templateGenResult.total !== 1 ? 's' : ''} gerado{templateGenResult.total !== 1 ? 's' : ''} com sucesso
+                          </p>
+                          <p className="text-[10px] text-white/50">
+                            Extraia o ZIP em <span className="font-black text-white/70">[Canal]/Template HTML/</span> e o .bat vai encontrá-los automaticamente no próximo processamento.
+                          </p>
+                          {templateGenResult.missing.length > 0 && (
+                            <p className="text-[10px] text-amber-300">
+                              ⚠️ Não encontrados: {templateGenResult.missing.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3 space-y-1">
+                        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Instrução pós-download</p>
+                        <p className="text-[10px] leading-5 text-white/45">
+                          1. Extraia o ZIP · 2. Mova para <span className="font-mono text-white/60">[Canal]/Template HTML/</span> · 3. O .bat vai usar seus templates automaticamente
+                        </p>
+                      </div>
+                    </div>
+
                   </div>
-                  <p className="text-[9px] text-white/30">Prévia aproximada. O resultado final é renderizado pelo Playwright.</p>
                 </div>
               </div>
+              {/* ══════════════════════════════════════════════════════════════════════════════ */}
 
-              {/* Generate button */}
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  disabled={isGeneratingTemplates}
-                  onClick={async () => {
-                    setIsGeneratingTemplates(true);
-                    setTemplateGenResult(null);
-                    try {
-                      const res = await fetch('/api/template-studio', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          primaryColor: templatePrimaryColor,
-                          secondaryColor: templateSecondaryColor,
-                          fontFamily: templateFontFamily,
-                          styleProfile: templateStyleProfile,
-                          channelName: activeProject?.name || activeProject?.project_name || 'Canal',
-                        }),
-                      });
-                      const data = await res.json();
-                      if (data.error) throw new Error(data.error);
-                      await downloadTemplateZip(data.templates, data.meta);
-                      setTemplateGenResult({ total: data.meta.total, missing: data.missing || [] });
-                      showToast(`${data.meta.total} templates gerados e baixados!`);
-                    } catch (err: any) {
-                      showToast(`Erro: ${err.message || 'Falha ao gerar templates.'}`);
-                    } finally {
-                      setIsGeneratingTemplates(false);
-                    }
-                  }}
-                  className="w-full rounded-2xl border border-purple-400/30 bg-purple-500/15 px-6 py-4 text-[11px] font-black uppercase tracking-[0.26em] text-purple-200 transition-all hover:border-purple-300/40 hover:bg-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isGeneratingTemplates ? (
-                    <span className="flex items-center justify-center gap-3">
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-400" />
-                      </span>
-                      GERANDO TEMPLATES...
-                    </span>
-                  ) : '⬇ GERAR E BAIXAR TEMPLATES DO CANAL'}
-                </button>
+              <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 xl:p-8 flex flex-col gap-8 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
+                {scriptBlocks.length > 0 && (
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.02] p-4 xl:p-5 space-y-4">
+                    <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.32em] text-blue-300">Blocos STG agrupados</p>
+                        <p className="mt-1 text-[10px] leading-5 text-white/40">
+                          Clique em um STG para abrir o bloco. Isso mantém a página navegável sem perder os cards editáveis.
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
+                        {scriptBlocks.length} blocos
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                      {scriptBlocks.map((block, index) => {
+                        const blockGenerationState = getBlockGenerationState(index);
+                        const isActive = block.id === activeStageBlockId;
 
-                {templateGenResult && (
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 px-5 py-4 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
-                      ✓ {templateGenResult.total} template{templateGenResult.total !== 1 ? 's' : ''} gerado{templateGenResult.total !== 1 ? 's' : ''} com sucesso
-                    </p>
-                    <p className="text-[10px] text-white/50">
-                      Extraia o ZIP em <span className="font-black text-white/70">[Canal]/Template HTML/</span> e o .bat vai encontrá-los automaticamente no próximo processamento.
-                    </p>
-                    {templateGenResult.missing.length > 0 && (
-                      <p className="text-[10px] text-amber-300">
-                        ⚠️ Não encontrados: {templateGenResult.missing.join(', ')}
-                      </p>
-                    )}
+                        return (
+                          <button
+                            key={block.id}
+                            type="button"
+                            onClick={() => setExpandedStageId(block.id)}
+                            className={`rounded-2xl border px-3 py-3 text-left transition-all ${isActive
+                                ? 'border-blue-400/40 bg-blue-500/15 shadow-lg shadow-blue-500/10'
+                                : 'border-white/10 bg-black/10 hover:border-white/20 hover:bg-white/[0.03]'
+                              }`}
+                          >
+                            <span className={`block text-[10px] font-black uppercase tracking-[0.22em] ${isActive ? 'text-blue-200' : 'text-white/40'}`}>
+                              STG_{String(index + 1).padStart(2, '0')}
+                            </span>
+                            <span className="mt-2 block truncate text-[11px] font-black text-white/80">
+                              {block.title}
+                            </span>
+                            {blockGenerationState && (
+                              <span
+                                className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] ${blockGenerationState === 'generating'
+                                    ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
+                                    : blockGenerationState === 'completed'
+                                      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                                      : 'border-white/10 bg-white/5 text-white/35'
+                                  }`}
+                              >
+                                {blockGenerationState === 'generating' ? 'Gerando' : blockGenerationState === 'completed' ? 'Concluido' : 'Pendente'}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-white/5 bg-black/15 px-4 py-3 space-y-1">
-                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">Instrução pós-download</p>
-                  <p className="text-[10px] leading-5 text-white/45">
-                    1. Extraia o ZIP · 2. Mova para <span className="font-mono text-white/60">[Canal]/Template HTML/</span> · 3. O .bat vai usar seus templates automaticamente
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-        {/* ══════════════════════════════════════════════════════════════════════════════ */}
-
-        <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 xl:p-8 flex flex-col gap-8 custom-scrollbar bg-gradient-to-b from-transparent to-midnight/20">
-          {scriptBlocks.length > 0 && (
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.02] p-4 xl:p-5 space-y-4">
-              <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.32em] text-blue-300">Blocos STG agrupados</p>
-                  <p className="mt-1 text-[10px] leading-5 text-white/40">
-                    Clique em um STG para abrir o bloco. Isso mantém a página navegável sem perder os cards editáveis.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
-                  {scriptBlocks.length} blocos
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                {scriptBlocks.map((block, index) => {
+                {scriptBlocks.filter((block) => block.id === activeStageBlockId).map((block) => {
+                  const index = Math.max(0, scriptBlocks.findIndex((item) => item.id === block.id));
                   const blockGenerationState = getBlockGenerationState(index);
-                  const isActive = block.id === activeStageBlockId;
 
                   return (
-                    <button
-                      key={block.id}
-                      type="button"
-                      onClick={() => setExpandedStageId(block.id)}
-                      className={`rounded-2xl border px-3 py-3 text-left transition-all ${
-                        isActive
-                          ? 'border-blue-400/40 bg-blue-500/15 shadow-lg shadow-blue-500/10'
-                          : 'border-white/10 bg-black/10 hover:border-white/20 hover:bg-white/[0.03]'
-                      }`}
-                    >
-                      <span className={`block text-[10px] font-black uppercase tracking-[0.22em] ${isActive ? 'text-blue-200' : 'text-white/40'}`}>
-                        STG_{String(index + 1).padStart(2, '0')}
-                      </span>
-                      <span className="mt-2 block truncate text-[11px] font-black text-white/80">
-                        {block.title}
-                      </span>
-                      {blockGenerationState && (
-                        <span
-                          className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] ${
-                            blockGenerationState === 'generating'
-                              ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
+                    <div key={block.id} className="relative group animate-in slide-in-from-bottom-4" style={{ animationDelay: `${index * 100}ms` }}>
+                      <div className="flex items-center gap-3 mb-3 pl-1">
+                        <div className="text-[11px] font-black text-white/20 tracking-[3px] uppercase">
+                          STG_{String(index + 1).padStart(2, '0')}
+                        </div>
+                        {blockGenerationState && (
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] ${blockGenerationState === 'generating'
+                                ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
+                                : blockGenerationState === 'completed'
+                                  ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                                  : 'border-white/10 bg-white/5 text-white/35'
+                              }`}
+                          >
+                            {blockGenerationState === 'generating'
+                              ? 'Gerando agora'
                               : blockGenerationState === 'completed'
-                                ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
-                                : 'border-white/10 bg-white/5 text-white/35'
-                          }`}
-                        >
-                          {blockGenerationState === 'generating' ? 'Gerando' : blockGenerationState === 'completed' ? 'Concluido' : 'Pendente'}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {scriptBlocks.filter((block) => block.id === activeStageBlockId).map((block) => {
-            const index = Math.max(0, scriptBlocks.findIndex((item) => item.id === block.id));
-            const blockGenerationState = getBlockGenerationState(index);
-
-            return (
-            <div key={block.id} className="relative group animate-in slide-in-from-bottom-4" style={{ animationDelay: `${index * 100}ms` }}>
-              <div className="flex items-center gap-3 mb-3 pl-1">
-                <div className="text-[11px] font-black text-white/20 tracking-[3px] uppercase">
-                  STG_{String(index + 1).padStart(2, '0')}
-                </div>
-                {blockGenerationState && (
-                  <span
-                    className={`inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] ${
-                      blockGenerationState === 'generating'
-                        ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
-                        : blockGenerationState === 'completed'
-                          ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
-                          : 'border-white/10 bg-white/5 text-white/35'
-                    }`}
-                  >
-                    {blockGenerationState === 'generating'
-                      ? 'Gerando agora'
-                      : blockGenerationState === 'completed'
-                        ? 'Concluido'
-                        : 'Pendente'}
-                  </span>
-                )}
-                <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent" />
-              </div>
-              <div className={`flex flex-col gap-6 rounded-[32px] p-6 xl:p-8 transition-all shadow-inner relative group/block ${
-                blockGenerationState === 'generating'
-                  ? 'bg-blue-500/[0.04] border border-blue-400/20 ring-1 ring-blue-400/15 shadow-[0_0_30px_rgba(59,130,246,0.08)]'
-                  : blockGenerationState === 'completed'
-                    ? 'bg-emerald-500/[0.03] border border-emerald-400/15'
-                    : 'bg-white/[0.01] border border-white/[0.05] hover:border-white/10 hover:bg-white/[0.03]'
-              }`}>
-                
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <span className={`inline-flex w-fit max-w-full flex-wrap text-[10px] font-black uppercase tracking-[3px] px-4 py-2 rounded-full border shadow-sm whitespace-normal break-words ${
-                    block.type === 'Hook' ? 'text-blue-300 border-blue-400/60 bg-blue-500/10' : 
-                    block.type === 'Context' ? 'text-blue-400 border-blue-400/60 bg-blue-400/10' : 
-                    block.type === 'Development' ? 'text-orange-400 border-orange-400/60 bg-orange-400/10' :
-                    'text-white/60 border-white/20 bg-white/5'
-                  }`}>
-                    {block.type} {'\u00BB'} {block.title}
-                  </span>
-                  <div className="opacity-100 xl:opacity-0 group-hover/block:opacity-100 transition-opacity flex gap-2 self-end">
-                    <button className="p-2 text-white/20 hover:text-white transition-colors"><Plus size={14} /></button>
-                    <button className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.7fr)_300px] gap-6 xl:gap-8 items-start">
-                  <div className="min-w-0">
-                    <textarea 
-                      ref={(el) => {
-                        if (!el) return;
-                        el.style.height = '0px';
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      onInput={(e) => {
-                        const el = e.currentTarget;
-                        el.style.height = '0px';
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      className={`w-full rounded-2xl px-5 py-4 text-white/90 leading-8 outline-none transition-all resize-none overflow-hidden min-h-[120px] text-[15px] font-medium placeholder:text-white/10 ${
-                        blockGenerationState === 'generating'
-                          ? 'bg-blue-500/[0.04] border border-blue-400/20'
+                                ? 'Concluido'
+                                : 'Pendente'}
+                          </span>
+                        )}
+                        <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent" />
+                      </div>
+                      <div className={`flex flex-col gap-6 rounded-[32px] p-6 xl:p-8 transition-all shadow-inner relative group/block ${blockGenerationState === 'generating'
+                          ? 'bg-blue-500/[0.04] border border-blue-400/20 ring-1 ring-blue-400/15 shadow-[0_0_30px_rgba(59,130,246,0.08)]'
                           : blockGenerationState === 'completed'
-                            ? 'bg-emerald-500/[0.03] border border-emerald-400/10'
-                            : 'bg-midnight/20 border border-white/5'
-                      }`}
-                      value={block.content}
-                      onChange={(e) => {
-                        const newBlocks = [...scriptBlocks];
-                        newBlocks[index].content = e.target.value;
-                        setScriptBlocks(newBlocks);
-                      }}
-                    />
-                  </div>
-                  <div className="bg-midnight/40 rounded-3xl p-5 xl:p-6 border border-white/5 flex flex-col gap-4 min-w-0">
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-[2px] text-blue-300">
-                      <PenTool size={14} className="animate-pulse" /> SOP DE EDICAO
-                    </div>
-                    <textarea 
-                      ref={(el) => {
-                        if (!el) return;
-                        el.style.height = '0px';
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      onInput={(e) => {
-                        const el = e.currentTarget;
-                        el.style.height = '0px';
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      className="w-full bg-transparent text-[13px] text-white/70 font-medium leading-7 outline-none resize-none overflow-hidden min-h-[96px] italic border-t border-white/5 pt-4 mt-2"
-                      value={block.sop}
-                      onChange={(e) => {
-                        const newBlocks = [...scriptBlocks];
-                        newBlocks[index].sop = e.target.value;
-                        setScriptBlocks(newBlocks);
-                      }}
-                      placeholder="Instrucoes para o editor..."
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )})}
+                            ? 'bg-emerald-500/[0.03] border border-emerald-400/15'
+                            : 'bg-white/[0.01] border border-white/[0.05] hover:border-white/10 hover:bg-white/[0.03]'
+                        }`}>
 
-              <button className="w-full border-2 border-dashed border-white/5 hover:border-blue-400/30 rounded-[50px] py-16 flex flex-col items-center gap-3 text-white/20 hover:text-blue-300 transition-all group bg-white/[0.01]">
-            <Plus size={32} className="group-hover:rotate-90 transition-transform duration-500" />
-            <div className="text-center">
-              <span className="text-[11px] uppercase font-black tracking-[0.4em]">Injetar Bloco Modular</span>
-              <p className="text-[9px] opacity-40 mt-1 uppercase tracking-widest font-bold">DNA Content OS Kernel</p>
-            </div>
-          </button>
-        </div>
-        <ScrollToTopButton containerRef={mainScrollRef} />
-          </>
-        )}
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <span className={`inline-flex w-fit max-w-full flex-wrap text-[10px] font-black uppercase tracking-[3px] px-4 py-2 rounded-full border shadow-sm whitespace-normal break-words ${block.type === 'Hook' ? 'text-blue-300 border-blue-400/60 bg-blue-500/10' :
+                              block.type === 'Context' ? 'text-blue-400 border-blue-400/60 bg-blue-400/10' :
+                                block.type === 'Development' ? 'text-orange-400 border-orange-400/60 bg-orange-400/10' :
+                                  'text-white/60 border-white/20 bg-white/5'
+                            }`}>
+                            {block.type} {'\u00BB'} {block.title}
+                          </span>
+                          <div className="opacity-100 xl:opacity-0 group-hover/block:opacity-100 transition-opacity flex gap-2 self-end">
+                            <button className="p-2 text-white/20 hover:text-white transition-colors"><Plus size={14} /></button>
+                            <button className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.7fr)_300px] gap-6 xl:gap-8 items-start">
+                          <div className="min-w-0">
+                            <textarea
+                              ref={(el) => {
+                                if (!el) return;
+                                el.style.height = '0px';
+                                el.style.height = `${el.scrollHeight}px`;
+                              }}
+                              onInput={(e) => {
+                                const el = e.currentTarget;
+                                el.style.height = '0px';
+                                el.style.height = `${el.scrollHeight}px`;
+                              }}
+                              className={`w-full rounded-2xl px-5 py-4 text-white/90 leading-8 outline-none transition-all resize-none overflow-hidden min-h-[120px] text-[15px] font-medium placeholder:text-white/10 ${blockGenerationState === 'generating'
+                                  ? 'bg-blue-500/[0.04] border border-blue-400/20'
+                                  : blockGenerationState === 'completed'
+                                    ? 'bg-emerald-500/[0.03] border border-emerald-400/10'
+                                    : 'bg-midnight/20 border border-white/5'
+                                }`}
+                              value={block.content}
+                              onChange={(e) => {
+                                const newBlocks = [...scriptBlocks];
+                                newBlocks[index].content = e.target.value;
+                                setScriptBlocks(newBlocks);
+                              }}
+                            />
+                          </div>
+                          <div className="bg-midnight/40 rounded-3xl p-5 xl:p-6 border border-white/5 flex flex-col gap-4 min-w-0">
+                            <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-[2px] text-blue-300">
+                              <PenTool size={14} className="animate-pulse" /> SOP DE EDICAO
+                            </div>
+                            <textarea
+                              ref={(el) => {
+                                if (!el) return;
+                                el.style.height = '0px';
+                                el.style.height = `${el.scrollHeight}px`;
+                              }}
+                              onInput={(e) => {
+                                const el = e.currentTarget;
+                                el.style.height = '0px';
+                                el.style.height = `${el.scrollHeight}px`;
+                              }}
+                              className="w-full bg-transparent text-[13px] text-white/70 font-medium leading-7 outline-none resize-none overflow-hidden min-h-[96px] italic border-t border-white/5 pt-4 mt-2"
+                              value={block.sop}
+                              onChange={(e) => {
+                                const newBlocks = [...scriptBlocks];
+                                newBlocks[index].sop = e.target.value;
+                                setScriptBlocks(newBlocks);
+                              }}
+                              placeholder="Instrucoes para o editor..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <button className="w-full border-2 border-dashed border-white/5 hover:border-blue-400/30 rounded-[50px] py-16 flex flex-col items-center gap-3 text-white/20 hover:text-blue-300 transition-all group bg-white/[0.01]">
+                  <Plus size={32} className="group-hover:rotate-90 transition-transform duration-500" />
+                  <div className="text-center">
+                    <span className="text-[11px] uppercase font-black tracking-[0.4em]">Injetar Bloco Modular</span>
+                    <p className="text-[9px] opacity-40 mt-1 uppercase tracking-widest font-bold">DNA Content OS Kernel</p>
+                  </div>
+                </button>
+              </div>
+              <ScrollToTopButton containerRef={mainScrollRef} />
+            </>
+          )}
         </section>
 
-      {/* MODAL ROTERIZADOR 2077 (INTAKE ÚNICO) */}
-      {showRoterizadorModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl bg-midnight/95 border border-amber-500/40 rounded-3xl p-6 xl:p-8 space-y-6 shadow-[0_0_50px_rgba(245,158,11,0.15)] max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-2xl">
-                  <Zap size={22} className="text-amber-400 fill-amber-400/30" />
+        {/* MODAL ROTERIZADOR 2077 (INTAKE ÚNICO) */}
+        {showRoterizadorModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-2xl bg-midnight/95 border border-amber-500/40 rounded-3xl p-6 xl:p-8 space-y-6 shadow-[0_0_50px_rgba(245,158,11,0.15)] max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-2xl">
+                    <Zap size={22} className="text-amber-400 fill-amber-400/30" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white italic tracking-wide">
+                      ROTERIZADOR 2077 <span className="text-amber-400 font-mono text-xs not-italic ml-1">v3.0</span>
+                    </h3>
+                    <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">
+                      Intake Único · Alta Retenção · Blindagem Anti-Clichê
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-black text-white italic tracking-wide">
-                    ROTERIZADOR 2077 <span className="text-amber-400 font-mono text-xs not-italic ml-1">v3.0</span>
-                  </h3>
-                  <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">
-                    Intake Único · Alta Retenção · Blindagem Anti-Clichê
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRoterizadorModal(false)}
-                className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Campo 1: Roteiro de Referência */}
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-amber-300">
-                  1. Roteiro de Referência (DNA do Nicho) <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  value={roterizadorRefScript}
-                  onChange={(e) => setRoterizadorRefScript(e.target.value)}
-                  placeholder="Cole aqui o roteiro completo ou trecho de sucesso do canal concorrente para extração silenciosa de DNA..."
-                  className="w-full min-h-[140px] max-h-[220px] bg-black/40 border border-white/10 rounded-2xl p-4 text-[11px] text-white/90 leading-relaxed outline-none focus:border-amber-400/50 resize-y placeholder:text-white/20 font-mono"
-                />
+                <button
+                  type="button"
+                  onClick={() => setShowRoterizadorModal(false)}
+                  className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  ✕
+                </button>
               </div>
 
-              {/* Campo 2: Título do Vídeo */}
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-blue-300">
-                  2. Título Exato do Seu Novo Vídeo <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={roterizadorTitle}
-                  onChange={(e) => setRoterizadorTitle(e.target.value)}
-                  placeholder="Ex: O Erro Silencioso que Destrói Seu Foco Todos os Dias"
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[12px] font-bold text-white outline-none focus:border-blue-400/50 placeholder:text-white/20"
-                />
-              </div>
-
-              {/* Campo 3 e 4: Idioma e Número de Palavras */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-4">
+                {/* Campo 1: Roteiro de Referência */}
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-purple-300">
-                    3. Idioma de Destino
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-amber-300">
+                    1. Roteiro de Referência (DNA do Nicho) <span className="text-red-400">*</span>
                   </label>
-                  <select
-                    value={roterizadorLanguage}
-                    onChange={(e) => setRoterizadorLanguage(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[11px] font-bold text-white outline-none focus:border-purple-400/50"
-                  >
-                    <option value="Português (Brasil)">Português (Brasil)</option>
-                    <option value="English (US)">English (US)</option>
-                    <option value="Español (Latam)">Español (Latam)</option>
-                  </select>
+                  <textarea
+                    value={roterizadorRefScript}
+                    onChange={(e) => setRoterizadorRefScript(e.target.value)}
+                    placeholder="Cole aqui o roteiro completo ou trecho de sucesso do canal concorrente para extração silenciosa de DNA..."
+                    className="w-full min-h-[140px] max-h-[220px] bg-black/40 border border-white/10 rounded-2xl p-4 text-[11px] text-white/90 leading-relaxed outline-none focus:border-amber-400/50 resize-y placeholder:text-white/20 font-mono"
+                  />
                 </div>
 
+                {/* Campo 2: Título do Vídeo */}
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-emerald-300">
-                    4. Meta de Palavras
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-blue-300">
+                    2. Título Exato do Seu Novo Vídeo <span className="text-red-400">*</span>
                   </label>
                   <input
-                    type="number"
-                    value={roterizadorWordCount}
-                    onChange={(e) => setRoterizadorWordCount(e.target.value)}
-                    placeholder="1800"
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[11px] font-bold text-white outline-none focus:border-emerald-400/50"
+                    type="text"
+                    value={roterizadorTitle}
+                    onChange={(e) => setRoterizadorTitle(e.target.value)}
+                    placeholder="Ex: O Erro Silencioso que Destrói Seu Foco Todos os Dias"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[12px] font-bold text-white outline-none focus:border-blue-400/50 placeholder:text-white/20"
                   />
-                  <span className="text-[9px] text-white/30 block">~1800 palavras ≈ 12 minutos de vídeo</span>
+                </div>
+
+                {/* Campo 3 e 4: Idioma e Número de Palavras */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-purple-300">
+                      3. Idioma de Destino
+                    </label>
+                    <select
+                      value={roterizadorLanguage}
+                      onChange={(e) => setRoterizadorLanguage(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[11px] font-bold text-white outline-none focus:border-purple-400/50"
+                    >
+                      <option value="Português (Brasil)">Português (Brasil)</option>
+                      <option value="English (US)">English (US)</option>
+                      <option value="Español (Latam)">Español (Latam)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                      4. Meta de Palavras
+                    </label>
+                    <input
+                      type="number"
+                      value={roterizadorWordCount}
+                      onChange={(e) => setRoterizadorWordCount(e.target.value)}
+                      placeholder="1800"
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[11px] font-bold text-white outline-none focus:border-emerald-400/50"
+                    />
+                    <span className="text-[9px] text-white/30 block">~1800 palavras ≈ 12 minutos de vídeo</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-white/10 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowRoterizadorModal(false)}
-                className="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white hover:bg-white/5 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleTriggerRoterizador2077}
-                className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[11px] uppercase tracking-[2px] rounded-2xl shadow-lg shadow-amber-900/30 transition-all active:scale-95 flex items-center gap-2"
-              >
-                <Zap size={14} className="fill-black" />
-                Carregar Briefing (2077)
-              </button>
+              <div className="flex items-center justify-end gap-3 border-t border-white/10 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowRoterizadorModal(false)}
+                  className="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white hover:bg-white/5 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTriggerRoterizador2077}
+                  className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[11px] uppercase tracking-[2px] rounded-2xl shadow-lg shadow-amber-900/30 transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <Zap size={14} className="fill-black" />
+                  Carregar Briefing (2077)
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      {toastMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '28px',
-            right: '28px',
-            zIndex: 9999,
-            background: 'rgba(20,20,30,0.92)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: '12px',
-            padding: '10px 18px',
-            color: '#e0e0ff',
-            fontSize: '12px',
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            backdropFilter: 'blur(12px)',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-            pointerEvents: 'none',
-          }}
-        >
-          ✓ {toastMessage}
-        </div>
-      )}
-      {storageUsageMB >= STORAGE_LIMIT_MB * STORAGE_WARN_THRESHOLD && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '28px',
-            left: '28px',
-            zIndex: 9998,
-            background: 'rgba(20,12,4,0.95)',
-            border: `1px solid ${storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.4)'}`,
-            borderRadius: '14px',
-            padding: '12px 16px',
-            color: '#fff',
-            fontSize: '11px',
-            fontWeight: 700,
-            backdropFilter: 'blur(14px)',
-            boxShadow: '0 4px 32px rgba(0,0,0,0.5)',
-            minWidth: '240px',
-            maxWidth: '300px',
-          }}
-        >
-          <p style={{ color: storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '#f87171' : '#fbbf24', fontSize: '9px', letterSpacing: '0.2em', marginBottom: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
-            {storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '🔴 Armazenamento crítico' : '⚠️ Armazenamento alto'}
-          </p>
-          {/* Usage bar */}
-          <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px', height: '5px', marginBottom: '8px', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${Math.min(100, (storageUsageMB / STORAGE_LIMIT_MB) * 100).toFixed(1)}%`,
-              background: storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '#ef4444' : '#f59e0b',
-              borderRadius: '6px',
-              transition: 'width 0.5s ease',
-            }} />
-          </div>
-          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '10px', marginBottom: '8px' }}>
-            {storageUsageMB.toFixed(1)} MB de ~{STORAGE_LIMIT_MB} MB usados ({((storageUsageMB / STORAGE_LIMIT_MB) * 100).toFixed(0)}%)
-          </p>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '9px', lineHeight: 1.5, marginBottom: '8px' }}>
-            Programe os temas prontos para liberar espaço automaticamente.
-          </p>
-          <button
-            onClick={() => {
-              // Purge stale snapshot_ keys only — never touch other projects' workspace keys
-              try {
-                const toRemove: string[] = [];
-                for (let i = 0; i < localStorage.length; i++) {
-                  const k = localStorage.key(i) || '';
-                  if (k.startsWith('snapshot_')) toRemove.push(k);
-                }
-                toRemove.forEach(k => localStorage.removeItem(k));
-                checkStorageUsage();
-                showToast(`${toRemove.length} entradas antigas removidas.`);
-              } catch { /* ignore */ }
-            }}
+        )}
+        {toastMessage && (
+          <div
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '8px',
-              padding: '5px 10px',
-              fontSize: '9px',
-              fontWeight: 900,
-              letterSpacing: '0.15em',
-              color: 'rgba(255,255,255,0.7)',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              width: '100%',
+              position: 'fixed',
+              bottom: '28px',
+              right: '28px',
+              zIndex: 9999,
+              background: 'rgba(20,20,30,0.92)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              color: '#e0e0ff',
+              fontSize: '12px',
+              fontWeight: 700,
+              letterSpacing: '0.06em',
+              backdropFilter: 'blur(12px)',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+              pointerEvents: 'none',
             }}
           >
-            Limpar dados antigos
-          </button>
-        </div>
-      )}
+            ✓ {toastMessage}
+          </div>
+        )}
+        {storageUsageMB >= STORAGE_LIMIT_MB * STORAGE_WARN_THRESHOLD && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: '28px',
+              left: '28px',
+              zIndex: 9998,
+              background: 'rgba(20,12,4,0.95)',
+              border: `1px solid ${storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.4)'}`,
+              borderRadius: '14px',
+              padding: '12px 16px',
+              color: '#fff',
+              fontSize: '11px',
+              fontWeight: 700,
+              backdropFilter: 'blur(14px)',
+              boxShadow: '0 4px 32px rgba(0,0,0,0.5)',
+              minWidth: '240px',
+              maxWidth: '300px',
+            }}
+          >
+            <p style={{ color: storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '#f87171' : '#fbbf24', fontSize: '9px', letterSpacing: '0.2em', marginBottom: '6px', fontWeight: 900, textTransform: 'uppercase' }}>
+              {storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '🔴 Armazenamento crítico' : '⚠️ Armazenamento alto'}
+            </p>
+            {/* Usage bar */}
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px', height: '5px', marginBottom: '8px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(100, (storageUsageMB / STORAGE_LIMIT_MB) * 100).toFixed(1)}%`,
+                background: storageUsageMB >= STORAGE_LIMIT_MB * 0.92 ? '#ef4444' : '#f59e0b',
+                borderRadius: '6px',
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '10px', marginBottom: '8px' }}>
+              {storageUsageMB.toFixed(1)} MB de ~{STORAGE_LIMIT_MB} MB usados ({((storageUsageMB / STORAGE_LIMIT_MB) * 100).toFixed(0)}%)
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '9px', lineHeight: 1.5, marginBottom: '8px' }}>
+              Programe os temas prontos para liberar espaço automaticamente.
+            </p>
+            <button
+              onClick={() => {
+                // Purge stale snapshot_ keys only — never touch other projects' workspace keys
+                try {
+                  const toRemove: string[] = [];
+                  for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i) || '';
+                    if (k.startsWith('snapshot_')) toRemove.push(k);
+                  }
+                  toRemove.forEach(k => localStorage.removeItem(k));
+                  checkStorageUsage();
+                  showToast(`${toRemove.length} entradas antigas removidas.`);
+                } catch { /* ignore */ }
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '8px',
+                padding: '5px 10px',
+                fontSize: '9px',
+                fontWeight: 900,
+                letterSpacing: '0.15em',
+                color: 'rgba(255,255,255,0.7)',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                width: '100%',
+              }}
+            >
+              Limpar dados antigos
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5727,7 +5727,7 @@ export interface CuratedAssetPlan {
 
 /**
  * Cria um plano pontual, objetivo e de alto valor de enriquecimento de edição usando o Pack Ganha Tempo
- * Limita estrategicamente a 7 a 12 intervenções no vídeo todo para evitar poluição visual.
+ * Distribui estrategicamente os assets ao longo de 100% da duração do vídeo (do minuto 00:00 até o final).
  */
 export function buildCuratedAssetEnrichmentPlan(
   rows: any[] = [],
@@ -5737,7 +5737,7 @@ export function buildCuratedAssetEnrichmentPlan(
 ): CuratedAssetPlan {
   const totalDuration = rows[rows.length - 1]?.endTime || '00:00:00';
 
-  // 1. Style Kit
+  // 1. Style Kit Base
   const findItemByName = (name: string, fallbackCat: string): PackAssetItem => {
     const found = PACK_GANHA_TEMPO_ITEMS.find((i) => i.name.toLowerCase() === name.toLowerCase());
     if (found) return found;
@@ -5757,20 +5757,6 @@ export function buildCuratedAssetEnrichmentPlan(
     baseOverlay: findItemByName('Particulas_Lens_Flare_Iluminacao_Esferas.mp4', 'Overlays'),
   };
 
-  // 2. Pontual Curated Interventions com Seleção Cirúrgica (7 a 12 itens máx)
-  const interventions: CuratedAssetIntervention[] = [];
-  let lastInterventionMs = -60000;
-  let counter = 1;
-
-  const categoryCounts = {
-    sfx: 0,
-    chroma: 0,
-    graficos: 0,
-    transicoes: 0,
-    icones: 0,
-    cta: 0,
-  };
-
   const parseMs = (timeStr?: string): number => {
     if (!timeStr) return 0;
     const clean = timeStr.replace(/[\[\]]/g, '').trim();
@@ -5783,133 +5769,145 @@ export function buildCuratedAssetEnrichmentPlan(
     return 0;
   };
 
-  // 1. Hook intervention (Cena 1 - Primeiro Impacto)
-  if (rows.length > 0) {
-    const hookRow = rows[0];
-    const hookSfx = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
-    interventions.push({
-      id: counter++,
-      rowNumber: hookRow.rowNumber || 1,
-      timeRange: `${hookRow.startTime || '00:00:00'} - ${hookRow.endTime || '00:00:03'}`,
-      sceneExcerpt: hookRow.texto || '',
-      interventionType: 'SFX',
-      editorialPurpose: 'Abertura de Alto Impacto (Hook)',
-      asset: hookSfx,
-      editingGuideline: 'Iniciar no frame 0 com volume normalizado em -12dB para prender a atenção imediata.',
-    });
-    lastInterventionMs = 0;
-    categoryCounts.sfx++;
+  if (!rows || rows.length === 0) {
+    return {
+      themeTitle,
+      videoFormat,
+      totalDuration,
+      styleKit,
+      interventions: [],
+    };
   }
 
-  // Percorre as linhas buscando momentos-chave com cooldown rígido de 50 a 80s
-  for (let i = 1; i < rows.length; i++) {
-    if (interventions.length >= 12) break;
+  const totalMs = parseMs(rows[rows.length - 1].endTime);
+  const totalMinutes = Math.max(1, totalMs / 60000);
 
-    const row = rows[i];
-    const textLower = (row.texto || '').toLowerCase();
-    const currentMs = parseMs(row.startTime);
+  // Calcula a quantidade ideal proporcional ao tempo: ~1 intervenção a cada 75 a 90 segundos
+  // Vídeo de 5 min: ~6 intervenções | Vídeo de 10 min: ~10 intervenções | Vídeo de 18-20 min: ~14-16 intervenções
+  const targetCount = Math.max(5, Math.min(18, Math.round(totalMinutes * 0.8) || 8));
+  const windowDurationMs = totalMs / targetCount;
 
-    // Cooldown mínimo de 50 segundos entre intervenções
-    if (currentMs - lastInterventionMs < 50000 && i < rows.length - 2) {
-      continue;
-    }
+  const interventions: CuratedAssetIntervention[] = [];
 
-    let matchedItem: PackAssetItem | null = null;
+  for (let w = 0; w < targetCount; w++) {
+    const wStart = w * windowDurationMs;
+    const wEnd = (w + 1) * windowDurationMs;
+
+    const windowRows = rows.filter((r) => {
+      const rMs = parseMs(r.startTime);
+      return rMs >= wStart && rMs < wEnd;
+    });
+
+    if (windowRows.length === 0) continue;
+
+    let selectedRow = windowRows[0];
     let type: CuratedAssetIntervention['interventionType'] = 'SFX';
-    let purpose = '';
-    let guideline = '';
+    let assetItem: PackAssetItem = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
+    let purpose = 'Dinâmica & Ritmo de Corte';
+    let guideline = 'Sincronizar no corte de cena com volume normalizado em -14dB.';
+    let foundThematic = false;
 
-    // Gatilho: Emergência / Pane / Erro / Risco / Falha Crítica
-    if (
-      categoryCounts.graficos < 3 &&
-      /\b(pane|alarme|falha|colapso|erro|perigo|crise|risco fatal|acidente)\b/i.test(textLower)
-    ) {
-      matchedItem = findItemByName('Janela_Erro_Com_Som.mov', 'Graficos');
-      type = 'Gráfico / Alerta';
-      purpose = 'Alerta Visual de Tensão / Falha';
-      guideline = 'Inserir no corte com escala 90% centralizada sobre o vídeo e som em -14dB.';
-      categoryCounts.graficos++;
-    }
-    // Gatilho: Dinheiro / Milhões / Riqueza / Lucro
-    else if (
-      categoryCounts.chroma < 2 &&
-      /\b(milh[oõ]es|bilh[oõ]es|dinheiro|fortuna|faturamento|lucro|d[oó]lar|riqueza)\b/i.test(textLower)
-    ) {
-      matchedItem = findItemByName('Chovendo_Dinheiro_Chroma_Key.mp4', 'Chroma_Key');
-      type = 'Chroma Key';
-      purpose = 'Ênfase em Cifrões e Grande Volume Financeiro';
-      guideline = 'Aplicar Ultra Key (remover verde) e posicionar com opacidade 80% em overlay suave.';
-      categoryCounts.chroma++;
-    }
-    // Gatilho: Urgência de Tempo / Segundos Finais / Contagem Regressiva
-    else if (
-      categoryCounts.graficos < 3 &&
-      /\b(segundos|minutos finais|contagem regressiva|tempo esgotando|contra o rel[oó]gio)\b/i.test(textLower)
-    ) {
-      matchedItem = findItemByName('Timer_Barra_10_Segundos.mov', 'Graficos');
-      type = 'Gráfico / Alerta';
-      purpose = 'Gatilho de Urgência & Pressão Temporal';
-      guideline = 'Posicionar na base da tela (barra de progresso) sincronizado com a narração.';
-      categoryCounts.graficos++;
-    }
-    // Gatilho: IA & ChatGPT (Apenas correspondência exata de IA)
-    else if (
-      categoryCounts.icones < 2 &&
-      /\b(chatgpt|openai|gpt-4|midjourney|intelig[eê]ncia artificial)\b/i.test(textLower)
-    ) {
-      matchedItem = findItemByName('Chat_GPT_Premiuim.png', 'Icones');
-      type = 'Ícone 3D';
-      purpose = 'Identificação Visual de Inteligência Artificial';
-      guideline = 'Entrada com animação suave Pop no canto superior direito com leve sombra.';
-      categoryCounts.icones++;
-    }
-    // Gatilho: Chamada para Ação (CTA)
-    else if (
-      categoryCounts.cta < 1 &&
-      /\b(inscreva-se|inscreva|deixe o like|se inscreva|ative o sininho)\b/i.test(textLower)
-    ) {
-      matchedItem = findItemByName('Botao_Inscreva_Se_Com_Som.mov', 'Graficos');
-      type = 'Gráfico / Alerta';
-      purpose = 'Chamada para Ação (Inscrição & Like)';
-      guideline = 'Posicionar no terço inferior sincronizado exatamente com o comando vocal.';
-      categoryCounts.cta++;
-    }
-    // Gatilho: Impacto Narrativo / Suspense / Revelação
-    else if (
-      categoryCounts.sfx < 3 &&
-      /\b(segredo|mist[eé]rio|revelou|chocante|inesperado|a verdade [eé]|aterrador)\b/i.test(textLower)
-    ) {
-      matchedItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
-      type = 'SFX';
-      purpose = 'Pico de Retenção & Revelação Narrativa';
-      guideline = 'Sincronizar no corte de cena com fade rápido da trilha de fundo.';
-      categoryCounts.sfx++;
-    }
-    // Quebra de Padrão (Transição Glitch a cada ~70-90s de intervalo)
-    else if (
-      categoryCounts.transicoes < 2 &&
-      currentMs - lastInterventionMs >= 75000
-    ) {
-      matchedItem = findItemByName('Glitch_Com_Som_1.mp4', 'Transicoes');
-      type = 'Transição';
-      purpose = 'Quebra de Padrão (Refresh de Atenção)';
-      guideline = 'Transição rápida de 10-12 frames na virada de bloco narrativo.';
-      categoryCounts.transicoes++;
+    // Busca o momento mais expressivo dentro desta janela temporal
+    for (const r of windowRows) {
+      const textLower = (r.texto || '').toLowerCase();
+
+      // Gatilho: Pane / Alarme / Falha / Erro / Perigo
+      if (/\b(pane|alarme|falha|colapso|erro|perigo|crise|risco|acidente)\b/i.test(textLower)) {
+        selectedRow = r;
+        type = 'Gráfico / Alerta';
+        assetItem = findItemByName('Janela_Erro_Com_Som.mov', 'Graficos');
+        purpose = 'Alerta Visual de Tensão / Falha';
+        guideline = 'Inserir no corte com escala 90% centralizada sobre o vídeo e áudio em -14dB.';
+        foundThematic = true;
+        break;
+      }
+      // Gatilho: Dinheiro / Milhões / Riqueza / Faturamento
+      else if (/\b(milh[oõ]es|bilh[oõ]es|dinheiro|fortuna|faturamento|lucro|d[oó]lar|riqueza)\b/i.test(textLower)) {
+        selectedRow = r;
+        type = 'Chroma Key';
+        assetItem = findItemByName('Chovendo_Dinheiro_Chroma_Key.mp4', 'Chroma_Key');
+        purpose = 'Ênfase em Volume Financeiro & Cifrões';
+        guideline = 'Aplicar Ultra Key (remover fundo verde) e opacidade 80% em overlay suave.';
+        foundThematic = true;
+        break;
+      }
+      // Gatilho: Urgência Temporal / Segundos / Relógio
+      else if (/\b(segundos|minutos finais|contagem regressiva|tempo esgotando|contra o rel[oó]gio)\b/i.test(textLower)) {
+        selectedRow = r;
+        type = 'Gráfico / Alerta';
+        assetItem = findItemByName('Timer_Barra_10_Segundos.mov', 'Graficos');
+        purpose = 'Gatilho de Urgência & Pressão Temporal';
+        guideline = 'Posicionar na base da tela (barra de progresso) sincronizado com a narração.';
+        foundThematic = true;
+        break;
+      }
+      // Gatilho: IA / Inteligência Artificial (exata)
+      else if (/\b(chatgpt|openai|gpt-4|midjourney|intelig[eê]ncia artificial)\b/i.test(textLower)) {
+        selectedRow = r;
+        type = 'Ícone 3D';
+        assetItem = findItemByName('Chat_GPT_Premiuim.png', 'Icones');
+        purpose = 'Identificação Visual Tecnológica (IA)';
+        guideline = 'Entrada Pop no canto superior direito com leve sombra projetada.';
+        foundThematic = true;
+        break;
+      }
+      // Gatilho: CTA de Inscrição / Like
+      else if (/\b(inscreva-se|inscreva|deixe o like|se inscreva|ative o sininho)\b/i.test(textLower)) {
+        selectedRow = r;
+        type = 'Gráfico / Alerta';
+        assetItem = findItemByName('Botao_Inscreva_Se_Com_Som.mov', 'Graficos');
+        purpose = 'Chamada para Ação (Inscrição & Like)';
+        guideline = 'Posicionar no terço inferior sincronizado exatamente com o comando vocal.';
+        foundThematic = true;
+        break;
+      }
+      // Gatilho: Suspense / Revelação / Mistério
+      else if (/\b(segredo|mist[eé]rio|revelou|chocante|inesperado|a verdade [eé]|aterrador)\b/i.test(textLower)) {
+        selectedRow = r;
+        type = 'SFX';
+        assetItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
+        purpose = 'Pico de Revelação & Suspense Narrativo';
+        guideline = 'Sincronizar no corte de cena com fade rápido da trilha de fundo.';
+        foundThematic = true;
+        break;
+      }
     }
 
-    if (matchedItem) {
-      interventions.push({
-        id: counter++,
-        rowNumber: row.rowNumber,
-        timeRange: `${row.startTime} - ${row.endTime}`,
-        sceneExcerpt: row.texto,
-        interventionType: type,
-        editorialPurpose: purpose,
-        asset: matchedItem,
-        editingGuideline: guideline,
-      });
-      lastInterventionMs = currentMs;
+    // Se a janela não tiver palavra-chave, aplica cadência rítmica de edição profissional
+    if (!foundThematic) {
+      if (w === 0) {
+        type = 'SFX';
+        assetItem = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
+        purpose = 'Abertura de Alto Impacto (Hook)';
+        guideline = 'Iniciar no frame 0 com volume normalizado em -12dB para retenção imediata.';
+      } else if (w % 3 === 0) {
+        type = 'Transição';
+        assetItem = findItemByName('Glitch_Com_Som_1.mp4', 'Transicoes');
+        purpose = 'Quebra de Padrão (Virada de Bloco)';
+        guideline = 'Transição rápida de 10-12 frames na virada de assunto.';
+      } else if (w % 2 === 0) {
+        type = 'SFX';
+        assetItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
+        purpose = 'Ênfase Sonora na Narrativa';
+        guideline = 'Aplicar no corte de imagem com áudio em -16dB.';
+      } else {
+        type = 'Overlay';
+        assetItem = findItemByName('Particulas_Lens_Flare_Iluminacao_Esferas.mp4', 'Overlays');
+        purpose = 'Realce Atmosférico de Imagem';
+        guideline = 'Aplicar em Screen/Linear Dodge com opacidade 60%.';
+      }
     }
+
+    interventions.push({
+      id: w + 1,
+      rowNumber: selectedRow.rowNumber,
+      timeRange: `${selectedRow.startTime} - ${selectedRow.endTime}`,
+      sceneExcerpt: selectedRow.texto,
+      interventionType: type,
+      editorialPurpose: purpose,
+      asset: assetItem,
+      editingGuideline: guideline,
+    });
   }
 
   return {
@@ -6100,7 +6098,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
 
     <!-- Spreadsheet Section -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
-      <!-- Filter Bar (EXATAMENTE IGUAL AO STORYBOARD) -->
+      <!-- Filter Bar -->
       <div class="no-print p-6 border-b border-zinc-800 bg-zinc-950/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
           <span class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Filtrar Tipo:</span>
@@ -6109,7 +6107,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
           </div>
         </div>
 
-        <!-- Selection Options (EXATAMENTE IGUAL AO STORYBOARD) -->
+        <!-- Selection Options -->
         <div class="flex flex-wrap items-center gap-4">
           <button onclick="setSelectedAll(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
             ✓ Selecionar Todos
@@ -6159,7 +6157,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
           </thead>
           <tbody class="divide-y divide-zinc-800/60 text-sm">
             ${interventions.map((item) => `
-              <tr id="tr-row-${item.id}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
+              <tr id="tr-row-${item.id}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors" data-id="${item.id}" data-type="${item.interventionType}">
                 <td class="px-5 py-4 whitespace-nowrap text-center no-print">
                   <input type="checkbox" id="chk-${item.id}" onchange="toggleRowSelection(${item.id}, this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
                 </td>
@@ -6211,23 +6209,27 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       id: item.id,
       rowNumber: item.rowNumber,
       type: item.interventionType,
-      purpose: item.editorialPurpose,
-      search: (item.sceneExcerpt + ' ' + item.editorialPurpose + ' ' + item.asset.name + ' ' + item.interventionType).toLowerCase(),
       selected: true,
       url: item.asset.url,
       name: item.asset.name,
       category: item.asset.category,
       sizeKb: item.asset.sizeKb,
       timeRange: item.timeRange,
-      sceneExcerpt: item.sceneExcerpt,
+      editorialPurpose: item.editorialPurpose,
       editingGuideline: item.editingGuideline
     })))}
   </script>
 
   <script>
-    const items = JSON.parse(document.getElementById('interventions-data').textContent);
+    let items = [];
+    try {
+      items = JSON.parse(document.getElementById('interventions-data').textContent);
+    } catch (e) {
+      console.error('Falha ao carregar dados:', e);
+    }
+
     let selectedTypeFilter = 'all';
-    let onlySelected = true; // "Mostrar Apenas Selecionados" vem ativo por padrão
+    let onlySelected = true;
 
     function initFilters() {
       const filterContainer = document.getElementById('type-filter-buttons');
@@ -6235,7 +6237,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       
       const typeCounts = {};
       items.forEach(it => {
-        const t = it.type;
+        const t = it.type || 'SFX';
         typeCounts[t] = (typeCounts[t] || 0) + 1;
       });
       
@@ -6250,7 +6252,8 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       
       Object.keys(typeCounts).sort().forEach(type => {
         const btn = document.createElement('button');
-        btn.id = 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeId = 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+        btn.id = safeId;
         btn.onclick = () => filterType(type);
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all uppercase';
         btn.innerText = type + ' (' + typeCounts[type] + ')';
@@ -6266,8 +6269,8 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all';
       });
       
-      const activeId = type === 'all' ? 'btn-filter-all' : 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
-      const activeBtn = document.getElementById(activeId);
+      const safeId = type === 'all' ? 'btn-filter-all' : 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+      const activeBtn = document.getElementById(safeId);
       if (activeBtn) {
         activeBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       }
@@ -6320,20 +6323,23 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     }
 
     function applyFilters() {
-      const searchVal = (document.getElementById('curated-search-input')?.value || '').toLowerCase().trim();
+      const searchInput = document.getElementById('curated-search-input');
+      const searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
       items.forEach(item => {
         const tr = document.getElementById('tr-row-' + item.id);
+        if (!tr) return;
         
+        const rowText = (tr.innerText || '').toLowerCase();
         const matchesType = (selectedTypeFilter === 'all' || item.type.toLowerCase() === selectedTypeFilter.toLowerCase());
         const matchesSelection = (!onlySelected || item.selected);
-        const matchesSearch = !searchVal || item.search.includes(searchVal);
+        const matchesSearch = !searchVal || rowText.includes(searchVal);
         const isVisible = matchesType && matchesSelection && matchesSearch;
         
         if (isVisible) {
-          tr?.classList.remove('filtered-out');
+          tr.classList.remove('filtered-out');
         } else {
-          tr?.classList.add('filtered-out');
+          tr.classList.add('filtered-out');
         }
       });
 
@@ -6341,39 +6347,46 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     }
 
     function updateCounters() {
-      const searchVal = (document.getElementById('curated-search-input')?.value || '').toLowerCase().trim();
-      const visibleItems = items.filter(item => {
+      const searchInput = document.getElementById('curated-search-input');
+      const searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+      let visibleCount = 0;
+      items.forEach(item => {
+        const tr = document.getElementById('tr-row-' + item.id);
+        if (!tr) return;
+        const rowText = (tr.innerText || '').toLowerCase();
         const matchesType = (selectedTypeFilter === 'all' || item.type.toLowerCase() === selectedTypeFilter.toLowerCase());
         const matchesSelection = (!onlySelected || item.selected);
-        const matchesSearch = !searchVal || item.search.includes(searchVal);
-        return matchesType && matchesSelection && matchesSearch;
+        const matchesSearch = !searchVal || rowText.includes(searchVal);
+        if (matchesType && matchesSelection && matchesSearch) {
+          visibleCount++;
+        }
       });
       
       const statCounter = document.getElementById('stat-counter');
       if (statCounter) {
-        statCounter.innerText = visibleItems.length + ' / ' + items.length;
+        statCounter.innerText = visibleCount + ' / ' + items.length;
       }
       const statTotal = document.getElementById('stat-total');
       if (statTotal) {
-        statTotal.innerText = visibleItems.length + ' / ' + items.length;
+        statTotal.innerText = visibleCount + ' / ' + items.length;
       }
     }
 
     function downloadCuratedCsv() {
-      let csv = 'ID,Cena,Posicao Temporal,Momento & Funcao,Tipo,Trecho da Fala,Asset Recomendado,Categoria,Tamanho (KB),Orientacao de Edicao,URL Google Drive,Status\r\n';
+      let csv = 'ID,Cena,Posicao Temporal,Momento & Funcao,Tipo,Asset Recomendado,Categoria,Tamanho (KB),Orientacao de Edicao,URL Google Drive,Status\r\n';
       items.forEach(item => {
         const status = item.selected ? 'Pendente' : 'Concluido';
         csv += '"' + item.id + '",' +
                '"#' + item.rowNumber + '",' +
                '"' + item.timeRange + '",' +
-               '"' + item.purpose.replace(/"/g, '""') + '",' +
+               '"' + (item.editorialPurpose || '').replace(/"/g, '""') + '",' +
                '"' + item.type + '",' +
-               '"' + item.sceneExcerpt.replace(/"/g, '""') + '",' +
-               '"' + item.name + '",' +
-               '"' + item.category + '",' +
+               '"' + (item.name || '').replace(/"/g, '""') + '",' +
+               '"' + (item.category || '').replace(/"/g, '""') + '",' +
                item.sizeKb + ',' +
-               '"' + item.editingGuideline.replace(/"/g, '""') + '",' +
-               '"' + item.url + '",' +
+               '"' + (item.editingGuideline || '').replace(/"/g, '""') + '",' +
+               '"' + (item.url || '') + '",' +
                '"' + status + '"\r\n';
       });
 

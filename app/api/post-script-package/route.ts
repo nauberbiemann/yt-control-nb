@@ -46,12 +46,43 @@ const getLanguageDirectives = (lang?: string) => {
 };
 
 const SYSTEM_INSTRUCTIONS = `
-You generate a post-script production package for a Brazilian Portuguese YouTube video.
+You generate a complete Phase B post-script production and packaging package for a YouTube video.
 
 Return only valid JSON with this exact shape:
 {
-  "titles": ["...", "...", "...", "...", "..."],
+  "titles": ["...", "...", "...", "...", "...", "...", "...", "...", "...", "..."],
+  "thumbnail_copies": [
+    "NÃO FAÇA ISSO",
+    "O ERRO GRAVE",
+    "EVITE AGORA"
+  ],
+  "thumbnail_jsons": [
+    {
+      "canvas": { "width": 1280, "height": 720, "aspect_ratio": "16:9" },
+      "background": { "style": "photorealistic", "prompt": "Cinematic photo of workshop or dramatic context environment, shallow depth of field, dramatic rim lighting, 8k resolution" },
+      "character": { "style": "2D comic illustration", "action": "Pointing directly at the critical flaw with wide shocked eyes", "expression": "Shocked / Warning", "clothing": "Signature channel character outfit" },
+      "text_layers": [
+        { "text": "NÃO FAÇA", "font": "Anton", "style": "ALL CAPS", "color": "#FFFFFF", "stroke": "4px #000000", "size": "140px", "position": "top-left" },
+        { "text": "ISSO HOJE", "font": "Anton", "style": "ALL CAPS", "color": "#FF0000", "stroke": "4px #000000", "size": "140px", "position": "below-first" }
+      ],
+      "indicators": [
+        { "type": "arrow", "color": "#FFD700", "target": "Critical component or focal point" },
+        { "type": "circle", "color": "#FFD700", "target": "Warning area" }
+      ],
+      "badges": [
+        { "text": "CUIDADO!", "bg_color": "#FF0000", "text_color": "#FFFFFF" }
+      ],
+      "composition": "Character on right side reacting, bold high-contrast Anton text on left, yellow arrow pointing from text to focal element",
+      "negative_dna": "speech, talking, mouth open speaking, blurry, low resolution, 3D character, distorted text"
+    }
+  ],
   "seoDescription": "...",
+  "sources_section": [
+    "Relatórios técnicos oficiais e manuais do setor",
+    "Estudos empíricos e dados de performance publicados"
+  ],
+  "pinned_comment": "Qual dessas situações você já presenciou na prática? Deixe seu relato nos comentários!",
+  "seo_tags": ["termo 1", "termo 2", "termo 3", "termo 4", "termo 5", "termo 6", "termo 7", "termo 8", "termo 9", "termo 10"],
   "sunoPrompt": "...",
   "sunoSuggestedTitle": "...",
   "hfContextTitles": [
@@ -61,88 +92,32 @@ Return only valid JSON with this exact shape:
       "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
       "metrics": "—",
       "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
-    },
-    {
-      "timestamp": "[07:30]",
-      "headline": "Esgotamento Silencioso",
-      "subtitle": "O que seu corpo tenta te dizer antes do colapso.",
-      "metrics": "—",
-      "bgPrompt": "Warm amber light in an empty living room at dusk, soft bokeh, emotional and intimate atmosphere."
-    },
-    {
-      "timestamp": "[13:05]",
-      "headline": "Virada de Chave",
-      "subtitle": "O momento que separa quem avança de quem estagna.",
-      "metrics": "3x",
-      "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
     }
   ],
   "sfxTimelineTxt": "..."
 }
 
 Rules:
-- "titles" must contain distinct title options in PT-BR, matching the exact number of titles requested in the user prompt (defaulting to 5 if not specified).
-- If specific "ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA" (Narrative Library Title Structures) are provided in the user prompt:
-  * Every generated title option MUST strictly follow one of those patterns.
-  * Replace all bracketed placeholders (e.g. [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details related to the video topic and script.
-  * CRITICAL RE-THEMING RULE: If any Title Structure pattern is a concrete sentence/example (e.g., it contains specific subjects/nouns like "Magnésio-Quelato" or "alimento fit" instead of bracketed placeholders), you MUST identify these concrete subjects/nouns and adapt/replace them with the current video topic (e.g. "Creatina") and script context. Under no circumstances should you copy the original subjects/nouns of the pattern if they do not match the current video's topic.
-  * The final output titles must NOT contain any bracketed placeholders and must be written fully in PT-BR.
-  * Distribute the titles across the provided structures (e.g., if there are 5 structures, generate at least one variation matching each structure).
-- If NO narrative library title structures are provided:
-  * Each title must organically combine these 5 structural components:
-    1. Tensão inicial (hook): cria desequilíbrio ou lacuna mental.
-    2. Promessa emocional: mostra o que o público vai descobrir, resolver ou entender.
-    3. Contraste: opõe duas ideias, criando tensão semântica.
-    4. Transformação: revela uma virada de entendimento.
-    5. Fechamento de recompensa: entrega o valor final ou insight.
-- Use emotional, curious and intense language. Avoid technical jargon.
-- Mix formats: questions ("Por que..."), paradoxical statements ("A verdade brutal sobre..."), comparative phrases ("O lado oculto de...").
-- Maximum 12 words per title.
-- Vary tones across titles: provocative, philosophical, inspirational, narrative.
-- Titles must feel clickable and relevant to the specific video topic.
-- "seoDescription" must be in PT-BR and should focus on writing only the human opening paragraph of the YouTube description.
-- Use correct Brazilian Portuguese spelling and accentuation in every PT-BR field.
-- The SEO description must follow this formatting:
-  1. One short opening paragraph with 2 to 4 sentences introducing the promise of the video.
-  2. Do not write timestamp lines yourself.
-  3. Do not write the AVISO DE IA yourself.
-- The app will normalize timestamps and the AI notice after your response.
-- Keep the opening paragraph natural, human and useful, not robotic.
-- Avoid quotation marks around technical metaphors unless absolutely necessary.
-- "sunoPrompt" must be written in English and must be rich, thematic, and detailed — reflecting the specific emotional arc, subject matter, and atmosphere of this video.
-- The Suno prompt MUST reference the theme of the video (e.g. if the video is about developer burnout, the prompt should evoke that feeling through musical language).
-- Structure the prompt as a layered description covering: genre/subgenre, mood and atmosphere, key instruments, dynamic evolution (how the music builds or shifts), and any thematic or textural references.
-- Use comma-separated descriptors, but write multiple layers — not just one line. Think of it as a production brief that a composer would use to score a short film.
-- Maximum length: 800 characters. Stay under this limit but use as much of it as needed to be specific and evocative.
-- Do NOT use generic phrases like "epic cinematic orchestral" without grounding them in the specific theme.
-- Avoid BPM numbers, key signatures, stem breakdowns, or technical production jargon.
-- "sunoSuggestedTitle" should be short and in English.
-- "sfxTimelineTxt" must be in PT-BR and formatted as a clean plain-text timeline, not JSON.
-- In "sfxTimelineTxt", keep labels EFEITO/FUNCAO/TRECHO/OBS in PT-BR, but the value after EFEITO must be an English searchable sound effect name for CapCut PC.
-- Prefer simple English SFX names such as "Digital Glitch", "Low Rumble", "Cinematic Whoosh", "Keyboard Clicks", "Sub Bass Hit", "Notification Ping", "Metallic Impact", "Tension Riser", "Ambient Room Tone".
-- The SFX timeline must respect a minimum interval of 25 seconds between events.
-- Use the suggested SFX anchors as the primary map, but you may skip weak points if they would feel artificial.
-- In SFX timeline, use this format repeatedly:
-  [MM:SS]
-  EFEITO: ...
-  FUNCAO: ...
-  TRECHO: ...
-  OBS: ...
-- For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
-  DO NOT include a "visualState" field — the template is assigned automatically by the app.
-  For each anchor generate ONLY:
-  1. "timestamp": The anchor timestamp in [MM:SS] format.
-  2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
-  3. "subtitle": Contextual phrase (max 15 words) that reflects what is being said at that moment.
-  4. "metrics": Optional support metric (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
-  5. "bgPrompt": A cinematic image/video generation prompt in English for the background behind the avatar.
-     - Must be visually descriptive, environment-based, and match the emotional tone of that specific narrative moment.
-     - Do NOT describe the person or avatar. Describe only the scene, setting, textures, and atmosphere.
-     - Examples: "Soft morning light filtering through kitchen window, organic produce on marble counter, shallow depth of field", "Dark laboratory with glowing chemical flasks, blue neon reflections on glass surfaces, cinematic wide shot"
-     - Write 1-2 sentences. Maximum 200 characters.
-     - This prompt will be used with AI image/video generators (Midjourney, Kling, RunwayML). Make it generator-ready.
-- Do not include markdown fences.
-- Do not explain the process.
+- "titles": Generate 10 high-CTR title variations (between 55 and 85 characters).
+  * If narrative library title structures or forensic formulas are provided, strictly apply them and distribute the titles across the formulas.
+  * Maximum 12 words per title. Emotional, curious, and intense language only.
+- "thumbnail_copies": Generate exactly 3 short punchy options (2 to 4 words MAX in Portuguese/channel language, ALL CAPS).
+  * Must be an IMPERATIVE command or SHOCK trigger (e.g. 'NÃO FAÇA ISSO', 'O ERRO GRAVE', 'NUNCA COMPRE', 'FAÇA ISTO HOJE').
+  * NEVER repeat the full video title. The thumbnail copy provides emotional punch; the title provides context.
+- "thumbnail_jsons": Generate exactly 3 complete art direction JSONs (Options A, B, and C) matching the channel's visual identity:
+  * Typography: Anton font, ALL CAPS, 3-5px black stroke outline.
+  * Colors: Arrows/Circles in bright yellow (#FFD700), Badges/Alerts in red (#FF0000) with white text (#FFFFFF).
+  * Character layer: 2D comic illustration / cartoon mascot.
+  * Background layer: Photorealistic, cinematic scene.
+- "sources_section": List 2 to 4 authoritative sources or verifiable benchmarks relevant to the topic.
+- "pinned_comment": An engaging, open-ended question designed to maximize comment velocity in the first 2 hours.
+- "seo_tags": 10 to 15 relevant, high-search-intent tags.
+- "seoDescription": One short human opening paragraph (2 to 4 sentences) introducing the core transformation. Do not include timestamps or AI notices; the app formats them.
+- "sunoPrompt": Layered prompt in English describing soundtrack mood, instruments, dynamic evolution, and thematic atmosphere. Max 800 chars.
+- "sunoSuggestedTitle": Short title for the soundtrack.
+- "sfxTimelineTxt": Plain-text SFX timeline with minimum 25s spacing. Use format: [MM:SS] \n EFEITO: [English CapCut SFX name] \n FUNCAO: ... \n TRECHO: ... \n OBS: ...
+- "hfContextTitles": Contextual hyperframe entries for each supplied hyperframe anchor. Include visual 'bgPrompt' in English describing environment only.
+- Do not output markdown code blocks. Output pure JSON.
 `.trim();
 
 interface RouteBody {

@@ -513,12 +513,43 @@ NARRATIVE VISUAL RULES:
 
 
 const POST_SCRIPT_SYSTEM_INSTRUCTIONS = `
-You generate a post-script production package for a Brazilian Portuguese YouTube video.
+You generate a complete Phase B post-script production and packaging package for a YouTube video.
 
 Return only valid JSON with this exact shape:
 {
-  "titles": ["...", "...", "...", "...", "..."],
+  "titles": ["...", "...", "...", "...", "...", "...", "...", "...", "...", "..."],
+  "thumbnail_copies": [
+    "NÃO FAÇA ISSO",
+    "O ERRO GRAVE",
+    "EVITE AGORA"
+  ],
+  "thumbnail_jsons": [
+    {
+      "canvas": { "width": 1280, "height": 720, "aspect_ratio": "16:9" },
+      "background": { "style": "photorealistic", "prompt": "Cinematic photo of workshop or dramatic context environment, shallow depth of field, dramatic rim lighting, 8k resolution" },
+      "character": { "style": "2D comic illustration", "action": "Pointing directly at the critical flaw with wide shocked eyes", "expression": "Shocked / Warning", "clothing": "Signature channel character outfit" },
+      "text_layers": [
+        { "text": "NÃO FAÇA", "font": "Anton", "style": "ALL CAPS", "color": "#FFFFFF", "stroke": "4px #000000", "size": "140px", "position": "top-left" },
+        { "text": "ISSO HOJE", "font": "Anton", "style": "ALL CAPS", "color": "#FF0000", "stroke": "4px #000000", "size": "140px", "position": "below-first" }
+      ],
+      "indicators": [
+        { "type": "arrow", "color": "#FFD700", "target": "Critical component or focal point" },
+        { "type": "circle", "color": "#FFD700", "target": "Warning area" }
+      ],
+      "badges": [
+        { "text": "CUIDADO!", "bg_color": "#FF0000", "text_color": "#FFFFFF" }
+      ],
+      "composition": "Character on right side reacting, bold high-contrast Anton text on left, yellow arrow pointing from text to focal element",
+      "negative_dna": "speech, talking, mouth open speaking, blurry, low resolution, 3D character, distorted text"
+    }
+  ],
   "seoDescription": "...",
+  "sources_section": [
+    "Relatórios técnicos oficiais e manuais do setor",
+    "Estudos empíricos e dados de performance publicados"
+  ],
+  "pinned_comment": "Qual dessas situações você já presenciou na prática? Deixe seu relato nos comentários!",
+  "seo_tags": ["termo 1", "termo 2", "termo 3", "termo 4", "termo 5", "termo 6", "termo 7", "termo 8", "termo 9", "termo 10"],
   "sunoPrompt": "...",
   "sunoSuggestedTitle": "...",
   "hfContextTitles": [
@@ -528,88 +559,32 @@ Return only valid JSON with this exact shape:
       "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
       "metrics": "—",
       "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
-    },
-    {
-      "timestamp": "[07:30]",
-      "headline": "Esgotamento Silencioso",
-      "subtitle": "O que seu corpo tenta te dizer antes do colapso.",
-      "metrics": "—",
-      "bgPrompt": "Warm amber light in an empty living room at dusk, soft bokeh, emotional and intimate atmosphere."
-    },
-    {
-      "timestamp": "[13:05]",
-      "headline": "Virada de Chave",
-      "subtitle": "O momento que separa quem avança de quem estagna.",
-      "metrics": "3x",
-      "bgPrompt": "Abstract dark corridor with a single beam of light breaking through, dramatic contrast, cinematic wide angle."
     }
   ],
   "sfxTimelineTxt": "..."
 }
 
 Rules:
-- "titles" must contain distinct title options in PT-BR, matching the exact number of titles requested in the user prompt (defaulting to 5 if not specified).
-- If specific "ESTRUTURAS DE TITULO DA BIBLIOTECA NARRATIVA" (Narrative Library Title Structures) are provided in the user prompt:
-  * Every generated title option MUST strictly follow one of those patterns.
-  * Replace all bracketed placeholders (e.g. [TEMA], [METAFORA], [TARGET], [Elemento Pequeno/Frágil], [Objeto], etc.) with specific, contextual details related to the video topic and script.
-  * CRITICAL RE-THEMING RULE: If any Title Structure pattern is a concrete sentence/example (e.g., it contains specific subjects/nouns like "Magnésio-Quelato" or "alimento fit" instead of bracketed placeholders), you MUST identify these concrete subjects/nouns and adapt/replace them with the current video topic (e.g. "Creatina") and script context. Under no circumstances should you copy the original subjects/nouns of the pattern if they do not match the current video's topic.
-  * The final output titles must NOT contain any bracketed placeholders and must be written fully in PT-BR.
-  * Distribute the titles across the provided structures (e.g., if there are 5 structures, generate at least one variation matching each structure).
-- If NO narrative library title structures are provided:
-  * Each title must organically combine these 5 structural components:
-    1. Tensão inicial (hook): cria desequilíbrio ou lacuna mental.
-    2. Promessa emocional: mostra o que o público vai descobrir, resolver ou entender.
-    3. Contraste: opõe duas ideias, criando tensionamento semântico.
-    4. Transformação: revela uma virada de entendimento.
-    5. Fechamento de recompensa: entrega o valor final ou insight.
-- Use emotional, curious and intense language. Avoid technical jargon.
-- Mix formats: questions ("Por que..."), paradoxical statements ("A verdade brutal sobre..."), comparative phrases ("O lado oculto de...").
-- Maximum 12 words per title.
-- Vary tones across titles: provocative, philosophical, inspirational, narrative.
-- Titles must feel clickable and relevant to the specific video topic.
-- "seoDescription" must be in PT-BR and should focus on writing only the human opening paragraph of the YouTube description.
-- Use correct Brazilian Portuguese spelling and accentuation in every PT-BR field.
-- The SEO description must follow this formatting:
-  1. One short opening paragraph with 2 to 4 sentences introducing the promise of the video.
-  2. Do not write timestamp lines yourself.
-  3. Do not write the AVISO DE IA yourself.
-- The app will normalize timestamps and the AI notice after your response.
-- Keep the opening paragraph natural, human and useful, not robotic.
-- Avoid quotation marks around technical metaphors unless absolutely necessary.
-- "sunoPrompt" must be written in English and must be rich, thematic, and detailed — reflecting the specific emotional arc, subject matter, and atmosphere of this video.
-- The Suno prompt MUST reference the theme of the video (e.g. if the video is about developer burnout, the prompt should evoke that feeling through musical language).
-- Structure the prompt as a layered description covering: genre/subgenre, mood and atmosphere, key instruments, dynamic evolution (how the music builds or shifts), and any thematic or textural references.
-- Use comma-separated descriptors, but write multiple layers — not just one line. Think of it as a production brief that a composer would use to score a short film.
-- Maximum length: 800 characters. Stay under this limit but use as much of it as needed to be specific and evocative.
-- Do NOT use generic phrases like "epic cinematic orchestral" without grounding them in the specific theme.
-- Avoid BPM numbers, key signatures, stem breakdowns, or technical production jargon.
-- "sunoSuggestedTitle" should be short and in English.
-- "sfxTimelineTxt" must be in PT-BR and formatted as a clean plain-text timeline, not JSON.
-- In "sfxTimelineTxt", keep labels EFEITO/FUNCAO/TRECHO/OBS in PT-BR, but the value after EFEITO must be an English searchable sound effect name for CapCut PC.
-- Prefer simple English SFX names such as "Digital Glitch", "Low Rumble", "Cinematic Whoosh", "Keyboard Clicks", "Sub Bass Hit", "Notification Ping", "Metallic Impact", "Tension Riser", "Ambient Room Tone".
-- The SFX timeline must respect a minimum interval of 25 seconds between events.
-- Use the suggested SFX anchors as the primary map, but you may skip weak points if they would feel artificial.
-- In SFX timeline, use this format repeatedly:
-  [MM:SS]
-  EFEITO: ...
-  FUNCAO: ...
-  TRECHO: ...
-  OBS: ...
-- For "hfContextTitles", generate a contextual title array based on the provided hyperframe anchors.
-  DO NOT include a "visualState" field — the template is assigned automatically by the app.
-  For each anchor generate ONLY:
-  1. "timestamp": The anchor timestamp in [MM:SS] format.
-  2. "headline": Short impact title (3-6 words, e.g. "Presença Fragmentada", "O Custo Oculto").
-  3. "subtitle": Contextual phrase (max 15 words) that reflects what is being said at that moment.
-  4. "metrics": Optional support metric (e.g. "10x", "+85%"). Use an em dash "—" if not applicable.
-  5. "bgPrompt": A cinematic image/video generation prompt in English for the background behind the avatar.
-     - Must be visually descriptive, environment-based, and match the emotional tone of that specific narrative moment.
-     - Do NOT describe the person or avatar. Describe only the scene, setting, textures, and atmosphere.
-     - Examples: "Soft morning light filtering through kitchen window, organic produce on marble counter, shallow depth of field", "Dark laboratory with glowing chemical flasks, blue neon reflections on glass surfaces, cinematic wide shot"
-     - Write 1-2 sentences. Maximum 200 characters.
-     - This prompt will be used with AI image/video generators (Midjourney, Kling, RunwayML). Make it generator-ready.
-- Do not include markdown fences.
-- Do not explain the process.
+- "titles": Generate 10 high-CTR title variations (between 55 and 85 characters).
+  * If narrative library title structures or forensic formulas are provided, strictly apply them and distribute the titles across the formulas.
+  * Maximum 12 words per title. Emotional, curious, and intense language only.
+- "thumbnail_copies": Generate exactly 3 short punchy options (2 to 4 words MAX in Portuguese/channel language, ALL CAPS).
+  * Must be an IMPERATIVE command or SHOCK trigger (e.g. 'NÃO FAÇA ISSO', 'O ERRO GRAVE', 'NUNCA COMPRE', 'FAÇA ISTO HOJE').
+  * NEVER repeat the full video title. The thumbnail copy provides emotional punch; the title provides context.
+- "thumbnail_jsons": Generate exactly 3 complete art direction JSONs (Options A, B, and C) matching the channel's visual identity:
+  * Typography: Anton font, ALL CAPS, 3-5px black stroke outline.
+  * Colors: Arrows/Circles in bright yellow (#FFD700), Badges/Alerts in red (#FF0000) with white text (#FFFFFF).
+  * Character layer: 2D comic illustration / cartoon mascot.
+  * Background layer: Photorealistic, cinematic scene.
+- "sources_section": List 2 to 4 authoritative sources or verifiable benchmarks relevant to the topic.
+- "pinned_comment": An engaging, open-ended question designed to maximize comment velocity in the first 2 hours.
+- "seo_tags": 10 to 15 relevant, high-search-intent tags.
+- "seoDescription": One short human opening paragraph (2 to 4 sentences) introducing the core transformation. Do not include timestamps or AI notices; the app formats them.
+- "sunoPrompt": Layered prompt in English describing soundtrack mood, instruments, dynamic evolution, and thematic atmosphere. Max 800 chars.
+- "sunoSuggestedTitle": Short title for the soundtrack.
+- "sfxTimelineTxt": Plain-text SFX timeline with minimum 25s spacing. Use format: [MM:SS] \n EFEITO: [English CapCut SFX name] \n FUNCAO: ... \n TRECHO: ... \n OBS: ...
+- "hfContextTitles": Contextual hyperframe entries for each supplied hyperframe anchor. Include visual 'bgPrompt' in English describing environment only.
+- Do not output markdown code blocks. Output pure JSON.
 `.trim();
 
 const parseJsonResponse = (rawContent: string): any => {
@@ -1546,6 +1521,14 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [templateFontFamily, setTemplateFontFamily] = useState('Inter');
   const [templateStyleProfile, setTemplateStyleProfile] = useState('Tech');
   const [templateGenResult, setTemplateGenResult] = useState<{ total: number; missing: string[] } | null>(null);
+
+  // Roterizador 2077 & Fase B Universal States
+  const [showRoterizadorModal, setShowRoterizadorModal] = useState(false);
+  const [roterizadorRefScript, setRoterizadorRefScript] = useState('');
+  const [roterizadorTitle, setRoterizadorTitle] = useState('');
+  const [roterizadorLanguage, setRoterizadorLanguage] = useState('Português (Brasil)');
+  const [roterizadorWordCount, setRoterizadorWordCount] = useState('1800');
+  const [selectedThumbJsonTab, setSelectedThumbJsonTab] = useState<number>(0);
 
   // Load Template Studio settings from localStorage
   useEffect(() => {
@@ -3268,6 +3251,18 @@ ${videoFormat === 'catalog' ? `
 - RIGOR HISTÓRICO E FATOS REAIS: É expressamente proibido alucinar ou inventar qualquer dado. Todas as datas, nomes, localizações, dados científicos e históricos devem ser estritamente reais, precisos, documentados e verificáveis. Se não tiver certeza absoluta de um fato, use um fato real conhecido semelhante.
 - FORMATO DE IMAGEM/VÍDEO CLEAN BRANDING: O roteiro fará referências a marcas comerciais ou produtos consagrados de forma puramente descritiva ou usando placeholders como "[Product Placeholder: Nome do Produto/Marca]", facilitando a identificação visual.` : ''}
 
+[HUMANIZER BLINDADO — WIKIPROJECT AI CLEANUP]
+- PROIBIÇÃO DE VÍCIOS DE IA: É expressamente proibido usar palavras e clichês robóticos como: "mergulhe", "mergulhar", "vamos explorar", "tapeçaria", "farol", "testamento", "crucial", "fundamental", "em um mundo onde", "é importante lembrar", "não apenas... mas também", "descubra como", "no entanto, o que muitos não sabem".
+- BANIMENTO DA "REGRA DE TRÊS" ARTIFICIAL: Não crie listas ternárias forçadas de adjetivos ou verbos ("rápido, prático e eficiente", "corpo, mente e espírito"). Use afirmações diretas de 1 ou 2 termos reais.
+- VARIAÇÃO RÍTMICA E CADÊNCIA: Alterne propositalmente frases muito curtas e diretas (4 a 8 palavras) com frases médias explicativas (12 a 20 palavras). Proibido escrever parágrafos onde todas as frases tenham o mesmo tamanho ou a mesma estrutura sintática.
+- OPINIÃO E AUTORIDADE (SOUL & PERSONALITY): Não seja um relator neutro ou enciclopédico. Tome posição firme, expresse ceticismo realista, reaja aos fatos e fale como um profissional sênior em uma conversa real.
+
+[COUNCIL DE RETENÇÃO — CRITÉRIOS DE AUDITORIA NATIVA]
+1. ESTRUTURA: Gancho de choque e urgência nos primeiros 5 segundos sem preâmbulos. Elimine redundâncias entre blocos.
+2. RETENÇÃO: Plante picos de tensão ou novas revelações a cada 45-60 segundos. O espectador nunca deve sentir que o assunto "esfriou".
+3. VOZ & PERSONA: Consistência gramatical e autoridade máxima, respeitando a identidade declarada do narrador.
+4. COMPLIANCE & PROVAS: Zero dados inventados. Toda afirmação deve ter sustentação e ancoragem lógica.
+
 - Nao omita nenhuma parte, nao una secoes, nao altere a ordem narrativa interna.
 
 ${useAdvancedRetention ? `[DIRETRIZES DE RETENÇÃO AVANÇADA - PDF 2026-2027]
@@ -4229,7 +4224,7 @@ ${textToAnalyze}`;
     stem: string,
     suffix: string,
     content: string,
-    options?: { extension?: 'txt' | 'csv' | 'bat' | 'fcpxml'; mimeType?: string }
+    options?: { extension?: 'txt' | 'csv' | 'bat' | 'fcpxml' | 'json'; mimeType?: string }
   ) => {
     if (!content.trim()) {
       alert('Nao ha conteudo disponivel para exportar.');
@@ -7864,6 +7859,65 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     uniqueTitleStructureTemplates[0],
   ].filter(Boolean);
 
+  const handleTriggerRoterizador2077 = () => {
+    if (!roterizadorTitle.trim()) {
+      alert('Por favor, informe o Título do Vídeo no Roterizador 2077.');
+      return;
+    }
+    if (!roterizadorRefScript.trim()) {
+      alert('Por favor, cole o Roteiro de Referência no Roterizador 2077.');
+      return;
+    }
+
+    const title = roterizadorTitle.trim();
+    const wordCountParsed = parseInt(roterizadorWordCount, 10);
+    const targetWords = isNaN(wordCountParsed) || wordCountParsed <= 0 ? 1800 : wordCountParsed;
+    const estimatedChars = targetWords * 7;
+
+    setApprovedTheme(title);
+    setWritingStyleSample(roterizadorRefScript);
+
+    const defaultBlocks: ScriptBlock[] = [
+      { id: 'b1', title: 'Gancho & Diagnóstico Inicial', content: 'Abertura de choque nos primeiros 5s, expondo o problema com urgência e aversão à perda.', type: 'Hook' },
+      { id: 'b2', title: 'Aprofundamento & Consequências', content: 'Explicar por que o problema ocorre e demonstrar o custo invisível de não agir.', type: 'Development' },
+      { id: 'b3', title: 'Mito de Origem & Virada', content: 'Revelação central, quebra de expectativa e ponto de virada dramático.', type: 'Development' },
+      { id: 'b4', title: 'Protocolo Prático de Ação', content: 'Instruções práticas, passos acionáveis e direcionamento concreto sem rodeios.', type: 'Development' },
+      { id: 'b5', title: 'Fechamento & Chamada Final', content: 'Consolidação da mudança, insight transformador e encerramento memorável.', type: 'CTA' },
+    ];
+
+    setApprovedBriefing({
+      title,
+      dominantVoice: 'Sênior Direto & Cético',
+      estimatedDuration: `${Math.round(targetWords / 150)} min`,
+      estimatedChars,
+      blockCount: 5,
+      openingHook: { name: 'Gancho de Choque / Aversão à Perda' },
+      selectedCta: { name: 'Convocação Prática' },
+      blocks: defaultBlocks,
+    });
+
+    setScriptBlocks(defaultBlocks);
+    setScriptStage('blueprint');
+    setAssemblerActive(false);
+    setShowRoterizadorModal(false);
+
+    persistExecutionSnapshotLocally({
+      approvedTheme: title,
+      writingStyleSample: roterizadorRefScript,
+      approvedBriefing: {
+        title,
+        dominantVoice: 'Sênior Direto & Cético',
+        estimatedDuration: `${Math.round(targetWords / 150)} min`,
+        estimatedChars,
+        blockCount: 5,
+        blocks: defaultBlocks,
+      },
+      scriptBlocks: defaultBlocks,
+    });
+
+    showToast('⚡ Roterizador 2077 ativado! Briefing, referência e blocos carregados.');
+  };
+
   const thumbnailDirectivePanel = showThumbnailPanel && thumbnailDirective ? (
     <div
       ref={thumbnailPanelRef}
@@ -8054,6 +8108,17 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         <section className="flex-1 min-w-0 min-h-0 glass-card flex-col shadow-2xl border-white/10 ring-1 ring-white/5 flex">
         {assemblerActive ? (
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 xl:p-6">
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRoterizadorModal(true)}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-100 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-amber-500/40 shadow-lg shadow-amber-900/20"
+                title="Abrir intake rápido do Roterizador 2077"
+              >
+                <Zap size={14} className="text-amber-400 fill-amber-400/30 animate-pulse" />
+                ⚡ ROTERIZADOR 2077
+              </button>
+            </div>
             <ProductionAssembler
               components={components}
               componentsHydrated={componentsHydrated}
@@ -8072,6 +8137,15 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 w-full xl:w-[640px]">
+            <button
+              type="button"
+              onClick={() => setShowRoterizadorModal(true)}
+              className="px-4 py-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-100 rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-amber-500/40 shadow-lg shadow-amber-900/20"
+              title="Abrir intake rápido do Roterizador 2077"
+            >
+              <Zap size={14} className="text-amber-400 fill-amber-400/30 animate-pulse" />
+              ⚡ ROTERIZADOR 2077
+            </button>
             <button
               onClick={restoreExecutionState}
               className="px-4 py-3 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-2 border border-white/10"
@@ -10191,6 +10265,123 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
               </div>
             ) : postScriptPackage ? (
               <>
+                {/* THUMBNAIL PACK (FASE B2 & B3) */}
+                {((postScriptPackage.thumbnailCopies && postScriptPackage.thumbnailCopies.length > 0) || (postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0)) && (
+                  <div className="rounded-3xl border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-4 shadow-[0_0_30px_rgba(168,85,247,0.06)]">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-purple-300">
+                          🖼️ Pacote de Thumbnails · Direção de Arte & Copies
+                        </p>
+                        <p className="mt-1 text-[10px] text-white/40">
+                          Copies de alto impacto (2 a 4 palavras) e 3 JSONs completos de direção de arte para Photoshop / Canva / Midjourney.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Thumbnail Copies */}
+                    {postScriptPackage.thumbnailCopies && postScriptPackage.thumbnailCopies.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-purple-200">
+                          Copies Recomendadas para a Thumbnail (ALL CAPS)
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {postScriptPackage.thumbnailCopies.map((copyText, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => copyTextToClipboard(copyText, `Copy "${copyText}" copiada!`)}
+                              className="group cursor-pointer rounded-2xl border border-white/10 bg-black/30 p-3 flex items-center justify-between hover:border-purple-400/40 hover:bg-purple-500/10 transition-all"
+                            >
+                              <div className="min-w-0">
+                                <span className="block text-[8px] font-black uppercase text-white/30">Opção {idx + 1}</span>
+                                <span className="font-black text-[13px] text-amber-300 font-mono tracking-wide truncate block">{copyText}</span>
+                              </div>
+                              <Copy size={13} className="text-white/30 group-hover:text-purple-300 shrink-0 ml-2" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Thumbnail JSONs Tabs */}
+                    {postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0 && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            {postScriptPackage.thumbnailJsons.map((_, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setSelectedThumbJsonTab(idx)}
+                                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                  selectedThumbJsonTab === idx
+                                    ? 'bg-purple-500/25 border border-purple-400/50 text-purple-200 shadow-sm'
+                                    : 'bg-black/20 border border-white/5 text-white/40 hover:text-white/70'
+                                }`}
+                              >
+                                Layout {String.fromCharCode(65 + idx)}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const activeJson = postScriptPackage.thumbnailJsons?.[selectedThumbJsonTab] || postScriptPackage.thumbnailJsons?.[0];
+                                if (activeJson) {
+                                  copyTextToClipboard(JSON.stringify(activeJson, null, 2), 'JSON de Thumbnail copiado.');
+                                }
+                              }}
+                              className="rounded-xl border border-white/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/75 hover:border-purple-400/30 hover:text-purple-200"
+                            >
+                              <Copy size={11} className="inline mr-1.5" /> Copiar JSON
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const activeJson = postScriptPackage.thumbnailJsons?.[selectedThumbJsonTab] || postScriptPackage.thumbnailJsons?.[0];
+                                if (activeJson) {
+                                  downloadTextArtifact(packageArtifactStem, `thumb_layout_${String.fromCharCode(65 + selectedThumbJsonTab).toLowerCase()}`, JSON.stringify(activeJson, null, 2), { extension: 'json', mimeType: 'application/json' });
+                                }
+                              }}
+                              className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-purple-200 hover:bg-purple-500/20"
+                            >
+                              <FileText size={11} className="inline mr-1.5" /> Baixar .json
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* JSON details summary */}
+                        {postScriptPackage.thumbnailJsons[selectedThumbJsonTab] && (
+                          <div className="rounded-2xl border border-white/5 bg-black/40 p-4 space-y-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                <span className="text-[8px] font-black uppercase text-white/30 block">Canvas</span>
+                                <span className="font-bold text-white/80">1280x720 (16:9)</span>
+                              </div>
+                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                <span className="text-[8px] font-black uppercase text-white/30 block">Fonte & Estilo</span>
+                                <span className="font-bold text-amber-300">Anton (ALL CAPS)</span>
+                              </div>
+                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                <span className="text-[8px] font-black uppercase text-white/30 block">Personagem / Mascote</span>
+                                <span className="font-bold text-cyan-300">2D Comic Illustration</span>
+                              </div>
+                              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                <span className="text-[8px] font-black uppercase text-white/30 block">Fundo</span>
+                                <span className="font-bold text-purple-300">Cena Fotorrealista</span>
+                              </div>
+                            </div>
+                            <pre className="text-[10px] font-mono text-white/70 max-h-[160px] overflow-y-auto custom-scrollbar p-3 bg-black/50 rounded-xl whitespace-pre-wrap">
+                              {JSON.stringify(postScriptPackage.thumbnailJsons[selectedThumbJsonTab], null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.95fr)]">
                   <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
                     {/* Header row */}
@@ -10246,7 +10437,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
                     {/* Action buttons */}
                     <div className="flex flex-col gap-2 pt-1">
-                      {/* Step 1 → always visible: Validate */}
                       <button
                         type="button"
                         onClick={validateViralTitles}
@@ -10261,7 +10451,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                               ? `VALIDAR NOVOS (${titleValidations.filter(v => v === null).length})`
                               : 'REVALIDAR TÍTULOS'}
                       </button>
-                      {/* Step 2 → conditional: Regenerate (appears after validation) */}
                       {titleValidations && (
                         <button
                           type="button"
@@ -10277,7 +10466,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                               : 'REGERAR TÍTULOS'}
                         </button>
                       )}
-                      {/* AI working indicator */}
                       {(isValidatingTitles || isRegeneratingTitles) && (
                         <div className="flex items-center gap-3 rounded-xl border border-blue-400/15 bg-blue-500/5 px-4 py-3">
                           <span className="relative flex h-2 w-2 shrink-0">
@@ -10297,15 +10485,15 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                   <div className="rounded-3xl border border-white/10 bg-midnight/35 p-5 space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Descricao SEO</p>
-                        <p className="mt-1 text-[10px] text-white/40">Pronta para colar no YouTube com abertura, capitulos e aviso final.</p>
+                        <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Pacote SEO & YouTube</p>
+                        <p className="mt-1 text-[10px] text-white/40">Descrição completa, capítulos, fontes, comentário fixado e tags.</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => copyTextToClipboard(postScriptPackage.seoDescription, 'Descricao SEO copiada.')}
                         className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
                       >
-                        <Copy size={12} className="inline mr-2" /> Copiar
+                        <Copy size={12} className="inline mr-2" /> Copiar Descrição
                       </button>
                     </div>
                     <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
@@ -10327,6 +10515,62 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                                 </span>
                                 <span className="text-[11px] leading-6 text-white/80">{chapter.label}</span>
                               </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fontes de Autoridade */}
+                      {postScriptPackage.sourcesSection && postScriptPackage.sourcesSection.length > 0 && (
+                        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-300">📚 Fontes & Referências Oficiais</p>
+                          <ul className="mt-2 space-y-1 text-[10px] text-white/70">
+                            {postScriptPackage.sourcesSection.map((src, i) => (
+                              <li key={i} className="flex items-center gap-2">
+                                <span className="text-emerald-400">•</span> {src}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Pinned Comment */}
+                      {postScriptPackage.pinnedComment && (
+                        <div className="rounded-2xl border border-amber-400/20 bg-amber-500/[0.03] px-4 py-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-amber-300">📌 Comentário Fixado (Primeiras 2 Horas)</p>
+                            <button
+                              type="button"
+                              onClick={() => copyTextToClipboard(postScriptPackage.pinnedComment || '', 'Comentário fixado copiado!')}
+                              className="text-[8px] font-bold text-amber-200 uppercase tracking-wider hover:underline"
+                            >
+                              Copiar
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-white/85 leading-relaxed italic">
+                            "{postScriptPackage.pinnedComment}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* SEO Tags */}
+                      {postScriptPackage.seoTags && postScriptPackage.seoTags.length > 0 && (
+                        <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">🏷️ Tags do Vídeo ({postScriptPackage.seoTags.length})</p>
+                            <button
+                              type="button"
+                              onClick={() => copyTextToClipboard((postScriptPackage.seoTags || []).join(', '), 'Tags copiadas como CSV!')}
+                              className="text-[8px] font-bold text-blue-300 uppercase tracking-wider hover:underline"
+                            >
+                              Copiar Lista
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {postScriptPackage.seoTags.map((tag, i) => (
+                              <span key={i} className="px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 text-[9px] font-bold text-white/75">
+                                #{tag}
+                              </span>
                             ))}
                           </div>
                         </div>
@@ -10831,6 +11075,115 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           </>
         )}
         </section>
+
+      {/* MODAL ROTERIZADOR 2077 (INTAKE ÚNICO) */}
+      {showRoterizadorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-midnight/95 border border-amber-500/40 rounded-3xl p-6 xl:p-8 space-y-6 shadow-[0_0_50px_rgba(245,158,11,0.15)] max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-2xl">
+                  <Zap size={22} className="text-amber-400 fill-amber-400/30" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white italic tracking-wide">
+                    ROTERIZADOR 2077 <span className="text-amber-400 font-mono text-xs not-italic ml-1">v3.0</span>
+                  </h3>
+                  <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">
+                    Intake Único · Alta Retenção · Blindagem Anti-Clichê
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRoterizadorModal(false)}
+                className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Campo 1: Roteiro de Referência */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-amber-300">
+                  1. Roteiro de Referência (DNA do Nicho) <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={roterizadorRefScript}
+                  onChange={(e) => setRoterizadorRefScript(e.target.value)}
+                  placeholder="Cole aqui o roteiro completo ou trecho de sucesso do canal concorrente para extração silenciosa de DNA..."
+                  className="w-full min-h-[140px] max-h-[220px] bg-black/40 border border-white/10 rounded-2xl p-4 text-[11px] text-white/90 leading-relaxed outline-none focus:border-amber-400/50 resize-y placeholder:text-white/20 font-mono"
+                />
+              </div>
+
+              {/* Campo 2: Título do Vídeo */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-blue-300">
+                  2. Título Exato do Seu Novo Vídeo <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={roterizadorTitle}
+                  onChange={(e) => setRoterizadorTitle(e.target.value)}
+                  placeholder="Ex: O Erro Silencioso que Destrói Seu Foco Todos os Dias"
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[12px] font-bold text-white outline-none focus:border-blue-400/50 placeholder:text-white/20"
+                />
+              </div>
+
+              {/* Campo 3 e 4: Idioma e Número de Palavras */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-purple-300">
+                    3. Idioma de Destino
+                  </label>
+                  <select
+                    value={roterizadorLanguage}
+                    onChange={(e) => setRoterizadorLanguage(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[11px] font-bold text-white outline-none focus:border-purple-400/50"
+                  >
+                    <option value="Português (Brasil)">Português (Brasil)</option>
+                    <option value="English (US)">English (US)</option>
+                    <option value="Español (Latam)">Español (Latam)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                    4. Meta de Palavras
+                  </label>
+                  <input
+                    type="number"
+                    value={roterizadorWordCount}
+                    onChange={(e) => setRoterizadorWordCount(e.target.value)}
+                    placeholder="1800"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-[11px] font-bold text-white outline-none focus:border-emerald-400/50"
+                  />
+                  <span className="text-[9px] text-white/30 block">~1800 palavras ≈ 12 minutos de vídeo</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowRoterizadorModal(false)}
+                className="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white hover:bg-white/5 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleTriggerRoterizador2077}
+                className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[11px] uppercase tracking-[2px] rounded-2xl shadow-lg shadow-amber-900/30 transition-all active:scale-95 flex items-center gap-2"
+              >
+                <Zap size={14} className="fill-black" />
+                Carregar Briefing (2077)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {toastMessage && (
         <div
           style={{

@@ -12,9 +12,25 @@ export interface PostScriptChapterAnchor {
   rationale?: string;
 }
 
+export interface ThumbnailJsonLayer {
+  canvas?: { width: number; height: number; aspect_ratio: string };
+  background?: { style: string; prompt: string };
+  character?: { style: string; action: string; expression: string; clothing?: string };
+  text_layers?: Array<{ text: string; font: string; style: string; color: string; stroke?: string; size?: string; position?: string }>;
+  indicators?: Array<{ type: string; color: string; target: string }>;
+  badges?: Array<{ text: string; bg_color: string; text_color: string }>;
+  composition?: string;
+  negative_dna?: string;
+}
+
 export interface PostScriptPackage {
   titles: string[];
+  thumbnailCopies?: string[];
+  thumbnailJsons?: ThumbnailJsonLayer[];
   seoDescription: string;
+  sourcesSection?: string[];
+  pinnedComment?: string;
+  seoTags?: string[];
   sunoPrompt: string;
   sunoSuggestedTitle?: string;
   sfxTimelineTxt: string;
@@ -648,7 +664,8 @@ const deriveChapterLabelCustom = (
 const buildSeoDescriptionFromPackage = (
   rawSeoDescription: string, 
   anchors: PostScriptChapterAnchor[], 
-  channelLanguage?: string
+  channelLanguage?: string,
+  sources?: string[]
 ) => {
   const assets = getLanguageAssets(channelLanguage);
   const intro = humanizeSeoIntroCustom(rawSeoDescription, assets.introFallback);
@@ -656,7 +673,12 @@ const buildSeoDescriptionFromPackage = (
     const label = deriveChapterLabelCustom(anchor, index === anchors.length - 1, assets);
     return `${anchor.timestamp} - ${label}`;
   });
-  return [intro, '', ...chapterLines, '', assets.aiNotice].filter(Boolean).join('\n');
+
+  const sourcesLines = Array.isArray(sources) && sources.length > 0
+    ? ['', 'FONTES & REFERÊNCIAS DE AUTORIDADE:', ...sources.map((s) => `- ${cleanPreview(s)}`)]
+    : [];
+
+  return [intro, '', ...chapterLines, ...sourcesLines, '', assets.aiNotice].filter(Boolean).join('\n');
 };
 
 export const buildSeoChapterPlan = ({
@@ -922,31 +944,81 @@ export const buildSfxAnchorPlan = ({
 };
 
 export const sanitizePostScriptPackage = (
-  raw: Partial<PostScriptPackage> | null | undefined,
+  raw: any | null | undefined,
   fallbackAnchors: PostScriptChapterAnchor[],
   timelineSource: 'srt' | 'estimated',
   channelLanguage?: string
 ): PostScriptPackage => {
-  const titles = Array.from(
+  // Support up to 10-15 titles (A/B testing set)
+  const titles: string[] = Array.from<string>(
     new Set(
       (Array.isArray(raw?.titles) ? raw?.titles : [])
-        .map((title) => cleanPreview(String(title || '')))
+        .map((title: any) => cleanPreview(String(title || '')))
+        .filter(Boolean)
+    )
+  ).slice(0, 15);
+
+  // Thumbnail copies: 3 punchy imperative options
+  const thumbnailCopies: string[] = Array.from<string>(
+    new Set(
+      (Array.isArray(raw?.thumbnail_copies) ? raw?.thumbnail_copies : Array.isArray(raw?.thumbnailCopies) ? raw?.thumbnailCopies : [])
+        .map((c: any) => cleanPreview(String(c || '')).toUpperCase())
+        .filter(Boolean)
+    )
+  ).slice(0, 3);
+
+  // Thumbnail JSONs: 3 structured art direction objects
+  const rawJsons = Array.isArray(raw?.thumbnail_jsons) ? raw.thumbnail_jsons : Array.isArray(raw?.thumbnailJsons) ? raw.thumbnailJsons : [];
+  const thumbnailJsons = rawJsons.slice(0, 3).map((item: any) => ({
+    canvas: item?.canvas || { width: 1280, height: 720, aspect_ratio: '16:9' },
+    background: item?.background || { style: 'photorealistic', prompt: 'Atmospheric scene background' },
+    character: item?.character || { style: '2D comic illustration', action: 'Pointing with shock expression', expression: 'Shocked' },
+    text_layers: Array.isArray(item?.text_layers) ? item.text_layers : [],
+    indicators: Array.isArray(item?.indicators) ? item.indicators : [],
+    badges: Array.isArray(item?.badges) ? item.badges : [],
+    composition: item?.composition || 'Character on right, bold Anton text on left, indicator pointing to key detail',
+    negative_dna: item?.negative_dna || 'speech, talking, mouth open, blurry, low resolution',
+  }));
+
+  // Sources section
+  const sourcesSection: string[] = Array.from<string>(
+    new Set(
+      (Array.isArray(raw?.sourcesSection) ? raw?.sourcesSection : Array.isArray(raw?.sources_section) ? raw?.sources_section : Array.isArray(raw?.sources) ? raw?.sources : [])
+        .map((s: any) => cleanPreview(String(s || '')))
         .filter(Boolean)
     )
   ).slice(0, 5);
 
+  // Pinned comment & SEO Tags
+  const pinnedComment = cleanPreview(String(raw?.pinnedComment || raw?.pinned_comment || ''));
+  const seoTags: string[] = Array.from<string>(
+    new Set(
+      (Array.isArray(raw?.seoTags) ? raw?.seoTags : Array.isArray(raw?.seo_tags) ? raw?.seo_tags : Array.isArray(raw?.tags) ? raw?.tags : [])
+        .map((t: any) => cleanPreview(String(t || '')))
+        .filter(Boolean)
+    )
+  ).slice(0, 20);
+
+  const finalChapterAnchors = Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors;
+
   return {
     titles,
+    thumbnailCopies: thumbnailCopies.length > 0 ? thumbnailCopies : undefined,
+    thumbnailJsons: thumbnailJsons.length > 0 ? thumbnailJsons : undefined,
     seoDescription: buildSeoDescriptionFromPackage(
       String(raw?.seoDescription || ''),
-      Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors,
-      channelLanguage
+      finalChapterAnchors,
+      channelLanguage,
+      sourcesSection
     ),
+    sourcesSection: sourcesSection.length > 0 ? sourcesSection : undefined,
+    pinnedComment: pinnedComment || undefined,
+    seoTags: seoTags.length > 0 ? seoTags : undefined,
     sunoPrompt: truncateSunoPrompt(cleanMultiline(String(raw?.sunoPrompt || ''))),
     sunoSuggestedTitle: cleanPreview(String(raw?.sunoSuggestedTitle || '')),
     sfxTimelineTxt: normalizeSfxTimelineEffectNames(String(raw?.sfxTimelineTxt || '')),
     hfContextTitles: Array.isArray(raw?.hfContextTitles) ? raw.hfContextTitles : [],
-    chapterAnchors: Array.isArray(raw?.chapterAnchors) && raw.chapterAnchors.length > 0 ? raw.chapterAnchors : fallbackAnchors,
+    chapterAnchors: finalChapterAnchors,
     timelineSource,
     generatedAt: String(raw?.generatedAt || new Date().toISOString()),
   };

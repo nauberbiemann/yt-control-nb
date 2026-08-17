@@ -5704,10 +5704,10 @@ export interface CuratedAssetIntervention {
   rowNumber: number;
   timeRange: string;
   sceneExcerpt: string;
-  interventionType: 'SFX' | 'Overlay' | 'Chroma Key' | 'Gráfico / Alerta' | 'Transição' | 'Meme' | 'Ícone 3D';
-  editorialPurpose: string;
+  badgeType: 'SOM' | 'SOBRE';
+  interventionCategory: 'SFX' | 'Gráfico' | 'Chroma Key' | 'Transição' | 'Overlay' | 'Ícone 3D';
   asset: PackAssetItem;
-  editingGuideline: string;
+  editorialReason: string;
 }
 
 export interface CuratedProjectStyleKit {
@@ -5726,8 +5726,8 @@ export interface CuratedAssetPlan {
 }
 
 /**
- * Cria um plano pontual, objetivo e de alto valor de enriquecimento de edição usando o Pack Ganha Tempo
- * Distribui estrategicamente os assets ao longo de 100% da duração do vídeo (do minuto 00:00 até o final).
+ * Realiza a análise semântica cirúrgica do SRT ao longo de 100% da timeline
+ * e mapeia os momentos de chamada de atenção com assets do Pack Ganha Tempo (SEM TEXTOS).
  */
 export function buildCuratedAssetEnrichmentPlan(
   rows: any[] = [],
@@ -5737,7 +5737,6 @@ export function buildCuratedAssetEnrichmentPlan(
 ): CuratedAssetPlan {
   const totalDuration = rows[rows.length - 1]?.endTime || '00:00:00';
 
-  // 1. Style Kit Base
   const findItemByName = (name: string, fallbackCat: string): PackAssetItem => {
     const found = PACK_GANHA_TEMPO_ITEMS.find((i) => i.name.toLowerCase() === name.toLowerCase());
     if (found) return found;
@@ -5782,12 +5781,12 @@ export function buildCuratedAssetEnrichmentPlan(
   const totalMs = parseMs(rows[rows.length - 1].endTime);
   const totalMinutes = Math.max(1, totalMs / 60000);
 
-  // Calcula a quantidade ideal proporcional ao tempo: ~1 intervenção a cada 75 a 90 segundos
-  // Vídeo de 5 min: ~6 intervenções | Vídeo de 10 min: ~10 intervenções | Vídeo de 18-20 min: ~14-16 intervenções
-  const targetCount = Math.max(5, Math.min(18, Math.round(totalMinutes * 0.8) || 8));
+  // Divide em janelas de cadência de ~45 a 65 segundos cobrindo 100% da timeline
+  const targetCount = Math.max(6, Math.min(22, Math.round(totalMinutes * 1.0) || 10));
   const windowDurationMs = totalMs / targetCount;
 
   const interventions: CuratedAssetIntervention[] = [];
+  let counter = 1;
 
   for (let w = 0; w < targetCount; w++) {
     const wStart = w * windowDurationMs;
@@ -5801,112 +5800,122 @@ export function buildCuratedAssetEnrichmentPlan(
     if (windowRows.length === 0) continue;
 
     let selectedRow = windowRows[0];
-    let type: CuratedAssetIntervention['interventionType'] = 'SFX';
+    let badgeType: CuratedAssetIntervention['badgeType'] = 'SOM';
+    let interventionCategory: CuratedAssetIntervention['interventionCategory'] = 'SFX';
     let assetItem: PackAssetItem = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
-    let purpose = 'Dinâmica & Ritmo de Corte';
-    let guideline = 'Sincronizar no corte de cena com volume normalizado em -14dB.';
-    let foundThematic = false;
+    let editorialReason = '';
+    let foundTrigger = false;
 
-    // Busca o momento mais expressivo dentro desta janela temporal
+    // Varredura semântica inteligente nas falas do SRT desta janela
     for (const r of windowRows) {
       const textLower = (r.texto || '').toLowerCase();
 
-      // Gatilho: Pane / Alarme / Falha / Erro / Perigo
-      if (/\b(pane|alarme|falha|colapso|erro|perigo|crise|risco|acidente)\b/i.test(textLower)) {
+      // 1. Tensão / Perigo / Susto / Ameaça / Aterrador
+      if (/\b(aterrador|susto|p[aâ]nico|perigo|grave|morte|fatal|crise|desastre|amea[cç]a)\b/i.test(textLower)) {
         selectedRow = r;
-        type = 'Gráfico / Alerta';
-        assetItem = findItemByName('Janela_Erro_Com_Som.mov', 'Graficos');
-        purpose = 'Alerta Visual de Tensão / Falha';
-        guideline = 'Inserir no corte com escala 90% centralizada sobre o vídeo e áudio em -14dB.';
-        foundThematic = true;
-        break;
-      }
-      // Gatilho: Dinheiro / Milhões / Riqueza / Faturamento
-      else if (/\b(milh[oõ]es|bilh[oõ]es|dinheiro|fortuna|faturamento|lucro|d[oó]lar|riqueza)\b/i.test(textLower)) {
-        selectedRow = r;
-        type = 'Chroma Key';
-        assetItem = findItemByName('Chovendo_Dinheiro_Chroma_Key.mp4', 'Chroma_Key');
-        purpose = 'Ênfase em Volume Financeiro & Cifrões';
-        guideline = 'Aplicar Ultra Key (remover fundo verde) e opacidade 80% em overlay suave.';
-        foundThematic = true;
-        break;
-      }
-      // Gatilho: Urgência Temporal / Segundos / Relógio
-      else if (/\b(segundos|minutos finais|contagem regressiva|tempo esgotando|contra o rel[oó]gio)\b/i.test(textLower)) {
-        selectedRow = r;
-        type = 'Gráfico / Alerta';
-        assetItem = findItemByName('Timer_Barra_10_Segundos.mov', 'Graficos');
-        purpose = 'Gatilho de Urgência & Pressão Temporal';
-        guideline = 'Posicionar na base da tela (barra de progresso) sincronizado com a narração.';
-        foundThematic = true;
-        break;
-      }
-      // Gatilho: IA / Inteligência Artificial (exata)
-      else if (/\b(chatgpt|openai|gpt-4|midjourney|intelig[eê]ncia artificial)\b/i.test(textLower)) {
-        selectedRow = r;
-        type = 'Ícone 3D';
-        assetItem = findItemByName('Chat_GPT_Premiuim.png', 'Icones');
-        purpose = 'Identificação Visual Tecnológica (IA)';
-        guideline = 'Entrada Pop no canto superior direito com leve sombra projetada.';
-        foundThematic = true;
-        break;
-      }
-      // Gatilho: CTA de Inscrição / Like
-      else if (/\b(inscreva-se|inscreva|deixe o like|se inscreva|ative o sininho)\b/i.test(textLower)) {
-        selectedRow = r;
-        type = 'Gráfico / Alerta';
-        assetItem = findItemByName('Botao_Inscreva_Se_Com_Som.mov', 'Graficos');
-        purpose = 'Chamada para Ação (Inscrição & Like)';
-        guideline = 'Posicionar no terço inferior sincronizado exatamente com o comando vocal.';
-        foundThematic = true;
-        break;
-      }
-      // Gatilho: Suspense / Revelação / Mistério
-      else if (/\b(segredo|mist[eé]rio|revelou|chocante|inesperado|a verdade [eé]|aterrador)\b/i.test(textLower)) {
-        selectedRow = r;
-        type = 'SFX';
+        badgeType = 'SOM';
+        interventionCategory = 'SFX';
         assetItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
-        purpose = 'Pico de Revelação & Suspense Narrativo';
-        guideline = 'Sincronizar no corte de cena com fade rápido da trilha de fundo.';
-        foundThematic = true;
+        editorialReason = 'Gatilho de tensão e perigo eminente na narrativa. Som de suspense para marcar o pico emocional do momento.';
+        foundTrigger = true;
+        break;
+      }
+      // 2. Pane / Falha / Erro de Sistema / Alarme
+      else if (/\b(pane|alarme|falha|colapso|erro|defeito|quebrou|desligou)\b/i.test(textLower)) {
+        selectedRow = r;
+        badgeType = 'SOBRE';
+        interventionCategory = 'Gráfico';
+        assetItem = findItemByName('Janela_Erro_Com_Som.mov', 'Graficos');
+        editorialReason = 'Alarme visual de falha crítica. Ancoragem de erro de sistema com corte abrupto para prender a atenção.';
+        foundTrigger = true;
+        break;
+      }
+      // 3. Dinheiro / Custo / Milhões / Riqueza / Faturamento
+      else if (/\b(milh[oõ]es|bilh[oõ]es|dinheiro|fortuna|custou|reais|d[oó]lares|faturamento|lucro|preju[ií]zo)\b/i.test(textLower)) {
+        selectedRow = r;
+        badgeType = 'SOBRE';
+        interventionCategory = 'Chroma Key';
+        assetItem = findItemByName('Chovendo_Dinheiro_Chroma_Key.mp4', 'Chroma_Key');
+        editorialReason = 'Revelação de impacto financeiro alto. Elemento visual em chroma key para potencializar a magnitude dos valores narrados.';
+        foundTrigger = true;
+        break;
+      }
+      // 4. Urgência de Tempo / Segundos / Relógio / Pressão
+      else if (/\b(segundos|minutos|press[aã]o|contra o rel[oó]gio|tempo esgotando|urgente|r[aá]pido)\b/i.test(textLower)) {
+        selectedRow = r;
+        badgeType = 'SOBRE';
+        interventionCategory = 'Gráfico';
+        assetItem = findItemByName('Timer_Barra_10_Segundos.mov', 'Graficos');
+        editorialReason = 'Gatilho de urgência temporal. Barra dinâmica posicionada na base da tela marcando a passagem acelerada do tempo.';
+        foundTrigger = true;
+        break;
+      }
+      // 5. Lista / Enumeração de Fatos / Destaque de Tópico
+      else if (/\b(primeiro|segundo|terceiro|fato|motivo|etapa|passo|raz[aã]o|detalhe)\b/i.test(textLower)) {
+        selectedRow = r;
+        badgeType = 'SOBRE';
+        interventionCategory = 'Gráfico';
+        assetItem = findItemByName('Lower_Third_Tarja_Animada_1.mov', 'Graficos');
+        editorialReason = 'Tarja animada para reforçar tópicos ou enumeração de dados, ancorando o espectador na explicação técnica.';
+        foundTrigger = true;
+        break;
+      }
+      // 6. Chamada para Ação (CTA)
+      else if (/\b(inscreva|like|canal|curta|comente|compartilhe)\b/i.test(textLower)) {
+        selectedRow = r;
+        badgeType = 'SOBRE';
+        interventionCategory = 'Gráfico';
+        assetItem = findItemByName('Botao_Inscreva_Se_Com_Som.mov', 'Graficos');
+        editorialReason = 'Chamada para Ação sincronizada com a fala de engajamento do roteiro no terço inferior da tela.';
+        foundTrigger = true;
+        break;
+      }
+      // 7. Mistério / Segredo / Revelação Chocante
+      else if (/\b(mist[eé]rio|segredo|a verdade|revelado|descobriu|inesperado|chocante)\b/i.test(textLower)) {
+        selectedRow = r;
+        badgeType = 'SOM';
+        interventionCategory = 'SFX';
+        assetItem = findItemByName('Riser_Cinematico_Epico_1.mp3', 'Efeitos_Sonoros');
+        editorialReason = 'Riser cinemático construindo antecipação e virada dramática para a revelação dos fatos.';
+        foundTrigger = true;
         break;
       }
     }
 
-    // Se a janela não tiver palavra-chave, aplica cadência rítmica de edição profissional
-    if (!foundThematic) {
+    // Se nenhum gatilho específico ocorreu nesta janela, aplica a cadência rítmica de edição profissional
+    if (!foundTrigger) {
       if (w === 0) {
-        type = 'SFX';
-        assetItem = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
-        purpose = 'Abertura de Alto Impacto (Hook)';
-        guideline = 'Iniciar no frame 0 com volume normalizado em -12dB para retenção imediata.';
+        badgeType = 'SOM';
+        interventionCategory = 'SFX';
+        assetItem = findItemByName('Riser_Cinematico_Epico_1.mp3', 'Efeitos_Sonoros');
+        editorialReason = 'Abertura do vídeo — riser épico para capturar atenção imediata nos primeiros segundos (pico de retenção inicial).';
       } else if (w % 3 === 0) {
-        type = 'Transição';
+        badgeType = 'SOBRE';
+        interventionCategory = 'Transição';
         assetItem = findItemByName('Glitch_Com_Som_1.mp4', 'Transicoes');
-        purpose = 'Quebra de Padrão (Virada de Bloco)';
-        guideline = 'Transição rápida de 10-12 frames na virada de assunto.';
+        editorialReason = 'Quebra de padrão visual e auditivo para renovar o foco e dinamizar a virada de assunto.';
       } else if (w % 2 === 0) {
-        type = 'SFX';
-        assetItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
-        purpose = 'Ênfase Sonora na Narrativa';
-        guideline = 'Aplicar no corte de imagem com áudio em -16dB.';
+        badgeType = 'SOM';
+        interventionCategory = 'SFX';
+        assetItem = findItemByName('Impacto_Epico_Cinematico_1.mp3', 'Efeitos_Sonoros');
+        editorialReason = 'Impacto sonoro no corte seco para pontuar a transição de ideias e manter a autoridade da narração.';
       } else {
-        type = 'Overlay';
-        assetItem = findItemByName('Particulas_Lens_Flare_Iluminacao_Esferas.mp4', 'Overlays');
-        purpose = 'Realce Atmosférico de Imagem';
-        guideline = 'Aplicar em Screen/Linear Dodge com opacidade 60%.';
+        badgeType = 'SOM';
+        interventionCategory = 'SFX';
+        assetItem = findItemByName('Woosh_Rapido_1.MP3', 'Efeitos_Sonoros');
+        editorialReason = 'Woosh suave para acelerar o ritmo de transição visual entre takes.';
       }
     }
 
     interventions.push({
-      id: w + 1,
+      id: counter++,
       rowNumber: selectedRow.rowNumber,
       timeRange: `${selectedRow.startTime} - ${selectedRow.endTime}`,
       sceneExcerpt: selectedRow.texto,
-      interventionType: type,
-      editorialPurpose: purpose,
+      badgeType,
+      interventionCategory,
       asset: assetItem,
-      editingGuideline: guideline,
+      editorialReason,
     });
   }
 
@@ -5920,7 +5929,7 @@ export function buildCuratedAssetEnrichmentPlan(
 }
 
 /**
- * Gera a Planilha HTML de Assets com a MESMA engenharia exata do Storyboard (Mostrar Apenas Selecionados)
+ * Gera a Planilha HTML de Assets com Cards Estilizados e Checklist Interativo de Produção
  */
 export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): string {
   const { themeTitle, videoFormat, totalDuration, styleKit, interventions } = plan;
@@ -5947,7 +5956,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
   </script>
   <style>
     body {
-      background-color: #0c0d0e;
+      background-color: #0b0c0e;
       color: #e4e4e7;
     }
     input[type="checkbox"] {
@@ -5964,22 +5973,12 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       .no-print, input[type="checkbox"] {
         display: none !important;
       }
-      table {
-        border-color: #d4d4d8 !important;
-      }
-      th {
-        background-color: #f1f5f9 !important;
-        color: #000000 !important;
-      }
-      td {
-        color: #18181b !important;
-      }
     }
   </style>
 </head>
 <body class="font-sans antialiased min-h-screen pb-20">
   <!-- Header Sticky -->
-  <header class="no-print sticky top-0 z-50 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <header class="no-print sticky top-0 z-50 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div class="space-y-0.5">
       <div class="flex items-center gap-2">
         <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded-lg">PLANILHA DE ASSETS</span>
@@ -6011,7 +6010,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+  <main class="max-w-6xl mx-auto px-6 py-8 space-y-8">
     <!-- Summary Cards -->
     <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
       <div>
@@ -6028,7 +6027,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       </div>
       <div>
         <span class="text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Pack Ganha Tempo</span>
-        <span class="text-2xl font-bold text-emerald-300">Curadoria Ativa</span>
+        <span class="text-2xl font-bold text-emerald-300">Análise SRT Ativa</span>
       </div>
     </div>
 
@@ -6042,7 +6041,6 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- Master LUT -->
         <div class="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 space-y-2.5">
           <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Master LUT (.cube)</span>
           <div class="flex items-center gap-2">
@@ -6055,7 +6053,6 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
           </a>
         </div>
 
-        <!-- Fonte Primária -->
         <div class="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 space-y-2.5">
           <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Fonte Primária (Títulos)</span>
           <div class="flex items-center gap-2">
@@ -6068,7 +6065,6 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
           </a>
         </div>
 
-        <!-- Fonte Secundária -->
         <div class="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 space-y-2.5">
           <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Fonte Secundária (Legendas)</span>
           <div class="flex items-center gap-2">
@@ -6081,7 +6077,6 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
           </a>
         </div>
 
-        <!-- Base Overlay -->
         <div class="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 space-y-2.5">
           <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Overlay de Atmosfera</span>
           <div class="flex items-center gap-2">
@@ -6096,18 +6091,16 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       </div>
     </div>
 
-    <!-- Spreadsheet Section -->
-    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
-      <!-- Filter Bar -->
-      <div class="no-print p-6 border-b border-zinc-800 bg-zinc-950/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <!-- Filter & Checklist Controls Bar -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
           <span class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Filtrar Tipo:</span>
           <div class="flex flex-wrap gap-1.5" id="type-filter-buttons">
-            <!-- Dynamic JS buttons -->
+            <!-- Buttons injected by initFilters() -->
           </div>
         </div>
 
-        <!-- Selection Options -->
         <div class="flex flex-wrap items-center gap-4">
           <button onclick="setSelectedAll(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
             ✓ Selecionar Todos
@@ -6123,8 +6116,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
         </div>
       </div>
 
-      <!-- Quick Search input -->
-      <div class="no-print px-6 py-3 border-b border-zinc-800/80 bg-zinc-950/20 flex items-center justify-between gap-4">
+      <div class="no-print pt-2 border-t border-zinc-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <input 
           type="text" 
           id="curated-search-input" 
@@ -6133,74 +6125,77 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
           class="flex-1 max-w-md bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
         />
         <div class="text-xs font-mono font-bold text-emerald-400" id="stat-counter">
-          ${interventions.length} / ${interventions.length}
+          ${interventions.length} / ${interventions.length} visíveis
         </div>
       </div>
+    </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              <th class="px-5 py-4 w-14 text-center no-print">
-                <input type="checkbox" id="th-chk-all" onchange="toggleSelectAllRows(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
-              </th>
-              <th class="px-5 py-4 w-14 text-center">#</th>
-              <th class="px-5 py-4 w-20">Cena</th>
-              <th class="px-5 py-4 w-44">Posição Temporal</th>
-              <th class="px-5 py-4 w-48">Momento & Função</th>
-              <th class="px-5 py-4 w-28">Tipo</th>
-              <th class="px-5 py-4">Trecho da Fala (Contexto)</th>
-              <th class="px-5 py-4 w-60">Asset do Pack Ganha Tempo</th>
-              <th class="px-5 py-4 w-64">Orientação de Edição</th>
-              <th class="px-5 py-4 w-28 text-right">Download</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-zinc-800/60 text-sm">
-            ${interventions.map((item) => `
-              <tr id="tr-row-${item.id}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors" data-id="${item.id}" data-type="${item.interventionType}">
-                <td class="px-5 py-4 whitespace-nowrap text-center no-print">
-                  <input type="checkbox" id="chk-${item.id}" onchange="toggleRowSelection(${item.id}, this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
-                </td>
-                <td class="px-5 py-4 whitespace-nowrap font-mono text-xs font-bold text-zinc-500 text-center">
-                  ${item.id}
-                </td>
-                <td class="px-5 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
-                  #${item.rowNumber}
-                </td>
-                <td class="px-5 py-4 whitespace-nowrap font-mono font-bold text-emerald-400 text-xs">
-                  ${item.timeRange}
-                </td>
-                <td class="px-5 py-4 font-bold text-zinc-200 text-xs">
-                  <span class="block leading-tight">${item.editorialPurpose}</span>
-                </td>
-                <td class="px-5 py-4 whitespace-nowrap">
-                  <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border bg-zinc-800 text-zinc-300 border-zinc-700">
-                    ${item.interventionType}
-                  </span>
-                </td>
-                <td class="px-5 py-4 text-zinc-300 font-medium italic text-xs leading-relaxed max-w-xs">
-                  &quot;${item.sceneExcerpt}&quot;
-                </td>
-                <td class="px-5 py-4 font-mono text-[11px] text-zinc-200 font-semibold">
-                  <div class="flex items-center gap-1.5">
-                    <span>${item.asset.mimeType.startsWith('video/') ? '🎬' : item.asset.mimeType.startsWith('image/') ? '🖼️' : item.asset.mimeType.startsWith('audio/') ? '🔊' : '📦'}</span>
-                    <span class="truncate max-w-[200px]" title="${item.asset.name}">${item.asset.name}</span>
-                  </div>
-                  <span class="text-[8px] font-black uppercase text-zinc-500 block mt-0.5">${item.asset.category.replace(/^[0-9]+_/, '')}</span>
-                </td>
-                <td class="px-5 py-4 text-zinc-400 text-xs leading-relaxed max-w-xs">
-                  ${item.editingGuideline}
-                </td>
-                <td class="px-5 py-4 text-right whitespace-nowrap">
-                  <a href="${item.asset.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center gap-1 shadow-sm transition-all active:scale-95">
-                    <span>📥 Baixar</span>
-                  </a>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
+    <!-- Lista de Cards Editoriais (Conforme Modelo de Referência) -->
+    <div class="space-y-3.5" id="cards-container">
+      ${interventions.map((item) => {
+        const isSom = item.badgeType === 'SOM';
+        const badgeColor = isSom
+          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+          : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+        const badgeIcon = isSom ? '🔊' : '🎬';
+
+        return `
+          <div 
+            id="card-row-${item.id}" 
+            class="intervention-card bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 transition-all hover:border-zinc-700 flex flex-col sm:flex-row items-start gap-4"
+            data-id="${item.id}"
+            data-type="${item.interventionCategory}"
+            data-badge="${item.badgeType}"
+          >
+            <!-- Checkbox & Badge Esquerda -->
+            <div class="flex sm:flex-col items-center gap-2.5 shrink-0">
+              <input 
+                type="checkbox" 
+                id="chk-${item.id}" 
+                onchange="toggleRowSelection(${item.id}, this.checked)" 
+                class="w-5 h-5 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
+                checked
+                title="Desmarque para concluir e ocultar da tela"
+              />
+              <div class="flex flex-col items-center justify-center p-2 rounded-xl border ${badgeColor} w-16 text-center">
+                <span class="text-sm">${badgeIcon}</span>
+                <span class="text-[9px] font-black uppercase tracking-wider mt-0.5">${item.badgeType}</span>
+              </div>
+            </div>
+
+            <!-- Conteúdo Central -->
+            <div class="flex-1 space-y-2 min-w-0">
+              <!-- Header do Item -->
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2 font-mono text-xs">
+                  <span class="bg-zinc-950 border border-zinc-800 px-2.5 py-0.5 rounded-lg text-emerald-400 font-bold">${item.timeRange.split(' - ')[0]}</span>
+                  <span class="text-zinc-500 font-bold">#${item.rowNumber}</span>
+                  <span class="font-bold text-zinc-100 font-sans tracking-wide text-sm">${item.asset.name}</span>
+                </div>
+                <a 
+                  href="${item.asset.url}" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+                >
+                  <span>📥 BAIXAR</span>
+                </a>
+              </div>
+
+              <!-- Trecho da Narração -->
+              <p class="text-xs text-zinc-300 italic font-medium bg-zinc-950/40 border border-zinc-800/40 rounded-xl p-3 leading-relaxed">
+                &quot;${item.sceneExcerpt}&quot;
+              </p>
+
+              <!-- Diretriz / Por quê -->
+              <div class="text-[11px] text-zinc-400 leading-relaxed flex items-start gap-1.5 pt-0.5">
+                <span class="text-red-400 shrink-0 font-bold">📌 Por quê:</span>
+                <span>${item.editorialReason}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
     </div>
   </main>
 
@@ -6208,15 +6203,12 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     ${JSON.stringify(interventions.map((item) => ({
       id: item.id,
       rowNumber: item.rowNumber,
-      type: item.interventionType,
+      category: item.interventionCategory,
+      badge: item.badgeType,
       selected: true,
-      url: item.asset.url,
-      name: item.asset.name,
-      category: item.asset.category,
-      sizeKb: item.asset.sizeKb,
+      assetName: item.asset.name,
       timeRange: item.timeRange,
-      editorialPurpose: item.editorialPurpose,
-      editingGuideline: item.editingGuideline
+      url: item.asset.url
     })))}
   </script>
 
@@ -6234,47 +6226,47 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     function initFilters() {
       const filterContainer = document.getElementById('type-filter-buttons');
       if (!filterContainer) return;
-      
-      const typeCounts = {};
+
+      const counts = {};
       items.forEach(it => {
-        const t = it.type || 'SFX';
-        typeCounts[t] = (typeCounts[t] || 0) + 1;
+        const cat = it.category || 'SFX';
+        counts[cat] = (counts[cat] || 0) + 1;
       });
-      
+
       filterContainer.innerHTML = '';
-      
+
       const allBtn = document.createElement('button');
       allBtn.id = 'btn-filter-all';
       allBtn.onclick = () => filterType('all');
       allBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       allBtn.innerText = 'Todos (' + items.length + ')';
       filterContainer.appendChild(allBtn);
-      
-      Object.keys(typeCounts).sort().forEach(type => {
+
+      Object.keys(counts).sort().forEach(cat => {
         const btn = document.createElement('button');
-        const safeId = 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeId = 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
         btn.id = safeId;
-        btn.onclick = () => filterType(type);
+        btn.onclick = () => filterType(cat);
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all uppercase';
-        btn.innerText = type + ' (' + typeCounts[type] + ')';
+        btn.innerText = cat + ' (' + counts[cat] + ')';
         filterContainer.appendChild(btn);
       });
     }
 
-    function filterType(type) {
-      selectedTypeFilter = type;
-      
+    function filterType(cat) {
+      selectedTypeFilter = cat;
+
       const buttons = document.querySelectorAll('#type-filter-buttons button');
       buttons.forEach(btn => {
         btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all';
       });
-      
-      const safeId = type === 'all' ? 'btn-filter-all' : 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+
+      const safeId = cat === 'all' ? 'btn-filter-all' : 'btn-filter-' + cat.replace(/[^a-zA-Z0-9]/g, '_');
       const activeBtn = document.getElementById(safeId);
       if (activeBtn) {
         activeBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       }
-      
+
       applyFilters();
     }
 
@@ -6288,38 +6280,21 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       if (item) {
         item.selected = isChecked;
       }
-      
+
       const tblChk = document.getElementById('chk-' + id);
       if (tblChk) tblChk.checked = isChecked;
-      
-      const allChecked = items.every(it => it.selected);
-      const noneChecked = items.every(it => !it.selected);
-      const thChkAll = document.getElementById('th-chk-all');
-      if (thChkAll) {
-        thChkAll.checked = allChecked;
-        thChkAll.indeterminate = (!allChecked && !noneChecked);
-      }
-      
-      applyFilters();
-    }
 
-    function toggleSelectAllRows(isChecked) {
-      items.forEach(item => {
-        item.selected = isChecked;
-        const tblChk = document.getElementById('chk-' + item.id);
-        if (tblChk) tblChk.checked = isChecked;
-      });
-      
       applyFilters();
     }
 
     function setSelectedAll(isChecked) {
-      const thChkAll = document.getElementById('th-chk-all');
-      if (thChkAll) {
-        thChkAll.checked = isChecked;
-        thChkAll.indeterminate = false;
-      }
-      toggleSelectAllRows(isChecked);
+      items.forEach(item => {
+        item.selected = isChecked;
+        const chk = document.getElementById('chk-' + item.id);
+        if (chk) chk.checked = isChecked;
+      });
+
+      applyFilters();
     }
 
     function applyFilters() {
@@ -6327,19 +6302,19 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       const searchVal = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
       items.forEach(item => {
-        const tr = document.getElementById('tr-row-' + item.id);
-        if (!tr) return;
-        
-        const rowText = (tr.innerText || '').toLowerCase();
-        const matchesType = (selectedTypeFilter === 'all' || item.type.toLowerCase() === selectedTypeFilter.toLowerCase());
+        const card = document.getElementById('card-row-' + item.id);
+        if (!card) return;
+
+        const cardText = (card.innerText || '').toLowerCase();
+        const matchesType = (selectedTypeFilter === 'all' || item.category.toLowerCase() === selectedTypeFilter.toLowerCase());
         const matchesSelection = (!onlySelected || item.selected);
-        const matchesSearch = !searchVal || rowText.includes(searchVal);
+        const matchesSearch = !searchVal || cardText.includes(searchVal);
         const isVisible = matchesType && matchesSelection && matchesSearch;
-        
+
         if (isVisible) {
-          tr.classList.remove('filtered-out');
+          card.classList.remove('filtered-out');
         } else {
-          tr.classList.add('filtered-out');
+          card.classList.add('filtered-out');
         }
       });
 
@@ -6352,20 +6327,20 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
 
       let visibleCount = 0;
       items.forEach(item => {
-        const tr = document.getElementById('tr-row-' + item.id);
-        if (!tr) return;
-        const rowText = (tr.innerText || '').toLowerCase();
-        const matchesType = (selectedTypeFilter === 'all' || item.type.toLowerCase() === selectedTypeFilter.toLowerCase());
+        const card = document.getElementById('card-row-' + item.id);
+        if (!card) return;
+        const cardText = (card.innerText || '').toLowerCase();
+        const matchesType = (selectedTypeFilter === 'all' || item.category.toLowerCase() === selectedTypeFilter.toLowerCase());
         const matchesSelection = (!onlySelected || item.selected);
-        const matchesSearch = !searchVal || rowText.includes(searchVal);
+        const matchesSearch = !searchVal || cardText.includes(searchVal);
         if (matchesType && matchesSelection && matchesSearch) {
           visibleCount++;
         }
       });
-      
+
       const statCounter = document.getElementById('stat-counter');
       if (statCounter) {
-        statCounter.innerText = visibleCount + ' / ' + items.length;
+        statCounter.innerText = visibleCount + ' / ' + items.length + ' visíveis';
       }
       const statTotal = document.getElementById('stat-total');
       if (statTotal) {
@@ -6374,18 +6349,15 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     }
 
     function downloadCuratedCsv() {
-      let csv = 'ID,Cena,Posicao Temporal,Momento & Funcao,Tipo,Asset Recomendado,Categoria,Tamanho (KB),Orientacao de Edicao,URL Google Drive,Status\r\n';
+      let csv = 'ID,Cena,Posicao Temporal,Tipo,Categoria,Asset Recomendado,URL Google Drive,Status\r\n';
       items.forEach(item => {
         const status = item.selected ? 'Pendente' : 'Concluido';
         csv += '"' + item.id + '",' +
                '"#' + item.rowNumber + '",' +
                '"' + item.timeRange + '",' +
-               '"' + (item.editorialPurpose || '').replace(/"/g, '""') + '",' +
-               '"' + item.type + '",' +
-               '"' + (item.name || '').replace(/"/g, '""') + '",' +
-               '"' + (item.category || '').replace(/"/g, '""') + '",' +
-               item.sizeKb + ',' +
-               '"' + (item.editingGuideline || '').replace(/"/g, '""') + '",' +
+               '"' + item.badge + '",' +
+               '"' + item.category + '",' +
+               '"' + (item.assetName || '').replace(/"/g, '""') + '",' +
                '"' + (item.url || '') + '",' +
                '"' + status + '"\r\n';
       });
@@ -6418,7 +6390,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       URL.revokeObjectURL(url);
     }
 
-    // Inicialização idêntica ao Storyboard
+    // Inicialização
     initFilters();
     updateCounters();
   </script>

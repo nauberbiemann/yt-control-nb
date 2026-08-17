@@ -5727,7 +5727,7 @@ export interface CuratedAssetPlan {
 
 /**
  * Cria um plano pontual, objetivo e de alto valor de enriquecimento de edição usando o Pack Ganha Tempo
- * Limita estrategicamente a 8 a 14 intervenções no vídeo todo para evitar poluição visual.
+ * Limita estrategicamente a 7 a 12 intervenções no vídeo todo para evitar poluição visual.
  */
 export function buildCuratedAssetEnrichmentPlan(
   rows: any[] = [],
@@ -5757,12 +5757,11 @@ export function buildCuratedAssetEnrichmentPlan(
     baseOverlay: findItemByName('Particulas_Lens_Flare_Iluminacao_Esferas.mp4', 'Overlays'),
   };
 
-  // 2. Pontual Curated Interventions com Seleção Cirúrgica (8 a 14 itens máx)
+  // 2. Pontual Curated Interventions com Seleção Cirúrgica (7 a 12 itens máx)
   const interventions: CuratedAssetIntervention[] = [];
   let lastInterventionMs = -60000;
   let counter = 1;
 
-  // Limites por categoria para manter a edição limpa e de alta qualidade
   const categoryCounts = {
     sfx: 0,
     chroma: 0,
@@ -5802,17 +5801,16 @@ export function buildCuratedAssetEnrichmentPlan(
     categoryCounts.sfx++;
   }
 
-  // Percorre as linhas buscando momentos-chave com cooldown rígido de 40 a 60s
+  // Percorre as linhas buscando momentos-chave com cooldown rígido de 50 a 80s
   for (let i = 1; i < rows.length; i++) {
-    // Limite global máximo de 14 intervenções no vídeo todo
-    if (interventions.length >= 14) break;
+    if (interventions.length >= 12) break;
 
     const row = rows[i];
     const textLower = (row.texto || '').toLowerCase();
     const currentMs = parseMs(row.startTime);
 
-    // Cooldown mínimo de 45 segundos entre intervenções (evita acúmulo e poluição)
-    if (currentMs - lastInterventionMs < 45000 && i < rows.length - 2) {
+    // Cooldown mínimo de 50 segundos entre intervenções
+    if (currentMs - lastInterventionMs < 50000 && i < rows.length - 2) {
       continue;
     }
 
@@ -5854,7 +5852,7 @@ export function buildCuratedAssetEnrichmentPlan(
       guideline = 'Posicionar na base da tela (barra de progresso) sincronizado com a narração.';
       categoryCounts.graficos++;
     }
-    // Gatilho: IA & ChatGPT (Apenas correspondência exata de IA, sem falso positivo em "avião" ou verbos)
+    // Gatilho: IA & ChatGPT (Apenas correspondência exata de IA)
     else if (
       categoryCounts.icones < 2 &&
       /\b(chatgpt|openai|gpt-4|midjourney|intelig[eê]ncia artificial)\b/i.test(textLower)
@@ -5878,7 +5876,7 @@ export function buildCuratedAssetEnrichmentPlan(
     }
     // Gatilho: Impacto Narrativo / Suspense / Revelação
     else if (
-      categoryCounts.sfx < 4 &&
+      categoryCounts.sfx < 3 &&
       /\b(segredo|mist[eé]rio|revelou|chocante|inesperado|a verdade [eé]|aterrador)\b/i.test(textLower)
     ) {
       matchedItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
@@ -5887,10 +5885,10 @@ export function buildCuratedAssetEnrichmentPlan(
       guideline = 'Sincronizar no corte de cena com fade rápido da trilha de fundo.';
       categoryCounts.sfx++;
     }
-    // Quebra de Padrão (Transição Glitch a cada ~60-80s de intervalo)
+    // Quebra de Padrão (Transição Glitch a cada ~70-90s de intervalo)
     else if (
       categoryCounts.transicoes < 2 &&
-      currentMs - lastInterventionMs >= 70000
+      currentMs - lastInterventionMs >= 75000
     ) {
       matchedItem = findItemByName('Glitch_Com_Som_1.mp4', 'Transicoes');
       type = 'Transição';
@@ -5924,7 +5922,7 @@ export function buildCuratedAssetEnrichmentPlan(
 }
 
 /**
- * Gera a Planilha HTML de Assets com suporte a Checklist Interativo (desmarcar oculta os itens para produção)
+ * Gera a Planilha HTML de Assets com a MESMA engenharia exata do Storyboard (Mostrar Apenas Selecionados)
  */
 export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): string {
   const { themeTitle, videoFormat, totalDuration, styleKit, interventions } = plan;
@@ -5951,7 +5949,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
   </script>
   <style>
     body {
-      background-color: #0b0c0e;
+      background-color: #0c0d0e;
       color: #e4e4e7;
     }
     input[type="checkbox"] {
@@ -5959,10 +5957,6 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     }
     .filtered-out {
       display: none !important;
-    }
-    .completed-row {
-      opacity: 0.35;
-      text-decoration: line-through;
     }
     @media print {
       body {
@@ -5987,32 +5981,32 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
 </head>
 <body class="font-sans antialiased min-h-screen pb-20">
   <!-- Header Sticky -->
-  <header class="no-print sticky top-0 z-50 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <header class="no-print sticky top-0 z-50 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div class="space-y-0.5">
       <div class="flex items-center gap-2">
-        <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-lg">PLANILHA DE ASSETS</span>
-        <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
+        <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded-lg">PLANILHA DE ASSETS</span>
+        <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
         <span class="text-xs font-mono font-bold text-zinc-400" id="header-stat">${interventions.length} Intervenções</span>
       </div>
       <h1 id="header-theme-title" class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
     </div>
 
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="flex flex-wrap items-center gap-2.5">
       <button 
         onclick="downloadCuratedCsv()" 
-        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
+        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-lg shadow-emerald-600/15 flex items-center gap-2"
       >
         <span>📥 BAIXAR PLANILHA (.CSV)</span>
       </button>
       <button 
         onclick="window.print()" 
-        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95"
+        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl border border-zinc-700 flex items-center gap-2"
       >
         <span>🖨️ IMPRIMIR / PDF</span>
       </button>
       <button 
         onclick="downloadSelfHTML()" 
-        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95"
+        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all text-xs font-bold text-zinc-200 rounded-xl border border-zinc-700 flex items-center gap-2"
       >
         <span>💾 SALVAR HTML</span>
       </button>
@@ -6020,6 +6014,26 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
   </header>
 
   <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <!-- Summary Cards -->
+    <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div>
+        <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Total de Intervenções</span>
+        <span class="text-2xl font-bold text-zinc-100" id="stat-total">${interventions.length}</span>
+      </div>
+      <div>
+        <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Formato Ativo</span>
+        <span class="text-2xl font-bold text-emerald-400 uppercase">${videoFormat}</span>
+      </div>
+      <div>
+        <span class="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">Duração Estimada</span>
+        <span class="text-2xl font-bold text-zinc-100">${totalDuration}</span>
+      </div>
+      <div>
+        <span class="text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Pack Ganha Tempo</span>
+        <span class="text-2xl font-bold text-emerald-300">Curadoria Ativa</span>
+      </div>
+    </div>
+
     <!-- Style Kit Cards -->
     <div class="space-y-3">
       <div class="flex items-center justify-between">
@@ -6084,116 +6098,102 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       </div>
     </div>
 
-    <!-- Filter, Search & Production Controls Bar -->
-    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-      <div class="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-        <div class="flex-1 max-w-md relative">
-          <input 
-            type="text" 
-            id="curated-search-input" 
-            oninput="applyAllFilters()" 
-            placeholder="🔍 Filtrar intervenção por fala, função ou asset..." 
-            class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
-          />
-        </div>
-        
-        <!-- Checklist / Production Mode Toggle -->
-        <div class="flex flex-wrap items-center gap-4 bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-4 py-2">
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input 
-              type="checkbox" 
-              id="chk-hide-completed" 
-              onchange="toggleHideCompleted(this.checked)" 
-              class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-              checked
-            />
-            <span class="text-xs font-bold text-emerald-300">Modo Produção: Ocultar ao Desmarcar</span>
-          </label>
-          <div class="h-4 w-px bg-zinc-800"></div>
-          <button onclick="setAllSelection(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300">
-            ✓ Marcar Todos
-          </button>
-          <button onclick="setAllSelection(false)" class="text-xs font-semibold text-zinc-500 hover:text-zinc-400">
-            ✕ Desmarcar Todos
-          </button>
-        </div>
-      </div>
-
-      <!-- Type Filter Buttons Container (Dinamically rendered by JS to avoid any escaping bug) -->
-      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-800/60">
-        <div class="flex flex-wrap gap-1.5" id="curated-type-pills">
-          <!-- Rendered by initTypeFilterPills() -->
-        </div>
-        <div class="text-xs font-mono font-bold text-emerald-400" id="curated-stat-counter">
-          ${interventions.length} intervenções mapeadas
-        </div>
-      </div>
-    </div>
-
-    <!-- Curated Spreadsheet Table -->
+    <!-- Spreadsheet Section -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+      <!-- Filter Bar (EXATAMENTE IGUAL AO STORYBOARD) -->
+      <div class="no-print p-6 border-b border-zinc-800 bg-zinc-950/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Filtrar Tipo:</span>
+          <div class="flex flex-wrap gap-1.5" id="type-filter-buttons">
+            <!-- Dynamic JS buttons -->
+          </div>
+        </div>
+
+        <!-- Selection Options (EXATAMENTE IGUAL AO STORYBOARD) -->
+        <div class="flex flex-wrap items-center gap-4">
+          <button onclick="setSelectedAll(true)" class="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+            ✓ Selecionar Todos
+          </button>
+          <button onclick="setSelectedAll(false)" class="text-xs font-semibold text-zinc-500 hover:text-zinc-400 transition-colors">
+            ✕ Limpar Seleção
+          </button>
+          <div class="h-4 w-px bg-zinc-800"></div>
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="chk-only-selected" onchange="toggleOnlySelected(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
+            <span class="text-xs font-bold text-zinc-300">Mostrar Apenas Selecionados</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Quick Search input -->
+      <div class="no-print px-6 py-3 border-b border-zinc-800/80 bg-zinc-950/20 flex items-center justify-between gap-4">
+        <input 
+          type="text" 
+          id="curated-search-input" 
+          oninput="applyFilters()" 
+          placeholder="🔍 Filtrar intervenção por fala, função ou asset..." 
+          class="flex-1 max-w-md bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-emerald-500/50"
+        />
+        <div class="text-xs font-mono font-bold text-emerald-400" id="stat-counter">
+          ${interventions.length} / ${interventions.length}
+        </div>
+      </div>
+
       <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse" id="curated-table">
+        <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-zinc-950 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              <th class="px-4 py-4 w-12 text-center no-print">
-                <input type="checkbox" id="th-chk-master" onchange="toggleMasterCheck(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked title="Marcar/Desmarcar todos">
+            <tr class="bg-zinc-950/60 border-b border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+              <th class="px-5 py-4 w-14 text-center no-print">
+                <input type="checkbox" id="th-chk-all" onchange="toggleSelectAllRows(this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
               </th>
-              <th class="px-4 py-4 w-12 text-center">#</th>
-              <th class="px-4 py-4 w-16">Cena</th>
-              <th class="px-4 py-4 w-40">Posição Temporal</th>
-              <th class="px-4 py-4 w-48">Momento & Função</th>
-              <th class="px-4 py-4 w-28">Tipo</th>
-              <th class="px-4 py-4">Trecho da Fala (Contexto)</th>
-              <th class="px-4 py-4 w-60">Asset do Pack Ganha Tempo</th>
-              <th class="px-4 py-4 w-64">Orientação de Edição</th>
-              <th class="px-4 py-4 w-28 text-right">Download</th>
+              <th class="px-5 py-4 w-14 text-center">#</th>
+              <th class="px-5 py-4 w-20">Cena</th>
+              <th class="px-5 py-4 w-44">Posição Temporal</th>
+              <th class="px-5 py-4 w-48">Momento & Função</th>
+              <th class="px-5 py-4 w-28">Tipo</th>
+              <th class="px-5 py-4">Trecho da Fala (Contexto)</th>
+              <th class="px-5 py-4 w-60">Asset do Pack Ganha Tempo</th>
+              <th class="px-5 py-4 w-64">Orientação de Edição</th>
+              <th class="px-5 py-4 w-28 text-right">Download</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-zinc-800/60 text-xs" id="curated-tbody">
+          <tbody class="divide-y divide-zinc-800/60 text-sm">
             ${interventions.map((item) => `
-              <tr 
-                id="row-item-${item.id}" 
-                class="curated-row hover:bg-zinc-800/40 transition-colors" 
-                data-id="${item.id}"
-                data-type="${item.interventionType}" 
-                data-search="${(item.sceneExcerpt + ' ' + item.editorialPurpose + ' ' + item.asset.name + ' ' + item.interventionType).toLowerCase()}"
-              >
-                <td class="px-4 py-4 text-center no-print">
-                  <input 
-                    type="checkbox" 
-                    id="chk-item-${item.id}" 
-                    onchange="handleItemCheckChange(${item.id}, this.checked)" 
-                    class="item-checkbox w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
-                    checked 
-                    title="Desmarque ao concluir para sumir da tela"
-                  />
+              <tr id="tr-row-${item.id}" class="hover:bg-zinc-800/30 border-b border-zinc-800/60 transition-colors">
+                <td class="px-5 py-4 whitespace-nowrap text-center no-print">
+                  <input type="checkbox" id="chk-${item.id}" onchange="toggleRowSelection(${item.id}, this.checked)" class="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer" checked>
                 </td>
-                <td class="px-4 py-4 text-center font-mono text-zinc-500 font-bold">${item.id}</td>
-                <td class="px-4 py-4 font-mono font-bold text-purple-300">#${item.rowNumber}</td>
-                <td class="px-4 py-4 font-mono font-bold text-emerald-400 whitespace-nowrap">${item.timeRange}</td>
-                <td class="px-4 py-4 font-bold text-zinc-200">
-                  <span class="block text-[11px] leading-tight">${item.editorialPurpose}</span>
+                <td class="px-5 py-4 whitespace-nowrap font-mono text-xs font-bold text-zinc-500 text-center">
+                  ${item.id}
                 </td>
-                <td class="px-4 py-4 whitespace-nowrap">
-                  <span class="px-2 py-0.5 text-[8.5px] font-black uppercase tracking-wider rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700">
+                <td class="px-5 py-4 whitespace-nowrap font-mono text-xs font-bold text-purple-300">
+                  #${item.rowNumber}
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap font-mono font-bold text-emerald-400 text-xs">
+                  ${item.timeRange}
+                </td>
+                <td class="px-5 py-4 font-bold text-zinc-200 text-xs">
+                  <span class="block leading-tight">${item.editorialPurpose}</span>
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border bg-zinc-800 text-zinc-300 border-zinc-700">
                     ${item.interventionType}
                   </span>
                 </td>
-                <td class="px-4 py-4 italic text-zinc-300 max-w-xs leading-relaxed text-[11px]">
+                <td class="px-5 py-4 text-zinc-300 font-medium italic text-xs leading-relaxed max-w-xs">
                   &quot;${item.sceneExcerpt}&quot;
                 </td>
-                <td class="px-4 py-4 font-mono text-[11px] text-zinc-200 font-semibold">
+                <td class="px-5 py-4 font-mono text-[11px] text-zinc-200 font-semibold">
                   <div class="flex items-center gap-1.5">
                     <span>${item.asset.mimeType.startsWith('video/') ? '🎬' : item.asset.mimeType.startsWith('image/') ? '🖼️' : item.asset.mimeType.startsWith('audio/') ? '🔊' : '📦'}</span>
                     <span class="truncate max-w-[200px]" title="${item.asset.name}">${item.asset.name}</span>
                   </div>
                   <span class="text-[8px] font-black uppercase text-zinc-500 block mt-0.5">${item.asset.category.replace(/^[0-9]+_/, '')}</span>
                 </td>
-                <td class="px-4 py-4 text-zinc-400 text-[11px] leading-relaxed max-w-xs">
+                <td class="px-5 py-4 text-zinc-400 text-xs leading-relaxed max-w-xs">
                   ${item.editingGuideline}
                 </td>
-                <td class="px-4 py-4 text-right whitespace-nowrap">
+                <td class="px-5 py-4 text-right whitespace-nowrap">
                   <a href="${item.asset.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center gap-1 shadow-sm transition-all active:scale-95">
                     <span>📥 Baixar</span>
                   </a>
@@ -6206,146 +6206,174 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
     </div>
   </main>
 
-  <script id="plan-data" type="application/json">
-    ${JSON.stringify(plan)}
+  <script id="interventions-data" type="application/json">
+    ${JSON.stringify(interventions.map((item) => ({
+      id: item.id,
+      rowNumber: item.rowNumber,
+      type: item.interventionType,
+      purpose: item.editorialPurpose,
+      search: (item.sceneExcerpt + ' ' + item.editorialPurpose + ' ' + item.asset.name + ' ' + item.interventionType).toLowerCase(),
+      selected: true,
+      url: item.asset.url,
+      name: item.asset.name,
+      category: item.asset.category,
+      sizeKb: item.asset.sizeKb,
+      timeRange: item.timeRange,
+      sceneExcerpt: item.sceneExcerpt,
+      editingGuideline: item.editingGuideline
+    })))}
   </script>
 
   <script>
-    const plan = JSON.parse(document.getElementById('plan-data').textContent);
-    
-    // Estado reativo de cada item
-    const itemStates = {};
-    plan.interventions.forEach(item => {
-      itemStates[item.id] = { checked: true, type: item.interventionType };
-    });
-
+    const items = JSON.parse(document.getElementById('interventions-data').textContent);
     let selectedTypeFilter = 'all';
-    let hideCompleted = true; // Por padrão, ao desmarcar o item some da tela
+    let onlySelected = true; // "Mostrar Apenas Selecionados" vem ativo por padrão
 
-    function initTypeFilterPills() {
-      const pillsContainer = document.getElementById('curated-type-pills');
-      if (!pillsContainer) return;
-
-      const counts = {};
-      plan.interventions.forEach(i => {
-        counts[i.interventionType] = (counts[i.interventionType] || 0) + 1;
+    function initFilters() {
+      const filterContainer = document.getElementById('type-filter-buttons');
+      if (!filterContainer) return;
+      
+      const typeCounts = {};
+      items.forEach(it => {
+        const t = it.type;
+        typeCounts[t] = (typeCounts[t] || 0) + 1;
       });
-
-      pillsContainer.innerHTML = '';
-
-      // Botão Todos
+      
+      filterContainer.innerHTML = '';
+      
       const allBtn = document.createElement('button');
-      allBtn.className = 'type-pill px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all active:scale-95';
-      allBtn.innerText = 'Todos (' + plan.interventions.length + ')';
-      allBtn.onclick = () => setTypeFilter('all', allBtn);
-      pillsContainer.appendChild(allBtn);
-
-      // Botões individuais por tipo
-      Object.keys(counts).sort().forEach(type => {
+      allBtn.id = 'btn-filter-all';
+      allBtn.onclick = () => filterType('all');
+      allBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
+      allBtn.innerText = 'Todos (' + items.length + ')';
+      filterContainer.appendChild(allBtn);
+      
+      Object.keys(typeCounts).sort().forEach(type => {
         const btn = document.createElement('button');
-        btn.className = 'type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95';
-        btn.innerText = type + ' (' + counts[type] + ')';
-        btn.onclick = () => setTypeFilter(type, btn);
-        pillsContainer.appendChild(btn);
+        btn.id = 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+        btn.onclick = () => filterType(type);
+        btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all uppercase';
+        btn.innerText = type + ' (' + typeCounts[type] + ')';
+        filterContainer.appendChild(btn);
       });
     }
 
-    function setTypeFilter(type, clickedBtn) {
+    function filterType(type) {
       selectedTypeFilter = type;
-      const allPills = document.querySelectorAll('#curated-type-pills button');
-      allPills.forEach(p => {
-        p.className = 'type-pill px-3 py-1 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-all active:scale-95';
+      
+      const buttons = document.querySelectorAll('#type-filter-buttons button');
+      buttons.forEach(btn => {
+        btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:scale-95 transition-all';
       });
-      if (clickedBtn) {
-        clickedBtn.className = 'type-pill px-3 py-1 text-[10px] font-black uppercase rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 transition-all active:scale-95';
+      
+      const activeId = type === 'all' ? 'btn-filter-all' : 'btn-filter-' + type.replace(/[^a-zA-Z0-9]/g, '_');
+      const activeBtn = document.getElementById(activeId);
+      if (activeBtn) {
+        activeBtn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all';
       }
-      applyAllFilters();
+      
+      applyFilters();
     }
 
-    function toggleHideCompleted(checked) {
-      hideCompleted = checked;
-      applyAllFilters();
+    function toggleOnlySelected(isChecked) {
+      onlySelected = isChecked;
+      applyFilters();
     }
 
-    function handleItemCheckChange(id, isChecked) {
-      if (itemStates[id]) {
-        itemStates[id].checked = isChecked;
+    function toggleRowSelection(id, isChecked) {
+      const item = items.find(it => it.id === id);
+      if (item) {
+        item.selected = isChecked;
       }
-      applyAllFilters();
+      
+      const tblChk = document.getElementById('chk-' + id);
+      if (tblChk) tblChk.checked = isChecked;
+      
+      const allChecked = items.every(it => it.selected);
+      const noneChecked = items.every(it => !it.selected);
+      const thChkAll = document.getElementById('th-chk-all');
+      if (thChkAll) {
+        thChkAll.checked = allChecked;
+        thChkAll.indeterminate = (!allChecked && !noneChecked);
+      }
+      
+      applyFilters();
     }
 
-    function setAllSelection(checkAll) {
-      plan.interventions.forEach(item => {
-        itemStates[item.id].checked = checkAll;
-        const chk = document.getElementById('chk-item-' + item.id);
-        if (chk) chk.checked = checkAll;
+    function toggleSelectAllRows(isChecked) {
+      items.forEach(item => {
+        item.selected = isChecked;
+        const tblChk = document.getElementById('chk-' + item.id);
+        if (tblChk) tblChk.checked = isChecked;
       });
-      const masterChk = document.getElementById('th-chk-master');
-      if (masterChk) masterChk.checked = checkAll;
-      applyAllFilters();
+      
+      applyFilters();
     }
 
-    function toggleMasterCheck(isChecked) {
-      setAllSelection(isChecked);
+    function setSelectedAll(isChecked) {
+      const thChkAll = document.getElementById('th-chk-all');
+      if (thChkAll) {
+        thChkAll.checked = isChecked;
+        thChkAll.indeterminate = false;
+      }
+      toggleSelectAllRows(isChecked);
     }
 
-    function applyAllFilters() {
+    function applyFilters() {
       const searchVal = (document.getElementById('curated-search-input')?.value || '').toLowerCase().trim();
-      const rows = document.querySelectorAll('.curated-row');
-      let visibleCount = 0;
-      let completedCount = 0;
 
-      rows.forEach(row => {
-        const id = Number(row.getAttribute('data-id'));
-        const type = row.getAttribute('data-type') || '';
-        const search = row.getAttribute('data-search') || '';
-        const isChecked = itemStates[id]?.checked !== false;
-
-        if (!isChecked) {
-          completedCount++;
-        }
-
-        const matchesType = (selectedTypeFilter === 'all' || type === selectedTypeFilter);
-        const matchesSearch = !searchVal || search.includes(searchVal);
-        const matchesCompletion = !hideCompleted || isChecked;
-
-        if (matchesType && matchesSearch && matchesCompletion) {
-          row.classList.remove('filtered-out');
-          visibleCount++;
+      items.forEach(item => {
+        const tr = document.getElementById('tr-row-' + item.id);
+        
+        const matchesType = (selectedTypeFilter === 'all' || item.type.toLowerCase() === selectedTypeFilter.toLowerCase());
+        const matchesSelection = (!onlySelected || item.selected);
+        const matchesSearch = !searchVal || item.search.includes(searchVal);
+        const isVisible = matchesType && matchesSelection && matchesSearch;
+        
+        if (isVisible) {
+          tr?.classList.remove('filtered-out');
         } else {
-          row.classList.add('filtered-out');
-        }
-
-        // Estiliza linhas concluídas caso o modo ocultar esteja desligado
-        if (!isChecked) {
-          row.classList.add('completed-row');
-        } else {
-          row.classList.remove('completed-row');
+          tr?.classList.add('filtered-out');
         }
       });
 
-      const statEl = document.getElementById('curated-stat-counter');
-      if (statEl) {
-        const pending = plan.interventions.length - completedCount;
-        statEl.innerText = visibleCount + ' visíveis (' + pending + ' pendentes, ' + completedCount + ' concluídos)';
+      updateCounters();
+    }
+
+    function updateCounters() {
+      const searchVal = (document.getElementById('curated-search-input')?.value || '').toLowerCase().trim();
+      const visibleItems = items.filter(item => {
+        const matchesType = (selectedTypeFilter === 'all' || item.type.toLowerCase() === selectedTypeFilter.toLowerCase());
+        const matchesSelection = (!onlySelected || item.selected);
+        const matchesSearch = !searchVal || item.search.includes(searchVal);
+        return matchesType && matchesSelection && matchesSearch;
+      });
+      
+      const statCounter = document.getElementById('stat-counter');
+      if (statCounter) {
+        statCounter.innerText = visibleItems.length + ' / ' + items.length;
+      }
+      const statTotal = document.getElementById('stat-total');
+      if (statTotal) {
+        statTotal.innerText = visibleItems.length + ' / ' + items.length;
       }
     }
 
     function downloadCuratedCsv() {
       let csv = 'ID,Cena,Posicao Temporal,Momento & Funcao,Tipo,Trecho da Fala,Asset Recomendado,Categoria,Tamanho (KB),Orientacao de Edicao,URL Google Drive,Status\r\n';
-      plan.interventions.forEach(item => {
-        const status = itemStates[item.id]?.checked ? 'Pendente' : 'Concluido';
+      items.forEach(item => {
+        const status = item.selected ? 'Pendente' : 'Concluido';
         csv += '"' + item.id + '",' +
                '"#' + item.rowNumber + '",' +
                '"' + item.timeRange + '",' +
-               '"' + item.editorialPurpose.replace(/"/g, '""') + '",' +
-               '"' + item.interventionType + '",' +
+               '"' + item.purpose.replace(/"/g, '""') + '",' +
+               '"' + item.type + '",' +
                '"' + item.sceneExcerpt.replace(/"/g, '""') + '",' +
-               '"' + item.asset.name + '",' +
-               '"' + item.asset.category + '",' +
-               item.asset.sizeKb + ',' +
+               '"' + item.name + '",' +
+               '"' + item.category + '",' +
+               item.sizeKb + ',' +
                '"' + item.editingGuideline.replace(/"/g, '""') + '",' +
-               '"' + item.asset.url + '",' +
+               '"' + item.url + '",' +
                '"' + status + '"\r\n';
       });
 
@@ -6353,7 +6381,9 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'planilha_assets_' + (plan.themeTitle || 'video').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() + '.csv';
+      const themeTitle = document.getElementById('header-theme-title')?.innerText || 'video';
+      const sanitized = themeTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      a.download = 'planilha_assets_' + sanitized + '.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -6366,7 +6396,8 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const sanitized = (plan.themeTitle || 'video').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const themeTitle = document.getElementById('header-theme-title')?.innerText || 'video';
+      const sanitized = themeTitle.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       link.download = 'planilha_assets_' + sanitized + '.html';
       document.body.appendChild(link);
       link.click();
@@ -6374,9 +6405,9 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       URL.revokeObjectURL(url);
     }
 
-    // Inicialização
-    initTypeFilterPills();
-    applyAllFilters();
+    // Inicialização idêntica ao Storyboard
+    initFilters();
+    updateCounters();
   </script>
 </body>
 </html>`;

@@ -4224,7 +4224,7 @@ ${textToAnalyze}`;
     stem: string,
     suffix: string,
     content: string,
-    options?: { extension?: 'txt' | 'csv' | 'bat' | 'fcpxml' | 'json'; mimeType?: string }
+    options?: { extension?: 'txt' | 'csv' | 'bat' | 'fcpxml' | 'json' | 'html'; mimeType?: string }
   ) => {
     if (!content.trim()) {
       alert('Nao ha conteudo disponivel para exportar.');
@@ -4243,6 +4243,143 @@ ${textToAnalyze}`;
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportSeoTxt = () => {
+    if (!postScriptPackage) {
+      alert('Gere o Pacote Pós-Roteiro antes de exportar o arquivo SEO.');
+      return;
+    }
+
+    const lines = [
+      '=================================================================',
+      '🚀 PACOTE SEO & PUBLICAÇÃO YOUTUBE — FASE B5',
+      '=================================================================',
+      '',
+      '--- [ 1. TÍTULOS VIRAIS (TESTE A/B/C) ] ---',
+      ...postScriptPackage.titles.map((t, idx) => `${idx + 1}. ${t}`),
+      '',
+      '--- [ 2. COPIES RECOMENDADAS PARA THUMBNAIL (FASE B2) ] ---',
+      ...(postScriptPackage.thumbnailCopies?.map((c, idx) => `Opção ${idx + 1}: ${c}`) || ['—']),
+      '',
+      '--- [ 3. DESCRIÇÃO COMPLETA DO YOUTUBE ] ---',
+      postScriptPackage.seoDescription,
+      '',
+      '--- [ 4. FONTES & REFERÊNCIAS OFICIAIS ] ---',
+      ...(postScriptPackage.sourcesSection?.map((s) => `• ${s}`) || ['—']),
+      '',
+      '--- [ 5. COMENTÁRIO FIXADO (PRIMEIRAS 2 HORAS) ] ---',
+      postScriptPackage.pinnedComment || '—',
+      '',
+      '--- [ 6. TAGS DO VÍDEO (SEPARADAS POR VÍRGULA PARA COLAR NO STUDIO) ] ---',
+      (postScriptPackage.seoTags || []).join(', '),
+      '',
+      '=================================================================',
+      `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+      '=================================================================',
+    ];
+
+    downloadTextArtifact(packageArtifactStem, '05_pacote_seo_youtube', lines.join('\n'), {
+      extension: 'txt',
+      mimeType: 'text/plain;charset=utf-8',
+    });
+    showToast('📄 Arquivo SEO exportado com sucesso (.txt)!');
+  };
+
+  const handleExportPhaseBHtml = () => {
+    if (!postScriptPackage) {
+      alert('Gere o Pacote Pós-Roteiro antes de exportar o dashboard HTML.');
+      return;
+    }
+
+    const titleStr = postScriptPackage.titles[0] || approvedTheme || 'Vídeo YouTube';
+    const htmlContent = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fase B: ${titleStr}</title>
+  <style>
+    :root { --bg: #0b0f19; --card: #151d30; --border: rgba(255,255,255,0.08); --accent: #3b82f6; --text: #f1f5f9; --muted: #94a3b8; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 32px 16px; margin: 0; line-height: 1.6; }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 900; margin-bottom: 8px; color: #fff; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); margin-bottom: 24px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    .card-title { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #93c5fd; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .title-item { background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+    .thumb-copies { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .thumb-card { background: rgba(0,0,0,0.3); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 16px; font-weight: 900; font-family: monospace; font-size: 16px; color: #fbbf24; text-align: center; }
+    pre { background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 12px; padding: 16px; overflow-x: auto; font-size: 12px; color: #cbd5e1; white-space: pre-wrap; font-family: monospace; }
+    .tag { display: inline-block; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; margin: 3px; font-size: 11px; font-weight: 700; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">Relatório Executivo · Fase B Universal</span>
+    <h1>${titleStr}</h1>
+    <p style="color: var(--muted); margin-bottom: 24px; font-size: 13px;">Gerado pelo Sistema Content OS em ${new Date().toLocaleString('pt-BR')}</p>
+
+    <div class="card">
+      <div class="card-title">🖼️ B2: Copies para Thumbnail (ALL CAPS)</div>
+      <div class="thumb-copies">
+        ${(postScriptPackage.thumbnailCopies || []).map((c) => `<div class="thumb-card">${c}</div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🎯 B4: Títulos Virais Sugeridos (${postScriptPackage.titles.length})</div>
+      ${postScriptPackage.titles.map((t, i) => `<div class="title-item"><span style="color: var(--muted); margin-right: 8px;">#${i+1}</span> ${t}</div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">📝 B5: Descrição Completa para o YouTube</div>
+      <pre>${postScriptPackage.seoDescription}</pre>
+    </div>
+
+    ${postScriptPackage.sourcesSection && postScriptPackage.sourcesSection.length > 0 ? `
+    <div class="card">
+      <div class="card-title">📚 B5: Fontes & Referências Oficiais</div>
+      <ul>
+        ${postScriptPackage.sourcesSection.map((s) => `<li style="font-size: 13px; margin-bottom: 6px;">${s}</li>`).join('')}
+      </ul>
+    </div>` : ''}
+
+    ${postScriptPackage.pinnedComment ? `
+    <div class="card">
+      <div class="card-title">📌 B5: Comentário Fixado (Primeiras 2 Horas)</div>
+      <div style="background: rgba(245,158,11,0.05); border: 1px solid rgba(245,158,11,0.2); padding: 16px; border-radius: 12px; font-style: italic; color: #fde68a;">
+        "${postScriptPackage.pinnedComment}"
+      </div>
+    </div>` : ''}
+
+    ${postScriptPackage.seoTags && postScriptPackage.seoTags.length > 0 ? `
+    <div class="card">
+      <div class="card-title">🏷️ B5: Tags SEO (${postScriptPackage.seoTags.length})</div>
+      <div>
+        ${postScriptPackage.seoTags.map((t) => `<span class="tag">#${t}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-title">🎵 B6: Direção Musical & Prompt Suno v4</div>
+      <p><strong>Sugestão de Título:</strong> ${postScriptPackage.sunoSuggestedTitle || '—'}</p>
+      <pre>${postScriptPackage.sunoPrompt}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔊 B6: Timeline SFX para CapCut PC</div>
+      <pre>${postScriptPackage.sunoPrompt ? postScriptPackage.sfxTimelineTxt : '—'}</pre>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    downloadTextArtifact(packageArtifactStem, '06_dashboard_fase_b', htmlContent, {
+      extension: 'html',
+      mimeType: 'text/html;charset=utf-8',
+    });
+    showToast('🌐 Dashboard HTML exportado com sucesso (.html)!');
   };
 
   const handleExportFcpxml = () => {
@@ -10488,13 +10625,31 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                         <p className="text-[9px] font-black uppercase tracking-[0.28em] text-blue-300">Pacote SEO & YouTube</p>
                         <p className="mt-1 text-[10px] text-white/40">Descrição completa, capítulos, fontes, comentário fixado e tags.</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => copyTextToClipboard(postScriptPackage.seoDescription, 'Descricao SEO copiada.')}
-                        className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
-                      >
-                        <Copy size={12} className="inline mr-2" /> Copiar Descrição
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => copyTextToClipboard(postScriptPackage.seoDescription, 'Descricao SEO copiada.')}
+                          className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/75 hover:border-blue-400/30 hover:text-blue-200"
+                        >
+                          <Copy size={12} className="inline mr-1.5" /> Copiar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExportSeoTxt}
+                          className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 hover:bg-emerald-500/20"
+                          title="Baixar arquivo TXT completo com Títulos, Descrição, Fontes, Pinned Comment e Tags"
+                        >
+                          <FileText size={12} className="inline mr-1.5" /> TXT SEO
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExportPhaseBHtml}
+                          className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-200 hover:bg-blue-500/20"
+                          title="Baixar relatório HTML completo da Fase B com layout dark-mode"
+                        >
+                          🌐 HTML
+                        </button>
+                      </div>
                     </div>
                     <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-4 space-y-4">
                       <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">

@@ -13,14 +13,65 @@ export interface PostScriptChapterAnchor {
 }
 
 export interface ThumbnailJsonLayer {
-  canvas?: { width: number; height: number; aspect_ratio: string };
-  background?: { style: string; prompt: string };
-  character?: { style: string; action: string; expression: string; clothing?: string };
-  text_layers?: Array<{ text: string; font: string; style: string; color: string; stroke?: string; size?: string; position?: string }>;
-  indicators?: Array<{ type: string; color: string; target: string }>;
-  badges?: Array<{ text: string; bg_color: string; text_color: string }>;
-  composition?: string;
-  negative_dna?: string;
+  thumbnail_option?: string;
+  canvas?: { width: number; height: number; unit?: string; aspect_ratio: string };
+  background_scene?: {
+    description: string;
+    style: string;
+    camera_angle: string;
+    lighting: string;
+    color_palette: string[];
+  };
+  character?: {
+    present: boolean;
+    note?: string;
+    style?: string;
+    action?: string;
+    expression?: string;
+    clothing?: string;
+  };
+  text_layers?: Array<{
+    id?: string;
+    content: string;
+    role?: string;
+    font_family: string;
+    font_size: number;
+    color: string;
+    stroke?: { color: string; width: number } | string;
+    position?: { x: string; y: string; zone?: string } | string;
+    transform?: string;
+  }>;
+  indicators?: Array<{
+    id?: string;
+    type: string;
+    color: string;
+    stroke_color?: string;
+    stroke_width?: number;
+    glow?: boolean;
+    position: string;
+    size?: string;
+    points_to: string;
+  }>;
+  badges?: Array<{
+    id?: string;
+    present?: boolean;
+    type?: string;
+    background_color: string;
+    text_color: string;
+    content: string;
+    font_family?: string;
+    font_size?: number;
+    position?: string;
+  }>;
+  composition?: {
+    layout: string;
+    focal_point: string;
+    eye_flow: string;
+    safe_zone_margin?: string;
+    background_base?: string;
+  } | string;
+  mood?: string;
+  generation_notes?: string;
 }
 
 export interface PostScriptPackage {
@@ -667,18 +718,34 @@ const buildSeoDescriptionFromPackage = (
   channelLanguage?: string,
   sources?: string[]
 ) => {
-  const assets = getLanguageAssets(channelLanguage);
-  const intro = humanizeSeoIntroCustom(rawSeoDescription, assets.introFallback);
-  const chapterLines = anchors.map((anchor, index) => {
-    const label = deriveChapterLabelCustom(anchor, index === anchors.length - 1, assets);
-    return `${anchor.timestamp} - ${label}`;
+  const intro = cleanMultiline(rawSeoDescription).trim();
+  const cleanChapters = (anchors || []).map((anchor) => {
+    const raw = (anchor.originalTitle || anchor.preview || 'Capítulo').trim();
+    const clean = raw.replace(/^Bloco\s*\d+\s*[-—:]?\s*/i, '').trim();
+    return `${anchor.timestamp} — ${clean}`;
   });
 
-  const sourcesLines = Array.isArray(sources) && sources.length > 0
-    ? ['', 'FONTES & REFERÊNCIAS DE AUTORIDADE:', ...sources.map((s) => `- ${cleanPreview(s)}`)]
-    : [];
+  const sections: string[] = [];
 
-  return [intro, '', ...chapterLines, ...sourcesLines, '', assets.aiNotice].filter(Boolean).join('\n');
+  if (intro) {
+    sections.push(intro);
+  }
+
+  if (sources && sources.length > 0) {
+    sections.push(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📚 Fontes:\n' +
+      sources.map((s, idx) => `[${idx + 1}] ${cleanPreview(s)}`).join('\n')
+    );
+  }
+
+  if (cleanChapters.length > 0) {
+    sections.push(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⏰ CAPÍTULOS & TIMESTAMPS DO VÍDEO:\n' +
+      cleanChapters.join('\n')
+    );
+  }
+
+  return sections.join('\n\n');
 };
 
 export const buildSeoChapterPlan = ({

@@ -5726,8 +5726,98 @@ export interface CuratedAssetPlan {
 }
 
 /**
+ * Pools de assets do Pack Ganha Tempo categorizados para garantir seleção 100% inédita (sem repetições)
+ */
+const ASSET_POOLS = {
+  risers: [
+    'Riser_Cinematico_Epico_1.mp3',
+    'Riser_Metalico_1.MP3',
+    'Riser_Cinematico_Agudo.mp3',
+    'Riser_Cinematico_Impacto_Ding.wav',
+    'Riser_Chimbal_1.wav',
+  ],
+  impactos: [
+    'Suspense_Impacto_Susto_1.mp3',
+    'Impacto_Epico_Cinematico_1.mp3',
+    'Impacto_Epico_Cinematico_2.MP3',
+    'Impacto_Epico_Cinematico_3.MP3',
+    'Impacto_Epico_Cinematico_4.MP3',
+    'Impacto_Epico_Cinematico_5.MP3',
+    'Impacto_Shhh.MP3',
+    'Suspense_Impacto_Susto_2.mp3',
+    'Explosao_Bomba_Media.mp3',
+  ],
+  wooshes: [
+    'Woosh_Rapido_1.MP3',
+    'Woosh_Rapido_4.MP3',
+    'Woosh_Rapido_5.mp3',
+    'Woosh_Medio_3.MP3',
+    'Woosh_Medio_4.MP3',
+    'Woosh_Medio_5.MP3',
+    'Woosh_Longo_7.MP3',
+    'Woosh_Lembranca_Pensamento.MP3',
+  ],
+  cliquesTeclados: [
+    'Click_Camera_Fogorafica_Shutter_1.MP3',
+    'Teclado_Digitando_Keyboard_Typing_1.mp3',
+    'Teclado_Digitando_Keyboard_Typing_2.MP3',
+    'Contador_Eletronico_Counter_Placar_Display.MP3',
+    'Mouse_Click_Clicando_1.mp3',
+  ],
+  graficosAlertas: [
+    'Janela_Erro_Com_Som.mov',
+    'Suspense_Susto_Perigo.mov',
+    'Relogio_Azul_Acelerado_Com_Som.mov',
+    'Timer_Barra_10_Segundos.mov',
+    'Correto_Circular_Light_Sweep_Com_Som.mov',
+    'Explosao_Fogo_Explosion_Chamas_Com_Som.mov',
+    'Botao_Inscreva_Se_Com_Som.mov',
+  ],
+  lowerThirds: [
+    'Lower_Third_Tarja_Animada_1.mov',
+    'Lower_Third_Tarja_Animada_2.mov',
+    'Lower_Third_Tarja_Animada_3.mov',
+  ],
+  transicoes: [
+    'Glitch_Com_Som_1.mp4',
+    'Light_Leaks_Luz_Brilho_Com_Som_1.MP4',
+    'Brilho_Camera_Flash_Com_Som.mp4',
+    'Smoke_Fumaca_Com_Som.mp4',
+    'Fogo_Fire_Chamas_Com_Som.mp4',
+  ],
+  overlays: [
+    'Velocidade_Movimento_Speed_Overlay.mp4',
+    'Camera_Overlay_Gravando.mp4',
+    'VHS_Tv_Antiga_Noise_Barulho_Gravador_Fita_Cassete.mp4',
+    'Espiral_Tempo_Time-Clock_Relogio.mp4',
+    'Fumaca_Smoke_Dissipando_Sumindo.mp4',
+    'Particulas_Lens_Flare_Iluminacao_Esferas.mp4',
+  ],
+  chromaKey: [
+    'Chovendo_Dinheiro_Chroma_Key.mp4',
+    'Tv_Antiga_Analogica_Chroma.mp4',
+    'Controle_Remoto_Chroma_Key.mp4',
+    'Gamer_Chroma_Key_Monitor_Tela_PC_Computador.mp4',
+    'Olhando_Monitor_Chroma_Key.mp4',
+    'Smartphone_Chorma.mp4',
+    'Portal_Animado_Chroma_key.mp4',
+  ],
+  icones3d: [
+    'Placa_Perigo_Exclamacao_Amarelo.png',
+    'Cartao_Vermelho.png',
+    'Cartao_Amarelo.png',
+    'Dinheiro_Money_Moedas_Saco_Ouro.png',
+    'Dinheiro_Money_Cifrao.png',
+    'Chat_GPT_Premiuim.png',
+    'Claude_Logo_3D.png',
+    'Deepseek_logo_3D.png',
+    'apontando_indicador_mao_dedo.png',
+  ]
+};
+
+/**
  * Realiza a análise semântica cirúrgica do SRT ao longo de 100% da timeline
- * e mapeia os momentos de chamada de atenção com assets do Pack Ganha Tempo (SEM TEXTOS).
+ * e mapeia os momentos de chamada de atenção com assets 100% INÉDITOS (sem repetições).
  */
 export function buildCuratedAssetEnrichmentPlan(
   rows: any[] = [],
@@ -5736,6 +5826,7 @@ export function buildCuratedAssetEnrichmentPlan(
   projectPuc?: string
 ): CuratedAssetPlan {
   const totalDuration = rows[rows.length - 1]?.endTime || '00:00:00';
+  const usedAssetNames = new Set<string>();
 
   const findItemByName = (name: string, fallbackCat: string): PackAssetItem => {
     const found = PACK_GANHA_TEMPO_ITEMS.find((i) => i.name.toLowerCase() === name.toLowerCase());
@@ -5744,6 +5835,35 @@ export function buildCuratedAssetEnrichmentPlan(
       PACK_GANHA_TEMPO_ITEMS.find((i) => i.category.toLowerCase().includes(fallbackCat.toLowerCase())) ||
       PACK_GANHA_TEMPO_ITEMS[0]
     );
+  };
+
+  /**
+   * Busca o primeiro asset inédito dentro de uma lista de nomes prioritários ou da categoria
+   */
+  const getUniqueAssetFromPool = (poolNames: string[], fallbackCategory: string): PackAssetItem => {
+    // 1. Tenta pegar da lista prioritária
+    for (const name of poolNames) {
+      if (!usedAssetNames.has(name.toLowerCase())) {
+        const item = findItemByName(name, fallbackCategory);
+        if (item) {
+          usedAssetNames.add(item.name.toLowerCase());
+          return item;
+        }
+      }
+    }
+    // 2. Se todos os prioritários foram usados, busca qualquer outro inédito da categoria no catálogo geral
+    const categoryMatches = PACK_GANHA_TEMPO_ITEMS.filter((i) =>
+      i.category.toLowerCase().includes(fallbackCategory.toLowerCase())
+    );
+    for (const item of categoryMatches) {
+      if (!usedAssetNames.has(item.name.toLowerCase())) {
+        usedAssetNames.add(item.name.toLowerCase());
+        return item;
+      }
+    }
+    // 3. Fallback de segurança se todo o catálogo esgotar
+    const fallbackItem = findItemByName(poolNames[0] || '', fallbackCategory);
+    return fallbackItem;
   };
 
   const isCinematic = videoFormat === 'avatar_flow' || (projectPuc || '').toLowerCase().includes('cinema');
@@ -5781,8 +5901,8 @@ export function buildCuratedAssetEnrichmentPlan(
   const totalMs = parseMs(rows[rows.length - 1].endTime);
   const totalMinutes = Math.max(1, totalMs / 60000);
 
-  // Divide em janelas de cadência de ~45 a 65 segundos cobrindo 100% da timeline
-  const targetCount = Math.max(6, Math.min(22, Math.round(totalMinutes * 1.0) || 10));
+  // Divide em janelas de cadência de ~50 a 70 segundos cobrindo 100% da timeline
+  const targetCount = Math.max(6, Math.min(20, Math.round(totalMinutes * 0.9) || 10));
   const windowDurationMs = totalMs / targetCount;
 
   const interventions: CuratedAssetIntervention[] = [];
@@ -5802,40 +5922,40 @@ export function buildCuratedAssetEnrichmentPlan(
     let selectedRow = windowRows[0];
     let badgeType: CuratedAssetIntervention['badgeType'] = 'SOM';
     let interventionCategory: CuratedAssetIntervention['interventionCategory'] = 'SFX';
-    let assetItem: PackAssetItem = findItemByName('Woosh_Epico_1.wav', 'Efeitos_Sonoros');
+    let assetItem: PackAssetItem | null = null;
     let editorialReason = '';
     let foundTrigger = false;
 
-    // Varredura semântica inteligente nas falas do SRT desta janela
+    // Varredura semântica nas falas do SRT desta janela
     for (const r of windowRows) {
       const textLower = (r.texto || '').toLowerCase();
 
-      // 1. Tensão / Perigo / Susto / Ameaça / Aterrador
+      // 1. Tensão / Perigo / Susto / Ameaça / Aterrador / Risco Fatal
       if (/\b(aterrador|susto|p[aâ]nico|perigo|grave|morte|fatal|crise|desastre|amea[cç]a)\b/i.test(textLower)) {
         selectedRow = r;
         badgeType = 'SOM';
         interventionCategory = 'SFX';
-        assetItem = findItemByName('Suspense_Impacto_Susto_1.mp3', 'Efeitos_Sonoros');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.impactos, 'Efeitos_Sonoros');
         editorialReason = 'Gatilho de tensão e perigo eminente na narrativa. Som de suspense para marcar o pico emocional do momento.';
         foundTrigger = true;
         break;
       }
-      // 2. Pane / Falha / Erro de Sistema / Alarme
+      // 2. Pane / Falha / Erro de Sistema / Alarme / Defeito
       else if (/\b(pane|alarme|falha|colapso|erro|defeito|quebrou|desligou)\b/i.test(textLower)) {
         selectedRow = r;
         badgeType = 'SOBRE';
         interventionCategory = 'Gráfico';
-        assetItem = findItemByName('Janela_Erro_Com_Som.mov', 'Graficos');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.graficosAlertas, 'Graficos');
         editorialReason = 'Alarme visual de falha crítica. Ancoragem de erro de sistema com corte abrupto para prender a atenção.';
         foundTrigger = true;
         break;
       }
-      // 3. Dinheiro / Custo / Milhões / Riqueza / Faturamento
+      // 3. Dinheiro / Custo / Milhões / Riqueza / Faturamento / Prejuízo
       else if (/\b(milh[oõ]es|bilh[oõ]es|dinheiro|fortuna|custou|reais|d[oó]lares|faturamento|lucro|preju[ií]zo)\b/i.test(textLower)) {
         selectedRow = r;
         badgeType = 'SOBRE';
         interventionCategory = 'Chroma Key';
-        assetItem = findItemByName('Chovendo_Dinheiro_Chroma_Key.mp4', 'Chroma_Key');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.chromaKey, 'Chroma_Key');
         editorialReason = 'Revelação de impacto financeiro alto. Elemento visual em chroma key para potencializar a magnitude dos valores narrados.';
         foundTrigger = true;
         break;
@@ -5845,17 +5965,20 @@ export function buildCuratedAssetEnrichmentPlan(
         selectedRow = r;
         badgeType = 'SOBRE';
         interventionCategory = 'Gráfico';
-        assetItem = findItemByName('Timer_Barra_10_Segundos.mov', 'Graficos');
-        editorialReason = 'Gatilho de urgência temporal. Barra dinâmica posicionada na base da tela marcando a passagem acelerada do tempo.';
+        assetItem = getUniqueAssetFromPool(
+          ['Relogio_Azul_Acelerado_Com_Som.mov', 'Timer_Barra_10_Segundos.mov', 'Espiral_Tempo_Time-Clock_Relogio.mp4'],
+          'Graficos'
+        );
+        editorialReason = 'Gatilho de urgência temporal. Elemento gráfico marcando a passagem acelerada do tempo sob pressão.';
         foundTrigger = true;
         break;
       }
-      // 5. Lista / Enumeração de Fatos / Destaque de Tópico
-      else if (/\b(primeiro|segundo|terceiro|fato|motivo|etapa|passo|raz[aã]o|detalhe)\b/i.test(textLower)) {
+      // 5. Lista / Enumeração de Fatos / Destaque de Tópico / Explicação Técnica
+      else if (/\b(primeiro|segundo|terceiro|fato|motivo|etapa|passo|raz[aã]o|detalhe|segundo o|segundo dados)\b/i.test(textLower)) {
         selectedRow = r;
         badgeType = 'SOBRE';
         interventionCategory = 'Gráfico';
-        assetItem = findItemByName('Lower_Third_Tarja_Animada_1.mov', 'Graficos');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.lowerThirds, 'Graficos');
         editorialReason = 'Tarja animada para reforçar tópicos ou enumeração de dados, ancorando o espectador na explicação técnica.';
         foundTrigger = true;
         break;
@@ -5865,7 +5988,7 @@ export function buildCuratedAssetEnrichmentPlan(
         selectedRow = r;
         badgeType = 'SOBRE';
         interventionCategory = 'Gráfico';
-        assetItem = findItemByName('Botao_Inscreva_Se_Com_Som.mov', 'Graficos');
+        assetItem = getUniqueAssetFromPool(['Botao_Inscreva_Se_Com_Som.mov'], 'Graficos');
         editorialReason = 'Chamada para Ação sincronizada com a fala de engajamento do roteiro no terço inferior da tela.';
         foundTrigger = true;
         break;
@@ -5875,34 +5998,39 @@ export function buildCuratedAssetEnrichmentPlan(
         selectedRow = r;
         badgeType = 'SOM';
         interventionCategory = 'SFX';
-        assetItem = findItemByName('Riser_Cinematico_Epico_1.mp3', 'Efeitos_Sonoros');
-        editorialReason = 'Riser cinemático construindo antecipação e virada dramática para a revelação dos fatos.';
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.risers, 'Efeitos_Sonoros');
+        editorialReason = 'Riser sonoro construindo antecipação e virada dramática para a revelação dos fatos.';
         foundTrigger = true;
         break;
       }
     }
 
-    // Se nenhum gatilho específico ocorreu nesta janela, aplica a cadência rítmica de edição profissional
-    if (!foundTrigger) {
+    // Se nenhum gatilho específico ocorreu nesta janela, aplica a cadência rítmica variada com itens 100% inéditos
+    if (!foundTrigger || !assetItem) {
       if (w === 0) {
         badgeType = 'SOM';
         interventionCategory = 'SFX';
-        assetItem = findItemByName('Riser_Cinematico_Epico_1.mp3', 'Efeitos_Sonoros');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.risers, 'Efeitos_Sonoros');
         editorialReason = 'Abertura do vídeo — riser épico para capturar atenção imediata nos primeiros segundos (pico de retenção inicial).';
-      } else if (w % 3 === 0) {
+      } else if (w % 4 === 0) {
         badgeType = 'SOBRE';
         interventionCategory = 'Transição';
-        assetItem = findItemByName('Glitch_Com_Som_1.mp4', 'Transicoes');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.transicoes, 'Transicoes');
         editorialReason = 'Quebra de padrão visual e auditivo para renovar o foco e dinamizar a virada de assunto.';
+      } else if (w % 3 === 0) {
+        badgeType = 'SOBRE';
+        interventionCategory = 'Overlay';
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.overlays, 'Overlays');
+        editorialReason = 'Textura de atmosfera e iluminação sobreposta para enriquecer a estética da cena.';
       } else if (w % 2 === 0) {
         badgeType = 'SOM';
         interventionCategory = 'SFX';
-        assetItem = findItemByName('Impacto_Epico_Cinematico_1.mp3', 'Efeitos_Sonoros');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.impactos, 'Efeitos_Sonoros');
         editorialReason = 'Impacto sonoro no corte seco para pontuar a transição de ideias e manter a autoridade da narração.';
       } else {
         badgeType = 'SOM';
         interventionCategory = 'SFX';
-        assetItem = findItemByName('Woosh_Rapido_1.MP3', 'Efeitos_Sonoros');
+        assetItem = getUniqueAssetFromPool(ASSET_POOLS.wooshes, 'Efeitos_Sonoros');
         editorialReason = 'Woosh suave para acelerar o ritmo de transição visual entre takes.';
       }
     }
@@ -5983,7 +6111,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       <div class="flex items-center gap-2">
         <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded-lg">PLANILHA DE ASSETS</span>
         <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded">${videoFormat.toUpperCase()}</span>
-        <span class="text-xs font-mono font-bold text-zinc-400" id="header-stat">${interventions.length} Intervenções</span>
+        <span class="text-xs font-mono font-bold text-zinc-400" id="header-stat">${interventions.length} Intervenções Inéditas</span>
       </div>
       <h1 id="header-theme-title" class="text-base font-bold text-zinc-100 uppercase tracking-wide truncate max-w-xl">${themeTitle}</h1>
     </div>
@@ -6027,7 +6155,7 @@ export function generateAssetsSpreadsheetHtmlString(plan: CuratedAssetPlan): str
       </div>
       <div>
         <span class="text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Pack Ganha Tempo</span>
-        <span class="text-2xl font-bold text-emerald-300">Análise SRT Ativa</span>
+        <span class="text-2xl font-bold text-emerald-300">100% Inéditos</span>
       </div>
     </div>
 

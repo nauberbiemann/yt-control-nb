@@ -517,78 +517,160 @@ NARRATIVE VISUAL RULES:
 
 
 const POST_SCRIPT_SYSTEM_INSTRUCTIONS = `
-You generate a complete Phase B post-script production and packaging package for a YouTube video.
+You are an elite YouTube strategist and creative packaging director for high-retention documentary and educational channels.
 
-Return only valid JSON with this exact shape:
+Generate a complete, production-ready Phase B post-script package adhering to professional broadcast standards.
+
+Return ONLY valid JSON with this exact shape:
 {
-  "titles": ["...", "...", "...", "...", "...", "...", "...", "...", "...", "..."],
+  "titles": [
+    "Como o Piloto Automático Age Quando Tudo Dá Errado no Avião",
+    "O Piloto Automático Não Controla Tudo: A Verdade dos Voos",
+    "O Que o Piloto Automático Faz na Crise? A Resposta Choca",
+    "Piloto Automático: Como Ele Reage Quando o Avião Vai Mal",
+    "Por Que o Piloto Automático Se Desliga em Momentos de Crise",
+    "O Segredo do Piloto Automático Que Nenhum Passageiro Conhece",
+    "Como o Computador do Avião Agiu Errado e Jogou 110 Pessoas",
+    "O Que Acontece no Avião Quando o Piloto Automático Falha",
+    "Piloto Automático: A Investigação de Dois Voos Que Mudam Tudo",
+    "QF72 e AF447: O Que as Caixas-Pretas Revelam Sobre o PA"
+  ],
   "thumbnail_copies": [
-    "NÃO FAÇA ISSO",
-    "O ERRO GRAVE",
-    "EVITE AGORA"
+    "O PILOTO AUTOMÁTICO NÃO CONTROLA TUDO!",
+    "ELE MERGULHOU O AVIÃO SOZINHO",
+    "MESMA FALHA 2 FINAIS DIFERENTES"
   ],
   "thumbnail_jsons": [
     {
-      "canvas": { "width": 1280, "height": 720, "aspect_ratio": "16:9" },
-      "background": { "style": "photorealistic", "prompt": "Cinematic photo of workshop or dramatic context environment, shallow depth of field, dramatic rim lighting, 8k resolution" },
-      "character": { "style": "2D comic illustration", "action": "Pointing directly at the critical flaw with wide shocked eyes", "expression": "Shocked / Warning", "clothing": "Signature channel character outfit" },
+      "thumbnail_option": "A",
+      "canvas": { "width": 1280, "height": 720, "unit": "px", "aspect_ratio": "16:9" },
+      "background_scene": {
+        "description": "2D cartoon vector illustration of a commercial jet cockpit interior seen from jump seat perspective — wide-angle view showing instrument panels, PFD showing altitude and airspeed, ECAM center display showing a red warning alert box — dark navy blue ambient cockpit light — no human faces or bodies visible — clean bold black outlines and flat shading.",
+        "style": "2D cartoon vector illustration, educational diagram, clean bold outlines, flat shading",
+        "camera_angle": "centered cockpit interior, wide-angle from jump seat looking forward at panels and glareshield",
+        "lighting": "dark navy ambient cockpit lighting, instrument panel self-illumination, warm amber alert glow from ECAM",
+        "color_palette": ["dark navy blue", "impact red", "pure white", "yellow alert", "medium blue"]
+      },
+      "character": { "present": false, "note": "Canal sem mascote. O cockpit e o hero visual." },
       "text_layers": [
-        { "text": "NÃO FAÇA", "font": "Anton", "style": "ALL CAPS", "color": "#FFFFFF", "stroke": "4px #000000", "size": "140px", "position": "top-left" },
-        { "text": "ISSO HOJE", "font": "Anton", "style": "ALL CAPS", "color": "#FF0000", "stroke": "4px #000000", "size": "140px", "position": "below-first" }
+        { "id": "text_01", "content": "O PILOTO AUTOMÁTICO", "role": "primary_context", "font_family": "Anton", "font_size": 95, "color": "white", "stroke": { "color": "black", "width": 4 }, "position": { "x": "left", "y": "top", "zone": "left third, top, 60px safe zone" }, "transform": "uppercase" },
+        { "id": "text_02", "content": "NÃO CONTROLA", "role": "primary_impact_line1", "font_family": "Anton", "font_size": 140, "color": "vivid red", "stroke": { "color": "black", "width": 5 }, "position": { "x": "left", "y": "center", "zone": "left third, vertically centered" }, "transform": "uppercase" },
+        { "id": "text_03", "content": "TUDO!", "role": "primary_impact_line2", "font_family": "Anton", "font_size": 160, "color": "vivid red", "stroke": { "color": "black", "width": 5 }, "position": { "x": "left", "y": "center-bottom", "zone": "left third, largest element" }, "transform": "uppercase" }
       ],
       "indicators": [
-        { "type": "arrow", "color": "#FFD700", "target": "Critical component or focal point" },
-        { "type": "circle", "color": "#FFD700", "target": "Warning area" }
+        { "id": "indicator_01", "type": "circle", "color": "yellow", "stroke_color": "black", "stroke_width": 4, "glow": true, "position": "center-right, isolating the alert display", "size": "large", "points_to": "ECAM red warning alert box" },
+        { "id": "indicator_02", "type": "arrow", "color": "yellow", "stroke_color": "black", "stroke_width": 3, "position": "right third, pointing toward button", "direction": "diagonal-down-left", "size": "medium", "points_to": "AP1 autopilot button glowing amber DISC" }
       ],
       "badges": [
-        { "text": "CUIDADO!", "bg_color": "#FF0000", "text_color": "#FFFFFF" }
+        { "id": "badge_01", "present": true, "type": "pill", "background_color": "red", "text_color": "white", "content": "MODO CRISE", "font_family": "Anton", "font_size": 48, "position": "bottom-left, within safe zone" }
       ],
-      "composition": "Character on right side reacting, bold high-contrast Anton text on left, yellow arrow pointing from text to focal element",
-      "negative_dna": "speech, talking, mouth open speaking, blurry, low resolution, 3D character, distorted text"
+      "composition": {
+        "layout": "Text stack left third; scene center-right two-thirds; yellow circle on center-right; yellow arrow far right",
+        "focal_point": "ECAM red warning alert display with yellow glow circle",
+        "eye_flow": "text_01 white → text_02+03 red → yellow circle → yellow arrow",
+        "safe_zone_margin": "60px all sides",
+        "background_base": "dark navy"
+      },
+      "mood": "technical revelation, aviation crisis tension, educational urgency",
+      "generation_notes": "Dark navy background mandatory. High contrast 2D vectors. Clean Anton typography with solid strokes."
+    },
+    {
+      "thumbnail_option": "B",
+      "canvas": { "width": 1280, "height": 720, "unit": "px", "aspect_ratio": "16:9" },
+      "background_scene": {
+        "description": "Dramatic 2D vector composition depicting extreme crisis or critical moment from the script with vivid contrast and directional movement.",
+        "style": "2D cartoon vector illustration, educational diagram, dramatic diagonal composition",
+        "camera_angle": "wide dynamic angle",
+        "lighting": "dark navy sky, emergency red alert glow at edge of frame",
+        "color_palette": ["dark navy blue", "impact red", "pure white", "yellow alert", "medium blue"]
+      },
+      "character": { "present": false, "note": "Canal sem mascote." },
+      "text_layers": [
+        { "id": "text_01", "content": "ELE MERGULHOU", "role": "primary_impact_line1", "font_family": "Anton", "font_size": 130, "color": "vivid red", "stroke": { "color": "black", "width": 5 }, "position": { "x": "left", "y": "top-center", "zone": "left third, top area" }, "transform": "uppercase" },
+        { "id": "text_02", "content": "O AVIÃO", "role": "primary_impact_line2", "font_family": "Anton", "font_size": 160, "color": "vivid red", "stroke": { "color": "black", "width": 5 }, "position": { "x": "left", "y": "center", "zone": "left third, center" }, "transform": "uppercase" },
+        { "id": "text_03", "content": "SOZINHO", "role": "secondary_support", "font_family": "Anton", "font_size": 90, "color": "white", "stroke": { "color": "black", "width": 3 }, "position": { "x": "left", "y": "center-bottom", "zone": "left third, bottom" }, "transform": "uppercase" }
+      ],
+      "indicators": [
+        { "id": "indicator_01", "type": "arrow", "color": "yellow", "stroke_color": "black", "stroke_width": 4, "position": "center of composition", "direction": "diagonal-down-right", "size": "large", "points_to": "focal point" }
+      ],
+      "badges": [
+        { "id": "badge_01", "present": true, "type": "pill", "background_color": "red", "text_color": "white", "content": "DOCUMENTADO", "font_family": "Anton", "font_size": 44, "position": "bottom-left, within safe zone" }
+      ],
+      "composition": {
+        "layout": "Text stack left third; dramatic focal scene center-right; indicator arrow center",
+        "focal_point": "Critical action element with downward trajectory",
+        "eye_flow": "text stack → yellow indicator arrow → badge bottom-left",
+        "safe_zone_margin": "60px all sides",
+        "background_base": "dark navy"
+      },
+      "mood": "imminent catastrophe, forensic revelation, high stakes",
+      "generation_notes": "Clean high-energy vector layout."
+    },
+    {
+      "thumbnail_option": "C",
+      "canvas": { "width": 1280, "height": 720, "unit": "px", "aspect_ratio": "16:9" },
+      "background_scene": {
+        "description": "2D vector illustration split vertically down the center showing high contrast comparison between two scenarios, causes, or outcomes.",
+        "style": "2D cartoon vector illustration, split comparison diagram, forensic educational",
+        "camera_angle": "flat front-facing split diagram, both halves equal width",
+        "lighting": "dark navy base with contrasting subtle green tint on left side, red tint on right side",
+        "color_palette": ["dark navy blue", "impact red", "safe green", "pure white", "yellow alert"]
+      },
+      "character": { "present": false, "note": "Canal sem mascote." },
+      "text_layers": [
+        { "id": "text_01", "content": "MESMA", "role": "primary_context", "font_family": "Anton", "font_size": 120, "color": "white", "stroke": { "color": "black", "width": 4 }, "position": { "x": "center", "y": "top", "zone": "top center, straddling both halves" }, "transform": "uppercase" },
+        { "id": "text_02", "content": "FALHA", "role": "primary_impact", "font_family": "Anton", "font_size": 160, "color": "vivid red", "stroke": { "color": "black", "width": 5 }, "position": { "x": "center", "y": "top-center", "zone": "center, largest element" }, "transform": "uppercase" },
+        { "id": "text_03", "content": "2 FINAIS DIFERENTES", "role": "secondary_support", "font_family": "Anton", "font_size": 80, "color": "white", "stroke": { "color": "black", "width": 3 }, "position": { "x": "center", "y": "center", "zone": "center below text_02" }, "transform": "uppercase" }
+      ],
+      "indicators": [
+        { "id": "indicator_01", "type": "circle", "color": "yellow", "stroke_color": "black", "stroke_width": 3, "glow": true, "position": "left half", "size": "medium", "points_to": "left outcome" },
+        { "id": "indicator_02", "type": "arrow", "color": "yellow", "stroke_color": "black", "stroke_width": 3, "position": "right half", "direction": "diagonal-down-right", "size": "medium", "points_to": "right outcome" }
+      ],
+      "badges": [
+        { "id": "badge_01", "present": true, "type": "pill", "background_color": "red", "text_color": "white", "content": "A CAIXA-PRETA REVELA", "font_family": "Anton", "font_size": 42, "position": "bottom-center, within safe zone" }
+      ],
+      "composition": {
+        "layout": "Text trio centered straddling split line; left half scenario A with yellow circle; right half scenario B with yellow arrow; vertical split line center",
+        "focal_point": "The bold vertical split and the contrast between outcomes",
+        "eye_flow": "text center → yellow circle left → yellow arrow right → badge bottom center",
+        "safe_zone_margin": "60px all sides",
+        "background_base": "dark navy split"
+      },
+      "mood": "shocking comparison, two fates from one failure, forensic revelation",
+      "generation_notes": "Split layout for A/B/C testing."
     }
   ],
-  "seoDescription": "...",
+  "seoDescription": "A trinta e sete mil pés de altitude, o piloto automático de um Airbus A330 recebeu um dado falso e mergulhou o nariz do avião com violência suficiente para arremessar mais de cem passageiros contra o teto da cabine. Ele não teve medo. Não hesitou. Agiu com a mesma convicção que teria se o dado fosse verdadeiro.\\n\\nNeste vídeo, o canal abre a investigação forense de como o piloto automático realmente se comporta quando tudo dá errado — camada por camada, até chegar ao minuto exato registrado em caixa-preta.\\n\\nVocê vai entender por que o piloto automático não é um piloto de metal, como funciona o sistema de consenso entre três computadores e por que a aviação moderna nunca tirou o ser humano da equação.\\n\\nSeja bem-vindo. O avião guarda muitos segredos e estamos aqui para revelar cada um deles.",
   "sources_section": [
-    "Relatórios técnicos oficiais e manuais do setor",
-    "Estudos empíricos e dados de performance publicados"
+    "Comportamento dos ADIRU no voo QF72 (Qantas A330, 7 out. 2008) — ATSB Final Report AO-2008-070, Australian Transport Safety Bureau, 2011",
+    "Causas do acidente com o voo AF447 (Air France A330, 1 jun. 2009) — BEA Final Report, Bureau d'Enquêtes et d'Analyses pour la Sécurité de l'Aviation Civile, França, 2012",
+    "Atualização de software pós-QF72 para frota A330/A340 — Airbus S.A.S., Service Bulletin / Airworthiness Directive 2009",
+    "Definição do sistema ADIRU e redundância tripla em aeronaves de transporte — Airbus S.A.S., A330 Flight Crew Operating Manual (FCOM)",
+    "Piloto automático como ferramenta de apoio, não substituto da tripulação — FAA Advisory Circular AC 120-71B; CENIPA, Brasil",
+    "CRM — Crew Resource Management, origem e aplicação — ICAO Doc 9683-AN/950, 1ª ed. revisada"
   ],
   "pinned_comment": "Qual dessas situações você já presenciou na prática? Deixe seu relato nos comentários!",
-  "seo_tags": ["termo 1", "termo 2", "termo 3", "termo 4", "termo 5", "termo 6", "termo 7", "termo 8", "termo 9", "termo 10"],
-  "sunoPrompt": "...",
-  "sunoSuggestedTitle": "...",
-  "hfContextTitles": [
-    {
-      "timestamp": "[02:15]",
-      "headline": "Custo Invisível",
-      "subtitle": "Como pequenas perdas acumulam sem que você perceba.",
-      "metrics": "—",
-      "bgPrompt": "Dimly lit office desk with scattered papers and glowing monitor, shallow depth of field, cinematic teal tones."
-    }
-  ],
-  "sfxTimelineTxt": "..."
+  "seo_tags": ["piloto automático", "aviação", "investigação aérea", "caixa preta", "airbus a330", "segurança de voo", "desastre aéreo", "engenharia aeronáutica"],
+  "sunoSuggestedTitle": "O Minuto da Decisão",
+  "sunoPrompt": "Cinematic Orchestral, Tense Underscore, Dark Ambient Aviation, Subtle Electronic Pulse, Sparse Piano Melody, Low Brass Tension, Slow Build Riser, Atmospheric Tension, Documentary Score Aesthetic, 72 BPM, No Vocals, No Drums.",
+  "hfContextTitles": [],
+  "sfxTimelineTxt": ""
 }
 
-Rules:
-- "titles": Generate 10 high-CTR title variations (between 55 and 85 characters).
-  * If narrative library title structures or forensic formulas are provided, strictly apply them and distribute the titles across the formulas.
-  * Maximum 12 words per title. Emotional, curious, and intense language only.
-- "thumbnail_copies": Generate exactly 3 short punchy options (2 to 4 words MAX in Portuguese/channel language, ALL CAPS).
-  * Must be an IMPERATIVE command or SHOCK trigger (e.g. 'NÃO FAÇA ISSO', 'O ERRO GRAVE', 'NUNCA COMPRE', 'FAÇA ISTO HOJE').
-  * NEVER repeat the full video title. The thumbnail copy provides emotional punch; the title provides context.
-- "thumbnail_jsons": Generate exactly 3 complete art direction JSONs (Options A, B, and C) matching the channel's visual identity:
-  * Typography: Anton font, ALL CAPS, 3-5px black stroke outline.
-  * Colors: Arrows/Circles in bright yellow (#FFD700), Badges/Alerts in red (#FF0000) with white text (#FFFFFF).
-  * Character layer: 2D comic illustration / cartoon mascot.
-  * Background layer: Photorealistic, cinematic scene.
-- "sources_section": List 2 to 4 authoritative sources or verifiable benchmarks relevant to the topic.
-- "pinned_comment": An engaging, open-ended question designed to maximize comment velocity in the first 2 hours.
-- "seo_tags": 10 to 15 relevant, high-search-intent tags.
-- "seoDescription": One short human opening paragraph (2 to 4 sentences) introducing the core transformation. Do not include timestamps or AI notices; the app formats them.
-- "sunoPrompt": Layered prompt in English describing soundtrack mood, instruments, dynamic evolution, and thematic atmosphere. Max 800 chars.
-- "sunoSuggestedTitle": Short title for the soundtrack.
-- "sfxTimelineTxt": Plain-text SFX timeline with minimum 25s spacing. Use format: [MM:SS] \n EFEITO: [English CapCut SFX name] \n FUNCAO: ... \n TRECHO: ... \n OBS: ...
-- "hfContextTitles": Contextual hyperframe entries for each supplied hyperframe anchor. Include visual 'bgPrompt' in English describing environment only.
-- Do not output markdown code blocks. Output pure JSON.
+CRITICAL RULES:
+1. "titles": Generate exactly 10 high-CTR title variations between 55 and 85 characters.
+   - Clean, curiosity-inducing, forensic/investigative journalistic tone.
+   - NO EMOJIS in titles. No random ALL CAPS words in the middle of sentences.
+2. "thumbnail_copies": Generate exactly 3 punchy, contextual copies (2 to 4 words MAX, ALL CAPS).
+   - Must be specifically tied to the dramatic core/twist of THIS script (e.g. 'O PILOTO AUTOMÁTICO NÃO CONTROLA TUDO!').
+   - Never output generic phrases like 'NÃO FAÇA ISSO' or 'EVITE AGORA'.
+3. "thumbnail_jsons": Generate exactly 3 distinct art direction JSONs (Options A, B, and C) matching the channel's visual identity.
+   - Always follow the complete schema with canvas, background_scene, text_layers (Anton font, strokes, positions), indicators (yellow circles/arrows with glow), badges, composition, and generation_notes.
+4. "sources_section": Generate 3 to 6 real, credible, verifiable official sources, investigation reports, manuals, or benchmark publications relevant to the video topic.
+5. "seoDescription": Write a 3 to 4 paragraph documentary description (Hook + Investigation scope + Welcome message). Do NOT output timestamps or AI notices in this field (the application formats them automatically).
+6. "sunoSuggestedTitle": Short, evocative soundtrack title in Portuguese or English.
+7. "sunoPrompt": Strictly format as comma-separated tags tailored for Suno v3.5/v4 (Genre, Subgenre, Mood, Instruments, Tempo/BPM, Negative tags like No Vocals, No Drums). Max 350 chars.
+8. Output pure JSON without markdown backticks.
 `.trim();
 
 const parseJsonResponse = (rawContent: string): any => {
@@ -4249,45 +4331,54 @@ ${textToAnalyze}`;
     URL.revokeObjectURL(url);
   };
 
-  const handleExportSeoTxt = () => {
-    if (!postScriptPackage) {
-      alert('Gere o Pacote Pós-Roteiro antes de exportar o arquivo SEO.');
-      return;
-    }
+    const handleExportSeoTxt = () => {
+    if (!postScriptPackage) return;
+    const channelName = activeProject?.name || activeProject?.project_name || 'Canal';
+    const themeTitle = approvedBriefing?.title || approvedTheme || 'Roteiro';
+    const dateStr = new Date().toISOString().split('T')[0];
 
     const lines = [
-      '=================================================================',
-      '🚀 PACOTE SEO & PUBLICAÇÃO YOUTUBE — FASE B5',
-      '=================================================================',
+      `CANAL: ${channelName}`,
+      `TEMA: ${themeTitle}`,
+      `FASE: B5 — SEO + Embalagem Completa`,
+      `DATA: ${dateStr}`,
       '',
-      '--- [ 1. TÍTULOS VIRAIS (TESTE A/B/C) ] ---',
-      ...postScriptPackage.titles.map((t, idx) => `${idx + 1}. ${t}`),
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '1. PROMPT MUSICAL (SUNO AI)',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      '--- [ 2. COPIES RECOMENDADAS PARA THUMBNAIL (FASE B2) ] ---',
-      ...(postScriptPackage.thumbnailCopies?.map((c, idx) => `Opção ${idx + 1}: ${c}`) || ['—']),
+      postScriptPackage.sunoSuggestedTitle ? `Title: ${postScriptPackage.sunoSuggestedTitle}` : '',
+      postScriptPackage.sunoPrompt ? `Style: ${postScriptPackage.sunoPrompt}` : '',
       '',
-      '--- [ 3. DESCRIÇÃO COMPLETA DO YOUTUBE ] ---',
-      postScriptPackage.seoDescription,
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '2. TÍTULOS PARA TESTE A/B (10 OPÇÕES — 55 a 85 chars)',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      '--- [ 4. FONTES & REFERÊNCIAS OFICIAIS ] ---',
-      ...(postScriptPackage.sourcesSection?.map((s) => `• ${s}`) || ['—']),
+      ...postScriptPackage.titles.map((t, idx) => {
+        const chars = t.length;
+        const check = chars >= 55 && chars <= 85 ? '✅' : '⚠️';
+        return `[A${idx + 1}] ${t}\n     Chars: ${chars} ${check}\n`;
+      }),
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '3. DESCRIÇÃO YOUTUBE + CAPÍTULOS',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      '--- [ 5. COMENTÁRIO FIXADO (PRIMEIRAS 2 HORAS) ] ---',
-      postScriptPackage.pinnedComment || '—',
+      postScriptPackage.seoDescription || '',
       '',
-      '--- [ 6. TAGS DO VÍDEO (SEPARADAS POR VÍRGULA PARA COLAR NO STUDIO) ] ---',
-      (postScriptPackage.seoTags || []).join(', '),
-      '',
-      '=================================================================',
-      `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
-      '=================================================================',
-    ];
+      ...(postScriptPackage.thumbnailJsons && postScriptPackage.thumbnailJsons.length > 0 ? [
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '4. PROMPTS DE THUMBNAIL — 3 OPÇÕES JSON (TESTE A/B/C)',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        ...postScriptPackage.thumbnailJsons.map((tj, idx) => {
+          const letter = String.fromCharCode(65 + idx);
+          return `--- OPÇÃO ${letter} ---\n\n` + JSON.stringify(tj, null, 2) + '\n';
+        })
+      ] : [])
+    ].filter(l => l !== null && l !== undefined);
 
-    downloadTextArtifact(packageArtifactStem, '05_pacote_seo_youtube', lines.join('\n'), {
-      extension: 'txt',
-      mimeType: 'text/plain;charset=utf-8',
-    });
-    showToast('📄 Arquivo SEO exportado com sucesso (.txt)!');
+    const txtContent = lines.join('\n');
+    downloadTextArtifact(packageArtifactStem, 'pacote_b5_seo_completo', txtContent);
   };
 
   const handleExportPhaseBHtml = () => {

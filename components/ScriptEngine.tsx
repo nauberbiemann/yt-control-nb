@@ -6925,12 +6925,27 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
   };
 
   const openStoryboardInNewTab = () => {
-    if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
-      alert('Não há dados do pipeline para gerar o storyboard.');
+    let pipeline = externalSrtPipeline;
+    if (!pipeline || !pipeline.rows || !pipeline.rows.length) {
+      if (externalSrtText.trim()) {
+        const rows = parseSrtToRows(externalSrtText, forceAllAsVideo);
+        if (rows.length > 0) {
+          pipeline = {
+            id: 'generated_' + Date.now(),
+            fileName: externalSrtFileName || 'srt_import.srt',
+            timestamp: new Date().toISOString(),
+            stats: { totalRows: rows.length, videoCount: rows.filter(r => r.asset === 'vídeo').length, imageCount: rows.filter(r => r.asset === 'imagem').length, textCount: rows.filter(r => r.asset === 'texto').length, totalEstimatedSeconds: rows.length * 5 },
+            rows,
+          };
+        }
+      }
+    }
+    if (!pipeline || !pipeline.rows || !pipeline.rows.length) {
+      alert('Não há dados de SRT/Pipeline carregados para gerar o storyboard. Carregue ou processe um SRT primeiro.');
       return;
     }
     try {
-      const htmlContent = generateStoryboardHtmlString(externalSrtPipeline);
+      const htmlContent = generateStoryboardHtmlString(pipeline);
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');
@@ -6941,16 +6956,23 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
   };
 
   const openAssetsSpreadsheetInNewTab = () => {
-    if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
-      alert('Não há dados do pipeline para gerar a planilha de assets.');
+    let rows = externalSrtPipeline?.rows;
+    if (!rows || !rows.length) {
+      if (externalSrtText.trim()) {
+        rows = parseSrtToRows(externalSrtText, forceAllAsVideo);
+      }
+    }
+    if (!rows || !rows.length) {
+      alert('Não há dados de SRT/Pipeline carregados para gerar a planilha de assets. Carregue ou processe um SRT primeiro.');
       return;
     }
     try {
-      const themeTitle = approvedBriefing?.title || approvedTheme || externalScriptFileName || 'Roteiro_de_Video';
-      const plan = buildCuratedAssetEnrichmentPlan(externalSrtPipeline.rows, videoFormat, themeTitle, activeProject?.puc);
+      const themeTitle = approvedBriefing?.title || approvedTheme || externalScriptFileName || externalSrtFileName || 'Roteiro_de_Video';
+      const plan = buildCuratedAssetEnrichmentPlan(rows, videoFormat, themeTitle, activeProject?.puc);
       const htmlContent = generateAssetsSpreadsheetHtmlString(plan);
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
     } catch (err) {
       console.error('Erro ao abrir a planilha de assets:', err);
       alert('Falha ao abrir planilha de assets: ' + (err instanceof Error ? err.message : String(err)));

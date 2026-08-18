@@ -4331,13 +4331,13 @@ ${textToAnalyze}`;
     URL.revokeObjectURL(url);
   };
 
-    const handleExportSeoTxt = () => {
+  const handleExportSeoTxt = () => {
     if (!postScriptPackage) return;
     const channelName = activeProject?.name || activeProject?.project_name || 'Canal';
-    const themeTitle = approvedBriefing?.title || approvedTheme || 'Roteiro';
+    const themeTitle = approvedBriefing?.title || approvedTheme || externalScriptFileName || 'Roteiro de Vídeo';
     const dateStr = new Date().toISOString().split('T')[0];
 
-    const lines = [
+    const lines: string[] = [
       `CANAL: ${channelName}`,
       `TEMA: ${themeTitle}`,
       `FASE: B5 — SEO + Embalagem Completa`,
@@ -4347,8 +4347,8 @@ ${textToAnalyze}`;
       '1. PROMPT MUSICAL (SUNO AI)',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      postScriptPackage.sunoSuggestedTitle ? `Title: ${postScriptPackage.sunoSuggestedTitle}` : '',
-      postScriptPackage.sunoPrompt ? `Style: ${postScriptPackage.sunoPrompt}` : '',
+      postScriptPackage.sunoSuggestedTitle ? `Title: ${postScriptPackage.sunoSuggestedTitle}\n` : '',
+      postScriptPackage.sunoPrompt ? `Style: ${postScriptPackage.sunoPrompt}\n` : '',
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '2. TÍTULOS PARA TESTE A/B (10 OPÇÕES — 55 a 85 chars)',
@@ -4372,12 +4372,13 @@ ${textToAnalyze}`;
         '',
         ...postScriptPackage.thumbnailJsons.map((tj, idx) => {
           const letter = String.fromCharCode(65 + idx);
-          return `--- OPÇÃO ${letter} ---\n\n` + JSON.stringify(tj, null, 2) + '\n';
+          const optionLabel = tj.thumbnail_option || letter;
+          return `--- OPÇÃO ${optionLabel} ---\n\n` + JSON.stringify(tj, null, 2) + '\n';
         })
       ] : [])
-    ].filter(l => l !== null && l !== undefined);
+    ];
 
-    const txtContent = lines.join('\n');
+    const txtContent = lines.filter((l) => l !== null && l !== undefined).join('\n');
     downloadTextArtifact(packageArtifactStem, 'pacote_b5_seo_completo', txtContent);
   };
 
@@ -6925,7 +6926,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
   const openStoryboardInNewTab = () => {
     if (!externalSrtPipeline || !externalSrtPipeline.rows || !externalSrtPipeline.rows.length) {
-      alert('Não há dados do pipeline para visualizar no storyboard.');
+      alert('Não há dados do pipeline para gerar o storyboard.');
       return;
     }
     try {
@@ -6950,7 +6951,6 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       const htmlContent = generateAssetsSpreadsheetHtmlString(plan);
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
     } catch (err) {
       console.error('Erro ao abrir a planilha de assets:', err);
       alert('Falha ao abrir planilha de assets: ' + (err instanceof Error ? err.message : String(err)));

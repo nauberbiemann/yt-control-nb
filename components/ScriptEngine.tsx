@@ -6931,11 +6931,19 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         const rows = parseSrtToRows(externalSrtText, forceAllAsVideo);
         if (rows.length > 0) {
           pipeline = {
-            id: 'generated_' + Date.now(),
-            fileName: externalSrtFileName || 'srt_import.srt',
-            timestamp: new Date().toISOString(),
-            stats: { totalRows: rows.length, videoCount: rows.filter(r => r.asset === 'vídeo').length, imageCount: rows.filter(r => r.asset === 'imagem').length, textCount: rows.filter(r => r.asset === 'texto').length, totalEstimatedSeconds: rows.length * 5 },
             rows,
+            csvContent: '',
+            videoPromptsTxt: '',
+            imagePromptsTxt: '',
+            textRender: null,
+            stats: {
+              total: rows.length,
+              video: rows.filter(r => r.asset === 'vídeo').length,
+              image: rows.filter(r => r.asset === 'imagem').length,
+              texto: rows.filter(r => r.asset === 'texto').length,
+              avatar: rows.filter(r => r.asset === 'avatar').length,
+              hyperframe: rows.filter(r => r.asset === 'hyperframe').length,
+            },
           };
         }
       }

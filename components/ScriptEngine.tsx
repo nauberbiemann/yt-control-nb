@@ -5035,20 +5035,29 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
             const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
             const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
-            const activeTag = (activeCastList[0]?.tag || activeCastList[0]?.name || 'Velan').replace(/^[\[\]]+|[\[\]]+$/g, '').trim();
-            const hasCharacter = protPresente || (hasActiveCast && (cena.includes(`[${activeTag}]`) || cena.toLowerCase().includes(activeTag.toLowerCase())));
+            const activeTag = (activeCastList[0]?.tag || activeCastList[0]?.name || '').replace(/^[\[\]]+|[\[\]]+$/g, '').trim();
+            const hasCharacter = protPresente || (hasActiveCast && activeTag && (cena.includes(`[${activeTag}]`) || cena.toLowerCase().includes(activeTag.toLowerCase())));
+            const tagPrefix = activeTag ? `[${activeTag}] ` : '';
+
+            const soundClause = sanitizedExtrasDna
+              ? `Ambient sound: ${sanitizedExtrasDna}. No music, no spoken words.`
+              : 'Ambient sound only, no dialogue, no voice-over.';
+
+            const negClause = dnaBlocks.negativeDna
+              ? dnaBlocks.negativeDna
+              : 'No talking, no dialogue, no voice-over.';
 
             let assembledPrompt = '';
             if (item.asset === 'video') {
               if (hasCharacter && sanitizedCharDna) {
-                assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. Ambient sound: mechanic workshop ambiance, distant tool clatter, compressor hum. No music, no spoken words. ${dnaBlocks.negativeDna || 'No talking, no text on screen, no 3D photorealism.'}`;
+                assembledPrompt = `${tagPrefix}Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. ${soundClause} ${negClause}`;
               } else {
-                assembledPrompt = `Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. Ambient sound: mechanic workshop ambiance, distant tool clatter, compressor hum. No music, no spoken words. ${dnaBlocks.negativeDna || 'No talking, no text on screen, no 3D photorealism.'}`;
+                assembledPrompt = `Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. ${soundClause} ${negClause}`;
               }
             } else {
               // Image asset
               if (hasCharacter && sanitizedCharDna) {
-                assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
+                assembledPrompt = `${tagPrefix}Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
               } else {
                 assembledPrompt = `Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
               }

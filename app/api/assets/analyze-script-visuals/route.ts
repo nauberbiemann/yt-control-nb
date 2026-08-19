@@ -14,8 +14,11 @@ Return strictly a valid JSON object matching this exact shape:
   "setting": "Detailed description of the era/setting, lighting, art style/medium, color palette, and general visual atmosphere in Portuguese. Keep it under 50 words.",
   "characters": [
     {
-      "name": "Exact Character Name",
-      "description": "A highly detailed, professional, and consistent physical appearance in English. Describe their facial features, eyes, hair color/style, clothing details suited for the setting, and key accessories. Make it optimized as a reference for image generators like Midjourney. Keep it between 25 and 45 words."
+      "name": "Descriptive Role or Name (e.g. Motorista dono do carro)",
+      "tag": "Concise 1-2 word bracket tag without brackets (e.g. Motorista)",
+      "description": "A highly detailed, professional, and consistent physical appearance in English. Describe facial features, eyes, hair, clothing, and accessories suited for the setting. Keep between 25 and 45 words.",
+      "selected": true
+    }
     }
   ]
 }

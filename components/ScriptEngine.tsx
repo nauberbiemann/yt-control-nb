@@ -821,16 +821,26 @@ const directGenerateBatchOpenAI = async ({
                 ? `Recurring presenter character reference: ${characterDescription}`
                 : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
           visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
-          visualBlueprint?.cast && visualBlueprint.cast.length > 0
-            ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
-1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
-2. DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named, if the text describes a concept, action, or theme that aligns with their description or role (e.g., tech, analysis, secrets, authority), you should feature them in brackets (e.g., [Character Name]). Their action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator character locking a console; if the text is about data, show a tech character calibrating a holographic node). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept.
-3. NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
-4. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
-5. NEVER write the name of the character in plain text without brackets.
-6. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
-Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
-            : '',
+          (() => {
+            const activeCast = (visualBlueprint?.cast || [])
+              .filter((c: any) => c && c.selected !== false)
+              .map((c: any) => {
+                const cleanTag = (c.tag || c.name || '').trim().replace(/^\[|\]$/g, '');
+                return {
+                  bracket_tag: `[${cleanTag}]`,
+                  character_name: c.name,
+                  physical_description_reference: c.description,
+                };
+              });
+            if (activeCast.length === 0) return '';
+            return `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
+1. When ANY of the active characters below is present, mentioned, or performing an action in the scene, you MUST represent them in the prompt by writing ONLY their exact bracket tag (e.g. ${activeCast.map(c => c.bracket_tag).join(', ')}).
+2. DYNAMIC ILLUSTRATIVE MAPPING: If the text describes a concept, action, or theme that aligns with their role (e.g., driving, repairing, inspecting, analyzing, investigating), feature them using their exact bracket tag actively doing the action that visually illustrates the narrative.
+3. NEVER write the character's physical description or appearance details (face, clothing, body, age, hair) inside the prompt under any circumstance — ALWAYS output ONLY their exact bracketed tag like [BracketTag] so our compiler/image generator can maintain perfect identity consistency.
+4. NEVER output the character's name in plain text without brackets.
+5. Active Cast List (Selected Characters):
+${JSON.stringify(activeCast, null, 2)}`;
+          })(),
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
@@ -970,16 +980,26 @@ const directGenerateBatchGemini = async ({
                     ? `Recurring presenter character reference: ${characterDescription}`
                     : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
               visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
-              visualBlueprint?.cast && visualBlueprint.cast.length > 0
-                ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
-1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
-2. DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named, if the text describes a concept, action, or theme that aligns with their description or role (e.g., tech, analysis, secrets, authority), you should feature them in brackets (e.g., [Character Name]). Their action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator character locking a console; if the text is about data, show a tech character calibrating a holographic node). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept.
-3. NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
-4. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
-5. NEVER write the name of the character in plain text without brackets.
-6. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
-Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
-                : '',
+              (() => {
+            const activeCast = (visualBlueprint?.cast || [])
+              .filter((c: any) => c && c.selected !== false)
+              .map((c: any) => {
+                const cleanTag = (c.tag || c.name || '').trim().replace(/^\[|\]$/g, '');
+                return {
+                  bracket_tag: `[${cleanTag}]`,
+                  character_name: c.name,
+                  physical_description_reference: c.description,
+                };
+              });
+            if (activeCast.length === 0) return '';
+            return `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
+1. When ANY of the active characters below is present, mentioned, or performing an action in the scene, you MUST represent them in the prompt by writing ONLY their exact bracket tag (e.g. ${activeCast.map(c => c.bracket_tag).join(', ')}).
+2. DYNAMIC ILLUSTRATIVE MAPPING: If the text describes a concept, action, or theme that aligns with their role (e.g., driving, repairing, inspecting, analyzing, investigating), feature them using their exact bracket tag actively doing the action that visually illustrates the narrative.
+3. NEVER write the character's physical description or appearance details (face, clothing, body, age, hair) inside the prompt under any circumstance — ALWAYS output ONLY their exact bracketed tag like [BracketTag] so our compiler/image generator can maintain perfect identity consistency.
+4. NEVER output the character's name in plain text without brackets.
+5. Active Cast List (Selected Characters):
+${JSON.stringify(activeCast, null, 2)}`;
+          })(),
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
@@ -1399,7 +1419,7 @@ interface ExecutionSnapshot {
   postScriptPackage: PostScriptPackage | null;
   hfBgPrompts?: Array<{ rowNumber: number; prompt: string }> | null;
   visualBlueprintSetting?: string;
-  visualBlueprintCast?: Array<{ name: string; description: string }>;
+  visualBlueprintCast?: Array<{ name: string; tag?: string; description: string; selected?: boolean }>;
   forceAllAsVideo?: boolean;
   useHybridAssets?: boolean;
   assetAllocationMode?: AssetAllocationMode;
@@ -1568,7 +1588,7 @@ export default function ScriptEngine({ activeProject: propProject, pendingData, 
   const [isSuggestingStyle, setIsSuggestingStyle] = useState<boolean>(false);
   // Consistent Characters (Visual Blueprint & Cast)
   const [visualBlueprintSetting, setVisualBlueprintSetting] = useState<string>('');
-  const [visualBlueprintCast, setVisualBlueprintCast] = useState<Array<{ name: string; description: string }>>([]);
+  const [visualBlueprintCast, setVisualBlueprintCast] = useState<Array<{ name: string; tag?: string; description: string; selected?: boolean }>>([]);
   const [isExtractingVisuals, setIsExtractingVisuals] = useState<boolean>(false);
   const [textStyleMode, setTextStyleMode] = useState('auto');
   const [customTextStyle, setCustomTextStyle] = useState('');
@@ -3881,7 +3901,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     return `${baseText}${separator}${hfLines.join('\n')}`;
   };
 
-  const getCharacterSheetPrompt = (char: { name: string; description: string }) => {
+  const getCharacterSheetPrompt = (char: { name: string; tag?: string; description: string }) => {
+    const charTag = (char.tag || char.name || '').trim().replace(/^\[|\]$/g, '');
     const styleBlock = char.description.toLowerCase().includes('anime') ||
       char.description.toLowerCase().includes('cartoon') ||
       char.description.toLowerCase().includes('illustrated') ||
@@ -3902,9 +3923,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const copyAllCharacterPrompts = () => {
-    if (visualBlueprintCast.length === 0) return;
+    const activeCast = visualBlueprintCast.filter((char) => char.selected !== false);
+    const targetCast = activeCast.length > 0 ? activeCast : visualBlueprintCast;
+    if (targetCast.length === 0) return;
 
-    const combinedPrompts = visualBlueprintCast.map((char) => {
+    const combinedPrompts = targetCast.map((char) => {
       const prompt = getCharacterSheetPrompt(char);
       return `==================================================\nFICHA DE PERSONAGEM: ${char.name.toUpperCase()}\n==================================================\n\n${prompt}`;
     }).join('\n\n\n');
@@ -3949,8 +3972,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       }
 
       const setting = data.setting || '';
-      const characters = Array.isArray(data.characters) ? data.characters : [];
-
+      const characters = (Array.isArray(data.characters) ? data.characters : []).map((c: any) => ({
+        name: String(c.name || 'Personagem').trim(),
+        tag: String(c.tag || c.name || 'Personagem').trim().replace(/^\[|\]$/g, ''),
+        description: String(c.description || '').trim(),
+        selected: c.selected !== false,
+      }));
       setVisualBlueprintSetting(setting);
       setVisualBlueprintCast(characters);
 
@@ -6493,7 +6520,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                   Copiar
                 </button>
               </div>
-              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 flex-1 select-all">${row.prompt || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
+              <p class="text-[11px] text-zinc-300 leading-relaxed font-mono bg-zinc-950/80 border border-zinc-800/60 rounded-xl p-3 flex-1 select-all">${compilePromptText(row.prompt || '') || '<span class="text-zinc-600">Sem prompt visual</span>'}</p>
             </div>
           </div>
         </div>
@@ -7787,10 +7814,12 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
       if (type === 'imagem') {
         const cleanP = cleanImagePromptBoilerplates(rawPrompt);
-        lines.push(`[I] ${charPrefix}${prefix}: ${cleanP}`);
+        const compiledP = compilePromptText(cleanP);
+        lines.push(`[I] ${charPrefix}${prefix}: ${compiledP}`);
       } else if (type === 'vídeo' || (isHf && isFaceless)) {
         const cleanP = cleanHeyGenPrefixes(rawPrompt);
-        lines.push(`[IV] ${charPrefix}${prefix}: ${cleanP}`);
+        const compiledP = compilePromptText(cleanP);
+        lines.push(`[IV] ${charPrefix}${prefix}: ${compiledP}`);
       }
     });
     return lines.join('\n');
@@ -9735,7 +9764,36 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
                       {/* Elenco de Personagens */}
                       <div className="lg:col-span-2 rounded-2xl border border-white/5 bg-black/20 p-4 space-y-3">
-                        <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">Elenco Narrativo ({visualBlueprintCast.length})</label>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-cyan-300/80">
+                              Elenco Narrativo ({visualBlueprintCast.length})
+                            </label>
+                            {visualBlueprintCast.length > 0 && (
+                              <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 text-[8px] font-bold text-cyan-300">
+                                {visualBlueprintCast.filter(c => c.selected !== false).length} ativo(s)
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newChar = {
+                                name: `Personagem ${visualBlueprintCast.length + 1}`,
+                                tag: `Personagem${visualBlueprintCast.length + 1}`,
+                                description: 'Adult character description in English...',
+                                selected: true,
+                              };
+                              const updated = [...visualBlueprintCast, newChar];
+                              setVisualBlueprintCast(updated);
+                              persistExecutionSnapshotLocally({ visualBlueprintCast: updated });
+                            }}
+                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-cyan-200 transition-all flex items-center gap-1"
+                          >
+                            <Plus size={10} />
+                            <span>Adicionar</span>
+                          </button>
+                        </div>
                         {visualBlueprintCast.length === 0 ? (
                           <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-white/10 rounded-xl bg-black/10">
                             <p className="text-[11px] text-white/35 italic">Nenhum personagem extraído ainda.</p>
@@ -9744,33 +9802,113 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                             </p>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
                             {visualBlueprintCast.map((char, index) => (
-                              <div key={index} className="rounded-xl border border-white/5 bg-midnight/40 p-3.5 space-y-2 flex flex-col justify-between">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                    <span className="font-bold text-[11px] text-cyan-200 tracking-wide">{char.name}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Prompt de ${char.name} copiado!`)}
-                                      className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[9px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1.5"
-                                    >
-                                      <span>📋 Copiar Prompt</span>
-                                    </button>
+                              <div key={index} className={`rounded-xl border p-3.5 space-y-2.5 flex flex-col justify-between transition-all ${char.selected !== false ? 'border-cyan-500/25 bg-midnight/60 shadow-lg shadow-cyan-950/20' : 'border-white/5 bg-midnight/20 opacity-50'}`}>
+                                <div className="space-y-2.5">
+                                  {/* Header: Checkbox + Role Title + Actions */}
+                                  <div className="flex items-center justify-between border-b border-white/5 pb-2 gap-2">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={char.selected !== false}
+                                        onChange={(e) => {
+                                          const updatedCast = [...visualBlueprintCast];
+                                          updatedCast[index] = { ...char, selected: e.target.checked };
+                                          setVisualBlueprintCast(updatedCast);
+                                          persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                        }}
+                                        className="w-3.5 h-3.5 rounded border-white/20 bg-midnight accent-cyan-400 cursor-pointer"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={char.name}
+                                        onChange={(e) => {
+                                          const updatedCast = [...visualBlueprintCast];
+                                          updatedCast[index] = { ...char, name: e.target.value };
+                                          setVisualBlueprintCast(updatedCast);
+                                          persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                        }}
+                                        placeholder="Papel/Nome do Personagem"
+                                        className="bg-transparent border-0 font-bold text-[11px] text-cyan-200 tracking-wide outline-none focus:text-white truncate w-full"
+                                        title="Clique para editar o nome descritivo"
+                                      />
+                                    </label>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyTextToClipboard(getCharacterSheetPrompt(char), `Prompt de ${char.name} copiado!`)}
+                                        className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 text-[8px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all uppercase tracking-wider flex items-center gap-1"
+                                        title="Copiar prompt turnaround do personagem"
+                                      >
+                                        <span>📋 Copiar</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updatedCast = visualBlueprintCast.filter((_, i) => i !== index);
+                                          setVisualBlueprintCast(updatedCast);
+                                          persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                        }}
+                                        className="rounded-lg bg-red-500/10 border border-red-500/20 p-1 text-[9px] font-bold text-red-300 hover:bg-red-500/20 transition-all"
+                                        title="Remover personagem"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                    </div>
                                   </div>
-                                  <textarea
-                                    value={char.description}
-                                    onChange={(e) => {
-                                      const updatedCast = [...visualBlueprintCast];
-                                      updatedCast[index] = { ...char, description: e.target.value };
-                                      setVisualBlueprintCast(updatedCast);
-                                      persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
-                                    }}
-                                    className="w-full min-h-[70px] bg-transparent border-0 text-[10px] leading-relaxed text-white/70 italic resize-y p-0 outline-none focus:text-white"
-                                  />
+
+                                  {/* Campo: Nome no Colchete (Tag) */}
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <label className="text-[8px] font-black uppercase tracking-widest text-cyan-300/70">
+                                        Nome no Colchete
+                                      </label>
+                                      <span className="text-[9px] font-mono text-cyan-300 font-bold">
+                                        [{(char.tag || char.name || '').replace(/^\[|\]$/g, '')}]
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center rounded-lg border border-white/10 bg-black/30 px-2 py-1 focus-within:border-cyan-400/50">
+                                      <span className="text-[10px] font-mono font-bold text-cyan-400/60 mr-1">[</span>
+                                      <input
+                                        type="text"
+                                        value={(char.tag ?? char.name ?? '').replace(/^\[|\]$/g, '')}
+                                        onChange={(e) => {
+                                          const updatedCast = [...visualBlueprintCast];
+                                          const cleanTag = e.target.value.replace(/^\[|\]$/g, '');
+                                          updatedCast[index] = { ...char, tag: cleanTag };
+                                          setVisualBlueprintCast(updatedCast);
+                                          persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                        }}
+                                        placeholder="Ex: Motorista"
+                                        className="w-full bg-transparent border-0 text-[10px] font-mono font-bold text-cyan-100 outline-none placeholder:text-white/20"
+                                      />
+                                      <span className="text-[10px] font-mono font-bold text-cyan-400/60 ml-1">]</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Campo: Descrição Física (Inglês) */}
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] font-black uppercase tracking-widest text-white/40">
+                                      Descrição Física (Prompt em Inglês)
+                                    </label>
+                                    <textarea
+                                      value={char.description}
+                                      onChange={(e) => {
+                                        const updatedCast = [...visualBlueprintCast];
+                                        updatedCast[index] = { ...char, description: e.target.value };
+                                        setVisualBlueprintCast(updatedCast);
+                                        persistExecutionSnapshotLocally({ visualBlueprintCast: updatedCast });
+                                      }}
+                                      placeholder="A highly detailed physical appearance in English..."
+                                      className="w-full min-h-[60px] rounded-lg border border-white/5 bg-black/20 px-2.5 py-1.5 text-[10px] leading-relaxed text-white/70 italic resize-y outline-none focus:border-cyan-400/30 focus:text-white"
+                                    />
+                                  </div>
                                 </div>
-                                <div className="text-[8px] text-cyan-400/35 text-right font-mono tracking-wider">
-                                  Use [{char.name}] no roteiro para vincular
+                                <div className="text-[8px] text-cyan-400/40 text-right font-mono tracking-wider pt-1 border-t border-white/5">
+                                  {char.selected !== false
+                                    ? `Usará [{(char.tag || char.name || '').replace(/^\[|\]$/g, '')}] nos prompts`
+                                    : 'Personagem desmarcado (ignorado nos prompts)'}
                                 </div>
                               </div>
                             ))}

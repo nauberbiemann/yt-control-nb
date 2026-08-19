@@ -807,7 +807,7 @@ const generatePromptMap = async ({
   characterMode?: string;
   videoContext?: string;
   videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
-  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string; tag?: string; selected?: boolean }> } | null;
   ultraCinematic?: boolean;
   channelLanguage?: string;
 }) => {
@@ -909,23 +909,23 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
           const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
           const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
+          const activeTag = (activeCastList[0]?.tag || activeCastList[0]?.name || 'Velan').replace(/^[\[\]]+|[\[\]]+$/g, '').trim();
+          const hasCharacter = protPresente || (hasActiveCast && (cena.includes(`[${activeTag}]`) || cena.toLowerCase().includes(activeTag.toLowerCase())));
 
-          let assembledPrompt = cena;
-          // Concat CHARACTER_DNA if protagonist is present
-          if (protPresente && sanitizedCharDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
-          }
-          // Concat EXTRAS_DNA
-          if (extPresentes && sanitizedExtrasDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedExtrasDna}`;
-          }
-          // Concat STYLE_DNA
-          if (sanitizedStyleDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedStyleDna}`;
-          }
-          // Concat NEGATIVE_DNA
-          if (dnaBlocks.negativeDna) {
-            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.negativeDna}`;
+          let assembledPrompt = '';
+          if (item.asset === 'video') {
+            if (hasCharacter && sanitizedCharDna) {
+              assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. Ambient sound: mechanic workshop ambiance, distant tool clatter, compressor hum. No music, no spoken words. ${dnaBlocks.negativeDna || 'No talking, no text on screen, no 3D photorealism.'}`;
+            } else {
+              assembledPrompt = `Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. Ambient sound: mechanic workshop ambiance, distant tool clatter, compressor hum. No music, no spoken words. ${dnaBlocks.negativeDna || 'No talking, no text on screen, no 3D photorealism.'}`;
+            }
+          } else {
+            // Image asset
+            if (hasCharacter && sanitizedCharDna) {
+              assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
+            } else {
+              assembledPrompt = `Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
+            }
           }
           
           promptMap.set(rowNumber, assembledPrompt);

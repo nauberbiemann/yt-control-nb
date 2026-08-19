@@ -911,8 +911,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
 
           let assembledPrompt = cena;
-          // Concat CHARACTER_DNA only if visualBlueprint cast is NOT active
-          if (protPresente && sanitizedCharDna && !hasActiveCast) {
+          // Concat CHARACTER_DNA if protagonist is present
+          if (protPresente && sanitizedCharDna) {
             assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
           }
           // Concat EXTRAS_DNA

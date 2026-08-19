@@ -7,26 +7,26 @@ export const maxDuration = 300;
 
 const SYSTEM_INSTRUCTIONS = `
 You are an expert script analyzer and visual designer.
-Analyze the provided script and extract the visual setting and the top 3 most relevant characters.
+Analyze the provided script and extract the visual setting and the top 3 most relevant characters, strictly adhering to the channel's visual identity and art medium (e.g. 2D cartoon illustration, comic book flat shading with bold outlines, anime, oil painting, or 3D CGI).
 
 Return strictly a valid JSON object matching this exact shape:
 {
   "setting": "Detailed description of the era/setting, lighting, art style/medium, color palette, and general visual atmosphere in Portuguese. Keep it under 50 words.",
   "characters": [
     {
-      "name": "Descriptive Role or Name (e.g. Motorista dono do carro)",
-      "tag": "Concise 1-2 word bracket tag without brackets (e.g. Motorista)",
-      "description": "A highly detailed, professional, and consistent physical appearance in English. Describe facial features, eyes, hair, clothing, and accessories suited for the setting. Keep between 25 and 45 words.",
+      "name": "Descriptive Role or Name (e.g. Mecânico de oficina de bairro)",
+      "tag": "Concise 1-2 word bracket tag without brackets (e.g. Velan)",
+      "description": "A highly detailed, professional, and consistent physical appearance and art medium in English. If the channel uses 2D cartoon / comic book illustration, explicitly include that art medium (e.g. '2D comic book illustration flat shading with hard shadows, elderly mechanic cartoon character...'). Keep between 25 and 50 words.",
       "selected": true
-    }
     }
   ]
 }
 
 Instructions:
-- The "setting" field must be written in Portuguese. Describe the visual identity and aesthetic style (e.g., 'Estilo pintura a óleo, gótico gélido de ficção científica, iluminação volumétrica azul e cobre, cinzas caindo...').
+- The "setting" field must be written in Portuguese. Describe the visual identity and aesthetic style.
 - The "characters" array must contain between 1 and 3 main characters.
-- For each character, the "description" must be written in English. This ensures it is ready for Midjourney/Stable Diffusion prompts which understand English best.
+- If the project has a designated protagonist DNA (CHARACTER_DNA), preserve its core physical traits and art medium (such as 2D cartoon vector illustration).
+- For each character, the "description" must be written in English.
 - Never include markdown ticks (\`\`\`json) or explanations in the response. Return ONLY the JSON object.
 `.trim();
 
@@ -134,6 +134,15 @@ export async function POST(req: NextRequest) {
     const sanitizedScript = scriptText.substring(0, 15000);
 
     let dynamicSystemInstructions = SYSTEM_INSTRUCTIONS;
+    const characterDescription = String(body?.characterDescription || '').trim();
+    const visualIdentity = String(body?.visualIdentity || projectConfig?.editing_sop?.visual_identity || '').trim();
+
+    if (characterDescription) {
+      dynamicSystemInstructions += `\n\nCHANNEL VISUAL IDENTITY & CHARACTER DNA:\n${characterDescription}\nCRITICAL: Ensure all character descriptions and art styles strictly match this art medium (e.g. 2D cartoon illustration, comic book flat shading, anime, or 3D CGI) and maintain full stylistic consistency with the channel.`;
+    } else if (visualIdentity) {
+      dynamicSystemInstructions += `\n\nCHANNEL VISUAL IDENTITY:\n${visualIdentity}\nCRITICAL: Ensure all character descriptions match this art medium and aesthetic.`;
+    }
+
     if (videoFormat === 'faceless') {
       dynamicSystemInstructions += '\n\nCRITICAL FACELESS RULE: Since the video format is FACELESS, the narrator/presenter is not shown on screen. Therefore, you MUST NOT include the narrator/presenter (e.g. "Narrador", "Apresentador", "Narrador Analista dos Registros", etc.) in the characters list under any circumstance. Focus only on narrative, story, or setting characters that are described or act in the script (e.g. space-marines, inquisitors, tech-priests, soldiers).';
     }

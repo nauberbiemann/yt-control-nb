@@ -4030,6 +4030,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
     setIsExtractingVisuals(true);
     try {
+      const resolvedCharDesc = resolveCharacterProfileInFrontend(
+        videoCharacterMode,
+        videoFormat,
+        activeProject?.name,
+        videoCharacterCustom,
+        activeProject?.persona_matrix?.demographics,
+        activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
+      );
+
       const response = await fetch('/api/assets/analyze-script-visuals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4040,6 +4049,8 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
           apiKeyOverwrite: apiKey,
           projectConfig: activeProject?.ai_engine_rules,
           videoFormat,
+          characterDescription: resolvedCharDesc,
+          visualIdentity: activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity,
         }),
       });
 
@@ -5023,8 +5034,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
 
             let assembledPrompt = cena;
-            // Concat CHARACTER_DNA only if visualBlueprint cast is NOT active
-            if (protPresente && sanitizedCharDna && !hasActiveCast) {
+            // Concat CHARACTER_DNA if protagonist is present
+            if (protPresente && sanitizedCharDna) {
               assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
             }
             // Concat EXTRAS_DNA

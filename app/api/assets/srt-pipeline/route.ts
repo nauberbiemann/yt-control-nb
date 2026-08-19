@@ -837,11 +837,11 @@ const generatePromptMap = async ({
 CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
 This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
-2. In the "prompt" property of each item, write ONLY the "CENA" (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
+2. In the "prompt" property of each item, write ONLY the scenic action description (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
 3. ${castTagInstructions}
 4. Set the field "protagonista_presente" to true if the protagonist/cast character appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
 5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
-6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
+6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "Detailed action description in English...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
 `;
   }
 
@@ -897,7 +897,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
         const isVisualAsset = item && (item.asset === 'video' || item.asset === 'image');
 
         if (hasDna && isVisualAsset) {
-          let cena = val.prompt || '';
+          let cena = sanitizePrompt(val.prompt || '');
           const replacement = getProtagonistReplacement(characterMode, characterDescription);
           cena = cena.replace(/the protagonist/g, replacement);
           const capitalizedReplacement = replacement.charAt(0).toUpperCase() + replacement.slice(1);

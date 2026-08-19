@@ -496,7 +496,13 @@ export const finalizeFacelessRows = (
   });
 };
 
-export const sanitizePrompt = (prompt: string) => String(prompt || '').replace(/\s+/g, ' ').trim();
+export const sanitizePrompt = (prompt: string) =>
+  String(prompt || '')
+    .replace(/^(?:CENA|SCENE)[:\s-]+/i, '')
+    .replace(/^CENA\s+/i, '')
+    .replace(/^SCENE\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export const cleanHeyGenPrefixes = (prompt: string): string => {
   let cleaned = String(prompt || '')

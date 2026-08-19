@@ -294,6 +294,33 @@ const renderMarkdown = (mdText: string | null | undefined) => {
   return <div className="space-y-1.5">{elements}</div>;
 };
 
+
+const buildLanguageInstructions = (channelLanguage?: string) => {
+  const { name: langName, code: langCode, units: langUnits } = getLanguageDirectives(channelLanguage);
+  
+  return `
+================================================================================
+CRITICAL MANDATORY INSTRUCTION - LANGUAGE OF ALL ON-SCREEN VISIBLE TEXT:
+The target channel language configured by the user is: ${langName.toUpperCase()} (${langCode}).
+
+1. The scenic/environmental prompt description itself MUST be in English (for AI image/video generators Midjourney, Leonardo, Runway, Kling, Luma, Stable Diffusion, etc.).
+2. HOWEVER, ANY AND ALL VISIBLE ON-SCREEN TEXT, WORDS, HEADINGS, LABELS, CLIPBOARDS, INVOICES, ESTIMATES, SIGNS, WARNING BOARDS, NEWSPAPER HEADLINES, SPEECH BUBBLES, WHITEBOARDS, PRICE TAGS, PRODUCT PACKAGING, OR ON-SCREEN GRAPHICS VISIBLE IN THE SCENE MUST BE EXPLICITLY WRITTEN IN ${langName.toUpperCase()} INSIDE DOUBLE QUOTES!
+3. STRICT PROHIBITION: NEVER, UNDER ANY CIRCUMSTANCE, WRITE ENGLISH TEXT INSIDE QUOTES FOR VISIBLE ON-SCREEN ASSETS (unless the channel language is explicitly English).
+   - ❌ BAD (English on-screen text for Portuguese channel):
+     - clipboard with text reading "STEERING RACK REPLACEMENT R$ 2.000"
+     - red banner with bold text reading "SUSPENSION SYSTEM CONDEMNED! COMPLETE SHOCK ABSORBER FAILURE DETECTED. ALL COMPONENTS REQUIRE IMMEDIATE REPLACEMENT. WARNING: ESTIMATE PREPARED."
+     - speech bubble reading "LOOK HERE! THIS METAL SHIELD IS DENTED"
+     - document with text reading "ESTIMATE - VEHICLE REPAIR"
+   - ✅ GOOD (Explicitly translated to ${langName.toUpperCase()}):
+     - clipboard with text reading "ORÇAMENTO: TROCA DA CAIXA DE DIREÇÃO R$ 2.000"
+     - red banner with bold text reading "SISTEMA DE SUSPENSÃO CONDENADO! REPARO IMEDIATO NECESSÁRIO"
+     - speech bubble reading "OLHE AQUI! ESTE PROTETOR DE METAL ESTÁ AMASSADO"
+     - document with text reading "ORÇAMENTO - REVISÃO AUTOMOTIVA"
+4. Whenever a character holds a paper, clipboard, diagnostic tool, phone screen, invoice, receipt, or when a sign or label appears in the scene, always write the visible text in ${langName.toUpperCase()} using the formula: with text reading "${langName.toUpperCase()} TEXT HERE".
+5. UNITS OF MEASUREMENT & CURRENCY: Use ${langUnits}. If currency or prices appear, format them appropriately (e.g. for Portuguese use R$ or Reais).
+================================================================================`.trim();
+};
+
 const getLanguageDirectives = (lang?: string) => {
   const l = (lang || 'Português').trim();
   if (l === 'English') {
@@ -935,11 +962,7 @@ const directGenerateBatchGemini = async ({
   const resolvedModel = resolveModel(model);
   const { name: langName, units: langUnits } = getLanguageDirectives(channelLanguage);
 
-  const dynamicSrtInstructions = `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\nCRITICAL UNIT OF MEASUREMENT RULE:\nAll units of measurement in titles, subtitle overlays, list points, charts, or any text visible in video/image assets MUST strictly use the: ${langUnits}. If the subtitle text mentions standard metric units (like Celsius or meters) but the target system is Imperial, you MUST dynamically convert them to the equivalent values (e.g. convert 25-40°C to 77-104°F, or 2 meters to 6 feet/yards) inside the 'text reading "..."' visual prompt directive.`
-    .replaceAll('(usually Portuguese)', `(usually ${langName})`)
-    .replaceAll('(Portuguese)', `(${langName})`)
-    .replaceAll('in Portuguese', `in ${langName}`)
-    .replaceAll('usually Portuguese', `usually ${langName}`);
+  const dynamicSrtInstructions = `${SRT_PIPELINE_SYSTEM_INSTRUCTIONS}\n\n${buildLanguageInstructions(channelLanguage)}`;
 
   const dynamicFacelessHint = facelessHint
     .replaceAll('(usually Portuguese)', `(usually ${langName})`)
@@ -2577,7 +2600,7 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       if (['faceless', 'avatar', 'vlog', 'avatar_flow', 'catalog'].includes(snapshot?.videoFormat)) setVideoFormat(snapshot.videoFormat);
       if (typeof snapshot?.manualPublishDate === 'string') setManualPublishDate(snapshot.manualPublishDate);
       if (typeof snapshot?.visualBlueprintSetting === 'string') setVisualBlueprintSetting(snapshot.visualBlueprintSetting);
-      if (typeof snapshot?.visualBlueprintCast === 'object') setVisualBlueprintCast(snapshot.visualBlueprintCast);
+      if (Array.isArray(snapshot?.visualBlueprintCast)) setVisualBlueprintCast(snapshot.visualBlueprintCast);
       if (typeof snapshot?.forceAllAsVideo === 'boolean') setForceAllAsVideo(snapshot.forceAllAsVideo);
       if (typeof snapshot?.useHybridAssets === 'boolean') setUseHybridAssets(snapshot.useHybridAssets);
       if (['hybrid_smart', 'force_all_video', 'alternating', 'all_image'].includes(snapshot?.assetAllocationMode)) setAssetAllocationMode(snapshot.assetAllocationMode);
@@ -3665,6 +3688,12 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
       localStorage.setItem(executionStorageKey, JSON.stringify(compactSnapshot));
       // Update storage usage indicator after every write
       checkStorageUsage();
+
+      // Cloud auto-sync in background so reload/navigation retains user customizations
+      const currentThemeId = (snapshot as any)._themeId || (typeof window !== 'undefined' && activeProject?.id ? sessionStorage.getItem(`active_script_theme_${activeProject.id}`) : null);
+      if (supabase && currentThemeId) {
+        upsertScriptExecution(currentThemeId, compactSnapshot).catch(() => {});
+      }
     } catch (err) {
       console.warn('[ScriptEngine] Falha ao persistir snapshot localmente.', err);
     }
@@ -3858,12 +3887,57 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   const compilePromptText = (text: string) => {
     if (!text) return '';
     let compiled = text;
-    if (!preserveBrackets && videoFormat !== 'catalog') {
-      visualBlueprintCast.forEach((char) => {
-        if (!char.name || !char.description) return;
-        const escapedName = char.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const regex = new RegExp(`\\[${escapedName}\\]`, 'gi');
-        compiled = compiled.replace(regex, `(${char.description.trim()})`);
+    const activeCast = visualBlueprintCast.filter((char) => char && char.selected !== false);
+
+    if (preserveBrackets) {
+      // PRESERVE BRACKETS: ensure the exact tag [Tag] appears in the prompt
+      activeCast.forEach((char) => {
+        const rawTag = (char.tag || char.name || '').trim().replace(/^\[|\]$/g, '');
+        const rawName = (char.name || '').trim().replace(/^\[|\]$/g, '');
+        const desc = (char.description || '').trim();
+        if (!rawTag) return;
+
+        // If prompt has [rawName] but rawTag is different (e.g. [Mecânico de oficina de bairro] -> [Velan])
+        if (rawName && rawName.toLowerCase() !== rawTag.toLowerCase()) {
+          const escapedName = rawName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regexName = new RegExp(`\\[${escapedName}\\]`, 'gi');
+          compiled = compiled.replace(regexName, `[${rawTag}]`);
+        }
+
+        // If prompt has the expanded description (desc) or (desc without parens), convert it back to [rawTag]
+        if (desc && desc.length > 10) {
+          const escapedDesc = desc.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          compiled = compiled.replace(new RegExp(`\\(${escapedDesc}\\)`, 'gi'), `[${rawTag}]`);
+          compiled = compiled.replace(new RegExp(escapedDesc, 'gi'), `[${rawTag}]`);
+        }
+
+        // If legacy fallback avatar description is in prompt, replace with [rawTag]
+        if (characterDescription && typeof characterDescription === 'string') {
+          const cleanDesc = characterDescription.trim();
+          if (cleanDesc.length > 20 && compiled.includes(cleanDesc)) {
+            const escapedOld = cleanDesc.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            compiled = compiled.replace(new RegExp(escapedOld, 'gi'), `[${rawTag}]`);
+          }
+        }
+      });
+    } else if (videoFormat !== 'catalog') {
+      // EXPAND BRACKETS: replace [Tag] and [Name] with (Description)
+      activeCast.forEach((char) => {
+        const rawTag = (char.tag || char.name || '').trim().replace(/^\[|\]$/g, '');
+        const rawName = (char.name || '').trim().replace(/^\[|\]$/g, '');
+        const desc = (char.description || '').trim();
+        if (!desc) return;
+
+        if (rawTag) {
+          const escapedTag = rawTag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regexTag = new RegExp(`\\[${escapedTag}\\]`, 'gi');
+          compiled = compiled.replace(regexTag, `(${desc})`);
+        }
+        if (rawName && rawName.toLowerCase() !== rawTag.toLowerCase()) {
+          const escapedName = rawName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regexName = new RegExp(`\\[${escapedName}\\]`, 'gi');
+          compiled = compiled.replace(regexName, `(${desc})`);
+        }
       });
     }
 
@@ -4991,6 +5065,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           },
           visualBlueprint: { setting: visualBlueprintSetting, cast: videoFormat === 'catalog' ? [] : visualBlueprintCast },
           ultraCinematic,
+          channelLanguage,
           assetAllocationMode: forceAllAsVideo ? 'force_all_video' : assetAllocationMode,
         }),
       });
@@ -9905,10 +9980,14 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
                                     />
                                   </div>
                                 </div>
-                                <div className="text-[8px] text-cyan-400/40 text-right font-mono tracking-wider pt-1 border-t border-white/5">
-                                  {char.selected !== false
-                                    ? `Usará [{(char.tag || char.name || '').replace(/^\[|\]$/g, '')}] nos prompts`
-                                    : 'Personagem desmarcado (ignorado nos prompts)'}
+                                <div className="text-[8px] text-cyan-400/50 text-right font-mono tracking-wider pt-1 border-t border-white/5">
+                                  {char.selected !== false ? (
+                                    <span>
+                                      Usará <strong className="text-cyan-300">[{ (char.tag || char.name || '').replace(/^\[|\]$/g, '') }]</strong> nos prompts
+                                    </span>
+                                  ) : (
+                                    <span className="text-white/30">Personagem desmarcado (ignorado nos prompts)</span>
+                                  )}
                                 </div>
                               </div>
                             ))}

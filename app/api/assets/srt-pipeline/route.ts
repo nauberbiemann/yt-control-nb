@@ -22,7 +22,65 @@ import {
 const BATCH_SIZE_DEFAULT = 10;
 const BATCH_SIZE_REASONING = 6; // Reasoning models handle smaller batches more reliably
 const SUPPORTED_PROMPT_ASSETS = new Set(['vídeo', 'imagem', 'texto', 'hyperframe']);
-export const maxDuration = 300;const SYSTEM_INSTRUCTIONS = `
+export const maxDuration = 300;
+const getLanguageDirectives = (lang?: string) => {
+  const l = (lang || 'Português').trim();
+  if (l === 'English') {
+    return {
+      name: 'English',
+      code: 'English',
+      units: 'US Imperial system (e.g. Fahrenheit °F, miles, feet, inches, pounds, ounces, gallons, $ USD)'
+    };
+  }
+  if (l === 'Español' || l === 'Spanish') {
+    return {
+      name: 'Spanish',
+      code: 'Spanish',
+      units: 'Metric system (e.g. Celsius °C, kilómetros, metros, gramos, kilogramos, litros, € / $)'
+    };
+  }
+  if (l === 'Português' || l === 'Portuguese') {
+    return {
+      name: 'Brazilian Portuguese',
+      code: 'PT-BR',
+      units: 'Metric system (e.g. Celsius °C, quilômetros, metros, gramas, quilogramas, litros, R$ Reais)'
+    };
+  }
+  return {
+    name: l,
+    code: l,
+    units: 'Metric system (e.g. Celsius °C, kilometers, meters, grams, kilograms, liters)'
+  };
+};
+
+const buildLanguageInstructions = (channelLanguage?: string) => {
+  const { name: langName, code: langCode, units: langUnits } = getLanguageDirectives(channelLanguage);
+  
+  return `
+================================================================================
+CRITICAL MANDATORY INSTRUCTION - LANGUAGE OF ALL ON-SCREEN VISIBLE TEXT:
+The target channel language configured by the user is: ${langName.toUpperCase()} (${langCode}).
+
+1. The scenic/environmental prompt description itself MUST be in English (for AI image/video generators Midjourney, Leonardo, Runway, Kling, Luma, Stable Diffusion, etc.).
+2. HOWEVER, ANY AND ALL VISIBLE ON-SCREEN TEXT, WORDS, HEADINGS, LABELS, CLIPBOARDS, INVOICES, ESTIMATES, SIGNS, WARNING BOARDS, NEWSPAPER HEADLINES, SPEECH BUBBLES, WHITEBOARDS, PRICE TAGS, PRODUCT PACKAGING, OR ON-SCREEN GRAPHICS VISIBLE IN THE SCENE MUST BE EXPLICITLY WRITTEN IN ${langName.toUpperCase()} INSIDE DOUBLE QUOTES!
+3. STRICT PROHIBITION: NEVER, UNDER ANY CIRCUMSTANCE, WRITE ENGLISH TEXT INSIDE QUOTES FOR VISIBLE ON-SCREEN ASSETS (unless the channel language is explicitly English).
+   - ❌ BAD (English on-screen text for Portuguese channel):
+     - clipboard with text reading "STEERING RACK REPLACEMENT R$ 2.000"
+     - red banner with bold text reading "SUSPENSION SYSTEM CONDEMNED! COMPLETE SHOCK ABSORBER FAILURE DETECTED. ALL COMPONENTS REQUIRE IMMEDIATE REPLACEMENT. WARNING: ESTIMATE PREPARED."
+     - speech bubble reading "LOOK HERE! THIS METAL SHIELD IS DENTED"
+     - document with text reading "ESTIMATE - VEHICLE REPAIR"
+   - ✅ GOOD (Explicitly translated to ${langName.toUpperCase()}):
+     - clipboard with text reading "ORÇAMENTO: TROCA DA CAIXA DE DIREÇÃO R$ 2.000"
+     - red banner with bold text reading "SISTEMA DE SUSPENSÃO CONDENADO! REPARO IMEDIATO NECESSÁRIO"
+     - speech bubble reading "OLHE AQUI! ESTE PROTETOR DE METAL ESTÁ AMASSADO"
+     - document with text reading "ORÇAMENTO - REVISÃO AUTOMOTIVA"
+4. Whenever a character holds a paper, clipboard, diagnostic tool, phone screen, invoice, receipt, or when a sign or label appears in the scene, always write the visible text in ${langName.toUpperCase()} using the formula: with text reading "${langName.toUpperCase()} TEXT HERE".
+5. UNITS OF MEASUREMENT & CURRENCY: Use ${langUnits}. If currency or prices appear, format them appropriately (e.g. for Portuguese use R$ or Reais).
+================================================================================`.trim();
+};
+
+
+const SYSTEM_INSTRUCTIONS = `
 You generate production-ready visual prompts for subtitle-driven videos.
 
 Return only valid JSON.
@@ -486,6 +544,7 @@ const generateBatchWithOpenAI = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  channelLanguage,
   dnaInstructions,
 }: {
   apiKey: string;
@@ -499,8 +558,10 @@ const generateBatchWithOpenAI = async ({
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  channelLanguage?: string;
   dnaInstructions?: string;
 }) => {
+  const languageInstructions = buildLanguageInstructions(channelLanguage);
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
@@ -508,8 +569,8 @@ const generateBatchWithOpenAI = async ({
         role: isReasoningModel(model) ? 'developer' : 'system',
         content: (() => {
           let systemPrompt = ultraCinematic
-            ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
-            : SYSTEM_INSTRUCTIONS;
+            ? `${SYSTEM_INSTRUCTIONS}\n\n${languageInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+            : `${SYSTEM_INSTRUCTIONS}\n\n${languageInstructions}`;
           if (dnaInstructions) {
             systemPrompt += `\n\n${dnaInstructions}`;
           }
@@ -616,6 +677,7 @@ const generateBatchWithGemini = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  channelLanguage,
   dnaInstructions,
 }: {
   apiKey: string;
@@ -629,8 +691,10 @@ const generateBatchWithGemini = async ({
   videoFormat?: string;
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  channelLanguage?: string;
   dnaInstructions?: string;
 }) => {
+  const languageInstructions = buildLanguageInstructions(channelLanguage);
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -732,6 +796,7 @@ const generatePromptMap = async ({
   videoFormat,
   visualBlueprint,
   ultraCinematic,
+  channelLanguage,
 }: {
   engine: 'openai' | 'gemini';
   model: string;
@@ -744,6 +809,7 @@ const generatePromptMap = async ({
   videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
   visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
   ultraCinematic?: boolean;
+  channelLanguage?: string;
 }) => {
   const resolvedModel = engine === 'gemini'
     ? projectConfig?.gemini_api_model || resolveModel(model)
@@ -810,8 +876,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       group.map(async (batch) => {
         try {
           const payload = engine === 'gemini'
-            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, dnaInstructions })
-            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, dnaInstructions });
+            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions })
+            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions });
           return { batch, payload };
         } catch (err) {
           console.error(`[SRT Pipeline Batch Error]`, err);
@@ -898,6 +964,12 @@ export async function POST(req: NextRequest) {
       videoFormat,
     });
     const videoContext = String(body?.videoContext || '').trim();
+    const channelLanguage = String(
+      body?.channelLanguage ||
+      projectConfig?.persona_matrix?.channel_language ||
+      projectConfig?.language ||
+      'Português'
+    ).trim();
     
     // Batch Mode Branch
     if (Array.isArray(body?.batchItems) && body.batchItems.length > 0) {
@@ -922,6 +994,7 @@ export async function POST(req: NextRequest) {
         videoFormat,
         visualBlueprint,
         ultraCinematic,
+        channelLanguage,
       });
 
       const prompts = promptItems.map((item) => {
@@ -996,6 +1069,7 @@ export async function POST(req: NextRequest) {
         videoFormat,
         visualBlueprint,
         ultraCinematic,
+        channelLanguage,
       });
 
       rowsWithPrompts = finalRows.map((row) => {

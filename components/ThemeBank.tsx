@@ -760,6 +760,7 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
         refined_title: form.refined_title || '',
         priority: Number(form.priority) || 0,
         notes: form.notes || '',
+        target_publish_date: targetPublishDate || null,
         // 🛠️ Preserva campos de engenharia de cliques se existirem
         match_score: (editingTheme as any)?.match_score || 0,
         demand_views: (editingTheme as any)?.demand_views || '',

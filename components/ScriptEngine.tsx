@@ -2073,14 +2073,16 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
     }
     const existingTheme = themeIndex >= 0 ? existingThemes[themeIndex] : null;
 
-    // For NEW themes, never inherit a publish date from the React state (which may hold
-    // a residual date from the previous theme). Only use the snapshot's own date or the
-    // existing theme's persisted date. For existing themes, preserve their own date.
-    const snapshotDate = executionSnapshot?.manualPublishDate || '';
-    const existingDate = existingTheme?.target_publish_date || existingTheme?.production_assets?.target_publish_date || '';
-    const targetPublishDate = existingTheme
-      ? (snapshotDate || existingDate)  // existing theme: snapshot date takes precedence, then persisted date
-      : snapshotDate;                    // new theme: only use snapshot's own date (never React state residual)
+    // For manualPublishDate:
+    // If executionSnapshot has manualPublishDate provided (as string, including '' when cleared):
+    // use that exact value.
+    // If executionSnapshot is undefined or doesn't have manualPublishDate, fall back to existingTheme's date.
+    let targetPublishDate = '';
+    if (executionSnapshot && typeof executionSnapshot.manualPublishDate === 'string') {
+      targetPublishDate = executionSnapshot.manualPublishDate.trim();
+    } else if (existingTheme) {
+      targetPublishDate = existingTheme.target_publish_date || existingTheme.production_assets?.target_publish_date || '';
+    }
     const scheduleStatus = resolveThemeStatusFromPublishDate(targetPublishDate, 'scripted');
 
     // Resolve pipeline_level: preserva o valor existente do tema no banco;
@@ -2253,11 +2255,10 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
       });
     }
 
-    // Storage cloud-only
     try {
-      // Local caching of themes disabled to avoid 10MB quota limit
+      localStorage.setItem(storageKey, JSON.stringify(nextThemes));
     } catch (e) {
-      console.warn('[ScriptEngine] Quota exceeded saving themes locally.', e);
+      console.warn('[ScriptEngine] Failed to persist themes to localStorage.', e);
     }
 
     if (!supabase) return;
@@ -3471,11 +3472,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
   };
 
   const syncApprovedThemeSnapshot = async (overrides: Partial<ExecutionSnapshot> = {}) => {
-    if (!approvedBriefing || !approvedTheme) return;
+    if (!approvedTheme) return;
     try {
       await saveManualThemeToBank(
         approvedTheme,
-        approvedBriefing,
+        approvedBriefing || {},
         buildExecutionSnapshot(overrides)
       );
     } catch (error) {
@@ -3547,7 +3548,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     setManualPublishDraftDate('');
     setManualPublishDraftTime('');
     persistExecutionSnapshotLocally({ manualPublishDate: '' });
-    if (approvedBriefing && approvedTheme) {
+    if (approvedTheme) {
       await syncApprovedThemeSnapshot({ manualPublishDate: '' });
     }
     showToast('Data de postagem removida. Status voltou para Produção.');
@@ -8081,6 +8082,9 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 
   // ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ Assembler Approval Handler ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬ÃÆ’Ã†â€™Ãâ€šÃ‚Â¢ÃÆ’Ã‚Â¢ÃÂ¢ââ‚¬Å¡Ã‚Â¬Ãâ€šÃ‚ÂÃÆ’Ã‚Â¢ÃÂ¢ââ€šÂ¬Ã…Â¡Ãâ€šÃ‚Â¬
   const handleAssemblerApprove = (briefing: any, theme: string) => {
+    setManualPublishDate('');
+    setManualPublishDraftDate('');
+    setManualPublishDraftTime('');
     setApprovedTheme(theme);
     setApprovedBriefing(briefing);
     if (briefing?.videoFormat) {
@@ -8105,7 +8109,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
       externalSrtFileName: '',
       videoCharacterMode,
       videoCharacterCustom,
-      manualPublishDate,
+      manualPublishDate: '',
       externalSrtPipeline: null,
       externalSrtObserver: buildInitialSrtObserver(),
       postScriptPackage: null,
@@ -8140,6 +8144,9 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
   ].filter(Boolean);
 
   const handleTriggerRoterizador2077 = () => {
+    setManualPublishDate('');
+    setManualPublishDraftDate('');
+    setManualPublishDraftTime('');
     if (!roterizadorTitle.trim()) {
       alert('Por favor, informe o Título do Vídeo no Roterizador 2077.');
       return;

@@ -817,31 +817,31 @@ const generatePromptMap = async ({
 
   // Reasoning models handle smaller batches more reliably
   const batchSize = isReasoningModel(resolvedModel) ? BATCH_SIZE_REASONING : BATCH_SIZE_DEFAULT;
-
   const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
   const projectStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || '';
   const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
 
   const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
-  const promptMap = new Map<number, string>();
-  const textoAdicionalMap = new Map<number, any>();
-  const localFallbackRows = new Set<number>();
-
   const dnaBlocks = parseDnaBlocks(characterDescription);
   const hasDna = dnaBlocks.hasDna;
+  const activeCastList = (visualBlueprint?.cast || []).filter((c: any) => c && c.selected !== false);
+  const hasActiveCast = activeCastList.length > 0;
 
   let dnaInstructions = '';
   if (hasDna) {
+    const castTagInstructions = hasActiveCast
+      ? `ACTIVE CAST BRACKET RULE: When any character from the active cast below appears or performs an action in the scene, you MUST refer to them using their EXACT bracket tag (e.g. ${activeCastList.map((c: any) => `[${(c.tag || c.name || '').replace(/^\[|\]$/g, '')}]`).join(', ')}). NEVER write their physical details in the prompt.`
+      : 'In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.';
+
     dnaInstructions = `
 CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
 This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
 2. In the "prompt" property of each item, write ONLY the "CENA" (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
-3. In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.
-4. Set the field "protagonista_presente" to true if the protagonist appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
+3. ${castTagInstructions}
+4. Set the field "protagonista_presente" to true if the protagonist/cast character appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
 5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
-6. NEVER use proper names of individuals (such as "Agnes", "Claire" or "Fulgrim") in the CENA. Translate proper names to visual descriptions or generic roles (e.g., instead of "Agnes's rosary", write "a wooden rosary"; instead of "Claire", write "the protagonist").
-7. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
+6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
 `;
   }
 
@@ -867,6 +867,10 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
     ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
     : '';
 
+  const promptMap = new Map<number, string>();
+  const textoAdicionalMap = new Map<number, any>();
+  const localFallbackRows = new Set<number>();
+
   const batches = chunk(items, batchSize);
   const CONCURRENCY = 4;
 
@@ -880,8 +884,7 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions });
           return { batch, payload };
         } catch (err) {
-          console.error(`[SRT Pipeline Batch Error]`, err);
-          // Fall back gracefully so the single batch retry system can recover it
+          console.error('[SRT Pipeline Batch Error]', err);
           return { batch, payload: { prompts: [] } };
         }
       })
@@ -908,8 +911,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
           const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
 
           let assembledPrompt = cena;
-          // Concat CHARACTER_DNA
-          if (protPresente && sanitizedCharDna) {
+          // Concat CHARACTER_DNA only if visualBlueprint cast is NOT active
+          if (protPresente && sanitizedCharDna && !hasActiveCast) {
             assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
           }
           // Concat EXTRAS_DNA

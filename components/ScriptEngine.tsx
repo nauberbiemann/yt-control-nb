@@ -3888,6 +3888,15 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
     if (!text) return '';
     let compiled = text;
     const activeCast = visualBlueprintCast.filter((char) => char && char.selected !== false);
+    const resolvedDefaultCharDesc = resolveCharacterProfileInFrontend(
+      videoCharacterMode,
+      videoFormat,
+      activeProject?.name,
+      videoCharacterCustom,
+      activeProject?.persona_matrix?.demographics,
+      activeProject?.editing_sop?.visual_identity || activeProject?.visual_identity
+    );
+    const parsedDefaultDna = parseDnaBlocks(resolvedDefaultCharDesc);
 
     if (preserveBrackets) {
       // PRESERVE BRACKETS: ensure the exact tag [Tag] appears in the prompt
@@ -3900,8 +3909,7 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         // If prompt has [rawName] but rawTag is different (e.g. [Mecânico de oficina de bairro] -> [Velan])
         if (rawName && rawName.toLowerCase() !== rawTag.toLowerCase()) {
           const escapedName = rawName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regexName = new RegExp(`\\[${escapedName}\\]`, 'gi');
-          compiled = compiled.replace(regexName, `[${rawTag}]`);
+          compiled = compiled.replace(new RegExp(`\\[ *${escapedName} *\\]`, 'gi'), `[${rawTag}]`);
         }
 
         // If prompt has the expanded description (desc) or (desc without parens), convert it back to [rawTag]
@@ -3912,12 +3920,9 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
         }
 
         // If legacy fallback avatar description is in prompt, replace with [rawTag]
-        if (characterDescription && typeof characterDescription === 'string') {
-          const cleanDesc = characterDescription.trim();
-          if (cleanDesc.length > 20 && compiled.includes(cleanDesc)) {
-            const escapedOld = cleanDesc.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            compiled = compiled.replace(new RegExp(escapedOld, 'gi'), `[${rawTag}]`);
-          }
+        if (parsedDefaultDna.characterDna && parsedDefaultDna.characterDna.length > 20) {
+          const escapedOld = parsedDefaultDna.characterDna.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          compiled = compiled.replace(new RegExp(escapedOld, 'gi'), `[${rawTag}]`);
         }
       });
     } else if (videoFormat !== 'catalog') {
@@ -3930,13 +3935,11 @@ MODO DE RETORNO PARA PRODUCAO NO APLICATIVO
 
         if (rawTag) {
           const escapedTag = rawTag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regexTag = new RegExp(`\\[${escapedTag}\\]`, 'gi');
-          compiled = compiled.replace(regexTag, `(${desc})`);
+          compiled = compiled.replace(new RegExp(`\\[ *${escapedTag} *\\]`, 'gi'), `(${desc})`);
         }
         if (rawName && rawName.toLowerCase() !== rawTag.toLowerCase()) {
           const escapedName = rawName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regexName = new RegExp(`\\[${escapedName}\\]`, 'gi');
-          compiled = compiled.replace(regexName, `(${desc})`);
+          compiled = compiled.replace(new RegExp(`\\[ *${escapedName} *\\]`, 'gi'), `(${desc})`);
         }
       });
     }
@@ -4912,19 +4915,24 @@ COMO USAR NO WINDOWS:
 
     const dnaBlocks = parseDnaBlocks(characterDescription);
     const hasDna = dnaBlocks.hasDna;
+    const activeCastList = visualBlueprintCast.filter((c: any) => c && c.selected !== false);
+    const hasActiveCast = activeCastList.length > 0;
 
     let dnaInstructions = '';
     if (hasDna) {
+      const castTagInstructions = hasActiveCast
+        ? `ACTIVE CAST BRACKET RULE: When any character from the active cast below appears or performs an action in the scene, you MUST refer to them using their EXACT bracket tag (e.g. ${activeCastList.map((c: any) => `[${(c.tag || c.name || '').replace(/^\[|\]$/g, '')}]`).join(', ')}). NEVER write their physical details in the prompt.`
+        : 'In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.';
+
       dnaInstructions = `
 CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
 This batch of prompts is in DNA assembly mode. Follow these rules strictly:
 1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
 2. In the "prompt" property of each item, write ONLY the "CENA" (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
-3. In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.
-4. Set the field "protagonista_presente" to true if the protagonist appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
+3. ${castTagInstructions}
+4. Set the field "protagonista_presente" to true if the protagonist/cast character appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
 5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
-6. NEVER use proper names of individuals (such as "Agnes", "Claire" or "Fulgrim") in the CENA. Translate proper names to visual descriptions or generic roles (e.g., instead of "Agnes's rosary", write "a wooden rosary"; instead of "Claire", write "the protagonist").
-7. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
+6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
 `;
     }
 
@@ -5015,8 +5023,8 @@ This batch of prompts is in DNA assembly mode. Follow these rules strictly:
             const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
 
             let assembledPrompt = cena;
-            // Concat CHARACTER_DNA
-            if (protPresente && sanitizedCharDna) {
+            // Concat CHARACTER_DNA only if visualBlueprint cast is NOT active
+            if (protPresente && sanitizedCharDna && !hasActiveCast) {
               assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
             }
             // Concat EXTRAS_DNA

@@ -408,7 +408,7 @@ Rules for asset types:
   - If the text describes a TECHNICAL, SCIENTIFIC, or ABSTRACT concept (e.g., databases, calculations, files, processes, systems, networks):
     - If a character from the provided Cast has a role or description that fits the theme, and the action is human, you are encouraged to show that character interacting with the technical element in a dynamic, illustrative way (e.g., "[Character Name] operating a glowing terminal...", "[Character Name] installing nodes on a machine..."). Remember, this is only allowed if you classify the scene under the "NARRATIVE_CAST" category.
     - If no character fits the context, or if you choose to focus purely on the concept, use a 3D technical animation starting with "3D technical animation of".
-  - For live-action / cinematic prompts WITH narrative characters or environments: begin with "Realistic cinematic video of" or "Cinematic epic shot of" and describe the scene with dynamic details. Always add ambient sound only, no dialogue, no voice-over.
+  - For live-action / cinematic prompts WITH narrative characters or environments: describe the scene action, character gestures, and environment dynamically. Always add ambient sound only, no dialogue, no voice-over.
   - For 3D/abstract prompts: begin with "3D technical animation of" and visualize the concept directly. Add ambient sound only, no dialogue, no voice-over.
   - For video prompts, include enquadramento e câmera details (e.g. volumetric dust, cinematic lighting, shallow depth of field, panning, macro shot, dramatic backlight).
   - CRITICAL PREFIX RULE: Do NOT include "📷HyperFrames by HeyGen" or any HeyGen tag/prefix in video prompts. HeyGen tags are strictly banned for regular video assets in all formats.
@@ -416,7 +416,7 @@ Rules for asset types:
   - Always create a realistic still image prompt.
   - The image must directly and metaphorically illustrate the SPECIFIC concept, story character, object, emotion, or situation described in the subtitle text.
   - Follow the same NARRATIVE CHARACTER and ANTI-LITERAL rules as the video prompts.
-  - The prompt must begin with "Photorealistic still image of".
+  - Describe the visual composition, graphic card, or diagram clearly.
   - CRITICAL PREFIX RULE: Do NOT include "📷HyperFrames by HeyGen" or any HeyGen tag/prefix in image prompts. HeyGen tags are strictly banned for regular image assets in all formats.
 - asset == "text":
   - Read the current subtitle text provided as context.
@@ -836,7 +836,7 @@ const directGenerateBatchOpenAI = async ({
         role: 'user',
         content: [
           dnaInstructions
-            ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
+            ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"Action or graphic card description...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
             : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
           `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -991,7 +991,7 @@ const directGenerateBatchGemini = async ({
                   return systemPrompt;
                 })(),
               dnaInstructions
-                ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
+                ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"Action or graphic card description...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
                 : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -4935,18 +4935,28 @@ COMO USAR NO WINDOWS:
     let dnaInstructions = '';
     if (hasDna) {
       const castTagInstructions = hasActiveCast
-        ? `ACTIVE CAST BRACKET RULE: When any character from the active cast below appears or performs an action in the scene, you MUST refer to them using their EXACT bracket tag (e.g. ${activeCastList.map((c: any) => `[${(c.tag || c.name || '').replace(/^\[|\]$/g, '')}]`).join(', ')}). NEVER write their physical details in the prompt.`
-        : 'In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.';
+        ? `ACTIVE CAST BRACKET RULE: When any character from the active cast below appears or performs an action in the scene, you MUST refer to them using their EXACT bracket tag (e.g. ${activeCastList.map((c: any) => `[${(c.tag || c.name || '').replace(/^[\[\]]+|[\[\]]+$/g, '')}]`).join(', ')}). NEVER write their physical appearance or clothing in the prompt.`
+        : 'Refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.';
 
       dnaInstructions = `
-CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
-This batch of prompts is in DNA assembly mode. Follow these rules strictly:
-1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
-2. In the "prompt" property of each item, write ONLY the scenic action description (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
+CRITICAL STYLE & SCENE DIRECTIVES (DNA ASSEMBLY MODE ACTIVE):
+1. For VIDEO assets (asset == "video"):
+   - Describe the specific illustrative action, diagnostic gesture, or facial emotion of the character/scene matching the subtitle narration.
+   - Example with character: "[Velan] crouching at wheel level beside a car tire, tapping it lightly with one finger, expression of focused diagnostic concentration."
+   - Example with character: "[Velan] inside workshop, standing upright, arms crossed, looking at camera with a serious concerned expression, mouth firmly closed."
+   - Example scene only: "Front suspension wheel well with stabilizer link visibly disconnected, grease mark on lower arm."
+
+2. For IMAGE assets (asset == "image"):
+   - Generate a clean 2D graphic card, split panel, or 2D technical diagram illustrating the concept with a SHORT, BOLD ON-SCREEN TEXT OVERLAY IN ${langName.toUpperCase()} (2 to 6 words max in ALL CAPS, optionally separated by |).
+   - Example: "Clean 2D graphic card with bold Portuguese text overlay: PARA TUDO | ANTES DA BORRACHARIA. High-contrast typography, dark garage aesthetic."
+   - Example: "Split comparison panel — LEFT side shows large repair invoice with total amount circled in red. RIGHT side shows a single small wheel balance weight. Bold Portuguese text: ATE 2 MIL REAIS X 30 REAIS. High-contrast red and green typography."
+   - Example: "Clean 2D graphic card showing tire tread — one shoulder bald, other shoulder with deep grooves. Yellow arrow pointing to bald side. Bold Portuguese text: UM LADO MAIS GASTO."
+   - STRICT PROHIBITION: NEVER write paragraphs of English technical reports, fake dates, or complex vehicle evaluation sheets. Keep all text overlays short, punchy, and strictly in ${langName.toUpperCase()}.
+
 3. ${castTagInstructions}
-4. Set the field "protagonista_presente" to true if the protagonist/cast character appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
-5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
-6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "Detailed action description in English...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
+4. Set "protagonista_presente" to true if the protagonist/cast character appears or acts in the scene, or false if absent.
+5. Set "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
+6. The JSON output schema for each prompt MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "Action or graphic card description...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}]}
 `;
     }
 

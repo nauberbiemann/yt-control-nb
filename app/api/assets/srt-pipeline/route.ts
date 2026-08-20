@@ -500,18 +500,19 @@ const validatePromptBatch = (
     for (const item of items) {
       if (!promptMap.has(item.row_number)) {
         let fallback = 'Clean';
+        const cleanText = (item.text || '').slice(0, 60).trim();
         if (item.asset === 'text') {
           fallback = 'Clean';
         } else if (item.asset === 'hyperframe') {
           fallback = item.template_name || 'hf_break';
         } else if (item.asset === 'image') {
-          fallback = `Photorealistic cinematic still image representing the narrative scene, dramatic lighting, 8k resolution.`;
+          fallback = `BACKGROUND — photorealistic close-up of automotive workshop bench with parts. CHARACTER — [Velan] right side of frame, pointing at components. EXTRAS_DNA applied: thick bright yellow circle on component; bright yellow arrow pointing at it. TEXT OVERLAY — left third, ALL CAPS, Anton font: ATENÇÃO in black medium | ${cleanText.slice(0, 25).toUpperCase()} in vivid red large | DETALHE IMPORTANTE in black smaller. Red pill badge: AVISO. All text PT-BR ALL CAPS.`;
         } else {
-          fallback = `Cinematic technical video animation of the system concept with volumetric lighting, ambient sound only, no dialogue, no voice-over.`;
+          fallback = `[Velan] mimes inspecting components while explaining "${cleanText}". Expression: serious and focused. Photorealistic workshop background: workbench with parts, overhead LED lighting. Visual style: 2D comic book illustration composited over photorealistic workshop background. Camera: medium shot, eye-level. Ambient sound: workshop ambient. No music, no spoken words. No talking, no text on screen, no 3D photorealism.`;
         }
         promptMap.set(item.row_number, { 
           prompt: fallback,
-          protagonista_presente: false,
+          protagonista_presente: true,
           extras_presentes: false
         });
         localFallbackRows.add(item.row_number); // 🏷️ Track for UI feedback
@@ -892,15 +893,23 @@ The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt":
     const group = batches.slice(i, i + CONCURRENCY);
     const groupResults = await Promise.all(
       group.map(async (batch) => {
-        try {
-          const payload = engine === 'gemini'
-            ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions })
-            : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions });
-          return { batch, payload };
-        } catch (err) {
-          console.error('[SRT Pipeline Batch Error]', err);
-          return { batch, payload: { prompts: [] } };
+        let lastErr: any = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const payload = engine === 'gemini'
+              ? await generateBatchWithGemini({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions })
+              : await generateBatchWithOpenAI({ apiKey, model: resolvedModel, batchItems: batch, characterDescription, textStyles, visualIdentity, videoContext: videoContext || '', facelessHint, videoFormat, visualBlueprint, ultraCinematic, channelLanguage, dnaInstructions });
+            if (payload && Array.isArray(payload.prompts) && payload.prompts.length > 0) {
+              return { batch, payload };
+            }
+          } catch (err) {
+            lastErr = err;
+            console.warn(`[SRT Pipeline Batch Retry] Attempt ${attempt}/3 failed:`, err);
+            if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1000));
+          }
         }
+        console.error('[SRT Pipeline Batch Failed After 3 Retries]', lastErr);
+        return { batch, payload: { prompts: [] } };
       })
     );
 

@@ -601,7 +601,7 @@ export const buildPromptTxtOutputs = (
       } else if (assetType === 'imagem') {
         rawPrompt = `Photorealistic cinematic still image representing the narrative concept, high detail, 8k resolution.`;
       } else {
-        rawPrompt = `Cinematic technical video animation of the system concept with volumetric lighting and smooth camera motion.`;
+        rawPrompt = `3D animation representing the concept. Ambient sound only, no dialogue, no voice-over.`;
       }
     }
 

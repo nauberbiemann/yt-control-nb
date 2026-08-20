@@ -750,9 +750,9 @@ const validatePromptBatch = (
         } else if (item.asset === 'hyperframe') {
           fallback = item.template_name || 'hf_break';
         } else if (item.asset === 'image') {
-          fallback = `BACKGROUND — photorealistic close-up of automotive workshop bench with parts. CHARACTER — [Velan] right side of frame, pointing at components. EXTRAS_DNA applied: thick bright yellow circle on component; bright yellow arrow pointing at it. TEXT OVERLAY — left third, ALL CAPS, Anton font: ATENÇÃO in black medium | ${cleanText.slice(0, 25).toUpperCase()} in vivid red large | DETALHE IMPORTANTE in black smaller. Red pill badge: AVISO. All text PT-BR ALL CAPS.`;
+          fallback = `Photorealistic cinematic still image representing "${cleanText}", dramatic atmospheric lighting.`;
         } else {
-          fallback = `[Velan] mimes inspecting components while explaining "${cleanText}". Expression: serious and focused. Photorealistic workshop background: workbench with parts, overhead LED lighting. Visual style: 2D comic book illustration composited over photorealistic workshop background. Camera: medium shot, eye-level. Ambient sound: workshop ambient. No music, no spoken words. No talking, no text on screen, no 3D photorealism.`;
+          fallback = `Cinematic visual scene representing "${cleanText}", ambient sound only, no dialogue, no voice-over.`;
         }
         promptMap.set(item.row_number, {
           prompt: fallback,
@@ -4938,50 +4938,16 @@ COMO USAR NO WINDOWS:
 
     let dnaInstructions = '';
     if (hasDna) {
-      const { name: langName } = getLanguageDirectives(channelLanguage);
-      const activeTag = hasActiveCast ? (activeCastList[0]?.tag || activeCastList[0]?.name || '').replace(/^[[\]]+|[[\]]+$/g, '').trim() : '';
-      const channelSetting = visualBlueprintSetting || visualIdentity || 'Cinematic environment';
-      const channelStyle = sanitizedStyleDna || 'Cinematic documentary realism, 35mm film aesthetic, natural lighting';
-
-      if (hasActiveCast && activeTag) {
-        dnaInstructions = `
-CRITICAL STYLE & SCENE DIRECTIVES (ACTIVE CAST: [${activeTag}]):
-1. For VIDEO assets (asset == "video"):
-   "[${activeTag}] {illustrative action/gesture representing the subtitle text}. Expression: {specific facial expression}. Photorealistic {setting_type} background: {detailed background setting}. Visual style: ${channelStyle}. Camera: medium shot, eye-level. Ambient sound: {diegetic ambient sounds}. No music, no spoken words. ${dnaBlocks.negativeDna || 'No dialogue, no voice-over.'}"
-
-2. For IMAGE assets (asset == "image"):
-   "BACKGROUND — photorealistic {close-up of objects/setting matching the subtitle}. CHARACTER — [${activeTag}] {position in frame, pose, and expression}. EXTRAS_DNA applied: thick bright yellow circle on {target component}; bright yellow arrow pointing at {target component}. TEXT OVERLAY — left third, ALL CAPS, Anton font: {LINE 1} in black medium | {LINE 2} in vivid red large | {LINE 3} in black smaller. Red pill badge: {1-2 WORDS IN ALL CAPS}. All text PT-BR ALL CAPS."
-
-STRICT PROHIBITIONS:
-- NEVER add "📷HyperFrames by HeyGen" or "Motion and lock directive".
-- All TEXT OVERLAYS in images MUST be in ${langName.toUpperCase()}, ALL CAPS, maximum 3-5 words per line.
-The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "...", "protagonista_presente": true, "extras_presentes": false, "texto_adicional": {}}]}
+      dnaInstructions = `
+CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
+This batch of prompts is in DNA assembly mode. Follow these rules strictly:
+1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
+2. In the "prompt" property of each item, write ONLY the "CENA" (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
+3. In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.
+4. Set the field "protagonista_presente" to true if the protagonist appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
+5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
+6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
 `;
-      } else {
-        dnaInstructions = `
-CRITICAL STYLE & SCENE DIRECTIVES (NO ACTIVE CHARACTERS - SCENIC / DOCUMENTARY MODE):
-1. Setting & Visual Style Reference:
-   - Setting: "${channelSetting}"
-   - Art Medium / Style: "${channelStyle}"
-
-2. CAST RESTRICTION (STRICT):
-   - NO ACTIVE CHARACTERS for this theme/channel.
-   - You MUST NOT include any character tags in brackets (NO [Character], NO [Velan], NO [Vizinho]).
-   - Visual scenes MUST focus purely on scenic environment, objects, landscape, tools, nature, hands performing actions, or anonymous documentary perspectives.
-
-3. For VIDEO assets (asset == "video"):
-   "{cinematic visual scene action matching the subtitle text}. Expression/Ambiance: {atmosphere/tone}. Background: {detailed environment matching the channel setting}. Visual style: ${channelStyle}. Camera: {camera movement}. Ambient sound: {diegetic ambient sounds}. No music, no spoken words. ${dnaBlocks.negativeDna || 'No dialogue, no voice-over.'}"
-
-4. For IMAGE assets (asset == "image"):
-   "BACKGROUND — {detailed environment/setting matching the subtitle}. ACTION/SUBJECT — {subject, tools, plants, or hands performing action}. TEXT OVERLAY — left third, ALL CAPS, Anton font: {LINE 1} in black medium | {LINE 2} in vivid red large | {LINE 3} in black smaller. Red pill badge: {1-2 WORDS IN ALL CAPS}. All text PT-BR ALL CAPS."
-
-STRICT PROHIBITIONS:
-- NEVER add "📷HyperFrames by HeyGen" or "Motion and lock directive".
-- NEVER include character tags in brackets when cast is disabled.
-- All TEXT OVERLAYS in images MUST be in ${langName.toUpperCase()}, ALL CAPS, maximum 3-5 words per line.
-The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "...", "protagonista_presente": false, "extras_presentes": false, "texto_adicional": {}}]}
-`;
-      }
     }
 
     if (isDirect) {
@@ -4989,28 +4955,15 @@ The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt":
         ? `CATALOG VIDEO MODE: This format is styled like a premium presentation slide or documentary collage. Banish all modern studio presenters, talking heads, or hosts speaking to the camera. Follow these layout structure rules for every scene:
 1. LAYOUT VISUALS: All image and video prompts MUST describe a clean slide composition. Specifically state: "a minimalist off-white textured stucco background with smooth drop shadows" to ensure style consistency.
 2. CONTENT CARDS: Visualize the narrative concepts, historical objects, maps, or portraits inside floating cards or boards with rounded corners (e.g. "a floating rounded card showing...").
-3. CARD VARIATIONS: Use diverse card composition styles based on context:
-   - Single center card for main focus (e.g. "a centered floating card showing...").
-   - Two cards side-by-side for comparison or context (e.g. "two floating cards side-by-side: the left card showing the city facade, the right card showing a clean vector map of the region").
-   - Three cards side-by-side for recipe ingredients or steps.
-   - Focal emphasis: describe one central card in focus while surrounding cards are blurred.
-4. TEXT OVERLAYS: If a key phrase, name, or date is prominent, describe it as bold black text centered on the slide or above the cards (e.g. "bold black text reading [Name] at the top of the slide, above a floating card...").
-5. COMMERCIAL BRANDS/PRODUCTS: If a commercially recognizable product (e.g. Coca-Cola, Nutella, Starbucks) is mentioned, do not write a generic prompt. Instead: 
-   - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"
-   - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.
-6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.
-7. EXPLICIT TEXT LANGUAGE (NO IMPLICIT TEXT): Any text, titles, labels, or words that should appear written or rendered inside the image or video (such as card titles, labels on diagrams, list points, or slide headers) MUST be explicitly described in the prompt and MUST be written in the language of the script (Portuguese) inside double quotes. Do NOT leave text implicit (e.g. do NOT say "a card showing claims" as this results in English gibberish like "LADDED CLAIMS"; instead say "a card with text reading 'ALEGAÇÕES'"). Keep the prompt description in English, but define all on-screen written words in Portuguese using: text/label/title reading "...".`
+3. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.
+4. EXPLICIT TEXT LANGUAGE: Any text, titles, labels, or words that should appear written or rendered inside the image or video MUST be in the language of the script (${langName}) inside double quotes.`
         : videoFormat === 'faceless'
-          ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
+          ? 'FACELESS VIDEO MODE: Banish all modern studio presenters speaking to camera.'
           : videoFormat === 'vlog'
-            ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
+            ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style).`
             : '';
 
-      const facelessHint = rawFacelessHint
-        .replaceAll('(Portuguese)', `(${langName})`)
-        .replaceAll('in Portuguese', `in ${langName}`)
-        .replaceAll('words in Portuguese', `words in ${langName}`)
-        .replaceAll('reading \'ALEGAÇÕES\'', `reading text in ${langName} (e.g. 'CLAY POTS' if English or the equivalent in the script language)`);
+      const facelessHint = rawFacelessHint;
 
       let payload: any = { prompts: [] };
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -5068,31 +5021,37 @@ The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt":
         if (hasDna && isVisualAsset) {
           const val = validatedBatch.get(item.row_number);
           if (val) {
-            let rawP = sanitizePrompt(val.prompt || '');
-            const activeTag = hasActiveCast ? (activeCastList[0]?.tag || activeCastList[0]?.name || '').replace(/^[[\]]+|[[\]]+$/g, '').trim() : '';
-            const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
-            
-            let cleanScene = rawP
-              .replace(/^[[wsÀ-ÿ-]+]s*/g, '')
-              .replace(/^Visual scene:s*/i, '')
-              .trim();
+            let cena = val.prompt || '';
+            const replacement = getProtagonistReplacement(videoCharacterMode, characterDescription);
+            cena = cena.replace(/the protagonist/g, replacement);
+            const capitalizedReplacement = replacement.charAt(0).toUpperCase() + replacement.slice(1);
+            cena = cena.replace(/The protagonist/g, capitalizedReplacement);
 
-            let assembledPrompt = '';
-            if (hasActiveCast && activeTag && sanitizedCharDna) {
-              if (item.asset === 'video') {
-                assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: [${activeTag}] ${cleanScene}`;
-              } else {
-                // Image asset
-                assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cleanScene} Camera: static, locked.`;
-              }
-            } else {
-              // NO ACTIVE CAST (pure scenic/documentary)
-              if (item.asset === 'video') {
-                assembledPrompt = `Visual scene: ${cleanScene}`;
-              } else {
-                assembledPrompt = `Visual scene: ${cleanScene} Camera: static, locked.`;
-              }
+            const protPresente = !!val.protagonista_presente;
+            const extPresentes = !!val.extras_presentes;
+            
+            const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
+            const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
+            const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
+
+            let assembledPrompt = cena;
+            // Concat CHARACTER_DNA
+            if (protPresente && sanitizedCharDna) {
+              assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
             }
+            // Concat EXTRAS_DNA
+            if (extPresentes && sanitizedExtrasDna) {
+              assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedExtrasDna}`;
+            }
+            // Concat STYLE_DNA
+            if (sanitizedStyleDna) {
+              assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedStyleDna}`;
+            }
+            // Concat NEGATIVE_DNA
+            if (dnaBlocks.negativeDna) {
+              assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.negativeDna}`;
+            }
+            
             finalPrompt = assembledPrompt;
           }
         }

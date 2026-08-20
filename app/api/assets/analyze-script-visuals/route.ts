@@ -15,8 +15,8 @@ Return strictly a valid JSON object matching this exact shape:
   "characters": [
     {
       "name": "Descriptive Role or Name (e.g. Mecânico de oficina de bairro)",
-      "tag": "Concise 1-2 word bracket tag without brackets (e.g. Velan)",
-      "description": "A highly detailed, professional, and consistent physical appearance and art medium in English. If the channel uses 2D cartoon / comic book illustration, explicitly include that art medium (e.g. '2D comic book illustration flat shading with hard shadows, elderly mechanic cartoon character...'). Keep between 25 and 50 words.",
+      "tag": "Concise 1-2 word bracket tag without brackets (e.g. Host, Guide, Hero)",
+      "description": "A highly detailed, professional, and consistent physical appearance and visual style in English matching the script context. Keep between 25 and 50 words.",
       "selected": true
     }
   ]

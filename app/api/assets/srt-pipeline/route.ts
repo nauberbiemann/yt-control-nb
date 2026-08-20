@@ -506,9 +506,9 @@ const validatePromptBatch = (
         } else if (item.asset === 'hyperframe') {
           fallback = item.template_name || 'hf_break';
         } else if (item.asset === 'image') {
-          fallback = `BACKGROUND — photorealistic close-up of automotive workshop bench with parts. CHARACTER — [Velan] right side of frame, pointing at components. EXTRAS_DNA applied: thick bright yellow circle on component; bright yellow arrow pointing at it. TEXT OVERLAY — left third, ALL CAPS, Anton font: ATENÇÃO in black medium | ${cleanText.slice(0, 25).toUpperCase()} in vivid red large | DETALHE IMPORTANTE in black smaller. Red pill badge: AVISO. All text PT-BR ALL CAPS.`;
+          fallback = `Photorealistic cinematic still image representing "${cleanText}", dramatic atmospheric lighting.`;
         } else {
-          fallback = `[Velan] mimes inspecting components while explaining "${cleanText}". Expression: serious and focused. Photorealistic workshop background: workbench with parts, overhead LED lighting. Visual style: 2D comic book illustration composited over photorealistic workshop background. Camera: medium shot, eye-level. Ambient sound: workshop ambient. No music, no spoken words. No talking, no text on screen, no 3D photorealism.`;
+          fallback = `Cinematic visual scene representing "${cleanText}", ambient sound only, no dialogue, no voice-over.`;
         }
         promptMap.set(item.row_number, { 
           prompt: fallback,
@@ -557,12 +557,12 @@ const generateBatchWithOpenAI = async ({
   videoContext: string;
   facelessHint: string;
   videoFormat?: string;
-  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; tag?: string; description: string; selected?: boolean }> } | null;
   ultraCinematic?: boolean;
   channelLanguage?: string;
   dnaInstructions?: string;
 }) => {
-  const languageInstructions = buildLanguageInstructions(channelLanguage);
+  const activeCast = (visualBlueprint?.cast || []).filter((c) => c && c.selected !== false);
   const requestBody: Record<string, unknown> = {
     model,
     messages: [
@@ -570,8 +570,8 @@ const generateBatchWithOpenAI = async ({
         role: isReasoningModel(model) ? 'developer' : 'system',
         content: (() => {
           let systemPrompt = ultraCinematic
-            ? `${SYSTEM_INSTRUCTIONS}\n\n${languageInstructions}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
-            : `${SYSTEM_INSTRUCTIONS}\n\n${languageInstructions}`;
+            ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
+            : SYSTEM_INSTRUCTIONS;
           if (dnaInstructions) {
             systemPrompt += `\n\n${dnaInstructions}`;
           }
@@ -582,7 +582,7 @@ const generateBatchWithOpenAI = async ({
         role: 'user',
         content: [
           dnaInstructions
-            ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"Action or graphic card description...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
+            ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
             : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
           'Include exactly one prompt per row_number.',
           `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -594,46 +594,18 @@ const generateBatchWithOpenAI = async ({
             ? `Recurring presenter character reference: ${characterDescription}`
             : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
           visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
-          visualBlueprint?.cast && visualBlueprint.cast.length > 0
+          activeCast && activeCast.length > 0
             ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
-1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
-2. DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named, if the text describes a concept, action, or theme that aligns with their description or role (e.g., tech, analysis, secrets, authority), you should feature them in brackets (e.g., [Character Name]). Their action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator character locking a console; if the text is about data, show a tech character calibrating a holographic node). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept.
-3. NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
-4. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
-5. NEVER write the name of the character in plain text without brackets.
-6. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
-Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
-            : '',
+1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title), you MUST represent them in the prompt by enclosing their exact tag in brackets, e.g. [Tag].
+2. DYNAMIC ILLUSTRATIVE MAPPING: If the text describes a concept or action that aligns with their description, feature them in brackets (e.g. [Tag]). Their action MUST directly illustrate or serve as a visual metaphor for the narration.
+3. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
+4. NEVER write the name of the character in plain text without brackets.
+Here is the active cast list: \n${JSON.stringify(activeCast, null, 2)}`
+            : 'No active character tags for this production. Describe visual scenes, environment, objects, and people organically in English without bracket tags.',
           `Available Text Styles: ${textStyles}`,
           visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
           videoContext ? `Video Context for this batch: ${videoContext}` : '',
-          (() => {
-            try {
-              const trimmed = String(characterDescription || '').trim();
-              if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                const parsed = JSON.parse(trimmed);
-                if (parsed && typeof parsed === 'object') {
-                  return `
-CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
-You MUST strictly apply the following style configurations to every video or image prompt:
-- Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
-- Color Palette (paleta_de_cores): ${parsed.paleta_de_cores || ''}
-- Lighting (iluminacao): ${parsed.iluminacao || ''}
-- Characters (personagens): ${parsed.personagens || ''}
-- Setting/Background (cenario): ${parsed.cenario || ''}
-- Composition (composicao): ${parsed.composicao || ''}
-- Texture (textura): ${parsed.textura || ''}
-- Atmosphere (atmosfera): ${parsed.atmosfera || ''}
-- Mandatory Rules (regras_obrigatorias): ${Array.isArray(parsed.regras_obrigatorias) ? parsed.regras_obrigatorias.join(', ') : (parsed.regras_obrigatorias || '')}
-- Negative Prompt (negative_prompt - EXCLUDE these elements entirely): ${parsed.negative_prompt || ''}
-
-When constructing the prompt suffix, merge these details dynamically instead of using the standard suffix.
-`;
-                }
-              }
-            } catch (e) {}
-            return '';
-          })(),
+          channelLanguage ? `Channel Language for on-screen text overlays: ${channelLanguage}` : '',
           facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
           'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
           JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
@@ -661,7 +633,7 @@ When constructing the prompt suffix, merge these details dynamically instead of 
     throw new Error(data?.error?.message || 'Falha ao gerar prompts com OpenAI.');
   }
 
-  const content = data?.choices?.[0]?.message?.content;
+  const content = data?.choices?.[0]?.message?.content || '';
   if (!content) throw new Error('A OpenAI respondeu sem conteudo para o lote de prompts.');
   return parseJsonResponse(content);
 };
@@ -690,12 +662,12 @@ const generateBatchWithGemini = async ({
   videoContext: string;
   facelessHint: string;
   videoFormat?: string;
-  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string }> } | null;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; tag?: string; description: string; selected?: boolean }> } | null;
   ultraCinematic?: boolean;
   channelLanguage?: string;
   dnaInstructions?: string;
 }) => {
-  const languageInstructions = buildLanguageInstructions(channelLanguage);
+  const activeCast = (visualBlueprint?.cast || []).filter((c) => c && c.selected !== false);
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -709,7 +681,7 @@ const generateBatchWithGemini = async ({
                 ? `${SYSTEM_INSTRUCTIONS}\n\nULTRA-CINEMATIC RULES:\n${ULTRA_CINEMATIC_INSTRUCTIONS_STR}`
                 : SYSTEM_INSTRUCTIONS,
               dnaInstructions
-                ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"Action or graphic card description...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
+                ? 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"CENA...", "protagonista_presente":true/false, "extras_presentes":true/false, "texto_adicional":{}}]}.'
                 : 'Return a JSON object with the shape {"prompts":[{"row_number":1,"prompt":"...", "texto_adicional":{}}]}.',
               'Include exactly one prompt per row_number.',
               `Requested Video Format: ${String(videoFormat || 'avatar').toUpperCase()}`,
@@ -721,46 +693,18 @@ const generateBatchWithGemini = async ({
                 ? `Recurring presenter character reference: ${characterDescription}`
                 : `Recurring character reference (use ONLY when the subtitle text is a first-person personal or emotional moment. CRITICAL: In AVATAR mode, only show the presenter if it's an extreme first-person personal story — otherwise, focus purely on scenic/conceptual B-rolls and NEVER show the presenter): ${characterDescription}`,
               visualBlueprint?.setting ? `Visual Art Direction & Setting Reference (APPLY this setting/art style to ALL video and image prompts): ${visualBlueprint.setting}` : '',
-              visualBlueprint?.cast && visualBlueprint.cast.length > 0
+              activeCast && activeCast.length > 0
                 ? `Consistent Characters (Narrative Cast) - CRITICAL RULES FOR CONSISTENCY:
-1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title like "the knight"), you MUST represent them in the prompt by enclosing their exact name in brackets, e.g. [Character Name] (such as [Grey Knight] or [Fulgrim]).
-2. DYNAMIC ILLUSTRATIVE MAPPING: Even if a character is not explicitly named, if the text describes a concept, action, or theme that aligns with their description or role (e.g., tech, analysis, secrets, authority), you should feature them in brackets (e.g., [Character Name]). Their action MUST directly illustrate, complement, or serve as a visual metaphor for the narration (e.g., if the text is about security, show an investigator character locking a console; if the text is about data, show a tech character calibrating a holographic node). Banish static, idle, or purely contemplative poses; the character must be actively doing an action that visually explains the concept.
-3. NARRATOR IN FACELESS MODE: While standard talking-head presenters are banned in Faceless mode, a character defined as a "Narrator", "Analyst", or "Observer" in the Cast list is allowed to appear in B-rolls, but only in third-person scenes (e.g., studying a holographic screen, walking through archives, looking at terminals) and must never look at or speak to the camera.
-4. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
-5. NEVER write the name of the character in plain text without brackets.
-6. Translate any Portuguese mentions of these characters to their exact English name from this cast list inside brackets (e.g. if the text mentions "Cavaleiro Cinza", use "[Grey Knight]" in the prompt).
-Here is the active cast list: \n${JSON.stringify(visualBlueprint.cast, null, 2)}`
-                : '',
+1. When any character listed below is mentioned in the subtitle text (by name, pronouns, or clear title), you MUST represent them in the prompt by enclosing their exact tag in brackets, e.g. [Tag].
+2. DYNAMIC ILLUSTRATIVE MAPPING: If the text describes a concept or action that aligns with their description, feature them in brackets (e.g. [Tag]). Their action MUST directly illustrate or serve as a visual metaphor for the narration.
+3. NEVER write the character's physical description or details in the prompt under any circumstance — output exactly the bracketed tag so our compiler can expand it later.
+4. NEVER write the name of the character in plain text without brackets.
+Here is the active cast list: \n${JSON.stringify(activeCast, null, 2)}`
+                : 'No active character tags for this production. Describe visual scenes, environment, objects, and people organically in English without bracket tags.',
               `Available Text Styles: ${textStyles}`,
               visualIdentity ? `Channel Visual Identity: ${visualIdentity}` : '',
               videoContext ? `Video Context for this batch: ${videoContext}` : '',
-              (() => {
-                try {
-                  const trimmed = String(characterDescription || '').trim();
-                  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    const parsed = JSON.parse(trimmed);
-                    if (parsed && typeof parsed === 'object') {
-                      return `
-CRITICAL STYLISTIC PARAMETERS (STRUCTURED STYLE JSON):
-You MUST strictly apply the following style configurations to every video or image prompt:
-- Art Type (tipo_de_arte): ${parsed.tipo_de_arte || ''}
-- Color Palette (paleta_de_cores): ${parsed.paleta_de_cores || ''}
-- Lighting (iluminacao): ${parsed.iluminacao || ''}
-- Characters (personagens): ${parsed.personagens || ''}
-- Setting/Background (cenario): ${parsed.cenario || ''}
-- Composition (composicao): ${parsed.composicao || ''}
-- Texture (textura): ${parsed.textura || ''}
-- Atmosphere (atmosfera): ${parsed.atmosfera || ''}
-- Mandatory Rules (regras_obrigatorias): ${Array.isArray(parsed.regras_obrigatorias) ? parsed.regras_obrigatorias.join(', ') : (parsed.regras_obrigatorias || '')}
-- Negative Prompt (negative_prompt - EXCLUDE these elements entirely): ${parsed.negative_prompt || ''}
-
-When constructing the prompt suffix, merge these details dynamically instead of using the standard suffix.
-`;
-                    }
-                  }
-                } catch (e) {}
-                return '';
-              })(),
+              channelLanguage ? `Channel Language for on-screen text overlays: ${channelLanguage}` : '',
               facelessHint || 'IMPORTANT: Do NOT include the character in technical, abstract, or conceptual video prompts. The character is optional and contextual.',
               'For every video prompt, include ambient sound only and explicitly exclude dialogue and voice-over.',
               JSON.stringify({ character_reference_optional: characterDescription, items: batchItems }, null, 2),
@@ -808,7 +752,7 @@ const generatePromptMap = async ({
   characterMode?: string;
   videoContext?: string;
   videoFormat?: 'avatar' | 'faceless' | 'vlog' | 'catalog';
-  visualBlueprint?: { setting: string; cast: Array<{ name: string; description: string; tag?: string; selected?: boolean }> } | null;
+  visualBlueprint?: { setting: string; cast: Array<{ name: string; tag?: string; description: string; selected?: boolean }> } | null;
   ultraCinematic?: boolean;
   channelLanguage?: string;
 }) => {
@@ -816,65 +760,31 @@ const generatePromptMap = async ({
     ? projectConfig?.gemini_api_model || resolveModel(model)
     : projectConfig?.openai_api_model || resolveModel(model);
 
-  // Reasoning models handle smaller batches more reliably
   const batchSize = isReasoningModel(resolvedModel) ? BATCH_SIZE_REASONING : BATCH_SIZE_DEFAULT;
   const builtInStyles = 'Neon, Clean, Impact, Frost, Gold';
   const projectStyles = projectConfig?.editing_sop?.text_styles || projectConfig?.text_styles || '';
   const textStyles = projectStyles ? `${projectStyles}, ${builtInStyles}` : builtInStyles;
 
   const visualIdentity = projectConfig?.editing_sop?.visual_identity || '';
+  const promptMap = new Map<number, string>();
+  const textoAdicionalMap = new Map<number, any>();
+  const localFallbackRows = new Set<number>();
+
   const dnaBlocks = parseDnaBlocks(characterDescription);
-  const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
   const hasDna = dnaBlocks.hasDna;
-  const activeCastList = (visualBlueprint?.cast || []).filter((c: any) => c && c.selected !== false);
-  const hasActiveCast = activeCastList.length > 0;
 
   let dnaInstructions = '';
   if (hasDna) {
-    const { name: langName } = getLanguageDirectives(channelLanguage);
-    const activeTag = hasActiveCast ? (activeCastList[0]?.tag || activeCastList[0]?.name || '').replace(/^[[\]]+|[[\]]+$/g, '').trim() : '';
-    const channelSetting = visualBlueprint?.setting || visualIdentity || 'Cinematic environment';
-    const channelStyle = sanitizedStyleDna || 'Cinematic documentary realism, 35mm film aesthetic, natural lighting';
-
-    if (hasActiveCast && activeTag) {
-      dnaInstructions = `
-CRITICAL STYLE & SCENE DIRECTIVES (ACTIVE CAST: [${activeTag}]):
-1. For VIDEO assets (asset == "video"):
-   "[${activeTag}] {illustrative action/gesture representing the subtitle text}. Expression: {specific facial expression}. Photorealistic {setting_type} background: {detailed background setting}. Visual style: ${channelStyle}. Camera: medium shot, eye-level. Ambient sound: {diegetic ambient sounds}. No music, no spoken words. ${dnaBlocks.negativeDna || 'No dialogue, no voice-over.'}"
-
-2. For IMAGE assets (asset == "image"):
-   "BACKGROUND — photorealistic {close-up of objects/setting matching the subtitle}. CHARACTER — [${activeTag}] {position in frame, pose, and expression}. EXTRAS_DNA applied: thick bright yellow circle on {target component}; bright yellow arrow pointing at {target component}. TEXT OVERLAY — left third, ALL CAPS, Anton font: {LINE 1} in black medium | {LINE 2} in vivid red large | {LINE 3} in black smaller. Red pill badge: {1-2 WORDS IN ALL CAPS}. All text PT-BR ALL CAPS."
-
-STRICT PROHIBITIONS:
-- NEVER add "📷HyperFrames by HeyGen" or "Motion and lock directive".
-- All TEXT OVERLAYS in images MUST be in ${langName.toUpperCase()}, ALL CAPS, maximum 3-5 words per line.
-The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "...", "protagonista_presente": true, "extras_presentes": false, "texto_adicional": {}}]}
+    dnaInstructions = `
+CRITICAL STYLE DRIFT GUARD (DNA ASSEMBLY MODE ACTIVE):
+This batch of prompts is in DNA assembly mode. Follow these rules strictly:
+1. DO NOT describe the general style, art medium, lighting, camera settings, colors, or character appearance in the prompt.
+2. In the "prompt" property of each item, write ONLY the "CENA" (the unique action scene description in English, 25 to 50 words, present tense, describing a static scene).
+3. In the CENA, refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.
+4. Set the field "protagonista_presente" to true if the protagonist appears in the scene (based on their action, emotion, or narrative role in the subtitle), or false if they are absent.
+5. Set the field "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
+6. The JSON output schema for each prompt MUST strictly be: {"row_number": X, "prompt": "CENA...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}
 `;
-    } else {
-      dnaInstructions = `
-CRITICAL STYLE & SCENE DIRECTIVES (NO ACTIVE CHARACTERS - SCENIC / DOCUMENTARY MODE):
-1. Setting & Visual Style Reference:
-   - Setting: "${channelSetting}"
-   - Art Medium / Style: "${channelStyle}"
-
-2. CAST RESTRICTION (STRICT):
-   - NO ACTIVE CHARACTERS for this theme/channel.
-   - You MUST NOT include any character tags in brackets (NO [Character], NO [Velan], NO [Vizinho]).
-   - Visual scenes MUST focus purely on scenic environment, objects, landscape, tools, nature, hands performing actions, or anonymous documentary perspectives.
-
-3. For VIDEO assets (asset == "video"):
-   "{cinematic visual scene action matching the subtitle text}. Expression/Ambiance: {atmosphere/tone}. Background: {detailed environment matching the channel setting}. Visual style: ${channelStyle}. Camera: {camera movement}. Ambient sound: {diegetic ambient sounds}. No music, no spoken words. ${dnaBlocks.negativeDna || 'No dialogue, no voice-over.'}"
-
-4. For IMAGE assets (asset == "image"):
-   "BACKGROUND — {detailed environment/setting matching the subtitle}. ACTION/SUBJECT — {subject, tools, plants, or hands performing action}. TEXT OVERLAY — left third, ALL CAPS, Anton font: {LINE 1} in black medium | {LINE 2} in vivid red large | {LINE 3} in black smaller. Red pill badge: {1-2 WORDS IN ALL CAPS}. All text PT-BR ALL CAPS."
-
-STRICT PROHIBITIONS:
-- NEVER add "📷HyperFrames by HeyGen" or "Motion and lock directive".
-- NEVER include character tags in brackets when cast is disabled.
-- All TEXT OVERLAYS in images MUST be in ${langName.toUpperCase()}, ALL CAPS, maximum 3-5 words per line.
-The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "...", "protagonista_presente": false, "extras_presentes": false, "texto_adicional": {}}]}
-`;
-    }
   }
 
   // Dynamic hint based on video format (Faceless, Vlog, or Catalog)
@@ -882,26 +792,13 @@ The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt":
     ? 'CATALOG VIDEO MODE: You MUST generate visual prompts styled as clean, premium documentary presentation slides. Follow these guidelines strictly: \n' +
       '1. BACKGROUND: Every prompt must feature a consistent "minimalist off-white textured background" (or clean stucco/paper texture).\n' +
       '2. CARDS/PANELS: Describe subjects, products, maps, or figures as appearing inside "floating rounded-corner panels/cards with soft drop shadows".\n' +
-      '3. LAYOUT VARIATIONS: Vary the layout based on the subtitle context: \n' +
-      '   - Single center card for main focus (e.g. "a centered floating card showing...").\n' +
-      '   - Two cards side-by-side for comparison or context (e.g. "two floating cards side-by-side: the left card showing the city facade, the right card showing a clean vector map of the region").\n' +
-      '   - Three cards side-by-side for recipe ingredients or steps.\n' +
-      '   - Focal emphasis: describe one central card in focus while surrounding cards are blurred.\n' +
-      '4. TEXT OVERLAYS: If a key phrase, name, or date is prominent, describe it as bold black sans-serif text centered on the slide or above the cards (e.g. "bold black text reading [Name] at the top of the slide, above a floating card...").\n' +
-      '5. COMMERCIAL BRANDS/PRODUCTS: If a commercially recognizable product (e.g. Coca-Cola, Nutella, Starbucks) is mentioned, do not write a generic prompt. Instead: \n' +
-      '   - Start the prompt with a marker tag: "[Product Placeholder: Brand Name]"\n' +
-      '   - Describe the product using its iconic packaging shapes and official brand colors (e.g. "classic red glass bottle with white ribbon design", "white paper cup with green circular mermaid logo") alongside the brand name, helping the generator render it accurately while leaving a clear signal for the editor to overlay a real asset if needed.\n' +
-      '6. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances. Banish all human figures, faces, or hands from all prompts.\n' +
-      '7. EXPLICIT TEXT LANGUAGE (NO IMPLICIT TEXT): Any text, titles, labels, or words that should appear written or rendered inside the image or video (such as card titles, labels on diagrams, list points, or slide headers) MUST be explicitly described in the prompt and MUST be written in the language of the script (Portuguese) inside double quotes. Do NOT leave text implicit (e.g. do NOT say "a card showing claims" as this results in English gibberish like "LADDED CLAIMS"; instead say "a card with text reading \'ALEGAÇÕES\'"). Keep the prompt description in English, but define all on-screen written words in Portuguese using: text/label/title reading "...".'
+      '3. STRICT BAN ON HUMANS: Absolutely NO human characters, presenters, hosts, analysts, observers, or people of any kind should appear under any circumstances.\n' +
+      '4. EXPLICIT TEXT LANGUAGE: Any text, titles, or words rendered inside the image/video MUST be in the language of the script inside double quotes.'
     : videoFormat === 'faceless'
-    ? 'FACELESS VIDEO MODE: Banish all modern studio presenters, vloggers, or home office hosts speaking to the camera. However, if the subtitle describes actions or figures of the historical narrative (e.g. Fulgrim, soldiers, knights), you MUST actively represent these characters in your visual prompts in brackets, e.g. [Character Name]!'
+    ? 'FACELESS VIDEO MODE: Banish all modern studio presenters speaking to camera. Describe actions, historical/technical subjects, and concepts.'
     : videoFormat === 'vlog'
-    ? `VLOG VIDEO MODE: The video is a dynamic educational vlog (hand-held camera, selfie style). For video or image prompts involving the presenter, ALWAYS place the recurring character inside the setting. Write the visual prompt in English as a handheld selfie video: "First-person vlog selfie video of ${characterDescription}, looking at the camera, talking dynamically, realistic handheld camera movement (shaky cam, selfie angle), [insert historical/situational background and dynamic actions described in the subtitle], atmospheric lighting." Adjust facial expressions (e.g. amazed, concerned, smiling, intense) to match the emotion of the subtitle text.`
+    ? `VLOG VIDEO MODE: Handheld educational vlog selfie video with dynamic actions and atmospheric lighting.`
     : '';
-
-  const promptMap = new Map<number, string>();
-  const textoAdicionalMap = new Map<number, any>();
-  const localFallbackRows = new Set<number>();
 
   const batches = chunk(items, batchSize);
   const CONCURRENCY = 4;
@@ -937,30 +834,35 @@ The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt":
         const isVisualAsset = item && (item.asset === 'video' || item.asset === 'image');
 
         if (hasDna && isVisualAsset) {
-          let rawP = sanitizePrompt(val.prompt || '');
-          const activeTag = hasActiveCast ? (activeCastList[0]?.tag || activeCastList[0]?.name || '').replace(/^[[\]]+|[[\]]+$/g, '').trim() : '';
-          const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
-          
-          let cleanScene = rawP
-            .replace(/^[[wsÀ-ÿ-]+]s*/g, '')
-            .replace(/^Visual scene:s*/i, '')
-            .trim();
+          let cena = val.prompt || '';
+          const replacement = getProtagonistReplacement(characterMode, characterDescription);
+          cena = cena.replace(/the protagonist/g, replacement);
+          const capitalizedReplacement = replacement.charAt(0).toUpperCase() + replacement.slice(1);
+          cena = cena.replace(/The protagonist/g, capitalizedReplacement);
 
-          let assembledPrompt = '';
-          if (hasActiveCast && activeTag && sanitizedCharDna) {
-            if (item.asset === 'video') {
-              assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: [${activeTag}] ${cleanScene}`;
-            } else {
-              // Image asset
-              assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cleanScene} Camera: static, locked.`;
-            }
-          } else {
-            // NO ACTIVE CAST (pure scenic/documentary)
-            if (item.asset === 'video') {
-              assembledPrompt = `Visual scene: ${cleanScene}`;
-            } else {
-              assembledPrompt = `Visual scene: ${cleanScene} Camera: static, locked.`;
-            }
+          const protPresente = !!val.protagonista_presente;
+          const extPresentes = !!val.extras_presentes;
+          
+          const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
+          const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
+          const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
+
+          let assembledPrompt = cena;
+          // Concat CHARACTER_DNA
+          if (protPresente && sanitizedCharDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedCharDna}`;
+          }
+          // Concat EXTRAS_DNA
+          if (extPresentes && sanitizedExtrasDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedExtrasDna}`;
+          }
+          // Concat STYLE_DNA
+          if (sanitizedStyleDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${sanitizedStyleDna}`;
+          }
+          // Concat NEGATIVE_DNA
+          if (dnaBlocks.negativeDna) {
+            assembledPrompt = `${assembledPrompt.replace(/\.$/, '')}. ${dnaBlocks.negativeDna}`;
           }
           
           promptMap.set(rowNumber, assembledPrompt);

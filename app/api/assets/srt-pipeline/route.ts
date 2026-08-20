@@ -830,29 +830,32 @@ const generatePromptMap = async ({
   let dnaInstructions = '';
   if (hasDna) {
     const { name: langName } = getLanguageDirectives(channelLanguage);
-    const castTagInstructions = hasActiveCast
-      ? `ACTIVE CAST BRACKET RULE: When any character from the active cast below appears or performs an action in the scene, you MUST refer to them using their EXACT bracket tag (e.g. ${activeCastList.map((c: any) => `[${(c.tag || c.name || '').replace(/^[\[\]]+|[\[\]]+$/g, '')}]`).join(', ')}). NEVER write their physical appearance or clothing in the prompt.`
-      : 'Refer to the protagonist strictly as "the protagonist" (e.g., "The protagonist sits at..."). Do NOT describe their face, clothing, hair, age, or glasses.';
+    const activeTag = (activeCastList[0]?.tag || activeCastList[0]?.name || 'Velan').replace(/^[[]]+|[[]]+$/g, '').trim();
 
     dnaInstructions = `
-CRITICAL STYLE & SCENE DIRECTIVES (DNA ASSEMBLY MODE ACTIVE):
+CRITICAL STYLE & SCENE DIRECTIVES (GOOGLEFLOW V6.0 ARCHITECTURE):
+For each subtitle item, generate the prompt adhering strictly to the Googleflow production template:
+
 1. For VIDEO assets (asset == "video"):
-   - Describe the specific illustrative action, diagnostic gesture, or facial emotion of the character/scene matching the subtitle narration.
-   - Example with character: "[Velan] crouching at wheel level beside a car tire, tapping it lightly with one finger, expression of focused diagnostic concentration."
-   - Example with character: "[Velan] inside workshop, standing upright, arms crossed, looking at camera with a serious concerned expression, mouth firmly closed."
-   - Example scene only: "Front suspension wheel well with stabilizer link visibly disconnected, grease mark on lower arm."
+   Write the prompt exactly in this format:
+   "[${activeTag}] {action/gesture representing the subtitle text}. Expression: {specific facial expression}. Photorealistic {setting_type} background: {detailed background setting}. Visual style: 2D comic book illustration composited over photorealistic {setting_type} background. Camera: medium shot, eye-level. Ambient sound: {diegetic ambient sounds}. No music, no spoken words. No talking, no text on screen, no 3D photorealism."
+
+   Example: "[${activeTag}] mimes pressing a gas pedal all the way down while making a brief hesitation gesture with his hand — representing the moment the car loses power mid-acceleration on a highway. Expression: urgent and alerting. Photorealistic highway background: single-lane road with oncoming lane, dramatic daylight. Visual style: 2D comic book illustration composited over photorealistic highway background. Camera: medium shot, eye-level. Ambient sound: highway wind, engine surge then hesitation. No music, no spoken words. No talking, no text on screen, no 3D photorealism."
 
 2. For IMAGE assets (asset == "image"):
-   - Generate a clean 2D graphic card, split panel, or 2D technical diagram illustrating the concept with a SHORT, BOLD ON-SCREEN TEXT OVERLAY IN ${langName.toUpperCase()} (2 to 6 words max in ALL CAPS, optionally separated by |).
-   - Example: "Clean 2D graphic card with bold Portuguese text overlay: PARA TUDO | ANTES DA BORRACHARIA. High-contrast typography, dark garage aesthetic."
-   - Example: "Split comparison panel — LEFT side shows large repair invoice with total amount circled in red. RIGHT side shows a single small wheel balance weight. Bold Portuguese text: ATE 2 MIL REAIS X 30 REAIS. High-contrast red and green typography."
-   - Example: "Clean 2D graphic card showing tire tread — one shoulder bald, other shoulder with deep grooves. Yellow arrow pointing to bald side. Bold Portuguese text: UM LADO MAIS GASTO."
-   - STRICT PROHIBITION: NEVER write paragraphs of English technical reports, fake dates, or complex vehicle evaluation sheets. Keep all text overlays short, punchy, and strictly in ${langName.toUpperCase()}.
+   Write the prompt exactly in this format:
+   "BACKGROUND — photorealistic {close-up of car parts, workshop bench, street, or repair bill}. CHARACTER — [${activeTag}] {position in frame, pose, and expression}. EXTRAS_DNA applied: thick bright yellow circle on {target component}; bright yellow arrow pointing at {target component}. TEXT OVERLAY — left third, ALL CAPS, Anton font: {LINE 1} in black medium | {LINE 2} in vivid red large | {LINE 3} in black smaller. Red pill badge: {1-2 WORDS IN ALL CAPS}. All text PT-BR ALL CAPS."
 
-3. ${castTagInstructions}
-4. Set "protagonista_presente" to true if the protagonist/cast character appears or acts in the scene, or false if absent.
-5. Set "extras_presentes" to true if secondary characters or other human figures are present, or false if absent.
-6. The JSON output schema for each prompt MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "Action or graphic card description...", "protagonista_presente": true/false, "extras_presentes": true/false, "texto_adicional": {}}]}
+   Example: "BACKGROUND — photorealistic close-up of a fuel injector and fuel pump side by side on a workshop bench, grease-stained surface, dramatic overhead LED lighting. CHARACTER — [${activeTag}] right side of frame, jaw dropped pointing at the expensive parts. EXTRAS_DNA applied: thick bright yellow circle isolating the injector; bright yellow arrow pointing at it. TEXT OVERLAY — left third, ALL CAPS, Anton font: BICO INJETOR in black medium | SEISCENTOS A MIL E QUINHENTOS REAIS in vivid red large | DO SEU BOLSO FORA in black smaller. Red pill badge: CUIDADO. All text PT-BR ALL CAPS."
+
+STRICT PROHIBITIONS:
+- NEVER add "📷HyperFrames by HeyGen".
+- NEVER add "Motion and lock directive".
+- NEVER add "Sony Alpha 7R V", "masterpiece, 8K", or photography boilerplates.
+- All TEXT OVERLAYS in images MUST be in Portuguese (PT-BR), ALL CAPS, maximum 3-5 words per line.
+
+Set "protagonista_presente" to true for all character scenes.
+The JSON output schema MUST strictly be: {"prompts":[{"row_number": 1, "prompt": "...", "protagonista_presente": true, "extras_presentes": false, "texto_adicional": {}}]}
 `;
   }
 
@@ -908,44 +911,21 @@ CRITICAL STYLE & SCENE DIRECTIVES (DNA ASSEMBLY MODE ACTIVE):
         const isVisualAsset = item && (item.asset === 'video' || item.asset === 'image');
 
         if (hasDna && isVisualAsset) {
-          let cena = sanitizePrompt(val.prompt || '');
-          const replacement = getProtagonistReplacement(characterMode, characterDescription);
-          cena = cena.replace(/the protagonist/g, replacement);
-          const capitalizedReplacement = replacement.charAt(0).toUpperCase() + replacement.slice(1);
-          cena = cena.replace(/The protagonist/g, capitalizedReplacement);
-
-          const protPresente = !!val.protagonista_presente;
-          const extPresentes = !!val.extras_presentes;
+          let rawP = sanitizePrompt(val.prompt || '');
+          const activeTag = (activeCastList[0]?.tag || activeCastList[0]?.name || 'Velan').replace(/^[[]]+|[[]]+$/g, '').trim();
+          const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna) || 'elderly mechanic cartoon character, bald on top with short white hair on sides, thick full white beard, round glasses, blue mechanic jumpsuit covered in grease stains, 2D comic book illustration flat shading with hard shadows, wrench and colored screwdrivers sticking out of chest pocket, expressive exaggerated emotions';
           
-          const sanitizedCharDna = sanitizeProperNames(dnaBlocks.characterDna);
-          const sanitizedExtrasDna = sanitizeProperNames(dnaBlocks.extrasDna);
-          const sanitizedStyleDna = sanitizeProperNames(dnaBlocks.styleDna);
-          const activeTag = (activeCastList[0]?.tag || activeCastList[0]?.name || '').replace(/^[\[\]]+|[\[\]]+$/g, '').trim();
-          const hasCharacter = protPresente || (hasActiveCast && activeTag && (cena.includes(`[${activeTag}]`) || cena.toLowerCase().includes(activeTag.toLowerCase())));
-          const tagPrefix = activeTag ? `[${activeTag}] ` : '';
-
-          const soundClause = sanitizedExtrasDna
-            ? `Ambient sound: ${sanitizedExtrasDna}. No music, no spoken words.`
-            : 'Ambient sound only, no dialogue, no voice-over.';
-
-          const negClause = dnaBlocks.negativeDna
-            ? dnaBlocks.negativeDna
-            : 'No talking, no dialogue, no voice-over.';
+          let cleanScene = rawP
+            .replace(/^[.*?]s*/, '')
+            .replace(/^Visual scene:s*/i, '')
+            .trim();
 
           let assembledPrompt = '';
           if (item.asset === 'video') {
-            if (hasCharacter && sanitizedCharDna) {
-              assembledPrompt = `${tagPrefix}Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. ${soundClause} ${negClause}`;
-            } else {
-              assembledPrompt = `Visual scene: ${cena}. Camera: static, locked, medium shot. Visual style: ${sanitizedStyleDna}. ${soundClause} ${negClause}`;
-            }
+            assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character throughout the shot; preserve all defining features: identity, anatomy, proportions, ${sanitizedCharDna} — from first frame to last. Visual scene: [${activeTag}] ${cleanScene}`;
           } else {
             // Image asset
-            if (hasCharacter && sanitizedCharDna) {
-              assembledPrompt = `${tagPrefix}Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
-            } else {
-              assembledPrompt = `Visual scene: ${cena}. Visual style: ${sanitizedStyleDna}. Camera: static, locked.`;
-            }
+            assembledPrompt = `[${activeTag}] Use the two supplied character reference images as the sole visual identity authority for this character; preserve all defining features while changing only scene-authorized pose, expression and placement. Visual scene: ${cleanScene} Camera: static, locked.`;
           }
           
           promptMap.set(rowNumber, assembledPrompt);

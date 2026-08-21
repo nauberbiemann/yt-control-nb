@@ -106,11 +106,10 @@ interface ThemeBankProps {
 const THEME_CLOUD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const getThemeMergeKey = (theme: Partial<Theme>) => {
-  if (theme.id) return `id:${theme.id}`;
   const semanticTitle = (theme.refined_title || theme.title || '').trim().toLowerCase();
-  const semanticStructure = (theme.title_structure || '').trim().toLowerCase();
-  if (!semanticTitle) return '';
-  return `semantic:${semanticTitle}:${semanticStructure}`;
+  if (semanticTitle) return `title:${semanticTitle}`;
+  if (theme.id) return `id:${theme.id}`;
+  return '';
 };
 
 const emptyTheme: Omit<Theme, 'id' | 'created_at'> = {
@@ -664,17 +663,64 @@ export default function ThemeBank({ activeProject: propProject, userId, selected
          console.warn('[ThemeBank] Falha ao buscar nuvem (Timeout/Network); mantendo cache local.', error.message);
       } else {
          const rawCloudThemes = (data ?? []).map((t: Theme) => normalizeThemeScheduleStatus(t));
-         const cloudThemes = filterThemesByProjectDomain(rawCloudThemes, activeProject);
+
+         // 🛡️ Deduplicate rawCloudThemes by title to eliminate database duplicate records
+         const dedupedCloudMap = new Map<string, Theme>();
+         const duplicateCloudIdsToDelete: string[] = [];
+
+         rawCloudThemes.forEach((t: Theme) => {
+           const normTitle = (t.refined_title || t.title || '').trim().toLowerCase();
+           if (!normTitle) {
+             if (t.id) dedupedCloudMap.set(`id:${t.id}`, t);
+             return;
+           }
+           const existing = dedupedCloudMap.get(`title:${normTitle}`);
+           if (!existing) {
+             dedupedCloudMap.set(`title:${normTitle}`, t);
+           } else {
+             // Choose which record to keep (prefer the one with execution_snapshot or newer date)
+             const existingHasSnapshot = !!existing.production_assets?.execution_snapshot;
+             const tHasSnapshot = !!t.production_assets?.execution_snapshot;
+
+             if (tHasSnapshot && !existingHasSnapshot) {
+               if (existing.id && existing.id !== t.id) duplicateCloudIdsToDelete.push(existing.id);
+               dedupedCloudMap.set(`title:${normTitle}`, t);
+             } else {
+               if (t.id && t.id !== existing.id) duplicateCloudIdsToDelete.push(t.id);
+               if (tHasSnapshot) {
+                 existing.production_assets = {
+                   ...t.production_assets,
+                   ...existing.production_assets,
+                 };
+               }
+             }
+           }
+         });
+
+         // 🧹 Clean up stale duplicate records from remote database in background
+         if (duplicateCloudIdsToDelete.length > 0 && supabase) {
+           console.log(`[ThemeBank] 🧹 Limpando ${duplicateCloudIdsToDelete.length} temas duplicados no banco remoto...`, duplicateCloudIdsToDelete);
+           supabase.from('themes').delete().in('id', duplicateCloudIdsToDelete).then(({ error: delErr }: any) => {
+             if (delErr) console.warn('[ThemeBank] Erro ao deletar duplicados remotos:', delErr);
+             else console.log('[ThemeBank] ✅ Duplicados remotos removidos com sucesso.');
+           });
+         }
+
+         const cleanedCloudThemes = Array.from(dedupedCloudMap.values());
+         const cloudThemes = filterThemesByProjectDomain(cleanedCloudThemes, activeProject);
          const mergedThemes = filterThemesByProjectDomain(mergeThemes(localThemes, cloudThemes), activeProject);
          
          // ⬆️ AUTO-PUSH UNSYNCED OR ENRICHED ITEMS TO CLOUD
          const cloudIds = new Set(cloudThemes.map((c: any) => c.id));
+         const cloudTitles = new Set(cloudThemes.map((c: any) => (c.refined_title || c.title || '').trim().toLowerCase()));
          const unsyncedItems = localThemes.filter(l => {
            if (!l.id) return false;
+           const normTitle = (l.refined_title || l.title || '').trim().toLowerCase();
+           const isPresentInCloud = cloudIds.has(l.id) || (normTitle && cloudTitles.has(normTitle));
            // Case A: Theme is not present in the cloud at all
-           if (!cloudIds.has(l.id)) return true;
+           if (!isPresentInCloud) return true;
            // Case B: Theme is present, but local has execution_snapshot while remote does not
-           const remote = cloudThemes.find((c: Theme) => c.id === l.id);
+           const remote = cloudThemes.find((c: Theme) => c.id === l.id || (normTitle && (c.refined_title || c.title || '').trim().toLowerCase() === normTitle));
            const localHasSnapshot = !!l.production_assets?.execution_snapshot;
            const remoteHasSnapshot = !!remote?.production_assets?.execution_snapshot;
            return localHasSnapshot && !remoteHasSnapshot;

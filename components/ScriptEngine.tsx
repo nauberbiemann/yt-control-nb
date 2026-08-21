@@ -2353,16 +2353,30 @@ Adapte e enriqueça os detalhes em inglês para o tema atual. Não adicione expl
 
       if (remoteId) {
         await supabase.from('themes').update(cloudThemePayload).eq('id', remoteId);
+        if (themeIndex >= 0 && nextThemes[themeIndex].id !== remoteId) {
+          nextThemes[themeIndex].id = remoteId;
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(nextThemes));
+          } catch {}
+        }
+        if (typeof window !== 'undefined' && activeProject?.id) {
+          sessionStorage.setItem(`active_script_theme_${activeProject.id}`, remoteId);
+        }
       } else {
+        const newId = themePayload.id;
         await supabase.from('themes').insert({
           ...cloudThemePayload,
-          id: existingTheme?.id || crypto.randomUUID(),
+          id: newId,
           created_at: new Date().toISOString(),
         });
+        if (typeof window !== 'undefined' && activeProject?.id) {
+          sessionStorage.setItem(`active_script_theme_${activeProject.id}`, newId);
+        }
       }
 
-      if (themeId && executionSnapshot && !(executionSnapshot as any)._isCompact && (executionSnapshot.externalSrtPipeline || executionSnapshot.postScriptPackage)) {
-        await upsertScriptExecution(themeId, executionSnapshot);
+      const canonicalThemeId = remoteId || themeId;
+      if (canonicalThemeId && executionSnapshot && !(executionSnapshot as any)._isCompact && (executionSnapshot.externalSrtPipeline || executionSnapshot.postScriptPackage)) {
+        await upsertScriptExecution(canonicalThemeId, executionSnapshot);
         console.log('[ScriptEngine] Sincronizado snapshot completo do tema em script_executions na nuvem.');
       }
     } catch (error) {

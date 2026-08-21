@@ -1860,6 +1860,9 @@ export default function Home() {
             initialExpandedStatus={themeBankInitialStatus}
             onGerarRoteiro={handleGerarRoteiro}
             onOpenInWriting={(theme) => {
+              if (activeProject?.id && theme?.id) {
+                sessionStorage.setItem(`active_script_theme_${activeProject.id}`, theme.id);
+              }
               setPendingScript(theme ?? null);
               setCurrentView('scripts');
             }}

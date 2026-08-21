@@ -80,11 +80,10 @@ const normalizeTheme = (theme: Theme): Theme => ({
 });
 
 const getThemeMergeKey = (theme: Partial<Theme>) => {
-  if (theme.id) return `id:${theme.id}`;
   const semanticTitle = (theme.refined_title || theme.title || '').trim().toLowerCase();
-  const semanticStructure = (theme.title_structure || '').trim().toLowerCase();
-  if (!semanticTitle) return '';
-  return `semantic:${semanticTitle}:${semanticStructure}`;
+  if (semanticTitle) return `title:${semanticTitle}`;
+  if (theme.id) return `id:${theme.id}`;
+  return '';
 };
 
 const mergeThemes = (localItems: Theme[], remoteItems: Theme[]) => {
